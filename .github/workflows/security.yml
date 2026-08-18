@@ -1,0 +1,59 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Audit dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: ESLint Cultural
+        run: npm run lint -w max-cultural-app --if-present
+        continue-on-error: true
+      - name: ESLint Origem
+        run: npm run lint -w max-origem --if-present
+        continue-on-error: true
+      - name: ESLint Fluxo
+        run: npm run lint -w max-fluxo --if-present
+        continue-on-error: true
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
+
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - run: semgrep ci --config auto --error --exclude node_modules --exclude .next
+        continue-on-error: true

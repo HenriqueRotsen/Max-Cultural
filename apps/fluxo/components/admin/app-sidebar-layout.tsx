@@ -1,0 +1,386 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  BarChart3,
+  FolderTree,
+  LogOut,
+  MapPinned,
+  Menu,
+  ScrollText,
+  Shield,
+  Upload,
+  UserCircle,
+  UserRoundSearch,
+  Users,
+  LayoutDashboard,
+  X,
+} from "lucide-react";
+import { logoutAction } from "@/app/actions/auth";
+import { BrandLogo } from "@/components/brand-logo";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+type NavItem = {
+  href: string;
+  label: string;
+  match: (p: string) => boolean;
+  permission?: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+type NavGroup = {
+  id: string;
+  label: string;
+  items: NavItem[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "operacao",
+    label: "Operação",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Base",
+        match: (p) => p === "/dashboard",
+        permission: "inscricoes:read",
+        icon: LayoutDashboard,
+      },
+      {
+        href: "/dashboard/analise",
+        label: "Análise",
+        match: (p) => p.startsWith("/dashboard/analise"),
+        permission: "analise:read",
+        icon: BarChart3,
+      },
+      {
+        href: "/dashboard/contextos",
+        label: "Contextos",
+        match: (p) => p.startsWith("/dashboard/contextos"),
+        permission: "contextos:read",
+        icon: FolderTree,
+      },
+      {
+        href: "/dashboard/importar",
+        label: "Importar",
+        match: (p) => p.startsWith("/dashboard/importar"),
+        permission: "import:write",
+        icon: Upload,
+      },
+    ],
+  },
+  {
+    id: "consultas",
+    label: "Consultas",
+    items: [
+      {
+        href: "/pessoa",
+        label: "CPF",
+        match: (p) => p.startsWith("/pessoa"),
+        permission: "consultas:cpf",
+        icon: UserRoundSearch,
+      },
+      {
+        href: "/territorio",
+        label: "Território",
+        match: (p) => p.startsWith("/territorio"),
+        permission: "consultas:territorio",
+        icon: MapPinned,
+      },
+    ],
+  },
+  {
+    id: "acesso",
+    label: "Acesso",
+    items: [
+      {
+        href: "/dashboard/acesso/usuarios",
+        label: "Usuários",
+        match: (p) => p.startsWith("/dashboard/acesso/usuarios"),
+        permission: "usuarios:read",
+        icon: Users,
+      },
+      {
+        href: "/dashboard/acesso/papeis",
+        label: "Papéis",
+        match: (p) => p.startsWith("/dashboard/acesso/papeis"),
+        permission: "roles:read",
+        icon: Shield,
+      },
+      {
+        href: "/dashboard/acesso/auditoria",
+        label: "Auditoria",
+        match: (p) => p.startsWith("/dashboard/acesso/auditoria"),
+        permission: "audit:read",
+        icon: ScrollText,
+      },
+    ],
+  },
+  {
+    id: "conta",
+    label: "Conta",
+    items: [
+      {
+        href: "/dashboard/perfil",
+        label: "Perfil",
+        match: (p) => p.startsWith("/dashboard/perfil"),
+        icon: UserCircle,
+      },
+    ],
+  },
+];
+
+const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM === "true";
+
+function filterGroups(permissions: string[] | null): NavGroup[] {
+  return NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      if (hideAcesso && group.id === "acesso") return false;
+      if (!item.permission || permissions === null) return true;
+      return permissions.includes(item.permission);
+    }),
+  })).filter((group) => group.items.length > 0);
+}
+
+function SidebarNav({
+  permissions,
+  onNavigate,
+}: {
+  permissions: string[] | null;
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const groups = filterGroups(permissions);
+
+  return (
+    <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
+      {groups.map((group) => (
+        <div key={group.id}>
+          <p className="mb-1.5 px-2.5 text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
+            {group.label}
+          </p>
+          <ul className="space-y-0.5">
+            {group.items.map((item) => {
+              const active = item.match(pathname);
+              const Icon = item.icon;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={onNavigate}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                      active
+                        ? "bg-brand-soft font-medium text-brand-deep"
+                        : "text-foreground/80 hover:bg-brand-mist hover:text-foreground",
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "size-4 shrink-0",
+                        active ? "text-brand" : "text-muted-foreground",
+                      )}
+                    />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function SidebarPanel({
+  permissions,
+  userName,
+  userEmail,
+  roleName,
+  onNavigate,
+  className,
+}: {
+  permissions: string[] | null;
+  userName: string;
+  userEmail: string;
+  roleName?: string;
+  onNavigate?: () => void;
+  className?: string;
+}) {
+  return (
+    <aside
+      className={cn(
+        "flex h-full w-[240px] flex-col border-r border-[var(--border,#e8eaef)] bg-white",
+        className,
+      )}
+    >
+      <div className="flex items-center px-5 py-5">
+        <BrandLogo
+          tone="light"
+          href="/dashboard"
+          markSize={40}
+          showTagline={false}
+          className="min-w-0"
+        />
+      </div>
+
+      <SidebarNav permissions={permissions} onNavigate={onNavigate} />
+
+        <div className="mt-auto border-t border-[var(--border,#e8eaef)] px-5 py-4 space-y-3">
+        <div className="mb-1">
+          <p className="truncate text-sm font-medium text-foreground">
+            {userName}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
+          {roleName ? (
+            <p className="mt-0.5 truncate text-[11px] text-brand">{roleName}</p>
+          ) : null}
+        </div>
+        <form action={logoutAction}>
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2"
+          >
+            <LogOut className="size-3.5" />
+            Sair
+          </Button>
+        </form>
+      </div>
+    </aside>
+  );
+}
+
+export type AppSidebarLayoutProps = {
+  userName: string;
+  userEmail: string;
+  roleName?: string;
+  /** codes de permissão; null = mostrar tudo */
+  permissions: string[] | null;
+  title?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+  mainClassName?: string;
+  contentClassName?: string;
+};
+
+/** Layout autenticado: sidebar fixa (desktop) + drawer (mobile). */
+export function AppSidebarLayout({
+  userName,
+  userEmail,
+  roleName,
+  permissions,
+  title: _title,
+  actions,
+  children,
+  mainClassName,
+  contentClassName,
+}: AppSidebarLayoutProps) {
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  return (
+    <div className="min-h-screen bg-[#f5f6f8]">
+      {/* Desktop sidebar */}
+      <div className="fixed inset-y-0 left-0 z-30 hidden md:block">
+        <SidebarPanel
+          permissions={permissions}
+          userName={userName}
+          userEmail={userEmail}
+          roleName={roleName}
+        />
+      </div>
+
+      {/* Mobile drawer */}
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            className="absolute inset-0 bg-brand-deep/25 backdrop-blur-[2px]"
+            onClick={() => setMobileOpen(false)}
+          />
+          <div className="absolute inset-y-0 left-0 shadow-xl animate-in slide-in-from-left duration-200">
+            <SidebarPanel
+              permissions={permissions}
+              userName={userName}
+              userEmail={userEmail}
+              roleName={roleName}
+              onNavigate={() => setMobileOpen(false)}
+              className="relative"
+            />
+            <button
+              type="button"
+              aria-label="Fechar"
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-3 right-3 rounded-md p-1.5 text-muted-foreground hover:bg-brand-mist hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="md:pl-[240px]">
+        {/* Só no mobile: abrir o menu lateral */}
+        <div className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-brand/10 bg-white/70 px-4 backdrop-blur-md md:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label="Abrir menu"
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu className="size-4" />
+          </Button>
+          <BrandLogo
+            tone="light"
+            markSize={28}
+            wordmarkHeight={16}
+            showTagline={false}
+          />
+          {actions ? (
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {actions}
+            </div>
+          ) : null}
+        </div>
+
+        {actions ? (
+          <div className="hidden justify-end px-4 pt-6 sm:px-6 md:flex">
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          </div>
+        ) : null}
+
+        <main
+          className={cn(
+            "px-4 py-6 sm:px-6",
+            contentClassName,
+            mainClassName,
+          )}
+        >
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

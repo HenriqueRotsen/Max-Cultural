@@ -1,0 +1,15 @@
+{
+  "name": "max-cultural",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:cultural": "npm run dev -w max-cultural-app",
+    "dev:origem": "npm run dev -w max-origem",
+    "dev:fluxo": "npm run dev -w max-fluxo",
+    "lint": "npm run lint -w max-cultural-app --if-present && npm run lint -w max-origem --if-present && npm run lint -w max-fluxo --if-present",
+    "audit": "npm audit --omit=dev --audit-level=high"
+  }
+}

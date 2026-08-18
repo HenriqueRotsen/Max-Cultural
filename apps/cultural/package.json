@@ -1,0 +1,45 @@
+{
+  "name": "max-cultural-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "prisma generate && next build",
+    "start": "next start --port 3000",
+    "lint": "eslint",
+    "db:migrate": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:seed": "tsx scripts/seed.ts",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@max/auth": "*",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.4.2",
+    "next": "16.3.0",
+    "otpauth": "^9.5.1",
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "resend": "^6.19.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/pg": "^8.21.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "prisma": "^7.9.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}

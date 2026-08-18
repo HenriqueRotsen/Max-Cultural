@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Inscricao {
+  id                      String   @id @default(cuid())
+  contextoId              String?  @map("contexto_id")
+  nomeContexto            String   @default("") @map("Nome_contexto")
+  idProjeto               String   @map("id_projeto")
+  idOficina               String   @map("id_oficina")
+  proponente              String   @map("PROPONENTE")
+  pronac                  String   @map("PRONAC")
+  nomeProjeto             String   @map("Nome_projeto")
+  identificacaoAnoProjeto String   @map("Identificacao_ano_projeto")
+  nomeOficina             String   @map("Nome_oficina")
+  dataInscricao           String   @map("Data_inscricao")
+  nome                    String   @map("Nome")
+  apelido                 String   @default("") @map("Apelido")
+  cpf                     String   @map("CPF")
+  dataNascimento          String   @default("") @map("Data_nascimento")
+  genero                  String   @default("") @map("Genero")
+  etnia                   String   @default("") @map("Etnia")
+  email                   String   @default("") @map("E-mail")
+  telefone                String   @default("") @map("Telefone")
+  possuiDeficiencia       String   @default("Não") @map("Possui_deficiencia")
+  restricaoAlimentar      String   @default("") @map("RestricaoAlimentar")
+  ficouSabendo            String   @default("") @map("Ficousabendo")
+  lougradouro             String   @default("") @map("Lougradouro")
+  numero                  String   @default("") @map("Numero")
+  complemento             String   @default("") @map("Complemento")
+  bairro                  String   @default("") @map("Bairro")
+  cep                     String   @default("") @map("CEP")
+  cidade                  String   @default("") @map("Cidade")
+  estado                  String   @default("") @map("Estado")
+  redesocial              String   @default("") @map("Redesocial")
+  escolaridade            String   @default("") @map("Escolaridade")
+  idadeAtual              Int?     @map("idade_atual")
+  idadeInscricao          Int?     @map("idade_inscricao")
+  territorio              String   @default("") @map("Territorio")
+  inscritos               Int      @default(1) @map("Inscritos")
+  selecionados            Int      @default(0) @map("Selecionados")
+  participantes           Int      @default(0) @map("Participantes")
+  certificado             Int      @default(0) @map("Certificado")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([contextoId])
+  @@index([idProjeto])
+  @@index([idOficina])
+  @@index([pronac])
+  @@index([cpf])
+  @@index([estado])
+  @@index([cidade])
+  @@index([territorio])
+  @@map("inscricoes")
+}
+
+model Contexto {
+  id        String    @id @default(cuid())
+  nome      String    @default("")
+  projetos  Projeto[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("contextos")
+}
+
+model Projeto {
+  id         String   @id
+  nome       String
+  pronac     String
+  proponente String   @default("")
+  ano        String   @default("")
+  contextoId String
+  contexto   Contexto @relation(fields: [contextoId], references: [id], onDelete: Restrict)
+  oficinas   Oficina[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([contextoId])
+  @@index([pronac])
+  @@map("projetos")
+}
+
+model Oficina {
+  id        String   @id
+  nome      String
+  projetoId String
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projetoId])
+  @@map("oficinas")
+}
+
+model GeoCache {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  cidade      String
+  estado      String
+  lat         Float
+  lng         Float
+  displayName String   @default("")
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([estado])
+  @@map("geo_cache")
+}
+
+enum DataScopeMode {
+  ALL
+  LIMITED
+}
+
+enum PermissionEffect {
+  GRANT
+  DENY
+}
+
+enum DataScopeKind {
+  CONTEXTO
+  PROJETO
+  OFICINA
+}
+
+/** Nível de acesso no recurso. NONE = bloqueio explícito sob ancestral liberado. */
+enum DataScopeAccess {
+  NONE
+  VIEWER
+  EDITOR
+}
+
+enum EmailOtpPurpose {
+  LOGIN_2FA
+}
+
+model User {
+  id                 String        @id @default(cuid())
+  email              String        @unique
+  name               String
+  passwordHash       String
+  roleId             String
+  role               Role          @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  /** Acesso privilegiado fora do catálogo de papéis (bootstrap). */
+  isSuperAdmin       Boolean       @default(false)
+  dataScopeMode      DataScopeMode @default(LIMITED)
+  mustChangePassword Boolean       @default(true)
+  totpSecretEnc      String?
+  totpEnabled        Boolean       @default(false)
+  sessionVersion     Int           @default(1)
+  deactivatedAt      DateTime?
+  lastLoginAt        DateTime?
+  createdById        String?
+  createdBy          User?         @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers       User[]        @relation("UserCreatedBy")
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  permissions      UserPermission[]
+  dataScopes       UserDataScope[]
+  sessions         AuthSession[]
+  passwordResets   PasswordResetToken[]
+  emailOtps        EmailOtp[]
+  auditLogs        AuditLog[]           @relation("AuditActor")
+
+  @@index([roleId])
+  @@index([deactivatedAt])
+  @@map("users")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  label       String
+  group       String
+  description String   @default("")
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@map("permissions")
+}
+
+model Role {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  description   String        @default("")
+  isSystem      Boolean       @default(false)
+  /** Escopo padrão de dados para usuários deste papel (se o usuário não tiver escopo próprio). */
+  dataScopeMode DataScopeMode @default(LIMITED)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  permissions RolePermission[]
+  dataScopes  RoleDataScope[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RoleDataScope {
+  id         String          @id @default(cuid())
+  roleId     String
+  kind       DataScopeKind
+  resourceId String
+  access     DataScopeAccess @default(VIEWER)
+  role       Role            @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+
+  @@unique([roleId, kind, resourceId])
+  @@index([roleId])
+  @@map("role_data_scopes")
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  effect       PermissionEffect
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model UserDataScope {
+  id         String          @id @default(cuid())
+  userId     String
+  kind       DataScopeKind
+  resourceId String
+  access     DataScopeAccess @default(VIEWER)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+
+  @@unique([userId, kind, resourceId])
+  @@index([userId])
+  @@map("user_data_scopes")
+}
+
+model AuthSession {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailOtp {
+  id        String         @id @default(cuid())
+  userId    String
+  purpose   EmailOtpPurpose
+  codeHash  String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("email_otps")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorUserId String?
+  actor      User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String   @default("")
+  entityId   String   @default("")
+  meta       Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  passwordHash       String
+  roleId             String
+  role               Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  isSuperAdmin       Boolean   @default(false)
+  mustChangePassword Boolean   @default(true)
+  totpSecretEnc      String?
+  totpEnabled        Boolean   @default(false)
+  sessionVersion     Int       @default(1)
+  deactivatedAt      DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  auditLogs      AuditLog[]
+  passwordResets PasswordResetToken[]
+  invitesSent    InviteToken[]        @relation("InviteCreatedBy")
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String           @default("")
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId  String
+  screen  String
+  canView Boolean @default(true)
+  canEdit Boolean @default(false)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, screen])
+  @@map("role_permissions")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  screen      String   @default("")
+  entityType  String   @default("")
+  entityId    String   @default("")
+  meta        Json?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model InviteToken {
+  id          String    @id @default(cuid())
+  email       String
+  roleId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String?
+  createdBy   User?     @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+  @@map("invite_tokens")
+}

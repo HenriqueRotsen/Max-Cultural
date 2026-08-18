@@ -1,0 +1,440 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PaymentSource {
+  api
+  crawler
+}
+
+enum SyncRunStatus {
+  pending
+  running
+  success
+  error
+  partial
+}
+
+enum PersonType {
+  PJ
+  PF
+  MEI
+}
+
+enum RelatedPartyRelation {
+  SPOUSE
+  COMPANION
+  LINEAL_KIN
+  COLLATERAL_2ND
+  /** Parente em 3º grau (ex.: tio, sobrinho) */
+  COLLATERAL_3RD
+  AFFINITY
+  /** Legado — não oferecer na UI */
+  PARTNER
+  AFFILIATED_COMPANY
+  COMMON_PARTNER
+  /** Casal (cônjuges/companheiros) sócios nas duas empresas */
+  COUPLE_PARTNERS
+  /** Legado — migrado para COMMON_PARTNER / AFFILIATED_COMPANY */
+  CORPORATE_MEMBER
+  /** Legado — migrado para PROPONENT_PF / PROPONENT_PJ */
+  PROPONENT
+  PROPONENT_PF
+  PROPONENT_PJ
+  /** Diretor(a) de entidade do terceiro setor — não gera vínculo art. 23 */
+  DIRECTOR_THIRD_SECTOR
+  /** Mesmo endereço cadastral */
+  SAME_ADDRESS
+  /** Legado — tratado como sem vínculo na UI */
+  OTHER
+}
+
+enum RulesetStatus {
+  active
+  draft
+  superseded
+  archived
+}
+
+enum RulesetSource {
+  ai
+  manual
+  default
+}
+
+enum AppUserRole {
+  ADMIN
+  USER
+}
+
+enum AppPlan {
+  ESSENTIAL
+  PRO
+}
+
+/** Espaço do cliente: plano, limite de contas e dados isolados. */
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  plan        AppPlan  @default(ESSENTIAL)
+  /** Limite de contas SALIC. Essencial força 1; Pro é definido pelo admin. */
+  maxAccounts Int      @default(1)
+  /**
+   * Overrides de vínculo art. 23 por IN:
+   * { [rulesetVersion]: RelationKind[] }
+   */
+  relationBondOverrides Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users            AppUser[]
+  accounts         SalicAccount[]
+  watchedSuppliers WatchedSupplier[]
+  observadoBonds   ObservadoBond[]
+
+  @@index([plan])
+}
+
+/** Perfil do usuário autenticado (Supabase Auth). */
+model AppUser {
+  id                 String      @id
+  email              String      @unique
+  name               String?
+  role               AppUserRole @default(USER)
+  /** Exige troca na próxima entrada (senha temporária do admin). */
+  mustChangePassword Boolean     @default(false)
+  active             Boolean     @default(true)
+  /** Contato comercial do usuário / cliente */
+  contactEmail       String      @default("")
+  contactPhone       String      @default("")
+  addressZip         String      @default("")
+  addressStreet      String      @default("")
+  addressNumber      String      @default("")
+  addressComplement  String?
+  addressNeighborhood String     @default("")
+  addressCity        String      @default("")
+  /** UF (2 letras) */
+  addressState       String      @default("")
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  createdById        String?
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([role])
+  @@index([active])
+  @@index([workspaceId])
+}
+
+model SalicAccount {
+  id               String     @id @default(cuid())
+  name             String
+  cgccpf           String
+  /** Login SALIC criptografado em repouso (AES-256-GCM) */
+  salicUsernameEnc String?
+  /** Senha SALIC criptografada em repouso (AES-256-GCM) */
+  salicPasswordEnc String?
+  /** PRONACs extras (vírgula/espaço), úteis quando a API não lista o projeto no CNPJ */
+  extraPronacs     String?
+  /** PJ = teto 20%; PF/MEI = teto 30% (art. 23 §2º II) */
+  personType       PersonType @default(PJ)
+  active           Boolean    @default(true)
+  /** Data de abertura da empresa — âncora dos intervalos do mapa */
+  foundedAt            DateTime?
+  foundedAtPrecision   DatePrecision  @default(DAY)
+  foundedAtSource      String?
+  /** OSC: mapa organizacional e papéis sempre administrador (sem “sócio/societário”). */
+  institutionalMap     Boolean        @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  projects           Project[]
+  syncRuns           SyncRun[]
+  relatedParties     RelatedParty[]
+  corporatePeriods   CorporatePeriod[]
+  observadoBonds     ObservadoBond[]
+
+  @@unique([workspaceId, cgccpf])
+  @@index([active])
+  @@index([workspaceId])
+}
+
+/**
+ * Aresta explícita A ↔ B:
+ * - A = proponente da SalicAccount (salicAccountId)
+ * - B = pessoa/empresa (cgccpf + name)
+ * - relation = tipo do vínculo de B em relação a A
+ */
+model RelatedParty {
+  id                        String               @id @default(cuid())
+  /** Lado B — documento da pessoa/empresa vinculada */
+  cgccpf                    String
+  /** Lado B — nome */
+  name                      String
+  /** Tipo do vínculo B → A (proponente) */
+  relation                  RelatedPartyRelation @default(OTHER)
+  /** Nota livre — ex.: nomes do casal sócio */
+  notes                     String?
+  /** Entra no teto do proponente (art. 23 §1º) */
+  countsTowardProponentCap  Boolean              @default(true)
+  /** Exceção art. 23 §2º I — grupo artístico familiar/coletivo */
+  artisticGroupException    Boolean              @default(false)
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+
+  /** Lado A — conta/proponente */
+  salicAccountId String
+  salicAccount   SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([salicAccountId, cgccpf])
+  @@index([cgccpf])
+}
+
+model Project {
+  id             String    @id @default(cuid())
+  pronac         String
+  name           String?
+  salicProjectId String?
+  /** Valor captado no SALIC (base dos % de conformidade) */
+  valorCaptado   Decimal?  @db.Decimal(14, 2)
+  /** Valor aprovado no SALIC (referência) */
+  valorAprovado  Decimal?  @db.Decimal(14, 2)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  /** IN escolhida para este PRONAC (1× IA ou override manual) */
+  complianceRulesetId String?
+  complianceRuleset   ComplianceRuleset? @relation(fields: [complianceRulesetId], references: [id], onDelete: SetNull)
+  rulesetSource       RulesetSource?
+  rulesetChosenAt     DateTime?
+  rulesetRationale    String?            @db.Text
+  /** Se true, sync não sobrescreve a IN */
+  rulesetLocked       Boolean            @default(true)
+  /** Snapshot de problemas/recomendações da última análise */
+  auditBrief          Json?
+
+  salicAccountId String
+  salicAccount   SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
+  payments       Payment[]
+
+  @@unique([salicAccountId, pronac])
+  @@index([pronac])
+  @@index([complianceRulesetId])
+}
+
+enum DatePrecision {
+  DAY
+  MONTH
+  YEAR
+}
+
+enum CorporateRole {
+  PARTNER
+  ADMINISTRATOR
+  BOTH
+}
+
+model Supplier {
+  id                   String         @id @default(cuid())
+  cgccpf               String
+  name                 String
+  email                String?
+  salicId              String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  payments             Payment[]
+  watchedSuppliers     WatchedSupplier[]
+
+  @@unique([cgccpf])
+  @@index([name])
+}
+
+model CorporatePeriod {
+  id                 String         @id @default(cuid())
+  salicAccountId     String
+  /** Início do intervalo (≥ abertura da empresa) */
+  validFrom          DateTime
+  validFromPrecision DatePrecision  @default(DAY)
+  /** Fim do intervalo; null = composição ainda vigente */
+  validTo            DateTime?
+  validToPrecision   DatePrecision  @default(DAY)
+  /** Nota opcional — ex.: “após alteração contratual” */
+  label              String?
+  source             String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  salicAccount SalicAccount            @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
+  members      CorporatePeriodMember[]
+
+  @@index([salicAccountId])
+  @@index([validFrom])
+}
+
+model CorporatePeriodMember {
+  id         String        @id @default(cuid())
+  periodId   String
+  name       String
+  /** CPF (PF) ou CNPJ (PJ) — pode ficar vazio se veio incompleto da API */
+  cgccpf     String        @default("")
+  /** Membro pode ser pessoa física ou jurídica */
+  personType PersonType    @default(PF)
+  role       CorporateRole @default(PARTNER)
+  sharePct   Decimal?      @db.Decimal(7, 4)
+  source     String?
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  period CorporatePeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([periodId])
+  @@index([cgccpf])
+}
+
+model Payment {
+  id                   String        @id @default(cuid())
+  externalId           String?
+  source               PaymentSource
+  itemName             String?
+  documentType         String?
+  documentNumber       String?
+  paymentDate          DateTime?
+  approvalDate         DateTime?
+  paymentMethod        String?
+  paymentDocumentNumber String?
+  amount               Decimal       @db.Decimal(14, 2)
+  fileId               String?
+  fileName             String?
+  justification        String?
+  planilhaAprovacaoId  String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([source, externalId])
+  @@index([supplierId])
+  @@index([projectId])
+  @@index([paymentDate])
+}
+
+/** Lista de observação do workspace — vínculo art. 23 fica em ObservadoBond. */
+model WatchedSupplier {
+  id         String   @id @default(cuid())
+  label      String?
+  cgccpf     String?
+  nameQuery  String?
+  createdAt  DateTime @default(now())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([cgccpf])
+  @@index([nameQuery])
+  @@index([workspaceId])
+}
+
+/**
+ * Vínculo on/off do observado com um proponente sob uma IN.
+ * Compartilhado por todos os PRONACs daquela conta com a mesma rulesetVersion.
+ */
+model ObservadoBond {
+  id             String   @id @default(cuid())
+  cgccpf         String
+  rulesetVersion String
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspaceId    String
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  salicAccountId String
+  salicAccount   SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([salicAccountId, cgccpf, rulesetVersion])
+  @@index([workspaceId])
+  @@index([cgccpf])
+  @@index([rulesetVersion])
+}
+
+model SyncRun {
+  id               String        @id @default(cuid())
+  status           SyncRunStatus @default(pending)
+  forceCrawler     Boolean       @default(false)
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  projectsSynced   Int           @default(0)
+  paymentsUpserted Int           @default(0)
+  progressCurrent  Int           @default(0)
+  progressTotal    Int           @default(0)
+  progressMessage  String?
+  errorMessage     String?
+  log              String?
+  /** Fila de trabalho para sync em fatias (Vercel-friendly) */
+  workState        Json?
+  createdAt        DateTime      @default(now())
+
+  salicAccountId String?
+  salicAccount   SalicAccount? @relation(fields: [salicAccountId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/** Pacote operacional de tetos (histórico + vigente) */
+model ComplianceRuleset {
+  id                 String        @id @default(cuid())
+  version            String        @unique
+  sourceCode         String
+  sourceUrl          String
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  caps               Json
+  legalSummary       String?       @db.Text
+  jurisprudenceNotes String?       @db.Text
+  contentHash        String?
+  status             RulesetStatus @default(draft)
+  needsReview        Boolean       @default(false)
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  projects Project[]
+
+  @@index([status])
+  @@index([effectiveFrom])
+  @@index([createdAt])
+}
+
+/** Snapshot do texto oficial baixado do gov.br */
+model NormDocumentSnapshot {
+  id          String   @id @default(cuid())
+  url         String
+  title       String?
+  contentHash String
+  rawText     String   @db.Text
+  fetchedAt   DateTime @default(now())
+  changed     Boolean  @default(false)
+  notes       String?
+
+  @@index([contentHash])
+  @@index([fetchedAt])
+}

@@ -1,0 +1,51 @@
+{
+  "name": "max-origem",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "sync": "tsx scripts/sync.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "cron:daily": "tsx scripts/daily-sync.ts",
+    "cron:norm": "tsx scripts/norm-sync.ts",
+    "credentials:encrypt": "tsx scripts/encrypt-credentials.ts",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
+    "dotenv": "^17.4.2",
+    "next": "16.3.0",
+    "@max/auth": "*",
+    "pg": "^8.23.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "resend": "^6.19.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pg": "^8.21.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/xlsx": "^0.0.35",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "playwright": "^1.62.1",
+    "prisma": "^7.9.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}

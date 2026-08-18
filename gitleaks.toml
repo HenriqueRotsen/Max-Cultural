@@ -1,0 +1,12 @@
+title = "MAX Cultural"
+
+[allowlist]
+description = "Placeholders em exemplos"
+paths = ['''\.env\.example$''', '''apps/.*/\.env\.example$''']
+regexes = [
+  '''change-me''',
+  '''your-anon-key''',
+  '''YOUR_PROJECT''',
+  '''sua-anon-key''',
+  '''SUA_SENHA''',
+]
