@@ -8,7 +8,7 @@ import {
   TerritorioKpiGrid,
 } from "@/components/territorio/territorio-ui";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ uf: string }>;
@@ -38,14 +38,14 @@ export default async function TerritorioEstadoPage({ params }: Props) {
           <p className="mt-2 text-sm text-amber-900">{result.error}</p>
           <Link
             href="/territorio"
-            className="mt-4 inline-block text-sm text-emerald-800 underline-offset-2 hover:underline"
+            className="mt-4 inline-block text-sm text-brand underline-offset-2 hover:underline"
           >
             Voltar aos territórios
           </Link>
         </div>
       ) : (
         <div className="space-y-10">
-          <section className="rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_50%,#f4f1ea_100%)] px-6 py-10 md:px-10">
+          <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
             <TerritorioBreadcrumb estado={result.data.estado} />
             <h1 className="mt-4 font-heading text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-tight text-brand-deep">
               {result.data.estado}
@@ -74,7 +74,7 @@ export default async function TerritorioEstadoPage({ params }: Props) {
                 <Link
                   key={c.cidade}
                   href={c.href}
-                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>

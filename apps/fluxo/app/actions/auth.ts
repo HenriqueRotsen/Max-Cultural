@@ -14,6 +14,7 @@ import {
   setSessionCookie,
 } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
+import { fluxoHubLoginUrl, fluxoHubLogoutUrl } from "@/lib/hub";
 import { prisma } from "@/lib/prisma";
 import {
   generateProvisionalPassword,
@@ -57,87 +58,8 @@ function appBaseUrl() {
   );
 }
 
-export async function loginAction(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const email = String(formData.get("email") ?? "")
-    .trim()
-    .toLowerCase();
-  const password = String(formData.get("password") ?? "");
-  const nextRaw = String(formData.get("next") ?? "/dashboard");
-  const next = nextRaw.startsWith("/dashboard") ? nextRaw : "/dashboard";
-  const ip = await clientIp();
-
-  if (!email || !password) {
-    return { error: "Informe e-mail e senha." };
-  }
-
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || user.deactivatedAt) {
-    await writeAuditLog({
-      action: "auth.login_failed",
-      meta: { email, reason: "not_found_or_inactive" },
-      ip,
-    });
-    return { error: "E-mail ou senha incorretos." };
-  }
-
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) {
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_failed",
-      meta: { reason: "bad_password" },
-      ip,
-    });
-    return { error: "E-mail ou senha incorretos." };
-  }
-
-  if (needsPasswordChange(user)) {
-    await setSessionCookie(user);
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_partial",
-      meta: { step: "password_change" },
-      ip,
-    });
-    redirect("/dashboard/onboarding/senha");
-  }
-
-  if (needs2faChallenge(user)) {
-    await setPending2faCookie(user.id);
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_partial",
-      meta: { step: "2fa_challenge" },
-      ip,
-    });
-    redirect("/dashboard/login/2fa");
-  }
-
-  if (needs2faSetup(user)) {
-    await setSessionCookie(user);
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_partial",
-      meta: { step: "2fa_setup" },
-      ip,
-    });
-    redirect("/dashboard/onboarding/2fa");
-  }
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-  await setSessionCookie(user);
-  await writeAuditLog({
-    actorUserId: user.id,
-    action: "auth.login_ok",
-    ip,
-  });
-  redirect(next);
+export async function loginAction(): Promise<AuthActionState> {
+  redirect(fluxoHubLoginUrl("/dashboard"));
 }
 
 export async function logoutAction() {
@@ -150,7 +72,7 @@ export async function logoutAction() {
       ip: await clientIp(),
     });
   }
-  redirect("/dashboard/login");
+  redirect(fluxoHubLogoutUrl());
 }
 
 export async function completePasswordChangeAction(
@@ -460,7 +382,7 @@ export async function resetPasswordAction(
     action: "auth.password_reset_completed",
     ip: await clientIp(),
   });
-  redirect("/dashboard/login");
+  redirect(fluxoHubLoginUrl("/dashboard"));
 }
 
 export async function changeOwnPasswordAction(
@@ -554,7 +476,7 @@ export async function createUserWithProvisionalPassword(input: {
       createdById: input.createdById,
     },
   });
-  const loginUrl = `${appBaseUrl()}/dashboard/login`;
+  const loginUrl = fluxoHubLoginUrl("/dashboard");
   await sendProvisionalPasswordEmail({
     to: user.email,
     name: user.name,

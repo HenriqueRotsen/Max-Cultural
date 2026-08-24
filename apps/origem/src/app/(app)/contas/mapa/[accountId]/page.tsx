@@ -113,7 +113,7 @@ export default async function ProponentCorporateMapPage({
           href="/contas?tab=suas-contas"
           className="text-sm text-[var(--gray-500)] hover:text-[var(--navy)]"
         >
-          ← Voltar às contas
+          ← Voltar aos proponentes
         </Link>
       </div>
 

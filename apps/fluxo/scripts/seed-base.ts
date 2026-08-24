@@ -16,8 +16,7 @@ import { Pool } from "pg";
 import { normalizeRow } from "../lib/normalize";
 import { rowToPrisma, type SigaCulturalRow } from "../lib/schema";
 
-config({ path: ".env.local" });
-config();
+config({ path: ".env.local", override: true });
 
 const BATCH = 250;
 
@@ -83,7 +82,11 @@ async function main() {
   console.log(`Linhas válidas: ${rows.length}`);
 
   const pool = new Pool({ connectionString });
-  const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+  const schema = new URL(connectionString).searchParams.get("schema") ?? undefined;
+  console.log(`Postgres schema: ${schema ?? "public"}`);
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg(pool, schema ? { schema } : undefined),
+  });
 
   try {
     if (replace) {

@@ -427,7 +427,7 @@ export async function syncAccountViaCrawler(params: {
       seenPronacs.add(String(listed.Pronac));
       await push(
         `PRONAC ${listed.Pronac}: ${seenExternalIds.size} comprovantes no SALIC` +
-          (removed ? ` · ${removed} removidos do Salink` : ""),
+          (removed ? ` · ${removed} removidos do MAX Origem` : ""),
       );
     }
 

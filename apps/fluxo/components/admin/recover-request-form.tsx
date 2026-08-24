@@ -46,7 +46,7 @@ export function RecoverRequestForm() {
             />
           </div>
           {state.message ? (
-            <p className="text-sm text-emerald-800">{state.message}</p>
+            <p className="text-sm text-brand">{state.message}</p>
           ) : null}
           {state.error ? (
             <p className="text-sm text-destructive">{state.error}</p>
@@ -57,7 +57,7 @@ export function RecoverRequestForm() {
           <p className="text-center text-sm">
             <Link
               href="/dashboard/login"
-              className="text-emerald-800 underline-offset-2 hover:underline"
+              className="text-brand underline-offset-2 hover:underline"
             >
               Voltar ao login
             </Link>

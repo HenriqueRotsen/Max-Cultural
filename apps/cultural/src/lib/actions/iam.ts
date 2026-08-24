@@ -111,6 +111,8 @@ export async function saveRolePermissionsAction(formData: FormData) {
     entityId: roleId,
   });
   revalidatePath("/papeis");
+  revalidatePath(`/papeis/${roleId}`);
+  redirect(`/papeis/${roleId}?saved=1`);
 }
 
 export async function createRoleAction(formData: FormData) {
@@ -122,7 +124,7 @@ export async function createRoleAction(formData: FormData) {
   if (!name) {
     redirect("/papeis?error=" + encodeURIComponent("Informe o nome do papel."));
   }
-  await prisma.role.create({
+  const role = await prisma.role.create({
     data: { name, description: String(formData.get("description") ?? "").trim() },
   });
   await writeAuditLog({
@@ -130,7 +132,8 @@ export async function createRoleAction(formData: FormData) {
     action: "iam.role_created",
     screen: "cultural.papeis",
     entityType: "role",
-    entityId: name,
+    entityId: role.id,
   });
   revalidatePath("/papeis");
+  redirect(`/papeis/${role.id}`);
 }

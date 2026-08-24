@@ -7,6 +7,8 @@ import {
   generateTemporaryPassword,
   validateStrongPassword,
 } from "@/lib/auth/password";
+import { isAuthEnabled } from "@/lib/auth/config";
+import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
 import { getSessionUser, requireAdmin } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -15,50 +17,16 @@ import {
   userContactAddressData,
 } from "@/lib/auth/user-contact";
 
-export async function signIn(formData: FormData) {
-  const email = String(formData.get("email") || "")
-    .trim()
-    .toLowerCase();
-  const password = String(formData.get("password") || "");
-  if (!email || !password) {
-    redirect("/login?error=" + encodeURIComponent("Informe e-mail e senha"));
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    redirect("/login?error=" + encodeURIComponent("E-mail ou senha incorretos"));
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user?.email) {
-    const profile = await prisma.appUser.findUnique({ where: { id: user.id } });
-    if (profile && !profile.active) {
-      await supabase.auth.signOut();
-      redirect("/login?error=" + encodeURIComponent("Conta desativada. Fale com o administrador."));
-    }
-    if (profile?.mustChangePassword) {
-      redirect("/alterar-senha");
-    }
-  }
-
-  redirect("/painel");
+export async function signIn() {
+  redirect(origemHubLoginUrl("/painel"));
 }
 
 export async function signOut() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  const { isHubSsoEnabled } = await import("@/lib/auth/hub");
-  if (isHubSsoEnabled()) {
-    const hub = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
-      /\/$/,
-      "",
-    );
-    redirect(`${hub}/logout`);
+  if (isAuthEnabled()) {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
   }
-  redirect("/login");
+  redirect(origemHubLogoutUrl());
 }
 
 export async function requestPasswordReset(formData: FormData) {

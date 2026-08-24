@@ -1,7 +1,7 @@
 import { PessoaCpfSearch } from "@/components/pessoa/pessoa-cpf-search";
 import { SiteShell } from "@/components/app-header";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 export const metadata = {
   title: `Consultar CPF · ${appName}`,

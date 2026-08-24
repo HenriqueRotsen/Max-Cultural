@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 :root {
   --navy: #4a1d6e;
@@ -700,11 +701,6 @@ table.data tbody tr.row-expand-child-last > td:last-child {
   width: 100%;
 }
 
-.marketing-hero-brand {
-  filter: brightness(0) invert(1);
-  animation: marketing-fade-up 0.7s ease both;
-}
-
 .marketing-hero-title {
   margin: 1.75rem 0 0;
   max-width: 18ch;
@@ -945,4 +941,11 @@ table.data tbody tr.row-expand-child-last > td:last-child {
     padding-top: 3rem;
     padding-bottom: 3.5rem;
   }
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+  font-family: inherit;
 }

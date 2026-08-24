@@ -1,5 +1,3 @@
-import { isHubSsoEnabled } from "@/lib/auth/hub";
-
 function envFlag(name: string) {
   const v = (process.env[name] || "").trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes";
@@ -41,8 +39,8 @@ export function isAuthEnabled() {
   return true;
 }
 
-/** Login local (Supabase) ou sessão do hub MAX Cultural. */
+/** Login só no MAX Cultural, salvo demo público ou SALINK_DEV_OPEN. */
 export function needsLogin() {
   if (isDemoMode() || isDevOpenAuth()) return false;
-  return isAuthEnabled() || isHubSsoEnabled();
+  return true;
 }

@@ -19,7 +19,7 @@ export function PageLoading({
       aria-busy="true"
     >
       <Loader2
-        className="size-8 animate-spin text-emerald-800"
+        className="size-8 animate-spin text-brand"
         aria-hidden
       />
       <p className="text-sm font-medium text-brand-deep">{label}</p>

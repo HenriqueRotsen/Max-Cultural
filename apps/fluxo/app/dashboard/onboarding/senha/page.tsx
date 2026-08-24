@@ -2,10 +2,11 @@ import { redirect } from "next/navigation";
 import { SiteShell } from "@/components/app-header";
 import { OnboardingPasswordForm } from "@/components/admin/onboarding-password-form";
 import { getSessionUser, needsPasswordChange } from "@/lib/auth";
+import { redirectToHubLogin } from "@/lib/hub";
 
 export default async function OnboardingSenhaPage() {
   const user = await getSessionUser();
-  if (!user) redirect("/dashboard/login");
+  if (!user) redirectToHubLogin("/dashboard");
   if (!needsPasswordChange(user)) {
     redirect("/dashboard/onboarding/2fa");
   }

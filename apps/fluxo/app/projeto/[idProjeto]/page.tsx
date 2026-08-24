@@ -6,7 +6,7 @@ import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { SiteShell } from "@/components/app-header";
 import { StatusKindBadge } from "@/components/status-badges";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ idProjeto: string }>;
@@ -45,8 +45,8 @@ export default async function ProjetoPage({ params }: Props) {
 function ProjetoView({ data }: { data: ProjetoPageData }) {
   return (
     <div className="space-y-10">
-      <section className="rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_50%,#f4f1ea_100%)] px-6 py-10 md:px-10">
-        <p className="font-heading text-sm font-semibold tracking-[0.18em] text-emerald-900/70 uppercase">
+      <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
+        <p className="font-heading text-sm font-semibold tracking-[0.18em] text-[var(--gray-400)] uppercase">
           Projeto
         </p>
         <h1 className="mt-3 font-heading text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-tight text-brand-deep">
@@ -65,7 +65,7 @@ function ProjetoView({ data }: { data: ProjetoPageData }) {
           <p className="mt-3">
             <Link
               href={`/contexto/${encodeURIComponent(data.programa.id)}`}
-              className="text-sm font-medium text-emerald-800 underline-offset-2 hover:underline"
+              className="text-sm font-medium text-brand underline-offset-2 hover:underline"
             >
               Ver todas as edições ({data.programa.siblings})
             </Link>
@@ -115,7 +115,7 @@ function ProjetoView({ data }: { data: ProjetoPageData }) {
             <Link
               key={o.id_oficina}
               href={`/projeto/${encodeURIComponent(data.id_projeto)}/${encodeURIComponent(o.id_oficina)}`}
-              className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+              className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">

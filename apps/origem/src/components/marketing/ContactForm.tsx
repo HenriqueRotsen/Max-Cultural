@@ -1,17 +1,12 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
 import { sendContactMessage } from "@/lib/auth/contact";
 
 export default function ContactForm() {
-  const searchParams = useSearchParams();
-  const defaultPlan = searchParams.get("plano") || "";
   const [status, setStatus] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [pending, startTransition] = useTransition();
-
-  const planOptions = useMemo(() => ["Essencial", "Pro", "Ainda não sei"], []);
 
   function onSubmit(formData: FormData) {
     setStatus(null);
@@ -44,20 +39,9 @@ export default function ContactForm() {
             placeholder="voce@empresa.com"
           />
         </div>
-        <div className="field">
+        <div className="field md:col-span-2">
           <label htmlFor="company">Empresa / proponente</label>
           <input id="company" name="company" placeholder="Opcional" />
-        </div>
-        <div className="field">
-          <label htmlFor="plan">Plano de interesse</label>
-          <select id="plan" name="plan" defaultValue={defaultPlan}>
-            <option value="">Selecione</option>
-            {planOptions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
         </div>
         <div className="field md:col-span-2">
           <label htmlFor="message">Mensagem</label>

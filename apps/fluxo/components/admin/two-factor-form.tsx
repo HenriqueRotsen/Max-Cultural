@@ -97,7 +97,7 @@ export function TwoFactorForm() {
               {sending ? "Enviando…" : "Enviar código por e-mail"}
             </Button>
             {sendState.message ? (
-              <p className="text-sm text-emerald-800">{sendState.message}</p>
+              <p className="text-sm text-brand">{sendState.message}</p>
             ) : null}
             {sendState.error ? (
               <p className="text-sm text-destructive">{sendState.error}</p>

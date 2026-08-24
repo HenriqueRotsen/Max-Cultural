@@ -41,7 +41,10 @@ export function AppSidebar({
           Acesso
         </p>
         {visible.map((link) => {
-          const active = pathname === link.href;
+          const active =
+            link.href === "/"
+              ? pathname === "/"
+              : pathname === link.href || pathname.startsWith(`${link.href}/`);
           return (
             <Link
               key={link.href}
@@ -63,6 +66,16 @@ export function AppSidebar({
             {userEmail}
           </p>
         ) : null}
+        <Link
+          href="/conta"
+          className={`btn btn-ghost w-full justify-start px-0 ${
+            pathname === "/conta" || pathname.startsWith("/conta/")
+              ? "bg-[var(--navy-soft)]"
+              : ""
+          }`}
+        >
+          Minha conta
+        </Link>
         <form action={logoutAction}>
           <button type="submit" className="btn btn-ghost w-full justify-start px-0">
             Sair

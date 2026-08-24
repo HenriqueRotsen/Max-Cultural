@@ -2,7 +2,7 @@ import { TOTP, Secret } from "otpauth";
 import QRCode from "qrcode";
 import { decryptSecret, encryptSecret } from "@/lib/crypto-secret";
 
-const ISSUER = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const ISSUER = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 export function generateTotpSecret(): string {
   return new Secret({ size: 20 }).base32;

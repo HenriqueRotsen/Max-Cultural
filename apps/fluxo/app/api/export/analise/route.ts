@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, verifySessionToken } from "@/lib/auth-token";
+import {
+  AUTH_COOKIE as HUB_COOKIE,
+  parseSessionToken as parseHubSession,
+} from "@max/auth";
 import { getAnaliseAction } from "@/app/actions/inscricoes";
 
 async function assertAuth() {
   const jar = await cookies();
-  return verifySessionToken(jar.get(AUTH_COOKIE)?.value);
+  if (await verifySessionToken(jar.get(AUTH_COOKIE)?.value)) return true;
+  try {
+    return Boolean(await parseHubSession(jar.get(HUB_COOKIE)?.value));
+  } catch {
+    return false;
+  }
 }
 
 const HEADERS = [
@@ -61,7 +70,7 @@ export async function GET(request: NextRequest) {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": 'attachment; filename="sigacultural-analise.xlsx"',
+        "Content-Disposition": 'attachment; filename="max-fluxo-analise.xlsx"',
       },
     });
   }
@@ -79,7 +88,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse([header, ...lines].join("\n"), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="sigacultural-analise.csv"',
+      "Content-Disposition": 'attachment; filename="max-fluxo-analise.csv"',
     },
   });
 }

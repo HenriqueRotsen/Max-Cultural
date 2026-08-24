@@ -662,7 +662,7 @@ export function ImportWizard({
 
   return (
     <div className="space-y-6">
-      <nav className="rounded-2xl border border-emerald-900/10 bg-white/70 p-4 shadow-sm backdrop-blur">
+      <nav className="rounded-2xl border border-[var(--border)] bg-white/70 p-4 shadow-sm backdrop-blur">
         <ol className="grid gap-3 sm:grid-cols-4">
           {STEPS.map((s, i) => {
             const active = i === stepIndex;
@@ -672,9 +672,9 @@ export function ImportWizard({
                 <div
                   className={cn(
                     "flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition",
-                    active && "bg-emerald-800 text-white shadow-md shadow-emerald-900/20",
-                    done && "bg-emerald-100 text-emerald-900",
-                    !active && !done && "bg-stone-100 text-stone-400",
+                    active && "bg-brand text-white shadow-md shadow-brand/20",
+                    done && "bg-brand-soft text-brand-deep",
+                    !active && !done && "bg-[var(--gray-100)] text-[var(--gray-400)]",
                   )}
                 >
                   {done ? <Check className="size-4" /> : i + 1}
@@ -683,7 +683,7 @@ export function ImportWizard({
                   <div
                     className={cn(
                       "text-sm font-medium",
-                      active ? "text-emerald-950" : "text-stone-500",
+                      active ? "text-brand-deep" : "text-[var(--gray-500)]",
                     )}
                   >
                     {s.label}
@@ -694,9 +694,9 @@ export function ImportWizard({
             );
           })}
         </ol>
-        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-stone-100">
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--gray-100)]">
           <div
-            className="h-full rounded-full bg-emerald-700 transition-all duration-500"
+            className="h-full rounded-full bg-brand transition-all duration-500"
             style={{ width: `${((stepIndex + 1) / STEPS.length) * 100}%` }}
           />
         </div>
@@ -704,7 +704,7 @@ export function ImportWizard({
 
       {busy ? (
         <div className="space-y-2 rounded-2xl border bg-white/90 px-5 py-4 shadow-sm">
-          <div className="flex items-center gap-2 text-sm font-medium text-emerald-950">
+          <div className="flex items-center gap-2 text-sm font-medium text-brand-deep">
             <Wand2 className="size-4 animate-pulse" />
             Processando…
           </div>
@@ -713,10 +713,10 @@ export function ImportWizard({
       ) : null}
 
       {step === "upload" ? (
-        <Card className="gap-0 overflow-hidden border-emerald-900/10 pt-0 shadow-sm">
-          <CardHeader className="rounded-none border-b border-emerald-900/10 bg-gradient-to-br from-emerald-50 to-transparent py-4">
+        <Card className="gap-0 overflow-hidden border-[var(--border)] pt-0 shadow-sm">
+          <CardHeader className="rounded-none border-b border-[var(--border)] bg-gradient-to-br from-[var(--navy-soft)] to-transparent py-4">
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Upload className="size-5 text-emerald-800" />
+              <Upload className="size-5 text-brand" />
               Importar arquivo
             </CardTitle>
             <CardDescription>
@@ -754,18 +754,18 @@ export function ImportWizard({
               className={cn(
                 "group relative flex w-full flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed px-6 py-14 text-center transition",
                 dragOver
-                  ? "border-emerald-600 bg-emerald-50"
+                  ? "border-brand bg-[var(--navy-soft)]"
                   : file
-                    ? "border-emerald-300 bg-emerald-50/50"
-                    : "border-stone-300 bg-stone-50/80 hover:border-emerald-400 hover:bg-emerald-50/40",
+                    ? "border-brand/40 bg-[var(--navy-soft)]/80"
+                    : "border-[var(--gray-200)] bg-[var(--gray-50)]/80 hover:border-brand hover:bg-[var(--navy-soft)]/70",
               )}
             >
               <div
                 className={cn(
                   "flex size-16 items-center justify-center rounded-2xl transition",
                   file
-                    ? "bg-emerald-800 text-white"
-                    : "bg-white text-emerald-800 shadow-sm group-hover:scale-105",
+                    ? "bg-brand text-white"
+                    : "bg-white text-brand shadow-sm group-hover:scale-105",
                 )}
               >
                 {file ? (
@@ -776,14 +776,14 @@ export function ImportWizard({
               </div>
               {file ? (
                 <div>
-                  <p className="text-base font-semibold text-emerald-950">{fileName}</p>
+                  <p className="text-base font-semibold text-brand-deep">{fileName}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {(file.size / 1024).toFixed(1)} KB · clique para trocar
                   </p>
                 </div>
               ) : (
                 <div>
-                  <p className="text-base font-semibold text-stone-800">
+                  <p className="text-base font-semibold text-[var(--navy)]">
                     Solte o arquivo aqui
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -812,8 +812,8 @@ export function ImportWizard({
       ) : null}
 
       {step === "context" ? (
-        <Card className="gap-0 overflow-hidden border-emerald-900/10 pt-0 shadow-sm">
-          <CardHeader className="rounded-none border-b border-emerald-900/10 bg-gradient-to-br from-emerald-50 to-transparent py-4">
+        <Card className="gap-0 overflow-hidden border-[var(--border)] pt-0 shadow-sm">
+          <CardHeader className="rounded-none border-b border-[var(--border)] bg-gradient-to-br from-[var(--navy-soft)] to-transparent py-4">
             <CardTitle className="text-xl">Contexto → Projeto → Oficina</CardTitle>
             <CardDescription>
               Selecione o que já existe. O que ficar em branco será cadastrado ao
@@ -822,8 +822,8 @@ export function ImportWizard({
           </CardHeader>
           <CardContent className="space-y-5 pt-6">
             {fileName ? (
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
-                <FileSpreadsheet className="size-5 text-emerald-800" />
+              <div className="flex items-center gap-3 rounded-xl border border-brand/20 bg-[var(--navy-soft)] px-4 py-3">
+                <FileSpreadsheet className="size-5 text-brand" />
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{fileName}</div>
                   <div className="text-xs text-muted-foreground">
@@ -836,7 +836,7 @@ export function ImportWizard({
             <div className="flex justify-end">
               <Link
                 href="/dashboard/contextos"
-                className="text-sm text-emerald-800 underline-offset-4 hover:underline"
+                className="text-sm text-brand underline-offset-4 hover:underline"
               >
                 Gerenciar hierarquia
               </Link>
@@ -935,7 +935,7 @@ export function ImportWizard({
             ) : selOficinaId ? (
               <p className="text-sm text-muted-foreground">
                 Lote:{" "}
-                <span className="font-medium text-emerald-950">
+                <span className="font-medium text-brand-deep">
                   {context.Nome_contexto ||
                     contextos.find((c) => c.id === selContextoId)?.nome ||
                     "(sem nome)"}
@@ -950,8 +950,8 @@ export function ImportWizard({
             ) : null}
 
             {hierarchyPhase === "register" && !hierarchyComplete ? (
-              <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-                <p className="text-sm font-medium text-emerald-950">
+              <div className="space-y-4 rounded-xl border border-brand/20 bg-[var(--navy-soft)]/70 p-4">
+                <p className="text-sm font-medium text-brand-deep">
                   Cadastre o que falta na hierarquia
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1069,10 +1069,10 @@ export function ImportWizard({
       ) : null}
 
       {step === "columns" ? (
-        <Card className="gap-0 overflow-hidden border-emerald-900/10 pt-0 shadow-sm">
-          <CardHeader className="rounded-none border-b border-emerald-900/10 bg-gradient-to-br from-emerald-50 to-transparent py-4">
+        <Card className="gap-0 overflow-hidden border-[var(--border)] pt-0 shadow-sm">
+          <CardHeader className="rounded-none border-b border-[var(--border)] bg-gradient-to-br from-[var(--navy-soft)] to-transparent py-4">
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Table2 className="size-5 text-emerald-800" />
+              <Table2 className="size-5 text-brand" />
               Escolher colunas
             </CardTitle>
             <CardDescription>
@@ -1087,7 +1087,7 @@ export function ImportWizard({
                   Preenchido na etapa anterior — não precisa estar na planilha.
                 </p>
                 {context.Nome_contexto || context.Nome_projeto ? (
-                  <p className="mt-2 text-xs text-emerald-900/80">
+                  <p className="mt-2 text-xs text-brand-deep/80">
                     {[context.Nome_contexto, context.Nome_projeto, context.Nome_oficina]
                       .filter(Boolean)
                       .join(" → ")}
@@ -1098,9 +1098,9 @@ export function ImportWizard({
                     (col) => (
                       <li
                         key={col}
-                        className="flex items-center gap-2 text-sm text-emerald-900"
+                        className="flex items-center gap-2 text-sm text-brand-deep"
                       >
-                        <Check className="size-3.5 shrink-0 text-emerald-700" />
+                        <Check className="size-3.5 shrink-0 text-brand" />
                         {columnLabel(col)}
                       </li>
                     ),
@@ -1113,14 +1113,14 @@ export function ImportWizard({
                   "rounded-xl border px-4 py-3 lg:col-span-1",
                   missingRequired.length
                     ? "border-amber-300 bg-amber-50/80"
-                    : "border-emerald-200 bg-emerald-50/70",
+                    : "border-brand/20 bg-[var(--navy-soft)]",
                 )}
               >
                 <div className="flex items-center gap-1.5 text-xs font-medium text-brand-deep">
                   {missingRequired.length ? (
                     <CircleAlert className="size-3.5 text-amber-700" />
                   ) : (
-                    <Check className="size-3.5 text-emerald-700" />
+                    <Check className="size-3.5 text-brand" />
                   )}
                   Essencial na planilha
                 </div>
@@ -1133,11 +1133,11 @@ export function ImportWizard({
                       key={col}
                       className={cn(
                         "flex items-center gap-2 text-sm",
-                        ok ? "text-emerald-900" : "text-amber-900",
+                        ok ? "text-brand-deep" : "text-amber-900",
                       )}
                     >
                       {ok ? (
-                        <Check className="size-3.5 shrink-0 text-emerald-700" />
+                        <Check className="size-3.5 shrink-0 text-brand" />
                       ) : (
                         <CircleAlert className="size-3.5 shrink-0 text-amber-700" />
                       )}
@@ -1165,7 +1165,7 @@ export function ImportWizard({
                       )}
                     >
                       {ok ? (
-                        <Check className="size-3.5 shrink-0 text-emerald-700" />
+                        <Check className="size-3.5 shrink-0 text-brand" />
                       ) : (
                         <span className="inline-block size-3.5 shrink-0 rounded-full border border-dashed border-muted-foreground/40" />
                       )}
@@ -1183,7 +1183,7 @@ export function ImportWizard({
               </div>
               <div className="rounded-xl border bg-white px-4 py-3">
                 <div className="text-xs text-muted-foreground">Reconhecidas</div>
-                <div className="text-2xl font-semibold tabular-nums text-emerald-800">
+                <div className="text-2xl font-semibold tabular-nums text-brand">
                   {mappedEntries.length}
                 </div>
               </div>
@@ -1221,7 +1221,7 @@ export function ImportWizard({
                   <TableRow>
                     <TableHead className="w-12">Usar</TableHead>
                     <TableHead>Na planilha</TableHead>
-                    <TableHead>No SigaCultural</TableHead>
+                    <TableHead>No MAX Fluxo</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1229,7 +1229,7 @@ export function ImportWizard({
                     <TableRow
                       key={entry.source}
                       className={cn(
-                        selectedSources.has(entry.source) && "bg-emerald-50/60",
+                        selectedSources.has(entry.source) && "bg-[var(--navy-soft)]",
                       )}
                     >
                       <TableCell>
@@ -1284,11 +1284,11 @@ export function ImportWizard({
       ) : null}
 
       {step === "preview" ? (
-        <Card className="gap-0 overflow-hidden border-emerald-900/10 pt-0 shadow-sm">
-          <CardHeader className="flex flex-col gap-3 rounded-none border-b border-emerald-900/10 bg-gradient-to-br from-emerald-50 to-transparent py-4 sm:flex-row sm:items-start sm:justify-between">
+        <Card className="gap-0 overflow-hidden border-[var(--border)] pt-0 shadow-sm">
+          <CardHeader className="flex flex-col gap-3 rounded-none border-b border-[var(--border)] bg-gradient-to-br from-[var(--navy-soft)] to-transparent py-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-xl">
-                <Wand2 className="size-5 text-emerald-800" />
+                <Wand2 className="size-5 text-brand" />
                 Prévia e ajustes
               </CardTitle>
               <CardDescription>
@@ -1304,9 +1304,9 @@ export function ImportWizard({
           </CardHeader>
           <CardContent className="space-y-4 pt-6">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
-                <div className="text-xs text-emerald-900/70">Linhas na prévia</div>
-                <div className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-950">
+              <div className="rounded-xl border border-brand/20 bg-[var(--navy-soft)] px-4 py-3">
+                <div className="text-xs text-[var(--gray-400)]">Linhas na prévia</div>
+                <div className="mt-0.5 text-2xl font-semibold tabular-nums text-brand-deep">
                   {previewRows.length}
                 </div>
               </div>

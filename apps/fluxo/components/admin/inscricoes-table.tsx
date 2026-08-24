@@ -566,7 +566,7 @@ export function InscricoesTable({
                         {row.CPF ? (
                           <Link
                             href={`/pessoa/${row.CPF.replace(/\D/g, "")}`}
-                            className="text-emerald-900 underline-offset-2 hover:underline"
+                            className="text-brand-deep underline-offset-2 hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {formatCellDisplay("CPF", row.CPF) || "—"}

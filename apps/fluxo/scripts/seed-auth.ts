@@ -3,8 +3,7 @@
  * Uso: npx tsx scripts/seed-auth.ts
  */
 import { config } from "dotenv";
-config({ path: ".env.local" });
-config();
+config({ path: ".env.local", override: true });
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -21,7 +20,10 @@ async function main() {
   if (!connectionString) throw new Error("DATABASE_URL não configurada");
 
   const pool = new Pool({ connectionString });
-  const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+  const schema = new URL(connectionString).searchParams.get("schema") ?? undefined;
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg(pool, schema ? { schema } : undefined),
+  });
 
   try {
     for (const p of PERMISSION_CATALOG) {
@@ -114,7 +116,7 @@ async function main() {
 
     const email = (
       process.env.BOOTSTRAP_ADMIN_EMAIL?.trim() ||
-      "admin@sigacultural.local"
+      "admin@maxfluxo.local"
     ).toLowerCase();
     const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
     const resetPassword =

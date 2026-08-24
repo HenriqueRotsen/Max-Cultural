@@ -30,7 +30,7 @@ function BarList({
               </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-brand-mist">
                 <div
-                  className="h-full rounded-full bg-emerald-700/80"
+                  className="h-full rounded-full bg-brand/80"
                   style={{ width: `${(item.count / max) * 100}%` }}
                 />
               </div>

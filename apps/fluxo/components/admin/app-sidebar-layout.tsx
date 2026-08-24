@@ -12,7 +12,7 @@ import {
   ScrollText,
   Shield,
   Upload,
-  UserCircle,
+  UserRound,
   UserRoundSearch,
   Users,
   LayoutDashboard,
@@ -20,8 +20,14 @@ import {
 } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { BrandLogo } from "@/components/brand-logo";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
+  /\/$/,
+  "",
+);
+const ACCOUNT_URL = `${HUB_URL}/conta`;
 
 type NavItem = {
   href: string;
@@ -119,21 +125,9 @@ const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
-  {
-    id: "conta",
-    label: "Conta",
-    items: [
-      {
-        href: "/dashboard/perfil",
-        label: "Perfil",
-        match: (p) => p.startsWith("/dashboard/perfil"),
-        icon: UserCircle,
-      },
-    ],
-  },
 ];
 
-const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM === "true";
+const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM !== "false";
 
 function filterGroups(permissions: string[] | null): NavGroup[] {
   return NAV_GROUPS.map((group) => ({
@@ -160,7 +154,7 @@ function SidebarNav({
     <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
       {groups.map((group) => (
         <div key={group.id}>
-          <p className="mb-1.5 px-2.5 text-[11px] font-medium tracking-[0.08em] text-muted-foreground uppercase">
+          <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
             {group.label}
           </p>
           <ul className="space-y-0.5">
@@ -173,16 +167,16 @@ function SidebarNav({
                     href={item.href}
                     onClick={onNavigate}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                       active
-                        ? "bg-brand-soft font-medium text-brand-deep"
-                        : "text-foreground/80 hover:bg-brand-mist hover:text-foreground",
+                        ? "bg-[var(--navy-soft)] text-[var(--navy)]"
+                        : "text-[var(--gray-600)] hover:bg-[var(--gray-50)] hover:text-[var(--navy)]",
                     )}
                   >
                     <Icon
                       className={cn(
                         "size-4 shrink-0",
-                        active ? "text-brand" : "text-muted-foreground",
+                        active ? "text-[var(--navy)]" : "text-[var(--gray-400)]",
                       )}
                     />
                     {item.label}
@@ -199,48 +193,59 @@ function SidebarNav({
 
 function SidebarPanel({
   permissions,
-  userName,
   userEmail,
-  roleName,
   onNavigate,
   className,
 }: {
   permissions: string[] | null;
-  userName: string;
   userEmail: string;
-  roleName?: string;
   onNavigate?: () => void;
   className?: string;
 }) {
   return (
     <aside
       className={cn(
-        "flex h-full w-[240px] flex-col border-r border-[var(--border,#e8eaef)] bg-white",
+        "flex h-full w-[240px] flex-col border-r border-[var(--border)] bg-white",
         className,
       )}
     >
       <div className="flex items-center px-5 py-5">
         <BrandLogo
-          tone="light"
           href="/dashboard"
-          markSize={40}
-          showTagline={false}
           className="min-w-0"
         />
       </div>
 
       <SidebarNav permissions={permissions} onNavigate={onNavigate} />
+      <div className="px-3 pb-3">
+        <a
+          href={HUB_URL}
+          className="flex items-center rounded-lg px-2.5 py-2 transition-colors hover:bg-brand-mist"
+          aria-label="Voltar ao MAX Cultural"
+        >
+          <img
+            src="/brand/max-cultural.png"
+            alt="MAX Cultural"
+            width={1531}
+            height={571}
+            className="h-9 w-auto max-w-[180px] bg-transparent object-contain object-left"
+          />
+        </a>
+      </div>
 
-        <div className="mt-auto border-t border-[var(--border,#e8eaef)] px-5 py-4 space-y-3">
-        <div className="mb-1">
-          <p className="truncate text-sm font-medium text-foreground">
-            {userName}
+      <div className="border-t border-[var(--border)] px-5 py-4 space-y-3">
+        {userEmail ? (
+          <p className="truncate text-xs text-muted-foreground" title={userEmail}>
+            {userEmail}
           </p>
-          <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
-          {roleName ? (
-            <p className="mt-0.5 truncate text-[11px] text-brand">{roleName}</p>
-          ) : null}
-        </div>
+        ) : null}
+        <a
+          href={ACCOUNT_URL}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-start gap-2")}
+        >
+          <UserRound className="size-3.5" />
+          Minha conta
+        </a>
         <form action={logoutAction}>
           <Button
             type="submit"
@@ -258,9 +263,7 @@ function SidebarPanel({
 }
 
 export type AppSidebarLayoutProps = {
-  userName: string;
   userEmail: string;
-  roleName?: string;
   /** codes de permissão; null = mostrar tudo */
   permissions: string[] | null;
   title?: string;
@@ -272,9 +275,7 @@ export type AppSidebarLayoutProps = {
 
 /** Layout autenticado: sidebar fixa (desktop) + drawer (mobile). */
 export function AppSidebarLayout({
-  userName,
   userEmail,
-  roleName,
   permissions,
   title: _title,
   actions,
@@ -304,9 +305,7 @@ export function AppSidebarLayout({
       <div className="fixed inset-y-0 left-0 z-30 hidden md:block">
         <SidebarPanel
           permissions={permissions}
-          userName={userName}
           userEmail={userEmail}
-          roleName={roleName}
         />
       </div>
 
@@ -322,9 +321,7 @@ export function AppSidebarLayout({
           <div className="absolute inset-y-0 left-0 shadow-xl animate-in slide-in-from-left duration-200">
             <SidebarPanel
               permissions={permissions}
-              userName={userName}
               userEmail={userEmail}
-              roleName={roleName}
               onNavigate={() => setMobileOpen(false)}
               className="relative"
             />
@@ -352,12 +349,7 @@ export function AppSidebarLayout({
           >
             <Menu className="size-4" />
           </Button>
-          <BrandLogo
-            tone="light"
-            markSize={28}
-            wordmarkHeight={16}
-            showTagline={false}
-          />
+          <BrandLogo />
           {actions ? (
             <div className="ml-auto flex shrink-0 items-center gap-2">
               {actions}

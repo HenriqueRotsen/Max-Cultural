@@ -7,7 +7,6 @@ const contactSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   company: z.string().optional(),
-  plan: z.string().optional(),
   message: z.string().min(10),
 });
 
@@ -18,7 +17,6 @@ export async function sendContactMessage(formData: FormData): Promise<ContactRes
     name: String(formData.get("name") || "").trim(),
     email: String(formData.get("email") || "").trim(),
     company: String(formData.get("company") || "").trim() || undefined,
-    plan: String(formData.get("plan") || "").trim() || undefined,
     message: String(formData.get("message") || "").trim(),
   });
 
@@ -42,15 +40,14 @@ export async function sendContactMessage(formData: FormData): Promise<ContactRes
 
   const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
-    from: process.env.CONTACT_FROM_EMAIL || "Salink <onboarding@resend.dev>",
+    from: process.env.CONTACT_FROM_EMAIL || "MAX Origem <onboarding@resend.dev>",
     to: [to],
     replyTo: parsed.data.email,
-    subject: `Salink — contato${parsed.data.plan ? ` (${parsed.data.plan})` : ""}`,
+    subject: `MAX Origem — contato`,
     text: [
       `Nome: ${parsed.data.name}`,
       `E-mail: ${parsed.data.email}`,
       `Empresa: ${parsed.data.company || "—"}`,
-      `Plano de interesse: ${parsed.data.plan || "—"}`,
       "",
       parsed.data.message,
     ].join("\n"),

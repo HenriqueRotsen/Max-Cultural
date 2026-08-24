@@ -188,7 +188,7 @@ export async function GET(request: Request) {
 
     const html = await renderAuditoriaReportHtml({ blocks });
     const pdf = await htmlToPdf(html);
-    const filename = `salink-auditoria-${reportFileStamp()}.pdf`;
+    const filename = `max-origem-auditoria-${reportFileStamp()}.pdf`;
 
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,

@@ -5,7 +5,7 @@ import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { SiteShell } from "@/components/app-header";
 import { StatusKindBadge } from "@/components/status-badges";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -36,8 +36,8 @@ export default async function ContextoPage({ params }: Props) {
         </div>
       ) : (
         <div className="space-y-10">
-          <section className="rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_50%,#f4f1ea_100%)] px-6 py-10 md:px-10">
-            <p className="font-heading text-sm font-semibold tracking-[0.18em] text-emerald-900/70 uppercase">
+          <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
+            <p className="font-heading text-sm font-semibold tracking-[0.18em] text-[var(--gray-400)] uppercase">
               Contexto
             </p>
             <h1 className="mt-3 font-heading text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-tight text-brand-deep">
@@ -81,14 +81,14 @@ export default async function ContextoPage({ params }: Props) {
             <ol className="relative space-y-4 border-l border-brand/20 pl-6">
               {result.data.edicoes.map((e) => (
                 <li key={e.id_projeto} className="relative">
-                  <span className="absolute -left-[1.625rem] top-2 size-3 rounded-full bg-emerald-700 ring-4 ring-white" />
+                  <span className="absolute -left-[1.625rem] top-2 size-3 rounded-full bg-brand ring-4 ring-white" />
                   <Link
                     href={e.href}
-                    className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+                    className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <div className="text-xs font-semibold tracking-wide text-emerald-900/70 uppercase">
+                        <div className="text-xs font-semibold tracking-wide text-[var(--gray-400)] uppercase">
                           {e.ano}
                         </div>
                         <div className="font-heading text-lg font-semibold text-brand-deep">

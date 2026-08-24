@@ -107,7 +107,7 @@ export async function enqueueSync(options: SyncOptions = {}) {
     });
     if (!workspace || workspace.plan !== "PRO") {
       throw new Error(
-        "O plano Essencial não inclui atualização SALIC. Fale conosco para o plano Pro.",
+        "A atualização com o SALIC não está disponível neste workspace.",
       );
     }
   }
@@ -155,6 +155,24 @@ async function accountsForSync(options: SyncOptions) {
         : {}),
     },
   });
+}
+
+async function mirrorCatalogForAccounts(accounts: Array<{ workspaceId: string }>) {
+  const { ensureCatalogFromAudit } = await import("@/lib/catalog/from-audit");
+  const ids = [...new Set(accounts.map((a) => a.workspaceId).filter(Boolean))];
+  for (const workspaceId of ids) {
+    await ensureCatalogFromAudit(workspaceId);
+  }
+}
+
+async function mirrorCatalogForWorkItems(items: WorkItem[]) {
+  const accountIds = [...new Set(items.map((i) => i.accountId))];
+  if (accountIds.length === 0) return;
+  const accounts = await prisma.salicAccount.findMany({
+    where: { id: { in: accountIds } },
+    select: { workspaceId: true },
+  });
+  await mirrorCatalogForAccounts(accounts);
 }
 
 async function buildWorkState(options: SyncOptions): Promise<WorkState> {
@@ -286,6 +304,9 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
       errorMessage: hadError && !hadSuccess ? allLogs[allLogs.length - 1] : null,
       workState: null,
     });
+    if (hadSuccess) {
+      await mirrorCatalogForAccounts(accounts);
+    }
   } catch (error) {
     if (error instanceof SyncCancelledError) {
       const current = await prisma.syncRun.findUnique({
@@ -403,6 +424,7 @@ export async function tickSyncRun(syncRunId: string) {
       progressTotal: workState.items.length,
       workState: null,
     });
+    await mirrorCatalogForWorkItems(workState.items);
     return {
       done: true as const,
       syncRun: await prisma.syncRun.findUniqueOrThrow({ where: { id: syncRunId } }),
@@ -458,6 +480,10 @@ export async function tickSyncRun(syncRunId: string) {
       workState: done ? null : workState,
     });
 
+    if (done) {
+      await mirrorCatalogForWorkItems(workState.items);
+    }
+
     return {
       done,
       syncRun: await prisma.syncRun.findUniqueOrThrow({ where: { id: syncRunId } }),
@@ -478,6 +504,9 @@ export async function tickSyncRun(syncRunId: string) {
       log: logs.join("\n"),
       workState: done ? null : workState,
     });
+    if (done) {
+      await mirrorCatalogForWorkItems(workState.items);
+    }
     return {
       done,
       syncRun: await prisma.syncRun.findUniqueOrThrow({ where: { id: syncRunId } }),

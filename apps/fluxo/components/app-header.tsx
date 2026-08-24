@@ -36,9 +36,7 @@ export async function SiteShell({
       const permissions = await getEffectivePermissions(user.id);
       return (
         <AppSidebarLayout
-          userName={user.name}
           userEmail={user.email}
-          roleName={user.role?.name}
           permissions={[...permissions]}
           title={title}
           actions={actions}

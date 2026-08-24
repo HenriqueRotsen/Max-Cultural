@@ -12,7 +12,7 @@ import { StatusBadges, StatusKindBadge } from "@/components/status-badges";
 import { buildTerritorioPath } from "@/lib/territorio-slug";
 import { isOnlineRow } from "@/lib/territorio-online";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ idProjeto: string; idOficina: string }>;
@@ -66,7 +66,7 @@ function LocalizacaoList({ items }: { items: OficinaLocalizacao[] }) {
               <li key={loc.href + loc.label}>
                 <Link
                   href={loc.href}
-                  className="inline-flex items-center gap-2 rounded-xl border border-brand/15 bg-white/85 px-3 py-1.5 text-sm text-brand-deep underline-offset-2 transition hover:border-emerald-700/30 hover:underline"
+                  className="inline-flex items-center gap-2 rounded-xl border border-brand/15 bg-white/85 px-3 py-1.5 text-sm text-brand-deep underline-offset-2 transition hover:border-brand/30 hover:underline"
                 >
                   <span>{loc.label}</span>
                   {items.length > 1 ? (
@@ -91,7 +91,7 @@ function LocalizacaoList({ items }: { items: OficinaLocalizacao[] }) {
               <li key={loc.href + loc.label}>
                 <Link
                   href={loc.href}
-                  className="inline-flex items-center gap-2 rounded-xl border border-brand/15 bg-white/85 px-3 py-1.5 text-sm text-brand-deep underline-offset-2 transition hover:border-emerald-700/30 hover:underline"
+                  className="inline-flex items-center gap-2 rounded-xl border border-brand/15 bg-white/85 px-3 py-1.5 text-sm text-brand-deep underline-offset-2 transition hover:border-brand/30 hover:underline"
                 >
                   <span>{loc.label}</span>
                   {items.length > 1 ? (
@@ -114,8 +114,8 @@ function OficinaView({ data }: { data: OficinaPageData }) {
 
   return (
     <div className="space-y-10">
-      <section className="rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_50%,#f4f1ea_100%)] px-6 py-10 md:px-10">
-        <p className="font-heading text-sm font-semibold tracking-[0.18em] text-emerald-900/70 uppercase">
+      <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
+        <p className="font-heading text-sm font-semibold tracking-[0.18em] text-[var(--gray-400)] uppercase">
           Oficina
         </p>
         <h1 className="mt-3 font-heading text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-tight text-brand-deep">

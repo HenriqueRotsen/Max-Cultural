@@ -11,7 +11,7 @@ import {
   TerritorioKpiGrid,
 } from "@/components/territorio/territorio-ui";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ uf: string; cidade: string; territorio: string }>;
@@ -46,13 +46,13 @@ export default async function TerritorioComunidadePage({ params }: Props) {
         </div>
       ) : (
         <div className="space-y-10">
-          <section className="rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_50%,#f4f1ea_100%)] px-6 py-10 md:px-10">
+          <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
             <TerritorioBreadcrumb
               estado={result.data.estado}
               cidade={result.data.cidade}
               territorio={result.data.territorio}
             />
-            <p className="mt-4 font-heading text-sm font-semibold tracking-[0.18em] text-emerald-900/70 uppercase">
+            <p className="mt-4 font-heading text-sm font-semibold tracking-[0.18em] text-[var(--gray-400)] uppercase">
               Território (comunidade)
             </p>
             <h1 className="mt-2 font-heading text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-tight text-brand-deep">
@@ -82,7 +82,7 @@ export default async function TerritorioComunidadePage({ params }: Props) {
                 <Link
                   key={`${o.id_projeto}-${o.id_oficina}`}
                   href={o.href}
-                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
                 >
                   <div className="font-heading text-lg font-semibold text-brand-deep">
                     {o.Nome_oficina}

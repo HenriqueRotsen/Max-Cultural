@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { loginAction, type AuthActionState } from "@/lib/actions/auth";
+import { useClientRedirect } from "@/lib/use-client-redirect";
 
 const initial: AuthActionState = {};
 
@@ -10,6 +11,7 @@ export function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") || "/";
   const [state, action, pending] = useActionState(loginAction, initial);
+  useClientRedirect(state.redirectTo);
 
   return (
     <form action={action} className="mt-5 space-y-4">
@@ -29,8 +31,8 @@ export function LoginForm() {
         />
       </div>
       {state.error ? <p className="auth-alert">{state.error}</p> : null}
-      <button type="submit" className="btn w-full" disabled={pending}>
-        {pending ? "Entrando…" : "Entrar"}
+      <button type="submit" className="btn w-full" disabled={pending || !!state.redirectTo}>
+        {pending || state.redirectTo ? "Entrando…" : "Entrar"}
       </button>
     </form>
   );

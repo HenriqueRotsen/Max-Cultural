@@ -17,11 +17,12 @@ import {
   parseSessionToken as parseHubSession,
 } from "@max/auth";
 import { prisma } from "@/lib/prisma";
+import { hashPassword, randomToken } from "@/lib/password";
+import { ADMIN_ROLE_NAME, type PermissionCode } from "@/lib/permission-catalog";
 import {
   getEffectivePermissions,
   type AuthUser,
 } from "@/lib/permissions";
-import type { PermissionCode } from "@/lib/permission-catalog";
 import { is2faDisabled } from "@/lib/totp";
 
 export {
@@ -104,13 +105,51 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   }
   const email = hub?.email?.trim().toLowerCase();
   if (!email) return null;
-  const user = await prisma.user.findUnique({
-    where: { email },
+  return ensureUserFromHub({
+    email,
+    name: email.split("@")[0] || "MAX Cultural",
+  });
+});
+
+async function ensureUserFromHub(input: {
+  email: string;
+  name: string;
+}): Promise<SessionUser | null> {
+  const existing = await prisma.user.findUnique({
+    where: { email: input.email },
     include: userInclude,
   });
-  if (!user || user.deactivatedAt) return null;
-  return user;
-});
+  if (existing) {
+    if (existing.deactivatedAt) return null;
+    if (existing.mustChangePassword) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { mustChangePassword: false, lastLoginAt: new Date() },
+        include: userInclude,
+      });
+    }
+    return existing;
+  }
+
+  const adminRole = await prisma.role.findUnique({
+    where: { name: ADMIN_ROLE_NAME },
+  });
+  if (!adminRole) return null;
+
+  return prisma.user.create({
+    data: {
+      email: input.email,
+      name: input.name,
+      passwordHash: await hashPassword(randomToken()),
+      roleId: adminRole.id,
+      isSuperAdmin: false,
+      mustChangePassword: false,
+      totpEnabled: false,
+      lastLoginAt: new Date(),
+    },
+    include: userInclude,
+  });
+}
 
 export async function getPending2faUser(): Promise<User | null> {
   const jar = await cookies();

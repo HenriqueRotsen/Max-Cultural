@@ -45,7 +45,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
     });
 
     const fromMeta = await page
-      .locator('meta[name="salink-generated-at"]')
+      .locator('meta[name="max-origem-generated-at"]')
       .getAttribute("content")
       .catch(() => null);
     const generatedAt = fromMeta || formatPdfTimestamp();
@@ -58,7 +58,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
       headerTemplate: `<div></div>`,
       footerTemplate: `
         <div style="width:100%;font-size:8px;color:#6b7280;padding:0 12mm;display:flex;justify-content:space-between;font-family:Montserrat,sans-serif;">
-          <span>Salink · Gerado em ${generatedAt}</span>
+          <span>MAX Origem · Gerado em ${generatedAt}</span>
           <span>Página <span class="pageNumber"></span> / <span class="totalPages"></span></span>
         </div>
       `,

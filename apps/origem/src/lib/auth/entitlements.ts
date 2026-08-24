@@ -26,11 +26,11 @@ export function entitlementsFromWorkspace(workspace: Workspace): PlanEntitlement
 }
 
 export function syncBlockedMessage() {
-  return "O plano Essencial não inclui atualização SALIC. Fale conosco para o plano Pro.";
+  return "A atualização com o SALIC não está disponível neste workspace.";
 }
 
 export function accountLimitMessage(maxAccounts: number) {
   return maxAccounts <= 1
-    ? "O plano Essencial permite apenas 1 conta. Fale conosco para o plano Pro."
-    : `Limite de ${maxAccounts} contas do plano atingido. Fale conosco para ampliar.`;
+    ? "Já existe um proponente cadastrado. Remova um para cadastrar outro."
+    : `Limite de ${maxAccounts} proponentes atingido.`;
 }

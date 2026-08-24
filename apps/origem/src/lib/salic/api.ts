@@ -117,7 +117,7 @@ async function salicFetch<T>(
         Accept: "application/json",
         "Content-Type": "application/json",
         "User-Agent":
-          "Mozilla/5.0 (compatible; SalinkAuditor/1.0; +https://localhost)",
+          "Mozilla/5.0 (compatible; MaxOrigemAuditor/1.0; +https://localhost)",
       },
       next: { revalidate: 0 },
       signal: controller.signal,

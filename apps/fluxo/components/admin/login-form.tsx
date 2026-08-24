@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { BrandLogo } from "@/components/brand-logo";
 import { loginAction, type AuthActionState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/card";
 
 const initial: AuthActionState = {};
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -27,23 +26,7 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md border-border/60 shadow-sm">
       <CardHeader className="items-center text-center">
-        <Image
-          src="/logo-mark.png"
-          alt=""
-          width={56}
-          height={56}
-          className="mb-2 rounded-[22%] shadow-sm"
-          aria-hidden
-          priority
-        />
-        <Image
-          src="/logo-wordmark-dark.png"
-          alt={appName}
-          width={200}
-          height={38}
-          className="mx-auto h-auto w-auto max-w-[12rem]"
-          priority
-        />
+        <BrandLogo href="" priority className="justify-center" />
         <CardTitle className="mt-3 text-xl tracking-tight">Entrar</CardTitle>
         <CardDescription>
           Acesse o painel com o e-mail e a senha da sua conta.
@@ -85,7 +68,7 @@ export function LoginForm() {
           <p className="text-center text-sm text-muted-foreground">
             <Link
               href="/dashboard/recuperar"
-              className="text-emerald-800 underline-offset-2 hover:underline"
+              className="text-brand underline-offset-2 hover:underline"
             >
               Esqueci minha senha
             </Link>

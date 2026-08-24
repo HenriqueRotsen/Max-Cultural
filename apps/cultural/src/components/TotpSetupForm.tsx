@@ -6,6 +6,7 @@ import {
   startTotpSetupAction,
   type AuthActionState,
 } from "@/lib/actions/auth";
+import { useClientRedirect } from "@/lib/use-client-redirect";
 
 const initial: AuthActionState = {};
 
@@ -14,6 +15,7 @@ export function TotpSetupForm() {
   const [qr, setQr] = useState<string | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [state, action, pending] = useActionState(confirmTotpSetupAction, initial);
+  useClientRedirect(state.redirectTo);
 
   useEffect(() => {
     startTotpSetupAction().then((res) => {
@@ -52,8 +54,8 @@ export function TotpSetupForm() {
           />
         </div>
         {state.error ? <p className="auth-alert">{state.error}</p> : null}
-        <button type="submit" className="btn w-full" disabled={pending || !secret}>
-          {pending ? "Confirmando…" : "Ativar 2FA"}
+        <button type="submit" className="btn w-full" disabled={pending || !secret || !!state.redirectTo}>
+          {pending || state.redirectTo ? "Confirmando…" : "Ativar 2FA"}
         </button>
       </form>
     </div>

@@ -24,7 +24,7 @@ export function PhoneLink({ phone, className, label }: PhoneLinkProps) {
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "text-emerald-800 underline-offset-2 hover:underline",
+        "text-brand underline-offset-2 hover:underline",
         className,
       )}
       title="Abrir no WhatsApp"

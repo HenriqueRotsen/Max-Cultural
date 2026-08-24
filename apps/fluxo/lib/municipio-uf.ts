@@ -39,7 +39,7 @@ const UF_NAMES: Record<string, string> = {
 
 const LOOKUP = municipiosUf as Record<string, string>;
 
-function cityKey(name: string): string {
+export function cityKey(name: string): string {
   const raw = stripAccents(String(name ?? "").trim().toLowerCase());
   return raw
     .replace(/[^a-z0-9]+/g, "-")

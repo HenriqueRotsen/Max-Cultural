@@ -19,6 +19,7 @@ import {
   resolveGeoUf,
   type CityCoords,
 } from "@/lib/geo";
+import { lookupMunicipioCoords } from "@/lib/municipio-coords";
 import { formatCellDisplay } from "@/lib/validate";
 import { aggregateSocio, type SocioBreakdown } from "@/lib/socio";
 import type { Prisma } from "@prisma/client";
@@ -165,19 +166,34 @@ async function attachMapPoints(
   }>,
 ): Promise<MapPoint[]> {
   if (cities.length === 0) return [];
-  const keys = cities.map((c) =>
-    geoCacheKey(c.cidade, resolveGeoUf(c.cidade, c.estado)),
-  );
-  const cached = await prisma.geoCache.findMany({
-    where: { key: { in: keys } },
+
+  const resolved = cities.map((c) => {
+    const city = normalizeAddressLine(c.cidade);
+    const geoUf = resolveGeoUf(c.cidade, c.estado);
+    return {
+      ...c,
+      city,
+      geoUf,
+      local: lookupMunicipioCoords(city, geoUf),
+    };
   });
+
+  const needCache = resolved.filter((c) => !c.local);
+  const cached =
+    needCache.length === 0
+      ? []
+      : await prisma.geoCache.findMany({
+          where: {
+            key: {
+              in: needCache.map((c) => geoCacheKey(c.city, c.geoUf)),
+            },
+          },
+        });
   const byKey = new Map(cached.map((c) => [c.key, c]));
 
-  // Não bloqueia a request com Nominatim (~1s/cidade).
-  // Só geocodifica em background as que faltam (fire-and-forget, máx. 3).
-  const missing = cities.filter(
-    (c) =>
-      !byKey.has(geoCacheKey(c.cidade, resolveGeoUf(c.cidade, c.estado))),
+  // Nominatim só para o que não está no IBGE nem no cache (máx. 3 / request).
+  const missing = needCache.filter(
+    (c) => !byKey.has(geoCacheKey(c.city, c.geoUf)),
   );
   if (missing.length > 0) {
     void (async () => {
@@ -194,12 +210,12 @@ async function attachMapPoints(
 
   const points: MapPoint[] = [];
   const seen = new Map<string, MapPoint>();
-  for (const c of cities) {
-    const geoUf = resolveGeoUf(c.cidade, c.estado);
-    const city = normalizeAddressLine(c.cidade);
-    const hit = byKey.get(geoCacheKey(city, geoUf));
-    if (!hit) continue;
-    const dedupeKey = `${geoUf}|${city}`;
+  for (const c of resolved) {
+    const hit = byKey.get(geoCacheKey(c.city, c.geoUf));
+    const lat = c.local?.lat ?? hit?.lat;
+    const lng = c.local?.lng ?? hit?.lng;
+    if (lat == null || lng == null) continue;
+    const dedupeKey = `${c.geoUf}|${c.city}`;
     const existing = seen.get(dedupeKey);
     if (existing) {
       existing.inscritos += c.kpis.inscritos;
@@ -209,11 +225,11 @@ async function attachMapPoints(
       continue;
     }
     const point: MapPoint = {
-      cidade: city,
-      estado: geoUf,
-      href: buildTerritorioPath({ estado: geoUf, cidade: city }),
-      lat: hit.lat,
-      lng: hit.lng,
+      cidade: c.city,
+      estado: c.geoUf,
+      href: buildTerritorioPath({ estado: c.geoUf, cidade: c.city }),
+      lat,
+      lng,
       inscritos: c.kpis.inscritos,
       selecionados: c.kpis.selecionados,
       participantes: c.kpis.participantes,

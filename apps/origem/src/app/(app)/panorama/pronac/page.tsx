@@ -138,7 +138,7 @@ export default async function PronacPanoramaPage({
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <ReportDownloadButton href={`/api/reports/pronac?${reportQs.toString()}`} />
-            <Link href="/fornecedores" className="btn btn-ghost">
+            <Link href="/observados" className="btn btn-ghost">
               Definir observados
             </Link>
             <Link href="/panorama" className="btn btn-ghost">
@@ -215,7 +215,7 @@ export default async function PronacPanoramaPage({
       {watchedCount === 0 && (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
           Para analisar só os fornecedores que você escolher, cadastre-os em{" "}
-          <Link href="/fornecedores" className="font-semibold underline underline-offset-2">
+          <Link href="/observados" className="font-semibold underline underline-offset-2">
             Fornecedores
           </Link>{" "}
           e marque “Só fornecedores observados”.

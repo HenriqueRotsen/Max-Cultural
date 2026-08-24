@@ -46,7 +46,7 @@ export type ReportFiltersMeta = {
 };
 
 async function loadLogoDataUri() {
-  const file = path.join(process.cwd(), "public/brand/logo-horizontal-ui.png");
+  const file = path.join(process.cwd(), "public/brand/max-origem.png");
   const buf = await readFile(file);
   return `data:image/png;base64,${buf.toString("base64")}`;
 }
@@ -387,7 +387,7 @@ function shellHtml(params: {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="salink-generated-at" content="${escapeHtml(generatedAt)}" />
+  <meta name="max-origem-generated-at" content="${escapeHtml(generatedAt)}" />
   <title>${escapeHtml(params.title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -635,7 +635,7 @@ function shellHtml(params: {
   <div class="page">
     <header class="header">
       <div>
-        <img class="logo" src="${params.logoDataUri}" alt="Salink" />
+        <img class="logo" src="${params.logoDataUri}" alt="MAX Origem" />
         <p class="eyebrow" style="margin-top:14px">Relatório de auditoria</p>
         <h1>${escapeHtml(params.title)}</h1>
         <p class="subtitle">${escapeHtml(params.subtitle)}</p>
@@ -643,7 +643,7 @@ function shellHtml(params: {
       <div class="meta">
         <div><strong>Gerado em</strong></div>
         <div class="timestamp">${escapeHtml(generatedAt)}</div>
-        <div style="margin-top:10px">Salink · Auditoria & Gestão</div>
+        <div style="margin-top:10px">MAX Origem · Auditoria & Gestão</div>
       </div>
     </header>
 
@@ -660,7 +660,7 @@ function shellHtml(params: {
     ${params.body}
 
     <footer class="footer">
-      <span>Documento gerado automaticamente pelo Salink para apoio à auditoria de gastos SALIC.</span>
+      <span>Documento gerado automaticamente pelo MAX Origem para apoio à auditoria de gastos SALIC.</span>
       <span>Gerado em ${escapeHtml(generatedAt)}</span>
     </footer>
   </div>

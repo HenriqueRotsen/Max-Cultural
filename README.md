@@ -4,11 +4,15 @@ Suíte: **MAX Cultural** (hub) · **MAX Origem** (auditoria SALIC + fornecedores
 
 Princípio: portar o que já funciona (Salink, Suply no Salink, SigaCultural) e mudar só a casca — marca MAX, sidebar clara, confirmação em editar/excluir, IAM no hub.
 
-| App | Host (prod) | Dev | Root Directory (Vercel) |
-|-----|-------------|-----|-------------------------|
-| Cultural | `maxcultural.com.br` | `npm run dev:cultural` → :3000 | `apps/cultural` |
-| Origem | `origem.maxcultural.com.br` | `npm run dev:origem` → :3001 | `apps/origem` |
-| Fluxo | `fluxo.maxcultural.com.br` | `npm run dev:fluxo` → :3002 | `apps/fluxo` |
+
+| App      | Host (prod)                 | Dev                            | Root Directory (Vercel) |
+| -------- | --------------------------- | ------------------------------ | ----------------------- |
+| Cultural | `maxcultural.com.br`        | `npm run dev:cultural` → :3000 | `apps/cultural`         |
+| Origem   | `origem.maxcultural.com.br` | `npm run dev:origem` → :3001   | `apps/origem`           |
+| Fluxo    | `fluxo.maxcultural.com.br`  | `npm run dev:fluxo` → :3002    | `apps/fluxo`            |
+
+
+
 
 ## Origem — módulos
 
@@ -24,7 +28,7 @@ Estes passos usam as contas Vercel / Supabase / Resend / DNS do cliente — o c�
 
 1. **GitHub** `HenriqueRotsen/max-cultural` — este repositório.
 2. **DNS** (`maxcultural.com.br`): apex A/ALIAS Vercel; `www`, `origem`, `fluxo` CNAME `cname.vercel-dns.com`.
-3. **Três projetos Vercel** no mesmo repo, Root Directory por app. Production URLs nos hosts da tabela. Crons só no Origem (`apps/origem/vercel.json`). `SYNC_MODE=chunked` e `SYNC_CONCURRENCY=2` no Origem.
+3. **Três projetos Vercel** no mesmo repo, Root Directory por app. Production URLs nos hosts da tabela. `SYNC_MODE=chunked` e `SYNC_CONCURRENCY=2` no Origem.
 4. **Um projeto Supabase** (Auth + Postgres). Site URL = `https://maxcultural.com.br`. Redirect allow list: os três hosts + `/auth/callback` + `/login/2fa`. Origem: `DATABASE_URL` pooler `:6543?pgbouncer=true`, `DIRECT_URL` `:5432`. Fluxo: mesmo projeto, schema `fluxo` (ou segundo database).
 5. **Resend** com domínio autenticado. `EMAIL_FROM=MAX Cultural <noreply@maxcultural.com.br>`.
 
@@ -44,7 +48,7 @@ Ver `.env.example` na raiz e em cada app.
 
 **Cultural:** `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_COOKIE_DOMAIN`, `CREDENTIALS_SECRET` (cifrar TOTP), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_2FA_DISABLED=false`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ORIGEM_URL`, `NEXT_PUBLIC_FLUXO_URL`.
 
-**Origem:** `DATABASE_URL` + `DIRECT_URL` (dados SALIC), `CREDENTIALS_SECRET`, `CRON_SECRET`, `SYNC_*`, `SALINK_DEV_OPEN=0`. Depois do SSO: `AUTH_SECRET` e `NEXT_PUBLIC_CULTURAL_URL`.
+**Origem:** `DATABASE_URL` + `DIRECT_URL` (dados SALIC), `CREDENTIALS_SECRET`, `SYNC_`*, `SALINK_DEV_OPEN=0`. Depois do SSO: `AUTH_SECRET` e `NEXT_PUBLIC_CULTURAL_URL`.
 
 **Fluxo:** `DATABASE_URL` do schema Siga; depois do SSO, as mesmas keys públicas de sessão.
 
@@ -64,3 +68,4 @@ npm run dev:cultural
 npm run dev:origem
 npm run dev:fluxo
 ```
+

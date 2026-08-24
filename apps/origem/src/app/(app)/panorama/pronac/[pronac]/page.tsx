@@ -344,7 +344,7 @@ export default async function PronacDetailPage({
         ) : (
           <section className="card p-5">
             <p className="text-sm text-[var(--gray-500)]">
-              Projeto ainda sem vínculo de IN no Salink.
+              Projeto ainda sem vínculo de IN no MAX Origem.
             </p>
           </section>
         ))}

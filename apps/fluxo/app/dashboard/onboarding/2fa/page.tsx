@@ -6,11 +6,12 @@ import {
   needs2faSetup,
   needsPasswordChange,
 } from "@/lib/auth";
+import { redirectToHubLogin } from "@/lib/hub";
 import { is2faDisabled } from "@/lib/totp";
 
 export default async function Onboarding2faPage() {
   const user = await getSessionUser();
-  if (!user) redirect("/dashboard/login");
+  if (!user) redirectToHubLogin("/dashboard");
   if (needsPasswordChange(user)) redirect("/dashboard/onboarding/senha");
   if (is2faDisabled() || !needs2faSetup(user)) redirect("/dashboard");
 

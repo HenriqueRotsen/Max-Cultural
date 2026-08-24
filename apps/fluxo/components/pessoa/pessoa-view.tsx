@@ -26,7 +26,7 @@ function MetricBar({
 }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   const colors = {
-    emerald: "bg-emerald-700",
+    emerald: "bg-brand",
     amber: "bg-amber-500",
     sky: "bg-sky-600",
     teal: "bg-teal-600",
@@ -102,7 +102,7 @@ function FunilVisual({ funil }: { funil: PessoaAnalise["funil"] }) {
               <div
                 className={cn(
                   "h-10 rounded-md transition-all duration-700",
-                  stage.tone === "emerald" && "bg-emerald-700/90",
+                  stage.tone === "emerald" && "bg-brand/90",
                   stage.tone === "sky" && "bg-sky-600/90",
                   stage.tone === "teal" && "bg-teal-600/90",
                   stage.tone === "amber" && "bg-amber-500/90",
@@ -129,7 +129,7 @@ function Fact({
   if (value == null || value === "") return null;
   return (
     <div className="flex items-start gap-2.5">
-      <Icon className="mt-0.5 size-4 shrink-0 text-emerald-800/70" />
+      <Icon className="mt-0.5 size-4 shrink-0 text-brand/80" />
       <div className="min-w-0">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="truncate text-sm font-medium text-brand-deep">{value}</div>
@@ -149,11 +149,11 @@ export function PessoaView({ pessoa }: Props) {
   return (
     <div className="space-y-14 md:space-y-20">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_45%,#f4f1ea_100%)] px-6 py-10 md:px-10 md:py-14">
-        <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-emerald-700/8 blur-3xl" />
+      <section className="relative overflow-hidden rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10 md:py-14">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-brand/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 left-10 size-56 rounded-full bg-teal-600/10 blur-3xl" />
-        <p className="sc-fade-in font-heading text-sm font-semibold tracking-[0.18em] text-emerald-900/70 uppercase">
-          SigaCultural
+        <p className="sc-fade-in font-heading text-sm font-semibold tracking-[0.18em] text-[var(--gray-400)] uppercase">
+          MAX Fluxo
         </p>
         <h1 className="sc-fade-up mt-3 font-heading text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.05] tracking-tight text-brand-deep">
           {pessoa.nome}
@@ -290,7 +290,7 @@ export function PessoaView({ pessoa }: Props) {
           {pessoa.inscricoes.map((insc) => (
             <article
               key={insc.id}
-              className="rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/25"
+              className="rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/25"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-1">

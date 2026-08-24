@@ -124,7 +124,7 @@ export function ProfileForm({
               />
             </div>
             {profileState.message ? (
-              <p className="text-sm text-emerald-800">{profileState.message}</p>
+              <p className="text-sm text-brand">{profileState.message}</p>
             ) : null}
             {profileState.error ? (
               <p className="text-sm text-destructive">{profileState.error}</p>
@@ -302,7 +302,7 @@ export function ProfileForm({
               />
             </div>
             {passState.message ? (
-              <p className="text-sm text-emerald-800">{passState.message}</p>
+              <p className="text-sm text-brand">{passState.message}</p>
             ) : null}
             {passState.error ? (
               <p className="text-sm text-destructive">{passState.error}</p>
@@ -338,7 +338,7 @@ export function ProfileForm({
                   />
                 </div>
                 {disableState.message ? (
-                  <p className="text-sm text-emerald-800">
+                  <p className="text-sm text-brand">
                     {disableState.message}
                   </p>
                 ) : null}

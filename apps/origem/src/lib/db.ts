@@ -7,7 +7,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 19;
+const PRISMA_SCHEMA_VERSION = 23;
 
 function createPrismaClient() {
   const adapter = new PrismaPg({
@@ -34,6 +34,16 @@ function clientMatchesSchema(client: PrismaClient): boolean {
   if (!models.CorporatePeriod) return false;
   if (!models.CorporatePeriodMember) return false;
   if (!models.ObservadoBond) return false;
+  if (!models.CatalogSupplier) return false;
+  const catalogFields = (models.CatalogSupplier.fields || []).map((f) => f.name);
+  if (!catalogFields.includes("fromAudit")) return false;
+  if (!catalogFields.includes("latitude")) return false;
+  if (!models.CatalogService) return false;
+  const serviceFields = (models.CatalogService.fields || []).map((f) => f.name);
+  if (!serviceFields.includes("embeddingUpdatedAt")) return false;
+  if (!models.CatalogEngagement) return false;
+  const engagementFields = (models.CatalogEngagement.fields || []).map((f) => f.name);
+  if (!engagementFields.includes("salicPaymentId")) return false;
   return true;
 }
 

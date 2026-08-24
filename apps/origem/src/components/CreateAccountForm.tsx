@@ -51,10 +51,10 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
   return (
     <form action={createAccount} className="card overflow-hidden">
       <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-        <h2 className="text-base font-semibold text-[var(--navy)]">Nova conta</h2>
+        <h2 className="text-base font-semibold text-[var(--navy)]">Novo proponente</h2>
         <p className="mt-1 text-sm text-[var(--gray-500)]">
-          Ao completar o CNPJ (14 dígitos) ou CPF (11), o nome e o tipo são preenchidos
-          automaticamente. Contato e endereço ficam no cadastro do usuário.
+          Cadastro da conta do proponente no SALIC. Ao completar o CNPJ (14 dígitos) ou CPF (11), o
+          nome e o tipo são preenchidos automaticamente.
         </p>
       </div>
 
@@ -157,12 +157,7 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
               />
             </div>
           </>
-        ) : (
-          <div className="md:col-span-2 rounded-xl bg-[var(--gray-50)] px-3 py-3 text-xs text-[var(--gray-500)]">
-            Plano Essencial: sem sincronização SALIC. Credenciais de login do SALIC ficam disponíveis
-            no plano Pro.
-          </div>
-        )}
+        ) : null}
         <div className="field md:col-span-2">
           <FieldLabel htmlFor="extraPronacs" help={HELP.extraPronacs}>
             Projetos extras (PRONAC)

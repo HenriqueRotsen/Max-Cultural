@@ -157,7 +157,7 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
                       placeholder={
                         account.hasPassword
                           ? "Nova senha para substituir a cadastrada"
-                          : "Opcional — só para o Salink atualizar os dados"
+                          : "Opcional — só para o MAX Origem atualizar os dados"
                       }
                     />
                     {account.hasPassword && (
@@ -191,7 +191,7 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
             <label className="inline-flex items-center gap-2 text-sm text-[var(--gray-600)]">
               <input type="checkbox" name="active" defaultChecked={account.active} />
               <span className="inline-flex items-center gap-1.5 font-medium">
-                {syncEnabled ? "Manter atualização automática ligada" : "Conta ativa"}
+                {syncEnabled ? "Incluir na atualização" : "Conta ativa"}
                 {syncEnabled && <FieldHelp text={HELP.active} />}
               </span>
             </label>

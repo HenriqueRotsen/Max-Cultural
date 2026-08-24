@@ -116,7 +116,7 @@ function buildColumnMapPrompt(
   samples: Record<string, unknown>[],
   availableTargets: string[],
 ): string {
-  return `Mapeie cabeçalhos de planilha → colunas oficiais SigaCultural.
+  return `Mapeie cabeçalhos de planilha → colunas oficiais MAX Fluxo.
 JSON: {"mapping":{"<origem>":"<oficial>"|null}}
 
 Targets permitidos (use exatamente):
@@ -266,7 +266,7 @@ export async function reprocessValuesWithAi(
       return partial;
     });
 
-    const prompt = `Padronize valores SigaCultural. JSON: {"rows":[{"_i":0,...}]}
+    const prompt = `Padronize valores MAX Fluxo. JSON: {"rows":[{"_i":0,...}]}
 Colunas: ${columns.join(", ")}
 CPF=11 digitos; Telefone=(XX) XXXXX-XXXX; CEP=8 digitos; Genero=${GENEROS.slice(0, 3).join("|")}; Etnia=${ETNIAS.slice(0, 4).join("|")}; PCD=Sim|Não; UF=2 letras; datas=DD/MM/YYYY
 Contexto: projeto=${context.id_projeto} oficina=${context.id_oficina}

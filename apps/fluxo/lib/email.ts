@@ -57,10 +57,10 @@ export async function sendProvisionalPasswordEmail(input: {
   password: string;
   loginUrl: string;
 }) {
-  const subject = "SigaCultural — senha provisória";
+  const subject = "MAX Fluxo — senha provisória";
   const text = `Olá ${input.name},\n\nSua conta foi criada.\nE-mail: ${input.to}\nSenha provisória: ${input.password}\n\nAcesse: ${input.loginUrl}\nNo primeiro acesso você deverá criar uma senha própria e ativar a verificação em duas etapas.\n`;
   const html = `<p>Olá <strong>${escapeHtml(input.name)}</strong>,</p>
-<p>Sua conta foi criada no SigaCultural.</p>
+<p>Sua conta foi criada no MAX Fluxo.</p>
 <p><strong>E-mail:</strong> ${escapeHtml(input.to)}<br/>
 <strong>Senha provisória:</strong> <code>${escapeHtml(input.password)}</code></p>
 <p><a href="${escapeHtml(input.loginUrl)}">Entrar no painel</a></p>
@@ -73,7 +73,7 @@ export async function sendPasswordResetEmail(input: {
   name: string;
   resetUrl: string;
 }) {
-  const subject = "SigaCultural — recuperação de senha";
+  const subject = "MAX Fluxo — recuperação de senha";
   const text = `Olá ${input.name},\n\nUse o link para redefinir sua senha (válido por 1 hora):\n${input.resetUrl}\n\nSe você não solicitou, ignore este e-mail.\n`;
   const html = `<p>Olá <strong>${escapeHtml(input.name)}</strong>,</p>
 <p>Use o link abaixo para redefinir sua senha (válido por 1 hora):</p>
@@ -87,7 +87,7 @@ export async function sendLoginOtpEmail(input: {
   name: string;
   code: string;
 }) {
-  const subject = "SigaCultural — código de verificação";
+  const subject = "MAX Fluxo — código de verificação";
   const text = `Olá ${input.name},\n\nSeu código de verificação: ${input.code}\nVálido por 10 minutos.\n`;
   const html = `<p>Olá <strong>${escapeHtml(input.name)}</strong>,</p>
 <p>Seu código de verificação:</p>

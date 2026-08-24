@@ -1,13 +1,13 @@
-import Link from "next/link";
-import { MaxOrigemLogo } from "@/components/SalinkLogo";
+import { origemHubLoginUrl } from "@/lib/auth/hub";
+import { MaxOrigemLogo } from "@/components/MaxOrigemLogo";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <Link href="/login" className="mb-6 inline-block">
+        <a href={origemHubLoginUrl("/painel")} className="mb-6 inline-block">
           <MaxOrigemLogo />
-        </Link>
+        </a>
         {children}
       </div>
     </div>

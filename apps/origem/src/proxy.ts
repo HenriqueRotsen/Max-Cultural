@@ -17,7 +17,6 @@ function isPublicPath(pathname: string) {
   ) {
     return true;
   }
-  if (pathname.startsWith("/api/cron")) return true;
   return false;
 }
 
@@ -57,12 +56,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!isPublicPath(pathname) && !user && !hubOk) {
-    if (isHubSsoEnabled()) {
-      return NextResponse.redirect(culturalLoginUrl(request.url));
-    }
-    const login = new URL("/login", request.url);
-    login.searchParams.set("next", pathname);
-    return NextResponse.redirect(login);
+    return NextResponse.redirect(culturalLoginUrl(request.url));
   }
 
   if (isAuthOnlyPath(pathname) && (user || hubOk)) {

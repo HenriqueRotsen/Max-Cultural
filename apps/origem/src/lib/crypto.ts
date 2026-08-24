@@ -68,7 +68,12 @@ export function decryptSecret(payload: string): string {
 export function decryptCredential(payload: string | null | undefined): string | null {
   if (!payload) return null;
   if (!looksEncrypted(payload)) return payload;
-  return decryptSecret(payload);
+  try {
+    return decryptSecret(payload);
+  } catch {
+    // CREDENTIALS_SECRET diferente do que cifrou o valor — não derruba a página.
+    return null;
+  }
 }
 
 /** Criptografa login/senha para armazenamento em repouso. */

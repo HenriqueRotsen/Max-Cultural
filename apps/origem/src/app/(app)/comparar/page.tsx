@@ -9,7 +9,7 @@ export default function CompararPage() {
       <PageHeader
         breadcrumb="Início › Comparar"
         title="Comparar planilha"
-        description="Cruza a relação de projetos (Excel) com os PRONACs do Salink — captado, IN, proponente e limites."
+        description="Cruza a relação de projetos (Excel) com os PRONACs do MAX Origem — captado, IN, proponente e limites."
       />
       <ProjectSheetComparePanel />
     </div>

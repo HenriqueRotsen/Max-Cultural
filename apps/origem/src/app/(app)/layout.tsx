@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
 import { DemoBanner } from "@/components/DemoBanner";
-import { isDemoMode, isDevOpenAuth, needsLogin } from "@/lib/auth/config";
+import { isAuthEnabled, isDemoMode, isDevOpenAuth, needsLogin } from "@/lib/auth/config";
+import { origemHubLoginUrl } from "@/lib/auth/hub";
 import { getSessionUser, getWorkspaceContext } from "@/lib/auth/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +16,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           userEmail={demo ? "demonstração" : isDevOpenAuth() ? "dev aberto" : undefined}
           isAdmin={!demo && isDevOpenAuth()}
           syncEnabled={!demo && entitlements.syncEnabled}
-          planLabel={demo ? "Demo" : entitlements.planLabel}
           demoMode={demo}
         />
         <div className="shell-main">
@@ -28,9 +28,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const session = await getSessionUser();
   if (!session) {
-    redirect("/login");
+    redirect(origemHubLoginUrl("/painel"));
   }
-  if (session.profile.mustChangePassword) {
+  if (session.profile.mustChangePassword && isAuthEnabled()) {
     redirect("/alterar-senha");
   }
 
@@ -38,8 +38,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="shell">
       <AppSidebar
         userEmail={session.email}
+        isAdmin={session.profile.role === "ADMIN"}
         syncEnabled={session.entitlements.syncEnabled}
-        planLabel={session.entitlements.planLabel}
       />
       <div className="shell-main">
         <div className="content">{children}</div>

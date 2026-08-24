@@ -9,7 +9,7 @@ import {
 } from "@/components/territorio/territorio-ui";
 import { StatusKindBadge } from "@/components/status-badges";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ uf: string; cidade: string }>;
@@ -40,7 +40,7 @@ export default async function TerritorioCidadePage({ params }: Props) {
         </div>
       ) : (
         <div className="space-y-10">
-          <section className="rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_50%,#f4f1ea_100%)] px-6 py-10 md:px-10">
+          <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
             <TerritorioBreadcrumb
               estado={result.data.estado}
               cidade={result.data.cidade}
@@ -79,7 +79,7 @@ export default async function TerritorioCidadePage({ params }: Props) {
                   <Link
                     key={t.territorio}
                     href={t.href}
-                    className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+                    className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="font-heading text-lg font-semibold text-brand-deep">
@@ -108,7 +108,7 @@ export default async function TerritorioCidadePage({ params }: Props) {
                 <Link
                   key={`${o.id_projeto}-${o.id_oficina}`}
                   href={o.href}
-                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
                 >
                   <div className="font-heading text-lg font-semibold text-brand-deep">
                     {o.Nome_oficina}

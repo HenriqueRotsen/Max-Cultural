@@ -48,7 +48,7 @@ function MetricBar({
 }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   const colors = {
-    emerald: "bg-emerald-600",
+    emerald: "bg-brand",
     amber: "bg-amber-500",
     sky: "bg-sky-500",
     teal: "bg-teal-600",
@@ -85,7 +85,7 @@ function KpiCard({
   barTone?: "emerald" | "amber" | "sky" | "teal";
 }) {
   const tones = {
-    emerald: "bg-emerald-600",
+    emerald: "bg-brand",
     amber: "bg-amber-500",
     sky: "bg-sky-500",
     teal: "bg-teal-600",
@@ -193,7 +193,7 @@ function TopPessoaRow({
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-brand-mist">
             <div
-              className="h-full rounded-full bg-emerald-700"
+              className="h-full rounded-full bg-brand"
               style={{ width: `${barPct}%` }}
             />
           </div>
@@ -208,7 +208,7 @@ function TopPessoaRow({
         </div>
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-brand-mist">
           <div
-            className="h-full rounded-full bg-emerald-700 transition-all"
+            className="h-full rounded-full bg-brand transition-all"
             style={{ width: `${barPct}%` }}
           />
         </div>
@@ -576,7 +576,7 @@ export function AnaliseDashboard({ data }: Props) {
               <Link
                 key={p.id}
                 href={p.href}
-                className="rounded-xl border border-brand/10 px-4 py-3 transition hover:border-emerald-700/30 hover:bg-brand-mist/40"
+                className="rounded-xl border border-brand/10 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-mist/40"
               >
                 <div className="font-medium text-brand-deep">{p.label}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">

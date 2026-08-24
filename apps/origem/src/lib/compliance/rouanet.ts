@@ -86,7 +86,7 @@ export function isNearLimit(
 
 export function legalBasisNote(rules: ActiveRules = DEFAULT_RULES) {
   const c = rules.caps;
-  return `Limites conforme ${rules.sourceCode}: o mesmo fornecedor pode receber até ${c.supplierCapPct}% do valor captado do projeto (${c.articles.supplier}). A remuneração do proponente pode chegar a ${c.proponentCapPct}% (${c.articles.proponent}), ou ${c.proponentMeiCapPct}% se for pessoa física ou MEI. Pagamentos a cônjuge, sócio ou empresa ligada entram no limite do proponente (${c.articles.proponent}). No Salink, os percentuais usam o valor captado do SALIC (não a soma dos comprovados).`;
+  return `Limites conforme ${rules.sourceCode}: o mesmo fornecedor pode receber até ${c.supplierCapPct}% do valor captado do projeto (${c.articles.supplier}). A remuneração do proponente pode chegar a ${c.proponentCapPct}% (${c.articles.proponent}), ou ${c.proponentMeiCapPct}% se for pessoa física ou MEI. Pagamentos a cônjuge, sócio ou empresa ligada entram no limite do proponente (${c.articles.proponent}). No MAX Origem, os percentuais usam o valor captado do SALIC (não a soma dos comprovados).`;
 }
 
 function isSameCgccpf(a: string, b: string) {

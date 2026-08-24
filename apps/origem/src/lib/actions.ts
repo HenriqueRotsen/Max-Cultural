@@ -259,7 +259,7 @@ export async function setPartyRelation(formData: FormData) {
     });
   }
 
-  revalidatePath("/fornecedores");
+  revalidatePath("/observados");
   revalidatePath("/contas");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac");
@@ -330,7 +330,7 @@ export async function setObservadoBond(formData: FormData) {
     );
   }
 
-  revalidatePath("/fornecedores");
+  revalidatePath("/observados");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac");
   revalidatePath("/auditoria");
@@ -393,7 +393,7 @@ export async function setRelationBondOverride(formData: FormData) {
     },
   });
 
-  revalidatePath("/fornecedores");
+  revalidatePath("/observados");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac");
   return { ok: true as const };
@@ -426,7 +426,7 @@ export async function resetRelationBondOverrides(formData: FormData) {
     },
   });
 
-  revalidatePath("/fornecedores");
+  revalidatePath("/observados");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac");
   return { ok: true as const };
@@ -757,10 +757,12 @@ export async function addWatchedSupplier(formData: FormData) {
     },
   });
 
-  revalidatePath("/fornecedores");
+  revalidatePath("/observados");
   revalidatePath("/contas");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac");
+  revalidatePath("/fornecedores");
+  revalidatePath("/fornecedores/empresas");
   return { ok: true as const };
 }
 
@@ -771,7 +773,7 @@ export async function removeWatchedSupplier(id: string) {
   await prisma.watchedSupplier.deleteMany({
     where: { id, workspaceId: entitlements.workspaceId },
   });
-  revalidatePath("/fornecedores");
+  revalidatePath("/observados");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac");
 }
@@ -856,7 +858,7 @@ async function assertAccountInWorkspace(accountId: string, workspaceId: string) 
 async function afterCorporateMapChange(accountId: string) {
   revalidatePath(`/contas/mapa/${accountId}`);
   revalidatePath("/contas");
-  revalidatePath("/fornecedores");
+  revalidatePath("/observados");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac");
   revalidatePath("/auditoria");

@@ -14,10 +14,9 @@ import type { MapPoint } from "@/app/actions/territorio";
 import "leaflet/dist/leaflet.css";
 
 const markerIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconUrl: "/leaflet/marker-icon.png",
+  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+  shadowUrl: "/leaflet/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
@@ -106,7 +105,7 @@ export function TerritorioMap({
                 </div>
                 <Link
                   href={p.href}
-                  className="text-xs font-medium text-emerald-800 underline-offset-2 hover:underline"
+                  className="text-xs font-medium text-brand underline-offset-2 hover:underline"
                 >
                   Ver análise
                 </Link>

@@ -1,14 +1,6 @@
-import { SiteShell } from "@/components/app-header";
-import { RecoverRequestForm } from "@/components/admin/recover-request-form";
+import { redirect } from "next/navigation";
+import { culturalHubUrl } from "@max/auth";
 
 export default function RecuperarPage() {
-  return (
-    <SiteShell
-      showHeader={false}
-      width="3xl"
-      mainClassName="flex min-h-screen items-center justify-center py-10"
-    >
-      <RecoverRequestForm />
-    </SiteShell>
-  );
+  redirect(`${culturalHubUrl()}/login/recuperar`);
 }

@@ -1,7 +1,8 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { isAuthEnabled, needsLogin } from "@/lib/auth/config";
-import { getHubSessionPayload } from "@/lib/auth/hub";
+import { getHubSessionPayload, origemHubLoginUrl } from "@/lib/auth/hub";
 import {
   entitlementsFromWorkspace,
   type PlanEntitlements,
@@ -82,7 +83,57 @@ export async function ensureAppUser(params: {
   });
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+async function ensureHubAppUser(params: { id: string; email: string }) {
+  const email = params.email.toLowerCase();
+  const name = email.split("@")[0] || "MAX Cultural";
+  const workspace = await ensureBootstrapWorkspace();
+
+  const byEmail = await prisma.appUser.findUnique({
+    where: { email },
+    include: { workspace: true },
+  });
+  if (byEmail) {
+    if (byEmail.mustChangePassword || !byEmail.active) {
+      return prisma.appUser.update({
+        where: { id: byEmail.id },
+        data: { mustChangePassword: false, active: true },
+        include: { workspace: true },
+      });
+    }
+    return byEmail;
+  }
+
+  try {
+    return await prisma.appUser.upsert({
+      where: { id: params.id },
+      create: {
+        id: params.id,
+        email,
+        name,
+        role: "ADMIN",
+        mustChangePassword: false,
+        active: true,
+        workspaceId: workspace.id,
+      },
+      update: {
+        email,
+        name,
+        mustChangePassword: false,
+        active: true,
+      },
+      include: { workspace: true },
+    });
+  } catch {
+    const fallback = await prisma.appUser.findFirst({
+      where: { OR: [{ id: params.id }, { email }] },
+      include: { workspace: true },
+    });
+    if (fallback) return fallback;
+    throw new Error("Não foi possível vincular a sessão do hub ao Origem.");
+  }
+}
+
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!needsLogin()) {
     return null;
   }
@@ -108,37 +159,20 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }
 
   const hub = await getHubSessionPayload();
-  if (!hub) return null;
-  const workspace = await ensureBootstrapWorkspace();
-  const email = hub.email || "sessao@maxcultural.com.br";
+  if (!hub?.email) return null;
+  const profile = await ensureHubAppUser({
+    id: hub.userId,
+    email: hub.email,
+  });
+  if (!profile?.active) return null;
   return {
-    id: `hub:${hub.userId}`,
-    email,
-    profile: {
-      id: `hub:${hub.userId}`,
-      email,
-      name: "MAX Cultural",
-      role: "USER",
-      mustChangePassword: false,
-      active: true,
-      contactEmail: email,
-      contactPhone: "",
-      addressZip: "",
-      addressStreet: "",
-      addressNumber: "",
-      addressComplement: null,
-      addressNeighborhood: "",
-      addressCity: "",
-      addressState: "",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      createdById: null,
-      workspaceId: workspace.id,
-    } as AppUser,
-    workspace,
-    entitlements: entitlementsFromWorkspace(workspace),
+    id: profile.id,
+    email: profile.email,
+    profile,
+    workspace: profile.workspace,
+    entitlements: entitlementsFromWorkspace(profile.workspace),
   };
-}
+});
 
 /** Contexto do workspace atual (Auth, hub ou bootstrap local). */
 export async function getWorkspaceContext(): Promise<WorkspaceContext> {
@@ -152,7 +186,7 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext> {
   }
 
   const session = await getSessionUser();
-  if (!session) redirect("/login");
+  if (!session) redirect(origemHubLoginUrl("/painel"));
   return {
     session,
     workspace: session.workspace,
@@ -194,8 +228,8 @@ export async function requireUser(options?: { roles?: AppUserRole[] }) {
   }
 
   const session = await getSessionUser();
-  if (!session) redirect("/login");
-  if (session.profile.mustChangePassword) redirect("/alterar-senha");
+  if (!session) redirect(origemHubLoginUrl("/painel"));
+  if (session.profile.mustChangePassword && isAuthEnabled()) redirect("/alterar-senha");
   if (options?.roles && !options.roles.includes(session.profile.role)) {
     redirect("/painel");
   }

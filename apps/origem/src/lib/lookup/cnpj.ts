@@ -78,7 +78,7 @@ export async function fetchCnpjCompany(cnpjRaw: string): Promise<CnpjCompanyResu
   const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
     headers: {
       Accept: "application/json",
-      "User-Agent": "SalinkAuditor/1.0 (+https://salink.app)",
+      "User-Agent": "MaxOrigemAuditor/1.0",
     },
     next: { revalidate: 86400 },
   });

@@ -97,7 +97,7 @@ export async function GET(
     });
 
     const pdf = await htmlToPdf(html);
-    const filename = `salink-pronac-${pronac}-${reportFileStamp()}.pdf`;
+    const filename = `max-origem-pronac-${pronac}-${reportFileStamp()}.pdf`;
 
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,

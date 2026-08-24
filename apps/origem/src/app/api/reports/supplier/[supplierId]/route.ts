@@ -47,7 +47,7 @@ export async function GET(request: Request, context: { params: Params }) {
 
     const pdf = await htmlToPdf(html);
     const safeName = detail.supplier.cgccpf.replace(/\D/g, "") || supplierId.slice(0, 8);
-    const filename = `salink-fornecedor-${safeName}-${reportFileStamp()}.pdf`;
+    const filename = `max-origem-fornecedor-${safeName}-${reportFileStamp()}.pdf`;
 
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,

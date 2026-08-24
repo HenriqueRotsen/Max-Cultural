@@ -74,7 +74,7 @@ export function RelationKindSelect({
         <p className="text-[10px] text-[var(--gray-400)]">
           O vínculo art. 23 depende da IN do PRONAC — configure em{" "}
           <Link
-            href="/fornecedores?tab=vinculos"
+            href="/observados?tab=vinculos"
             className="font-medium text-[var(--navy)] underline-offset-2 hover:underline"
           >
             Fornecedores › Vínculos por IN

@@ -56,7 +56,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
             <Link href="/panorama/pronac" className="btn">
               Análise por PRONAC
             </Link>
-            <Link href="/fornecedores?tab=todos" className="btn btn-ghost">
+            <Link href="/fornecedores/empresas" className="btn btn-ghost">
               Ver fornecedores
             </Link>
           </div>
@@ -212,7 +212,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
               </p>
             </div>
             <Link
-              href="/fornecedores?tab=todos"
+              href="/fornecedores/empresas"
               className="text-sm font-semibold text-[var(--navy)] underline-offset-2 hover:underline"
             >
               Lista completa
@@ -288,7 +288,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
                 total
               </p>
               <Link
-                href="/fornecedores?tab=observados"
+                href="/observados?tab=observados"
                 className="mt-2 inline-block font-semibold text-[var(--navy)] underline-offset-2 hover:underline"
               >
                 Gerenciar lista

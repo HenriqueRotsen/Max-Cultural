@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, verifySessionToken } from "@/lib/auth-token";
+import {
+  AUTH_COOKIE as HUB_COOKIE,
+  parseSessionToken as parseHubSession,
+} from "@max/auth";
 import { listAllRowsForExport } from "@/app/actions/inscricoes";
 import { SIGACULTURAL_COLUMNS, rowToExportObject } from "@/lib/schema";
 
 async function assertAuth() {
   const jar = await cookies();
-  return verifySessionToken(jar.get(AUTH_COOKIE)?.value);
+  if (await verifySessionToken(jar.get(AUTH_COOKIE)?.value)) return true;
+  try {
+    return Boolean(await parseHubSession(jar.get(HUB_COOKIE)?.value));
+  } catch {
+    return false;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -24,13 +33,13 @@ export async function GET(request: NextRequest) {
       header: [...SIGACULTURAL_COLUMNS],
     });
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "SigaCultural");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "MAX Fluxo");
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
     return new NextResponse(buffer, {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": 'attachment; filename="sigacultural-base.xlsx"',
+        "Content-Disposition": 'attachment; filename="max-fluxo-base.xlsx"',
       },
     });
   }
@@ -51,7 +60,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="sigacultural-base.csv"',
+      "Content-Disposition": 'attachment; filename="max-fluxo-base.csv"',
     },
   });
 }

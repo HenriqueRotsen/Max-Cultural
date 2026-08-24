@@ -8,7 +8,7 @@ import {
   TerritorioKpiGrid,
 } from "@/components/territorio/territorio-ui";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 export const metadata: Metadata = {
   title: `Territórios · ${appName}`,
@@ -21,7 +21,7 @@ export default async function TerritorioIndexPage() {
 
   return (
       <div className="space-y-10">
-        <section className="rounded-[1.75rem] border border-brand/10 bg-[linear-gradient(145deg,#f7faf7_0%,#eef5ef_50%,#f4f1ea_100%)] px-6 py-10 md:px-10">
+        <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
           <TerritorioBreadcrumb />
           <h1 className="mt-4 font-heading text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-tight text-brand-deep">
             Análise territorial
@@ -50,7 +50,7 @@ export default async function TerritorioIndexPage() {
             {data.online ? (
               <Link
                 href={data.online.href}
-                className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+                className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="font-heading text-lg font-semibold text-brand-deep">
@@ -72,7 +72,7 @@ export default async function TerritorioIndexPage() {
                 <Link
                   key={e.estado}
                   href={e.href}
-                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-emerald-700/30 hover:bg-white"
+                  className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="font-heading text-lg font-semibold text-brand-deep">

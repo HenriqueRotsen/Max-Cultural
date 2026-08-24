@@ -2,34 +2,58 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MaxOrigemLogo } from "@/components/SalinkLogo";
+import { MaxOrigemLogo } from "@/components/MaxOrigemLogo";
 import { signOut } from "@/lib/auth/actions";
 
+const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
+  /\/$/,
+  "",
+);
+const ACCOUNT_URL = `${HUB_URL}/conta`;
+
 const auditoriaLinks = [
-  { href: "/painel", label: "Início", icon: HomeIcon },
+  { href: "/inicio", label: "Início", icon: HomeIcon },
   { href: "/panorama", label: "Insights", icon: ChartIcon },
   { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon },
   { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon },
-  { href: "/comparar", label: "Comparar", icon: CompareIcon },
-  { href: "/contas", label: "Contas", icon: BuildingIcon },
+  { href: "/contas", label: "Proponentes", icon: BuildingIcon },
   { href: "/sync", label: "Atualizar", icon: SyncIcon },
+  { href: "/observados", label: "Observados", icon: UsersIcon },
 ];
 
 const fornecedoresLinks = [
-  { href: "/fornecedores", label: "Banco de fornecedores", icon: UsersIcon },
-  { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon },
+  { href: "/fornecedores", label: "Dashboard", icon: HomeIcon },
+  { href: "/fornecedores/favoritos", label: "Favoritos", icon: HeartIcon },
+  { href: "/fornecedores/empresas", label: "Fornecedores", icon: UsersIcon },
+  { href: "/fornecedores/mapa", label: "Mapa", icon: MapIcon },
+  { href: "/fornecedores/servicos", label: "Serviços", icon: PackageIcon },
+  { href: "/fornecedores/contratacoes", label: "Contratações", icon: HandshakeIcon },
+  { href: "/fornecedores/analises", label: "Análises", icon: ChartIcon },
 ];
 
+const moduleLinks = [
+  { href: "/inicio", label: "Auditoria", icon: AuditIcon },
+  { href: "/fornecedores", label: "Fornecedores", icon: UsersIcon },
+];
+
+export function origemNavModule(pathname: string): "home" | "auditoria" | "fornecedores" {
+  if (pathname === "/painel") return "home";
+  if (pathname === "/fornecedores" || pathname.startsWith("/fornecedores/")) {
+    return "fornecedores";
+  }
+  return "auditoria";
+}
+
 function linkActive(pathname: string, href: string) {
-  if (href === "/painel") return pathname === "/painel";
+  if (href === "/inicio") return pathname === "/inicio";
+  if (href === "/fornecedores") {
+    return pathname === "/fornecedores";
+  }
   if (href === "/panorama") {
     return pathname === "/panorama" || /^\/panorama\/(?!pronac(?:\/|$))/.test(pathname);
   }
   if (href === "/contas") {
-    return pathname === "/contas" || (pathname.startsWith("/contas/") && !pathname.startsWith("/contas/mapa"));
-  }
-  if (href === "/contas/mapa") {
-    return pathname === "/contas/mapa" || pathname.startsWith("/contas/mapa/");
+    return pathname === "/contas" || pathname.startsWith("/contas/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -37,21 +61,27 @@ function linkActive(pathname: string, href: string) {
 export function AppSidebar({
   userEmail,
   syncEnabled = true,
-  planLabel,
   demoMode = false,
 }: {
   userEmail?: string;
   isAdmin?: boolean;
   syncEnabled?: boolean;
-  planLabel?: string;
   demoMode?: boolean;
 }) {
   const pathname = usePathname();
+  const module = origemNavModule(pathname);
   const auditoria = auditoriaLinks.filter((l) => {
     if (!syncEnabled && l.href === "/sync") return false;
     if (demoMode && (l.href === "/sync" || l.href === "/contas")) return false;
     return true;
   });
+
+  const nav =
+    module === "home"
+      ? { title: "Módulos", links: moduleLinks }
+      : module === "fornecedores"
+        ? { title: "Fornecedores", links: fornecedoresLinks }
+        : { title: "Auditoria", links: auditoria };
 
   return (
     <aside className="shell-sidebar">
@@ -61,19 +91,32 @@ export function AppSidebar({
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-4 px-3 pb-4">
-        <NavGroup title="Auditoria" links={auditoria} pathname={pathname} />
-        {!demoMode ? (
-          <NavGroup title="Fornecedores" links={fornecedoresLinks} pathname={pathname} />
+      <nav className="flex flex-1 flex-col space-y-4 px-3 pb-4">
+        {module !== "home" ? (
+          <Link
+            href="/painel"
+            className="mb-1 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)] hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
+          >
+            ← Módulos
+          </Link>
         ) : null}
+        <NavGroup title={nav.title} links={nav.links} pathname={pathname} />
+        <a
+          href={HUB_URL}
+          className="mt-auto flex items-center rounded-xl px-3 py-2 transition hover:bg-[var(--gray-50)]"
+          aria-label="Voltar ao MAX Cultural"
+        >
+          <img
+            src="/brand/max-cultural.png"
+            alt="MAX Cultural"
+            width={1531}
+            height={571}
+            className="h-9 w-auto max-w-[180px] bg-transparent object-contain object-left"
+          />
+        </a>
       </nav>
 
-      <div className="mt-auto border-t border-[var(--border)] px-5 py-4 space-y-3">
-        {planLabel && (
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--gold)]">
-            Plano {planLabel}
-          </p>
-        )}
+      <div className="border-t border-[var(--border)] px-5 py-4 space-y-3">
         {userEmail && (
           <p className="truncate text-xs text-[var(--gray-500)]" title={userEmail}>
             {userEmail}
@@ -84,11 +127,16 @@ export function AppSidebar({
             Voltar ao site
           </Link>
         ) : (
-          <form action={signOut}>
-            <button type="submit" className="btn btn-ghost w-full justify-start px-0">
-              Sair
-            </button>
-          </form>
+          <>
+            <a href={ACCOUNT_URL} className="btn btn-ghost w-full justify-start px-0">
+              Minha conta
+            </a>
+            <form action={signOut}>
+              <button type="submit" className="btn btn-ghost w-full justify-start px-0">
+                Sair
+              </button>
+            </form>
+          </>
         )}
       </div>
     </aside>
@@ -169,21 +217,6 @@ function PronacIcon({ active }: { active?: boolean }) {
   );
 }
 
-function CompareIcon({ active }: { active?: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M7 4h6l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
-        stroke={stroke(active)}
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path d="M13 4v4h4" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinejoin="round" />
-      <path d="M9 13h6M9 16h4" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function AuditIcon({ active }: { active?: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -238,16 +271,53 @@ function SyncIcon({ active }: { active?: boolean }) {
   );
 }
 
+function HeartIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 20s-7-4.4-7-9.2C5 8 6.8 6.5 9 6.5c1.3 0 2.4.6 3 1.5.6-.9 1.7-1.5 3-1.5 2.2 0 4 1.5 4 4.3C19 15.6 12 20 12 20Z"
+        stroke={stroke(active, true)}
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PackageIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 8 12 4l8 4-8 4-8-4Z" stroke={stroke(active)} strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M4 8v8l8 4 8-4V8" stroke={stroke(active)} strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M12 12v8" stroke={stroke(active, true)} strokeWidth="1.7" />
+    </svg>
+  );
+}
+
 function MapIcon({ active }: { active?: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M9 4 4 6v14l5-2 6 2 5-2V4l-5 2-6-2Z"
+        d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z"
         stroke={stroke(active)}
         strokeWidth="1.7"
         strokeLinejoin="round"
       />
-      <path d="M9 4v14M15 6v14" stroke={stroke(active, true)} strokeWidth="1.7" />
+      <circle cx="12" cy="10" r="2.2" stroke={stroke(active, true)} strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+function HandshakeIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M8 12 4.5 8.5 8 5l4 4 4-4 3.5 3.5L16 12l-4 4-4-4Z"
+        stroke={stroke(active)}
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M8 16.5 6 18.5M16 16.5 18 18.5" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }

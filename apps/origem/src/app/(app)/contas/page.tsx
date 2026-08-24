@@ -47,9 +47,9 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Início › Contas"
-        title="Contas SALIC"
-        description={`Plano ${entitlements.planLabel}: até ${entitlements.maxAccounts} conta${entitlements.maxAccounts === 1 ? "" : "s"}${entitlements.syncEnabled ? " · sync SALIC incluso" : " · sem sync SALIC"}. Regras: ${rules.sourceCode}.`}
+        breadcrumb="Início › Proponentes"
+        title="Proponentes SALIC"
+        description={`Contas vinculadas aos proponentes no SALIC. Regras: ${rules.sourceCode}.`}
       />
 
       {pendingReview && (
@@ -65,16 +65,16 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
         </div>
       )}
 
-      <nav className="accounts-tabs" aria-label="Abas de contas">
+      <nav className="accounts-tabs" aria-label="Abas de proponentes">
         <Link
           href="/contas?tab=suas-contas"
           aria-current={tab === "suas-contas" ? "page" : undefined}
         >
-          Suas contas{accounts.length > 0 ? ` (${accounts.length})` : ""}
+          Seus proponentes{accounts.length > 0 ? ` (${accounts.length})` : ""}
         </Link>
         {!atLimit && (
           <Link href="/contas?tab=nova" aria-current={tab === "nova" ? "page" : undefined}>
-            Nova conta
+            Novo proponente
           </Link>
         )}
       </nav>
@@ -90,7 +90,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
           className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]"
           role="status"
         >
-          Conta cadastrada com sucesso. Ela já aparece em <strong>Suas contas</strong>.
+          Proponente cadastrado com sucesso. Ele já aparece em <strong>Seus proponentes</strong>.
         </div>
       )}
       {updated && (
@@ -98,7 +98,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
           className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]"
           role="status"
         >
-          Conta atualizada com sucesso.
+          Proponente atualizado com sucesso.
         </div>
       )}
       {passwordCleared && (
@@ -106,18 +106,14 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
           className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm text-[var(--navy)]"
           role="status"
         >
-          Senha removida do Salink. Para atualizar pela área logada do SALIC, cadastre a senha de novo.
+          Senha removida do MAX Origem. Para atualizar pela área logada do SALIC, cadastre a senha de novo.
         </div>
       )}
 
       {tab === "nova" ? (
         atLimit ? (
           <div className="card p-5 text-sm text-[var(--gray-600)]">
-            {accountLimitMessage(entitlements.maxAccounts)}{" "}
-            <Link href="/contato" className="font-semibold text-[var(--navy)] underline">
-              Falar sobre o plano Pro
-            </Link>
-            .
+            {accountLimitMessage(entitlements.maxAccounts)}
           </div>
         ) : (
           <CreateAccountForm syncEnabled={entitlements.syncEnabled} />
@@ -126,9 +122,9 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
         <div className="space-y-4">
           {accounts.length === 0 ? (
             <div className="card p-5 text-sm text-[var(--gray-500)]">
-              Nenhuma conta cadastrada ainda.{" "}
+              Nenhuma conta de proponente cadastrada ainda.{" "}
               <Link href="/contas?tab=nova" className="font-semibold text-[var(--navy)] underline">
-                Adicionar a primeira conta
+                Adicionar o primeiro proponente
               </Link>
               .
             </div>

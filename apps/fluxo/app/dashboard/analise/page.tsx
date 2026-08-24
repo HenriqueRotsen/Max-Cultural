@@ -21,7 +21,7 @@ export default async function AnalisePage({
   return (
     <AdminShell title="Análise">
       <div className="mb-6 space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-emerald-950">
+        <h1 className="text-2xl font-semibold tracking-tight text-brand-deep">
           Análise por oficina
         </h1>
         <p className="text-sm text-muted-foreground">

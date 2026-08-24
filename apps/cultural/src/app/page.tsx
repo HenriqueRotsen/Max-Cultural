@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MaxCulturalLogo } from "@/components/BrandLogo";
 import { AppSidebar } from "@/components/AppSidebar";
 import { can, getSessionUser, needs2faSetup, needsPasswordChange } from "@/lib/auth";
 
@@ -36,23 +35,25 @@ export default async function HomePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {showOrigem ? (
-                <a href={origem} className="card p-5 transition hover:shadow-md">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gold)]">
-                    Criação · Planejamento · Auditoria
-                  </p>
-                  <h2 className="mt-2 text-lg font-semibold text-[var(--navy)]">MAX Origem</h2>
-                  <p className="mt-2 text-sm text-[var(--gray-600)]">
+                <a href={`${origem}/painel`} className="card p-5 transition hover:shadow-md">
+                  <img
+                    src="/brand/max-origem.png"
+                    alt="MAX Origem"
+                    className="mb-4 h-12 w-auto max-w-[220px] object-contain object-left"
+                  />
+                  <p className="text-sm text-[var(--gray-600)]">
                     Auditoria SALIC e banco de fornecedores.
                   </p>
                 </a>
               ) : null}
               {showFluxo ? (
-                <a href={fluxo} className="card p-5 transition hover:shadow-md">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gold)]">
-                    Execução · Gestão · Acompanhamento
-                  </p>
-                  <h2 className="mt-2 text-lg font-semibold text-[var(--navy)]">MAX Fluxo</h2>
-                  <p className="mt-2 text-sm text-[var(--gray-600)]">
+                <a href={`${fluxo}/dashboard`} className="card p-5 transition hover:shadow-md">
+                  <img
+                    src="/brand/max-fluxo.png"
+                    alt="MAX Fluxo"
+                    className="mb-4 h-12 w-auto max-w-[220px] object-contain object-left"
+                  />
+                  <p className="text-sm text-[var(--gray-600)]">
                     Inscrições, análise e território.
                   </p>
                 </a>
@@ -70,35 +71,27 @@ export default async function HomePage() {
   }
 
   return (
-    <div
-      className="relative min-h-screen bg-cover bg-center"
-      style={{ backgroundImage: "url(/brand/wallpaper.png)" }}
-    >
-      <div className="absolute inset-0 bg-black/45" />
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-8">
-        <header className="flex items-center justify-between">
-          <MaxCulturalLogo className="brightness-0 invert" />
-          <Link href="/login" className="btn btn-gold">
-            Entrar
-          </Link>
-        </header>
-        <main className="flex flex-1 flex-col justify-center py-16 text-white">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-            Suíte cultural
-          </p>
-          <h1 className="mt-3 max-w-2xl text-4xl font-semibold leading-tight">
-            Origem e Fluxo no mesmo acesso, com 2FA.
-          </h1>
-          <p className="mt-4 max-w-xl text-base text-white/80">
-            Hub de identidade da suíte MAX. Sem página de preços — o acesso é combinado com o
-            cliente.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/login" className="btn btn-gold">
-              Entrar
-            </Link>
-          </div>
-        </main>
+    <div className="relative min-h-screen overflow-hidden bg-[#05050b]">
+      <img
+        src="/brand/wallpaper.png"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-center"
+      />
+      <h1 className="sr-only">MAX Cultural</h1>
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 pb-[14vh] pt-10">
+        <img
+          src="/brand/max-cultural-on-dark.png"
+          alt="MAX Cultural"
+          width={1553}
+          height={564}
+          className="h-auto w-[min(82vw,28rem)] drop-shadow-[0_8px_32px_rgba(0,0,0,0.45)] sm:w-[min(70vw,34rem)]"
+        />
+        <Link
+          href="/login"
+          className="btn btn-gold mt-10 px-10 py-3 text-base tracking-wide sm:mt-12"
+        >
+          Fazer login
+        </Link>
       </div>
     </div>
   );

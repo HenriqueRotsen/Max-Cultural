@@ -23,16 +23,16 @@ export default async function MapasIndexPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Fornecedores › Mapa"
+        breadcrumb="Proponentes › Mapa"
         title="Mapa societário"
-        description="Escolha a conta para ver o mapa de sócios e vínculos."
+        description="Escolha o proponente para ver o mapa de sócios e vínculos."
       />
       <section className="card overflow-hidden">
         {accounts.length === 0 ? (
           <p className="px-5 py-8 text-sm text-[var(--gray-500)]">
-            Nenhuma conta cadastrada.{" "}
+            Nenhum proponente cadastrado.{" "}
             <Link href="/contas" className="font-semibold text-[var(--navy)] underline">
-              Cadastrar conta
+              Cadastrar proponente
             </Link>
           </p>
         ) : (

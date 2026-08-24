@@ -4,6 +4,7 @@ import {
   PENDING_2FA_COOKIE,
   parsePending2faToken,
   parseSessionToken,
+  safeContinueUrl,
 } from "@max/auth";
 
 const PUBLIC = new Set([
@@ -51,6 +52,14 @@ export async function proxy(request: NextRequest) {
     pending = null;
   }
 
+  if (pathname === "/login" && session) {
+    const next = safeContinueUrl(request.nextUrl.searchParams.get("next"), "/");
+    if (next.startsWith("http://") || next.startsWith("https://")) {
+      return NextResponse.redirect(next);
+    }
+    return NextResponse.redirect(new URL(next, request.url));
+  }
+
   if (pathname === "/login/2fa") {
     if (session) return NextResponse.redirect(new URL("/", request.url));
     if (!pending) return NextResponse.redirect(new URL("/login", request.url));
@@ -66,7 +75,8 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/login/2fa", request.url));
     }
     const login = new URL("/login", request.url);
-    login.searchParams.set("next", request.url);
+    const next = `${pathname}${request.nextUrl.search}`;
+    if (next && next !== "/") login.searchParams.set("next", next);
     return NextResponse.redirect(login);
   }
 

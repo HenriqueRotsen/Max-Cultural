@@ -15,7 +15,7 @@ export async function ensureBootstrapWorkspace(): Promise<Workspace> {
     where: { id: BOOTSTRAP_WORKSPACE_ID },
     create: {
       id: BOOTSTRAP_WORKSPACE_ID,
-      name: "Salink",
+      name: "MAX Origem",
       plan: "PRO",
       maxAccounts: 100,
     },

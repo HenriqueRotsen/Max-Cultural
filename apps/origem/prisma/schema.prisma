@@ -96,6 +96,9 @@ model Workspace {
   accounts         SalicAccount[]
   watchedSuppliers WatchedSupplier[]
   observadoBonds   ObservadoBond[]
+  catalogSuppliers CatalogSupplier[]
+  catalogFavorites CatalogFavorite[]
+  catalogEngagements CatalogEngagement[]
 
   @@index([plan])
 }
@@ -437,4 +440,109 @@ model NormDocumentSnapshot {
 
   @@index([contentHash])
   @@index([fetchedAt])
+}
+
+/** Banco de preços (módulo Fornecedores), isolado por workspace. */
+model CatalogSupplier {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  cnpj           String
+  name           String
+  tradeName      String?
+  phone          String?
+  email          String?
+  address        String?
+  streetType     String?
+  streetName     String?
+  streetNumber   String?
+  complement     String?
+  neighborhood   String?
+  city           String?
+  cityIbgeCode   String?
+  state          String?
+  zipCode        String?
+  latitude       Float?
+  longitude      Float?
+  notes          String?
+  avgRating      Float    @default(0)
+  ratingCount    Int      @default(0)
+  /** Espelhado a partir de fornecedores/pagamentos da Auditoria (SALIC). */
+  fromAudit      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  services    CatalogService[]
+  favorites   CatalogFavorite[]
+
+  @@unique([workspaceId, cnpj])
+  @@index([workspaceId, name])
+  @@index([workspaceId, state])
+  @@map("catalog_suppliers")
+}
+
+model CatalogFavorite {
+  id          String   @id @default(cuid())
+  workspaceId String
+  supplierId  String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  supplier  CatalogSupplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, supplierId])
+  @@map("catalog_favorites")
+}
+
+model CatalogService {
+  id               String   @id @default(cuid())
+  supplierId       String
+  name             String
+  category         String?
+  description      String?
+  defaultPriceUnit String?
+  avgRating        Float    @default(0)
+  ratingCount      Int      @default(0)
+  avgPrice         Float    @default(0)
+  embeddingUpdatedAt DateTime?
+  nameEmbedding    Unsupported("vector")?
+  descriptionEmbedding Unsupported("vector")?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  supplier    CatalogSupplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  engagements CatalogEngagement[]
+
+  @@index([supplierId, name])
+  @@index([category])
+  @@map("catalog_services")
+}
+
+model CatalogEngagement {
+  id          String    @id @default(cuid())
+  workspaceId String
+  serviceId   String
+  price       Decimal   @db.Decimal(14, 2)
+  unitPrice   Decimal   @db.Decimal(14, 2) @default(0)
+  quantity    Decimal   @db.Decimal(14, 4) @default(1)
+  priceUnit   String    @default("closed")
+  hiredAt     DateTime
+  location    String?
+  deadlineDays Int?
+  deadlineDate DateTime?
+  rating      Int?
+  ratingComment String?
+  delayed     Boolean   @default(false)
+  delayDays   Int?
+  notes       String?
+  /** Pagamento SALIC que originou esta contratação (espelho da Auditoria). */
+  salicPaymentId String? @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  service   CatalogService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, hiredAt])
+  @@map("catalog_engagements")
 }

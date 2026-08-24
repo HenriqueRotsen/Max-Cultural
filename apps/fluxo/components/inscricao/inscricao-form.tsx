@@ -135,11 +135,11 @@ export function InscricaoForm({ context }: Props) {
 
   if (done) {
     return (
-      <Card className="mx-auto max-w-xl border-emerald-200 bg-white/80">
+      <Card className="mx-auto max-w-xl border-brand/20 bg-white/80">
         <CardHeader>
           <CardTitle>Inscrição recebida</CardTitle>
           <CardDescription>
-            Seus dados foram registrados no padrão SigaCultural.
+            Seus dados foram registrados no padrão MAX Fluxo.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -149,7 +149,7 @@ export function InscricaoForm({ context }: Props) {
   return (
     <Card className="mx-auto max-w-3xl border-border/50 bg-white/85 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl tracking-tight text-emerald-950">
+        <CardTitle className="text-2xl tracking-tight text-brand-deep">
           Inscrição — {title}
         </CardTitle>
         <CardDescription>

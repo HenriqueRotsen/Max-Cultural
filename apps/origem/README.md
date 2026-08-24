@@ -62,30 +62,6 @@ O Salink alerta quando um fornecedor (ou o próprio proponente) ultrapassa **20%
 - **Em transporte:** em produção o app redireciona para **HTTPS** e envia **HSTS**. Use sempre HTTPS no domínio público (Vercel já fornece TLS).
 - Contas antigas com login em texto puro: `npx tsx scripts/encrypt-credentials.ts`
 
-## Sync automático (10:00 BRT)
-
-Todas as contas ativas, em horário comercial (quando o SALIC já espera mais carga). Prefere **crawler** se a conta tiver login SALIC; senão API.
-
-### Local (crontab)
-
-```cron
-0 10 * * * cd /caminho/Salink && set -a && . ./.env && set +a && /usr/bin/npx tsx scripts/daily-sync.ts >> /tmp/salink-cron.log 2>&1
-```
-
-Ou com o servidor no ar:
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/daily-sync
-```
-
-Também: `npm run cron:daily`
-
-### Vercel
-
-`vercel.json` agenda `0 13 * * *` (**10:00 BRT = 13:00 UTC**). Norma: `30 13 * * *` (10:30 BRT). Configure `CRON_SECRET` no projeto.
-
-> No Hobby, o timeout da function pode cortar sync longo — prefira o script local/`tsx` como worker.
-
 ## Performance do sync
 
 O gargalo é a API SALIC. Otimizações seguras (sem perder dados):
@@ -118,14 +94,8 @@ O gargalo é a API SALIC. Otimizações seguras (sem perder dados):
 | `RESEND_API_KEY` | Envio do formulário `/contato` |
 | `CONTACT_TO_EMAIL` | Destino do contato (default `contato@henriquerotsen.com.br`) |
 | `CREDENTIALS_SECRET` | Chave AES-256-GCM para criptografar login e senha SALIC em repouso |
-| `CRON_SECRET` | Autentica `/api/cron/daily-sync` e `/api/cron/norm-sync` |
-| `NORM_SOURCE_URL` | (opcional) URL canônica da IN vigente no gov.br |
-| `SYNC_CONCURRENCY` | 2–8 no sync manual (default 4) |
-| `SYNC_CRON_CONCURRENCY` | Paralelismo no cron diário (default 2, máx. 3) |
-| `SYNC_ACCOUNT_PAUSE_MS` | Pausa entre contas no cron (default 8000) |
+| `SYNC_CONCURRENCY` | 2–8 no sync (default 4) |
 | `SYNC_MODE` | `full` \| `chunked` |
-
-Rotinas: `npm run cron:daily` (dados) e `npm run cron:norm` (norma MinC / tetos).
 
 ## Fase 2 (não incluída)
 

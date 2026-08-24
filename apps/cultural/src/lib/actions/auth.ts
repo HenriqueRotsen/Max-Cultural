@@ -31,11 +31,13 @@ import {
   verifyTotpCode,
 } from "@/lib/totp";
 import { send2faNoticeEmail, sendPasswordResetEmail } from "@/lib/email";
+import { safeContinueUrl } from "@max/auth";
 
 export type AuthActionState = {
   error?: string;
   ok?: boolean;
   message?: string;
+  redirectTo?: string;
 };
 
 async function clientIp() {
@@ -48,19 +50,7 @@ function siteUrl() {
 }
 
 function safeNext(raw: string) {
-  if (!raw) return "/";
-  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
-  try {
-    const url = new URL(raw);
-    const origem = process.env.NEXT_PUBLIC_ORIGEM_URL || "";
-    const fluxo = process.env.NEXT_PUBLIC_FLUXO_URL || "";
-    const site = siteUrl();
-    if ([origem, fluxo, site].some((base) => base && raw.startsWith(base))) return raw;
-    if (url.hostname.endsWith("maxcultural.com.br")) return raw;
-  } catch {
-    return "/";
-  }
-  return "/";
+  return safeContinueUrl(raw, "/");
 }
 
 export async function loginAction(
@@ -100,7 +90,7 @@ export async function loginAction(
       meta: { step: "password_change" },
       ip,
     });
-    redirect("/onboarding/senha");
+    return { ok: true, redirectTo: "/onboarding/senha" };
   }
 
   if (needs2faChallenge(user)) {
@@ -111,7 +101,7 @@ export async function loginAction(
       meta: { step: "2fa_challenge" },
       ip,
     });
-    redirect(`/login/2fa?next=${encodeURIComponent(next)}`);
+    return { ok: true, redirectTo: `/login/2fa?next=${encodeURIComponent(next)}` };
   }
 
   if (needs2faSetup(user)) {
@@ -122,7 +112,7 @@ export async function loginAction(
       meta: { step: "2fa_setup" },
       ip,
     });
-    redirect("/onboarding/2fa");
+    return { ok: true, redirectTo: "/onboarding/2fa" };
   }
 
   await prisma.user.update({
@@ -131,7 +121,7 @@ export async function loginAction(
   });
   await setSessionCookie(user);
   await writeAuditLog({ actorUserId: user.id, action: "auth.login_ok", ip });
-  redirect(next);
+  return { ok: true, redirectTo: next };
 }
 
 export async function logoutAction() {
@@ -154,7 +144,7 @@ export async function completePasswordChangeAction(
   const user = await getSessionUser();
   if (!user) return { error: "Não autenticado." };
   if (!user.mustChangePassword) {
-    redirect(needs2faSetup(user) ? "/onboarding/2fa" : "/");
+    return { ok: true, redirectTo: needs2faSetup(user) ? "/onboarding/2fa" : "/" };
   }
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
@@ -177,7 +167,7 @@ export async function completePasswordChangeAction(
     action: "auth.password_changed",
     ip: await clientIp(),
   });
-  redirect(needs2faSetup(updated) ? "/onboarding/2fa" : "/");
+  return { ok: true, redirectTo: needs2faSetup(updated) ? "/onboarding/2fa" : "/" };
 }
 
 export async function startTotpSetupAction(): Promise<
@@ -203,7 +193,7 @@ export async function confirmTotpSetupAction(
 ): Promise<AuthActionState> {
   const user = await getSessionUser();
   if (!user) return { error: "Não autenticado." };
-  if (is2faDisabled()) redirect("/");
+  if (is2faDisabled()) return { ok: true, redirectTo: "/" };
   const code = String(formData.get("code") ?? "");
   const fresh = await prisma.user.findUnique({ where: { id: user.id } });
   if (!fresh?.totpSecretEnc) {
@@ -222,7 +212,7 @@ export async function confirmTotpSetupAction(
     action: "auth.2fa_enabled",
     ip: await clientIp(),
   });
-  redirect("/");
+  return { ok: true, redirectTo: "/" };
 }
 
 export async function verifyTotpLoginAction(
@@ -256,7 +246,7 @@ export async function verifyTotpLoginAction(
     meta: { method: "totp" },
     ip: await clientIp(),
   });
-  redirect(next);
+  return { ok: true, redirectTo: next };
 }
 
 export async function requestPasswordResetAction(

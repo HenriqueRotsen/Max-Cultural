@@ -5,7 +5,7 @@ import { PessoaView } from "@/components/pessoa/pessoa-view";
 import { PessoaCpfSearch } from "@/components/pessoa/pessoa-cpf-search";
 import { normalizeCpf } from "@/lib/normalize";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ cpf: string }>;

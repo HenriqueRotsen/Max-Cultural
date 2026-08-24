@@ -153,13 +153,46 @@ export async function parsePending2faToken(
   return { userId, issuedAt };
 }
 
-export function culturalLoginUrl(nextUrl?: string) {
-  const hub = (
+export function culturalHubUrl() {
+  return (
     process.env.NEXT_PUBLIC_CULTURAL_URL ||
     process.env.AUTH_HUB_URL ||
     "http://localhost:3000"
   ).replace(/\/$/, "");
-  const login = new URL("/login", hub.endsWith("/") ? hub : `${hub}/`);
+}
+
+export function culturalLoginUrl(nextUrl?: string) {
+  const login = new URL("/login", `${culturalHubUrl()}/`);
   if (nextUrl) login.searchParams.set("next", nextUrl);
   return login.toString();
+}
+
+export function culturalLogoutUrl() {
+  return `${culturalHubUrl()}/logout`;
+}
+
+export function culturalAccountUrl() {
+  return `${culturalHubUrl()}/conta`;
+}
+
+/** Destino pós-login do hub (path relativo ou URL absoluta de Origem/Fluxo/Cultural). */
+export function safeContinueUrl(raw: string | null | undefined, fallback = "/"): string {
+  if (!raw) return fallback;
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  try {
+    const url = new URL(raw);
+    const allowed = [
+      process.env.NEXT_PUBLIC_ORIGEM_URL,
+      process.env.NEXT_PUBLIC_FLUXO_URL,
+      process.env.NEXT_PUBLIC_SITE_URL,
+      process.env.NEXT_PUBLIC_CULTURAL_URL,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).replace(/\/$/, ""));
+    if (allowed.some((base) => raw.startsWith(base))) return raw;
+    if (url.hostname.endsWith("maxcultural.com.br")) return raw;
+  } catch {
+    return fallback;
+  }
+  return fallback;
 }

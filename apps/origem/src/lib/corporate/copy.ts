@@ -48,8 +48,8 @@ export function corporateMapCopy(institutional: boolean) {
       `Encontrados ${n} ${member}(s) na Receita Federal.`,
     pdfBtn: `Gerar ${mapName.toLowerCase()} (PDF)`,
     pdfFilenamePrefix: osc
-      ? "salink-mapa-organizacional"
-      : "salink-mapa-societario",
+      ? "max-origem-mapa-organizacional"
+      : "max-origem-mapa-societario",
     matchedBanner: (n: number) =>
       `${member}(s) do mapa — consta${n === 1 ? "" : "m"} como observado${n === 1 ? "" : "s"}`,
     autoImportError: `${mapName} automático só para CNPJ`,
@@ -62,7 +62,7 @@ export function corporateMapCopy(institutional: boolean) {
     reportIntro: `Composição ${osc ? "organizacional" : "societária"} do proponente por intervalos de tempo (${members} PF ou PJ).`,
     reportMissingDoc: (n: number) =>
       `${n} ${member}(s) sem CPF/CNPJ completo.`,
-    reportFooter: `Documento gerado pelo Salink para apoio à documentação do ${board} do proponente.`,
+    reportFooter: `Documento gerado pelo MAX Origem para apoio à documentação do ${board} do proponente.`,
     reportSubtitle: `intervalos e ${members} PF/PJ`,
     reportChip: `${mapName} do proponente`,
     reportSection: `2. ${mapName} do proponente`,

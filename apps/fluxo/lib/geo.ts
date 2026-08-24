@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { normalizeUf, normalizeAddressLine } from "@/lib/normalize";
+import {
+  hasMunicipioCoords,
+  lookupMunicipioCoords,
+} from "@/lib/municipio-coords";
 import { lookupUfByCidade } from "@/lib/municipio-uf";
 
 export type CityCoords = {
@@ -109,7 +113,7 @@ async function nominatimSearch(
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("countrycodes", "br");
 
-  const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "SigaCultural";
+  const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
   const res = await fetch(url.toString(), {
     headers: {
       "User-Agent": `${appName}/1.0 (territorio-map; local-dev)`,
@@ -192,6 +196,10 @@ async function fetchNominatim(
 export function resolveGeoUf(cidade: string, estado: string): string {
   const uf = normalizeUf(estado);
   const city = normalizeAddressLine(cidade);
+  // RAs do DF (Ceilândia, Planaltina…) não são municípios IBGE.
+  if (uf === "DF") return "DF";
+  // Homônimos: se a UF informada existe no IBGE, não realocar (Campo Grande/MS).
+  if (uf && hasMunicipioCoords(city, uf)) return uf;
   const ibgeUf = lookupUfByCidade(city);
   if (ibgeUf && uf && ibgeUf !== uf) return ibgeUf;
   return ibgeUf || uf;
@@ -230,7 +238,14 @@ export async function ensureCityCoords(
     // Regeocodifica e sobrescreve
   }
 
-  const geo = await fetchNominatim(city, uf);
+  const local = lookupMunicipioCoords(city, uf);
+  const geo = local
+    ? {
+        lat: local.lat,
+        lng: local.lng,
+        displayName: `${city}, ${UF_STATE_NAME[uf] ?? uf}, Brasil`,
+      }
+    : await fetchNominatim(city, uf);
   if (!geo) return null;
 
   const saved = await prisma.geoCache.upsert({
