@@ -474,6 +474,10 @@ export function normalizeRow(
 
   const candidate = {
     ...merged,
+    PROPONENTE: String(merged.PROPONENTE ?? "").trim(),
+    PRONAC: String(merged.PRONAC ?? "").trim(),
+    Nome_projeto: String(merged.Nome_projeto ?? "").trim(),
+    Nome_oficina: String(merged.Nome_oficina ?? "").trim(),
     Nome: normalizePersonName(merged.Nome),
     Apelido: String(merged.Apelido ?? "").trim(),
     CPF: normalizeCpf(merged.CPF),
@@ -494,9 +498,12 @@ export function normalizeRow(
     Territorio: enriched.territorio,
     RestricaoAlimentar: normalizeSimComDetalhe(merged.RestricaoAlimentar),
     Ficousabendo: String(merged.Ficousabendo ?? "").trim(),
-    Data_nascimento: formatDateBR(birth) || String(merged.Data_nascimento ?? ""),
+    Data_nascimento:
+      formatDateBR(birth) || String(merged.Data_nascimento ?? "").trim(),
     Data_inscricao:
-      formatDateBR(parseFlexibleDate(merged.Data_inscricao)) || formatDateBR(insc),
+      formatDateBR(parseFlexibleDate(merged.Data_inscricao)) ||
+      formatDateBR(insc) ||
+      String(merged.Data_inscricao ?? "").trim(),
     Identificacao_ano_projeto: normalizeAnoProjeto(
       merged.Identificacao_ano_projeto,
     ),

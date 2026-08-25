@@ -20,6 +20,8 @@ import {
   describeAuditEvent,
 } from "@/lib/audit-labels";
 import { Badge } from "@/components/ui/badge";
+import { SortableTableHead } from "@/components/sortable-table-head";
+import { compareSortValues, toggleSortDir, type SortDir } from "@/lib/table-sort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,6 +125,34 @@ export function AuditoriaManager({
   const [actorId, setActorId] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [sortKey, setSortKey] = useState("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const sortedLogs = useMemo(() => {
+    const list = [...logs];
+    list.sort((a, b) => {
+      const pick = (log: AuditLogDTO): string | number => {
+        switch (sortKey) {
+          case "actor":
+            return log.actorName || log.actorEmail;
+          case "action":
+            return log.action;
+          case "entity":
+            return `${log.entityType} ${log.entityId}`;
+          case "createdAt":
+          default:
+            return new Date(log.createdAt).getTime();
+        }
+      };
+      return compareSortValues(pick(a), pick(b), sortDir);
+    });
+    return list;
+  }, [logs, sortKey, sortDir]);
+
+  function toggleSort(key: string) {
+    setSortDir((prev) => toggleSortDir(sortKey, prev, key));
+    setSortKey(key);
+  }
 
   const groupItems = useMemo(
     () =>
@@ -468,15 +498,47 @@ export function AuditoriaManager({
         <table className="w-full text-left text-sm">
           <thead className="border-b bg-brand-mist/50 text-xs text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 font-medium">Quando</th>
-              <th className="px-3 py-2 font-medium">Quem</th>
-              <th className="px-3 py-2 font-medium">Ação</th>
-              <th className="px-3 py-2 font-medium">Entidade</th>
+              <th className="px-3 py-2">
+                <SortableTableHead
+                  label="Quando"
+                  sortKey="createdAt"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </th>
+              <th className="px-3 py-2">
+                <SortableTableHead
+                  label="Quem"
+                  sortKey="actor"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </th>
+              <th className="px-3 py-2">
+                <SortableTableHead
+                  label="Ação"
+                  sortKey="action"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </th>
+              <th className="px-3 py-2">
+                <SortableTableHead
+                  label="Entidade"
+                  sortKey="entity"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </th>
               <th className="px-3 py-2 font-medium"> </th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {logs.map((l) => (
+            {sortedLogs.map((l) => (
               <tr key={l.id} className="align-top">
                 <td className="px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap">
                   {new Date(l.createdAt).toLocaleString("pt-BR")}
@@ -512,7 +574,7 @@ export function AuditoriaManager({
                 </td>
               </tr>
             ))}
-            {logs.length === 0 ? (
+            {sortedLogs.length === 0 ? (
               <tr>
                 <td
                   colSpan={5}

@@ -31,9 +31,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function OficinaPage({ params }: Props) {
   const { idProjeto, idOficina } = await params;
   const result = await getOficinaPageAction(idProjeto, idOficina);
+  const back = result.ok
+    ? {
+        href: `/projeto/${encodeURIComponent(result.data.id_projeto)}`,
+        label: result.data.Nome_projeto,
+      }
+    : {
+        href: `/projeto/${encodeURIComponent(idProjeto)}`,
+        label: "Projeto",
+      };
 
   return (
-    <SiteShell width="5xl" mainClassName="pb-20">
+    <SiteShell
+      width="5xl"
+      mainClassName="pb-20"
+      backHref={back.href}
+      backLabel={back.label}
+    >
       {!result.ok ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-8 text-center">
           <h1 className="font-heading text-2xl font-semibold text-brand-deep">

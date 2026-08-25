@@ -25,6 +25,11 @@ import {
   extractProjectYear,
 } from "@/lib/normalize";
 import {
+  inscricaoOrderBy,
+  parseInscricaoSort,
+  parseSortDir,
+} from "@/lib/table-sort";
+import {
   SigaCulturalRowSchema,
   rowToPrisma,
   prismaToRow,
@@ -314,6 +319,8 @@ export type ListFilters = {
   participantes?: string;
   page?: number;
   pageSize?: number;
+  sort?: string;
+  sortDir?: string;
 };
 
 export type ContextFilterOptions = {
@@ -390,11 +397,15 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
 
   where = andWhere(where, scopeWhere);
 
+  const sort = parseInscricaoSort(filters.sort);
+  const sortDir = parseSortDir(filters.sortDir);
+  const orderBy = inscricaoOrderBy(sort, sortDir);
+
   const [total, records, filterOptions] = await Promise.all([
     prisma.inscricao.count({ where }),
     prisma.inscricao.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

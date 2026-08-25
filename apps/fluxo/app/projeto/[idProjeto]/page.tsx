@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { ProjetoPageData } from "@/app/actions/projeto";
 import { getProjetoPageAction } from "@/app/actions/projeto";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
+import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
 import { SiteShell } from "@/components/app-header";
 import { StatusKindBadge } from "@/components/status-badges";
 
@@ -25,9 +26,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProjetoPage({ params }: Props) {
   const { idProjeto } = await params;
   const result = await getProjetoPageAction(idProjeto);
+  const back = result.ok
+    ? {
+        href: `/contexto/${encodeURIComponent(result.data.contextoId)}`,
+        label: result.data.contextoNome,
+      }
+    : { href: "/dashboard/analise", label: "Análise" };
 
   return (
-    <SiteShell width="5xl" mainClassName="pb-20">
+    <SiteShell
+      width="5xl"
+      mainClassName="pb-20"
+      backHref={back.href}
+      backLabel={back.label}
+    >
       {!result.ok ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-8 text-center">
           <h1 className="font-heading text-2xl font-semibold text-brand-deep">
@@ -61,6 +73,23 @@ function ProjetoView({ data }: { data: ProjetoPageData }) {
             .filter(Boolean)
             .join(" · ")}
         </p>
+        {data.canEditContexto ? (
+          <ProjetoContextEditor
+            projetoId={data.id_projeto}
+            contextoId={data.contextoId}
+            contextoNome={data.contextoNome}
+          />
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Contexto:{" "}
+            <Link
+              href={`/contexto/${encodeURIComponent(data.contextoId)}`}
+              className="font-medium text-brand underline-offset-2 hover:underline"
+            >
+              {data.contextoNome}
+            </Link>
+          </p>
+        )}
         {data.programa && data.programa.siblings > 1 ? (
           <p className="mt-3">
             <Link
@@ -108,8 +137,23 @@ function ProjetoView({ data }: { data: ProjetoPageData }) {
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Cada oficina deste projeto — clique para ver a lista de inscritos.
+            {data.totais.oficinas === 0
+              ? " Ainda não há oficinas cadastradas."
+              : null}
           </p>
         </div>
+        {data.oficinas.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nenhuma oficina. Cadastre em{" "}
+            <Link
+              href="/dashboard/contextos?tab=oficinas"
+              className="text-brand underline-offset-2 hover:underline"
+            >
+              Contextos → Oficinas
+            </Link>
+            .
+          </p>
+        ) : (
         <div className="space-y-3">
           {data.oficinas.map((o) => (
             <Link
@@ -145,6 +189,7 @@ function ProjetoView({ data }: { data: ProjetoPageData }) {
             </Link>
           ))}
         </div>
+        )}
       </section>
     </div>
   );

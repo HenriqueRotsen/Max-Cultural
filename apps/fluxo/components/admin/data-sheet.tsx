@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { SortIndicator } from "@/components/sortable-table-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { SortDir } from "@/lib/table-sort";
+import { toggleSortDir } from "@/lib/table-sort";
 
 const PAGE_SIZES = [25, 50, 100, 200] as const;
 
@@ -42,10 +45,13 @@ export function useDataSheet<T>(
   items: T[],
   searchText: (item: T) => string,
   initialPageSize = 50,
+  sortAccessors?: Partial<Record<string, (item: T) => string | number>>,
 ) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const filtered = useMemo(() => {
     const q = foldSearch(query.trim());
@@ -53,10 +59,27 @@ export function useDataSheet<T>(
     return items.filter((item) => foldSearch(searchText(item)).includes(q));
   }, [items, query, searchText]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const sorted = useMemo(() => {
+    if (!sortKey || !sortAccessors?.[sortKey]) return filtered;
+    const accessor = sortAccessors[sortKey]!;
+    return [...filtered].sort((a, b) => {
+      const va = accessor(a);
+      const vb = accessor(b);
+      const cmp =
+        typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb), "pt-BR", {
+              numeric: true,
+              sensitivity: "base",
+            });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filtered, sortKey, sortDir, sortAccessors]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * pageSize;
-  const pageItems = filtered.slice(start, start + pageSize);
+  const pageItems = sorted.slice(start, start + pageSize);
 
   function setQueryAndReset(value: string) {
     setQuery(value);
@@ -68,6 +91,13 @@ export function useDataSheet<T>(
     setPage(1);
   }
 
+  function toggleSort(key: string) {
+    if (!sortAccessors?.[key]) return;
+    setSortDir((prev) => toggleSortDir(sortKey, prev, key));
+    setSortKey(key);
+    setPage(1);
+  }
+
   return {
     query,
     setQuery: setQueryAndReset,
@@ -75,15 +105,18 @@ export function useDataSheet<T>(
     setPage,
     pageSize,
     setPageSize: changePageSize,
-    filtered,
+    filtered: sorted,
     pageItems,
-    total: filtered.length,
+    total: sorted.length,
     totalAll: items.length,
     totalPages,
+    sortKey,
+    sortDir,
+    toggleSort,
     rangeLabel:
-      filtered.length === 0
+      sorted.length === 0
         ? "0 resultados"
-        : `${start + 1}–${Math.min(start + pageSize, filtered.length)} de ${filtered.length}`,
+        : `${start + 1}–${Math.min(start + pageSize, sorted.length)} de ${sorted.length}`,
   };
 }
 
@@ -372,10 +405,22 @@ export function SheetTh({
   stickyEnd,
   children,
   style,
+  sortKey,
+  sortActive,
+  sortDir = "asc",
+  onSort,
   ...props
-}: React.ComponentProps<"th"> & { sticky?: boolean; stickyEnd?: boolean }) {
+}: React.ComponentProps<"th"> & {
+  sticky?: boolean;
+  stickyEnd?: boolean;
+  sortKey?: string;
+  sortActive?: boolean;
+  sortDir?: SortDir;
+  onSort?: (key: string) => void;
+}) {
   const sheet = useSheetTable();
   const thRef = useRef<HTMLTableCellElement>(null);
+  const sortable = Boolean(sortKey && onSort);
 
   return (
     <th
@@ -384,12 +429,26 @@ export function SheetTh({
         "sc-sheet-th relative h-9 border-b bg-brand-mist/90 px-2.5 text-left align-middle text-xs font-semibold tracking-wide whitespace-nowrap text-brand-deep backdrop-blur-sm",
         sticky && "sc-sheet-sticky-cell",
         stickyEnd && "sc-sheet-sticky-end",
+        sortable && "cursor-pointer select-none hover:bg-brand-mist",
         className,
       )}
       style={style}
+      onClick={
+        sortable
+          ? (e) => {
+              if ((e.target as HTMLElement).closest(".sc-sheet-col-resizer")) return;
+              onSort!(sortKey!);
+            }
+          : undefined
+      }
       {...props}
     >
-      <div className="pr-2">{children}</div>
+      <div className="flex items-center gap-1 pr-2">
+        <span className="min-w-0 flex-1">{children}</span>
+        {sortable ? (
+          <SortIndicator active={Boolean(sortActive)} dir={sortDir} />
+        ) : null}
+      </div>
       {sheet ? (
         <span
           role="separator"

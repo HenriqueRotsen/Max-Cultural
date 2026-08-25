@@ -163,5 +163,5 @@ export function parseCellInput(
   if (column === "CEP") return normalizeCep(value);
   if (column === "Telefone") return normalizePhone(value);
   if (column === "E-mail") return normalizeEmail(value);
-  return value;
+  return String(value ?? "").trim();
 }

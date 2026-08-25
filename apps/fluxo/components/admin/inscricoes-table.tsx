@@ -48,6 +48,8 @@ import type { ContextFilterOptions } from "@/app/actions/inscricoes";
 import { EditInscricaoDialog } from "@/components/admin/edit-inscricao-dialog";
 import { PhoneLink } from "@/components/phone-link";
 import { StatusBadges } from "@/components/status-badges";
+import { SortableTableHead } from "@/components/sortable-table-head";
+import { toggleSortDir, type SortDir } from "@/lib/table-sort";
 
 type Row = SigaCulturalRow & { id: string };
 
@@ -197,6 +199,16 @@ export function InscricoesTable({
     if (!("page" in patch)) params.set("page", "1");
     startTransition(() => {
       router.push(`/dashboard?${params.toString()}`);
+    });
+  }
+
+  const sortKey = searchParams.get("sort") ?? "createdAt";
+  const sortDir = (searchParams.get("sortDir") === "desc" ? "desc" : "asc") as SortDir;
+
+  function toggleSort(key: string) {
+    updateParams({
+      sort: key,
+      sortDir: toggleSortDir(sortKey, sortDir, key),
     });
   }
 
@@ -512,11 +524,51 @@ export function InscricoesTable({
           <TableHeader>
             <TableRow>
               <TableHead className="w-10" />
-              <TableHead>Nome</TableHead>
-              <TableHead>CPF</TableHead>
-              <TableHead>Projeto</TableHead>
-              <TableHead>Oficina</TableHead>
-              <TableHead>Cidade/UF</TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Nome"
+                  sortKey="nome"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="CPF"
+                  sortKey="cpf"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Projeto"
+                  sortKey="projeto"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Oficina"
+                  sortKey="oficina"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Cidade/UF"
+                  sortKey="cidade"
+                  activeKey={sortKey}
+                  activeDir={sortDir}
+                  onSort={toggleSort}
+                />
+              </TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24">Ações</TableHead>
             </TableRow>

@@ -67,6 +67,9 @@ export type ProjetoPageData = {
   };
   socio: SocioBreakdown;
   programa: { id: string; label: string; siblings: number } | null;
+  contextoId: string;
+  contextoNome: string;
+  canEditContexto: boolean;
 };
 
 export type OficinaPageData = {
@@ -186,7 +189,8 @@ export async function getProjetoPageAction(
   if (
     !perms.has("consultas:territorio") &&
     !perms.has("inscricoes:read") &&
-    !perms.has("analise:read")
+    !perms.has("analise:read") &&
+    !perms.has("contextos:read")
   ) {
     return { ok: false, error: "Sem permissão para consultar este projeto." };
   }
@@ -194,10 +198,36 @@ export async function getProjetoPageAction(
   const idProjeto = decodeURIComponent(idProjetoRaw).trim();
   if (!idProjeto) return { ok: false, error: "Projeto inválido." };
 
-  const allowed = await assertDataAccess(user.id, { idProjeto });
+  const projeto = await prisma.projeto.findUnique({
+    where: { id: idProjeto },
+    include: {
+      contexto: { select: { id: true, nome: true } },
+      oficinas: { orderBy: { nome: "asc" } },
+    },
+  });
+  if (!projeto) {
+    return { ok: false, error: "Projeto não encontrado." };
+  }
+
+  const allowed = await assertDataAccess(user.id, {
+    contextoId: projeto.contextoId,
+    idProjeto: projeto.id,
+  });
   if (!allowed) {
     return { ok: false, error: "Fora do seu acesso a este projeto." };
   }
+
+  const canManage =
+    perms.has("contextos:write") ||
+    perms.has("contextos:create") ||
+    perms.has("import:write");
+  const canEditContexto =
+    canManage &&
+    (await assertDataAccess(
+      user.id,
+      { contextoId: projeto.contextoId, idProjeto: projeto.id },
+      { write: true },
+    ));
 
   const scope = await resolveDataScope(user.id);
   const records = await prisma.inscricao.findMany({
@@ -205,12 +235,17 @@ export async function getProjetoPageAction(
     orderBy: [{ idOficina: "asc" }, { nome: "asc" }],
   });
 
-  if (records.length === 0) {
-    return { ok: false, error: "Nenhum registro encontrado para este projeto." };
-  }
-
-  const first = records[0]!;
   const byOficina = new Map<string, OficinaResumo>();
+  for (const o of projeto.oficinas) {
+    byOficina.set(o.id, {
+      id_oficina: o.id,
+      Nome_oficina: o.nome,
+      inscritos: 0,
+      selecionados: 0,
+      participantes: 0,
+      certificados: 0,
+    });
+  }
 
   for (const r of records) {
     const key = r.idOficina;
@@ -246,8 +281,19 @@ export async function getProjetoPageAction(
   );
   totais.oficinas = oficinas.length;
 
+  const emptySocio: SocioBreakdown = {
+    total: 0,
+    genero: [],
+    etnia: [],
+    escolaridade: [],
+    idade: [],
+    deficienca: [],
+  };
+
   const [socio, programa] = await Promise.all([
-    aggregateSocio(andScope(scope, { idProjeto })),
+    records.length
+      ? aggregateSocio(andScope(scope, { idProjeto }))
+      : Promise.resolve(emptySocio),
     getContextoForProjeto(idProjeto),
   ]);
 
@@ -255,10 +301,13 @@ export async function getProjetoPageAction(
     ok: true,
     data: {
       id_projeto: idProjeto,
-      Nome_projeto: first.nomeProjeto || idProjeto,
-      PROPONENTE: first.proponente,
-      PRONAC: first.pronac,
-      Identificacao_ano_projeto: first.identificacaoAnoProjeto,
+      Nome_projeto: projeto.nome || idProjeto,
+      PROPONENTE: projeto.proponente,
+      PRONAC: projeto.pronac,
+      Identificacao_ano_projeto: projeto.ano,
+      contextoId: projeto.contextoId,
+      contextoNome: projeto.contexto.nome,
+      canEditContexto,
       oficinas,
       totais,
       socio,

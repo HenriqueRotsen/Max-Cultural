@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 import { BrandLogo } from "@/components/brand-logo";
+import { PageBackLink } from "@/components/page-back-link";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { resolveBackFallback } from "@/lib/nav-back";
 import { cn } from "@/lib/utils";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
@@ -268,6 +270,8 @@ export type AppSidebarLayoutProps = {
   permissions: string[] | null;
   title?: string;
   actions?: ReactNode;
+  backHref?: string;
+  backLabel?: string;
   children: ReactNode;
   mainClassName?: string;
   contentClassName?: string;
@@ -279,12 +283,19 @@ export function AppSidebarLayout({
   permissions,
   title: _title,
   actions,
+  backHref,
+  backLabel,
   children,
   mainClassName,
   contentClassName,
 }: AppSidebarLayoutProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const autoBack = resolveBackFallback(pathname);
+  const back =
+    backHref != null
+      ? { href: backHref, label: backLabel ?? "Voltar" }
+      : autoBack;
 
   useEffect(() => {
     setMobileOpen(false);
@@ -339,7 +350,7 @@ export function AppSidebarLayout({
 
       <div className="md:pl-[240px]">
         {/* Só no mobile: abrir o menu lateral */}
-        <div className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-brand/10 bg-white/70 px-4 backdrop-blur-md md:hidden">
+        <div className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-brand/10 bg-white/70 px-4 backdrop-blur-md md:hidden">
           <Button
             type="button"
             variant="outline"
@@ -349,10 +360,18 @@ export function AppSidebarLayout({
           >
             <Menu className="size-4" />
           </Button>
-          <BrandLogo />
+          {back ? (
+            <PageBackLink href={back.href} label={back.label} className="-ml-1" />
+          ) : (
+            <BrandLogo />
+          )}
           {actions ? (
             <div className="ml-auto flex shrink-0 items-center gap-2">
               {actions}
+            </div>
+          ) : back ? (
+            <div className="ml-auto">
+              <BrandLogo className="scale-90" />
             </div>
           ) : null}
         </div>
@@ -370,6 +389,11 @@ export function AppSidebarLayout({
             mainClassName,
           )}
         >
+          {back ? (
+            <div className="mb-4 hidden md:block">
+              <PageBackLink href={back.href} label={back.label} />
+            </div>
+          ) : null}
           {children}
         </main>
       </div>

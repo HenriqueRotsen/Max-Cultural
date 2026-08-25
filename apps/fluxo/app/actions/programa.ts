@@ -2,19 +2,28 @@
 
 import { prisma } from "@/lib/prisma";
 import { extractProjectYear } from "@/lib/normalize";
-import { programaStem } from "@/lib/programa";
+import {
+  compareProjetoEdicao,
+  extractEdicaoNumero,
+  programaStem,
+} from "@/lib/programa";
 import { aggregateSocio, type SocioBreakdown } from "@/lib/socio";
+import { assertDataAccess, resolveDataScope } from "@/lib/data-scope";
+import { requireAuth } from "@/lib/auth";
+import { getEffectivePermissions } from "@/lib/permissions";
 
 export type ProgramaEdicao = {
   id_projeto: string;
   Nome_projeto: string;
   ano: string;
+  numeroEdicao: number | null;
   href: string;
   inscritos: number;
   selecionados: number;
   participantes: number;
   certificados: number;
   oficinas: number;
+  canEditContexto?: boolean;
 };
 
 /** Item da lista “Programas / edições” (= Contexto com projetos filhos) */
@@ -33,6 +42,7 @@ export type ProgramaPanorama = {
   stem: string;
   label: string;
   edicoes: ProgramaEdicao[];
+  canEditContexto: boolean;
   totais: {
     inscritos: number;
     selecionados: number;
@@ -115,12 +125,19 @@ export async function getContextoPanoramaAction(
         include: {
           oficinas: { select: { id: true } },
         },
-        orderBy: [{ ano: "asc" }, { nome: "asc" }],
       },
     },
   });
 
   if (!contexto) return { ok: false, error: "Contexto não encontrado." };
+
+  const user = await requireAuth();
+  const perms = await getEffectivePermissions(user.id);
+  const canManage =
+    perms.has("contextos:write") ||
+    perms.has("contextos:create") ||
+    perms.has("import:write");
+  const scope = await resolveDataScope(user.id);
 
   const projetoIds = contexto.projetos.map((p) => p.id);
   const aggregates =
@@ -138,22 +155,35 @@ export async function getContextoPanoramaAction(
         });
   const byId = new Map(aggregates.map((a) => [a.idProjeto, a]));
 
-  const edicoes: ProgramaEdicao[] = contexto.projetos.map((p) => {
-    const a = byId.get(p.id);
-    const ano =
-      extractProjectYear(p.ano) || p.ano || "—";
-    return {
-      id_projeto: p.id,
-      Nome_projeto: p.nome,
-      ano,
-      href: `/projeto/${encodeURIComponent(p.id)}`,
-      inscritos: a?._sum.inscritos ?? 0,
-      selecionados: a?._sum.selecionados ?? 0,
-      participantes: a?._sum.participantes ?? 0,
-      certificados: a?._sum.certificado ?? 0,
-      oficinas: p.oficinas.length,
-    };
-  });
+  const projetosOrdenados = [...contexto.projetos].sort(compareProjetoEdicao);
+
+  const edicoes: ProgramaEdicao[] = await Promise.all(
+    projetosOrdenados.map(async (p) => {
+      const a = byId.get(p.id);
+      const ano = extractProjectYear(p.ano) || p.ano || "—";
+      const writeAccess =
+        canManage &&
+        (scope.mode === "ALL" ||
+          (await assertDataAccess(
+            user.id,
+            { contextoId: p.contextoId, idProjeto: p.id },
+            { write: true },
+          )));
+      return {
+        id_projeto: p.id,
+        Nome_projeto: p.nome,
+        ano,
+        numeroEdicao: extractEdicaoNumero(p.nome),
+        href: `/projeto/${encodeURIComponent(p.id)}`,
+        inscritos: a?._sum.inscritos ?? 0,
+        selecionados: a?._sum.selecionados ?? 0,
+        participantes: a?._sum.participantes ?? 0,
+        certificados: a?._sum.certificado ?? 0,
+        oficinas: p.oficinas.length,
+        canEditContexto: writeAccess,
+      };
+    }),
+  );
 
   const socio =
     projetoIds.length === 0
@@ -185,6 +215,14 @@ export async function getContextoPanoramaAction(
   );
 
   const label = contexto.nome.trim() || "(sem nome)";
+  const canEditContexto =
+    canManage &&
+    (scope.mode === "ALL" ||
+      (await assertDataAccess(
+        user.id,
+        { contextoId: contexto.id },
+        { write: true },
+      )));
 
   return {
     ok: true,
@@ -192,6 +230,7 @@ export async function getContextoPanoramaAction(
       id: contexto.id,
       stem: programaStem(contexto.nome) || contexto.id,
       label,
+      canEditContexto,
       edicoes,
       totais,
       socio,

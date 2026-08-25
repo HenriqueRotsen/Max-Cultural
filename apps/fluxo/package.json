@@ -11,7 +11,10 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:seed": "tsx scripts/seed-base.ts",
-    "db:seed-auth": "tsx scripts/seed-auth.ts"
+    "db:seed-auth": "tsx scripts/seed-auth.ts",
+    "sync:origem-planning": "tsx scripts/sync-origem-planning.ts",
+    "repair:projeto-contextos": "tsx scripts/repair-projeto-contextos.ts",
+    "strip:string-fields": "tsx scripts/strip-string-fields.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

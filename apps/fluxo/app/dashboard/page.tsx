@@ -59,6 +59,8 @@ async function BaseContent({
       anoProjeto: str(params.anoProjeto),
       selecionados: str(params.selecionados),
       participantes: str(params.participantes),
+      sort: str(params.sort),
+      sortDir: str(params.sortDir),
       page,
       pageSize: 20,
     });

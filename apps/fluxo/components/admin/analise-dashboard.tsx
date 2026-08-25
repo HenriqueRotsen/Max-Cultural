@@ -255,7 +255,21 @@ export function AnaliseDashboard({ data }: Props) {
     1,
   );
   const searchText = useCallback(searchAnaliseRow, []);
-  const sheet = useDataSheet(rows, searchText, 50);
+  const sortAccessors = useMemo(
+    () => ({
+      oficina: (r: (typeof rows)[number]) => r.Nome_oficina,
+      projeto: (r: (typeof rows)[number]) => r.Nome_projeto,
+      estado: (r: (typeof rows)[number]) => r.Estado,
+      cidade: (r: (typeof rows)[number]) => r.Cidade,
+      territorio: (r: (typeof rows)[number]) => r.Territorio,
+      inscritos: (r: (typeof rows)[number]) => r.Inscritos,
+      selecionados: (r: (typeof rows)[number]) => r.Selecionados,
+      participantes: (r: (typeof rows)[number]) => r.Participantes,
+      certificado: (r: (typeof rows)[number]) => r.Certificado,
+    }),
+    [rows],
+  );
+  const sheet = useDataSheet(rows, searchText, 50, sortAccessors);
 
   const filterSelectItems = useMemo(
     () => ({
@@ -641,19 +655,77 @@ export function AnaliseDashboard({ data }: Props) {
         <SheetTable>
           <SheetThead>
             <tr>
-              <SheetTh sticky>Oficina</SheetTh>
-              <SheetTh>Projeto</SheetTh>
-              <SheetTh>Estado</SheetTh>
-              <SheetTh>Cidade</SheetTh>
-              <SheetTh>Território</SheetTh>
-              <SheetTh>Inscritos</SheetTh>
-              <SheetTh>
+              <SheetTh
+                sticky
+                sortKey="oficina"
+                sortActive={sheet.sortKey === "oficina"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
+                Oficina
+              </SheetTh>
+              <SheetTh
+                sortKey="projeto"
+                sortActive={sheet.sortKey === "projeto"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
+                Projeto
+              </SheetTh>
+              <SheetTh
+                sortKey="estado"
+                sortActive={sheet.sortKey === "estado"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
+                Estado
+              </SheetTh>
+              <SheetTh
+                sortKey="cidade"
+                sortActive={sheet.sortKey === "cidade"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
+                Cidade
+              </SheetTh>
+              <SheetTh
+                sortKey="territorio"
+                sortActive={sheet.sortKey === "territorio"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
+                Território
+              </SheetTh>
+              <SheetTh
+                sortKey="inscritos"
+                sortActive={sheet.sortKey === "inscritos"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
+                Inscritos
+              </SheetTh>
+              <SheetTh
+                sortKey="selecionados"
+                sortActive={sheet.sortKey === "selecionados"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
                 <StatusKindBadge kind="selecionado" />
               </SheetTh>
-              <SheetTh>
+              <SheetTh
+                sortKey="participantes"
+                sortActive={sheet.sortKey === "participantes"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
                 <StatusKindBadge kind="participante" />
               </SheetTh>
-              <SheetTh>
+              <SheetTh
+                sortKey="certificado"
+                sortActive={sheet.sortKey === "certificado"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
                 <StatusKindBadge kind="certificado" />
               </SheetTh>
             </tr>

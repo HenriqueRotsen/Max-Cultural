@@ -22,6 +22,12 @@ import {
   type OficinaSelectOption,
   type ProjetoSelectOption,
 } from "@/lib/hierarchy-list";
+import {
+  contextoOrderBy,
+  oficinaOrderBy,
+  parseSortDir,
+  projetoOrderBy,
+} from "@/lib/table-sort";
 import { getEffectivePermissions } from "@/lib/permissions";
 import type { PermissionCode } from "@/lib/permission-catalog";
 
@@ -271,6 +277,8 @@ export async function listContextosPageAction(params?: {
   page?: number;
   q?: string;
   pageSize?: number;
+  sort?: string;
+  sortDir?: string;
 }): Promise<
   ListPageMeta & {
     items: ContextoDTO[];
@@ -297,7 +305,7 @@ export async function listContextosPageAction(params?: {
   const rows = await prisma.contexto.findMany({
     where,
     include: { _count: { select: { projetos: true } } },
-    orderBy: { nome: "asc" },
+    orderBy: contextoOrderBy(params?.sort, parseSortDir(params?.sortDir)),
     skip: (safePage - 1) * pageSize,
     take,
   });
@@ -316,7 +324,7 @@ export async function listContextosPageAction(params?: {
       );
       return toContextoDto(c, counts.get(c.id) ?? 0, {
         hasEditorAccess: writeAccess,
-        canEdit: canWrite && writeAccess,
+        canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
       });
     }),
@@ -328,6 +336,8 @@ export async function listProjetosPageAction(params?: {
   q?: string;
   contextoId?: string;
   pageSize?: number;
+  sort?: string;
+  sortDir?: string;
 }): Promise<
   ListPageMeta & {
     items: ProjetoDTO[];
@@ -358,7 +368,7 @@ export async function listProjetosPageAction(params?: {
       contexto: { select: { nome: true } },
       _count: { select: { oficinas: true } },
     },
-    orderBy: [{ nome: "asc" }],
+    orderBy: [projetoOrderBy(params?.sort, parseSortDir(params?.sortDir))],
     skip: (safePage - 1) * pageSize,
     take,
   });
@@ -377,7 +387,7 @@ export async function listProjetosPageAction(params?: {
       );
       return toProjetoDto(p, counts.get(p.id) ?? 0, {
         hasEditorAccess: writeAccess,
-        canEdit: canWrite && writeAccess,
+        canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
       });
     }),
@@ -390,6 +400,8 @@ export async function listOficinasPageAction(params?: {
   projetoId?: string;
   contextoId?: string;
   pageSize?: number;
+  sort?: string;
+  sortDir?: string;
 }): Promise<
   ListPageMeta & {
     items: OficinaDTO[];
@@ -431,7 +443,7 @@ export async function listOficinasPageAction(params?: {
         },
       },
     },
-    orderBy: [{ nome: "asc" }],
+    orderBy: [oficinaOrderBy(params?.sort, parseSortDir(params?.sortDir))],
     skip: (safePage - 1) * pageSize,
     take,
   });
@@ -454,7 +466,7 @@ export async function listOficinasPageAction(params?: {
       );
       return toOficinaDto(o, counts.get(o.id) ?? 0, {
         hasEditorAccess: writeAccess,
-        canEdit: canWrite && writeAccess,
+        canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
       });
     }),
@@ -466,7 +478,7 @@ export async function listContextosSelectAction(params?: {
   limit?: number;
   editableOnly?: boolean;
 }): Promise<ContextoSelectOption[]> {
-  const { scope, canWrite } = await requireHierarchyRead();
+  const { scope } = await requireHierarchyRead();
   if (isEmptyScoped(scope)) return [];
 
   const limit = Math.min(
@@ -485,7 +497,7 @@ export async function listContextosSelectAction(params?: {
     take: limit,
   });
 
-  if (!params?.editableOnly || canWrite) {
+  if (!params?.editableOnly) {
     return rows.map((c) => ({ id: c.id, nome: c.nome }));
   }
 
@@ -517,7 +529,7 @@ export async function listProjetosSelectAction(params: {
   const rows = await prisma.projeto.findMany({
     where,
     select: { id: true, nome: true, pronac: true, contextoId: true },
-    orderBy: [{ nome: "asc" }],
+    orderBy: { nome: "asc" },
     take: limit,
   });
 
@@ -564,7 +576,7 @@ export async function listOficinasSelectAction(params: {
         },
       },
     },
-    orderBy: [{ nome: "asc" }],
+    orderBy: { nome: "asc" },
     take: limit,
   });
 
@@ -625,7 +637,7 @@ export async function listHierarquiaAction(): Promise<{
           contexto: { select: { nome: true } },
           _count: { select: { oficinas: true } },
         },
-        orderBy: [{ nome: "asc" }],
+        orderBy: { nome: "asc" },
       }),
       prisma.oficina.findMany({
         include: {
@@ -640,7 +652,7 @@ export async function listHierarquiaAction(): Promise<{
             },
           },
         },
-        orderBy: [{ nome: "asc" }],
+        orderBy: { nome: "asc" },
       }),
     ]);
   } else {
@@ -659,7 +671,7 @@ export async function listHierarquiaAction(): Promise<{
               },
             },
           },
-          orderBy: [{ nome: "asc" }],
+          orderBy: { nome: "asc" },
         })
       : [];
     const projetoIds = [
@@ -675,7 +687,7 @@ export async function listHierarquiaAction(): Promise<{
             contexto: { select: { nome: true } },
             _count: { select: { oficinas: true } },
           },
-          orderBy: [{ nome: "asc" }],
+          orderBy: { nome: "asc" },
         })
       : [];
     const contextoIds = [
@@ -712,7 +724,7 @@ export async function listHierarquiaAction(): Promise<{
       );
       return toContextoDto(c, ctxCounts.get(c.id) ?? 0, {
         hasEditorAccess: writeAccess,
-        canEdit: canWrite && writeAccess,
+        canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
       });
     }),
@@ -724,7 +736,7 @@ export async function listHierarquiaAction(): Promise<{
       );
       return toProjetoDto(p, projCounts.get(p.id) ?? 0, {
         hasEditorAccess: writeAccess,
-        canEdit: canWrite && writeAccess,
+        canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
       });
     }),
@@ -740,7 +752,7 @@ export async function listHierarquiaAction(): Promise<{
       );
       return toOficinaDto(o, ofCounts.get(o.id) ?? 0, {
         hasEditorAccess: writeAccess,
-        canEdit: canWrite && writeAccess,
+        canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
       });
     }),
@@ -930,7 +942,11 @@ export async function updateProjetoAction(
   id: string,
   input: ProjetoInput,
 ): Promise<{ ok: true; projeto: ProjetoDTO } | { ok: false; error: string }> {
-  const actor = await requirePermission("contextos:write");
+  const actor = await requireAnyPermission([
+    "contextos:write",
+    "contextos:create",
+    "import:write",
+  ]);
   const existing = await prisma.projeto.findUnique({ where: { id } });
   if (!existing) return { ok: false, error: "Projeto não encontrado." };
   if (!input.nome.trim()) return { ok: false, error: "Informe o nome do projeto." };
@@ -1003,6 +1019,81 @@ export async function updateProjetoAction(
     ok: true,
     projeto: toProjetoDto(updated, insc, { hasEditorAccess: true, canEdit: true, canDelete: true }),
   };
+}
+
+/** Move projeto para outro contexto (atualiza inscrições denormalizadas). */
+export async function moveProjetoContextoAction(
+  projetoId: string,
+  contextoId: string,
+): Promise<{ ok: true; contextoNome: string } | { ok: false; error: string }> {
+  const actor = await requireAnyPermission([
+    "contextos:write",
+    "contextos:create",
+    "import:write",
+  ]);
+  const id = projetoId.trim();
+  const destId = contextoId.trim();
+  if (!id || !destId) {
+    return { ok: false, error: "Projeto ou contexto inválido." };
+  }
+
+  const existing = await prisma.projeto.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "Projeto não encontrado." };
+  if (existing.contextoId === destId) {
+    const ctx = await prisma.contexto.findUnique({
+      where: { id: destId },
+      select: { nome: true },
+    });
+    return { ok: true, contextoNome: ctx?.nome ?? "" };
+  }
+
+  const dest = await prisma.contexto.findUnique({ where: { id: destId } });
+  if (!dest) return { ok: false, error: "Contexto não encontrado." };
+
+  const allowedDest = await assertDataAccess(
+    actor.id,
+    { contextoId: destId },
+    { write: true },
+  );
+  if (!allowedDest) {
+    return { ok: false, error: "Sem permissão de edição no contexto de destino." };
+  }
+
+  const allowed = await assertDataAccess(
+    actor.id,
+    { contextoId: existing.contextoId, idProjeto: id },
+    { write: true },
+  );
+  if (!allowed) {
+    return { ok: false, error: "Sem permissão de edição neste projeto." };
+  }
+
+  await prisma.projeto.update({
+    where: { id },
+    data: { contextoId: destId },
+  });
+
+  await prisma.inscricao.updateMany({
+    where: { idProjeto: id },
+    data: {
+      contextoId: dest.id,
+      nomeContexto: dest.nome,
+    },
+  });
+
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "projeto.moved_contexto",
+    entityType: "Projeto",
+    entityId: id,
+    meta: {
+      fromContextoId: existing.contextoId,
+      toContextoId: dest.id,
+      toContextoNome: dest.nome,
+    },
+  });
+
+  return { ok: true, contextoNome: dest.nome };
 }
 
 export async function deleteProjetoAction(

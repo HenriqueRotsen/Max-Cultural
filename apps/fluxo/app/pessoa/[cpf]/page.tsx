@@ -29,7 +29,12 @@ export default async function PessoaCpfPage({ params }: Props) {
   const result = await getPessoaByCpfAction(cpf);
 
   return (
-    <SiteShell width="5xl" mainClassName="pb-20">
+    <SiteShell
+      width="5xl"
+      mainClassName="pb-20"
+      backHref="/pessoa"
+      backLabel="Consulta CPF"
+    >
       {result.ok ? (
         <PessoaView pessoa={result.pessoa} />
       ) : (

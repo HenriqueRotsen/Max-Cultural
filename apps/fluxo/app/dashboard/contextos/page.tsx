@@ -6,6 +6,7 @@ import {
   listProjetosPageAction,
 } from "@/app/actions/contextos";
 import { HIERARQUIA_PAGE_SIZE } from "@/lib/hierarchy-list";
+import type { SortDir } from "@/lib/table-sort";
 import {
   listPageCount,
   parseListPage,
@@ -22,12 +23,21 @@ function parseTab(raw: string | undefined): Tab {
 export default async function ContextosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; page?: string; q?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    page?: string;
+    q?: string;
+    sort?: string;
+    sortDir?: string;
+  }>;
 }) {
   await requireDashboardPermission("contextos:read");
   const sp = await searchParams;
   const tab = parseTab(sp.tab);
   const q = sp.q?.trim() || undefined;
+  const sort = sp.sort?.trim() || "nome";
+  const sortDir: SortDir = sp.sortDir === "desc" ? "desc" : "asc";
+  const listParams = { page: Number(sp.page), q, sort, sortDir };
 
   let error: string | null = null;
   let canCreate = false;
@@ -46,7 +56,7 @@ export default async function ContextosPage({
 
   try {
     if (tab === "contextos") {
-      const data = await listContextosPageAction({ page: Number(sp.page), q });
+      const data = await listContextosPageAction(listParams);
       pageCount = data.pageCount;
       page = parseListPage(sp.page, pageCount);
       total = data.total;
@@ -54,7 +64,7 @@ export default async function ContextosPage({
       canWrite = data.canWrite;
       empty.contextos = data.items;
     } else if (tab === "projetos") {
-      const data = await listProjetosPageAction({ page: Number(sp.page), q });
+      const data = await listProjetosPageAction(listParams);
       pageCount = data.pageCount;
       page = parseListPage(sp.page, pageCount);
       total = data.total;
@@ -62,7 +72,7 @@ export default async function ContextosPage({
       canWrite = data.canWrite;
       empty.projetos = data.items;
     } else {
-      const data = await listOficinasPageAction({ page: Number(sp.page), q });
+      const data = await listOficinasPageAction(listParams);
       pageCount = data.pageCount;
       page = parseListPage(sp.page, pageCount);
       total = data.total;
@@ -105,6 +115,8 @@ export default async function ContextosPage({
           pageCount={pageCount}
           total={total}
           q={q ?? ""}
+          sort={sort}
+          sortDir={sortDir}
           contextos={empty.contextos}
           projetos={empty.projetos}
           oficinas={empty.oficinas}

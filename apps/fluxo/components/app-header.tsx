@@ -20,6 +20,8 @@ type SiteShellProps = {
   showHeader?: boolean;
   width?: AppHeaderWidth;
   mainClassName?: string;
+  backHref?: string;
+  backLabel?: string;
 };
 
 export async function SiteShell({
@@ -29,6 +31,8 @@ export async function SiteShell({
   showHeader = true,
   width = "5xl",
   mainClassName,
+  backHref,
+  backLabel,
 }: SiteShellProps) {
   if (showHeader) {
     const user = await getSessionUser();
@@ -40,6 +44,8 @@ export async function SiteShell({
           permissions={[...permissions]}
           title={title}
           actions={actions}
+          backHref={backHref}
+          backLabel={backLabel}
           contentClassName={cn("mx-auto w-full", WIDTH[width])}
           mainClassName={mainClassName}
         >

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getContextoPanoramaAction } from "@/app/actions/programa";
+import { ContextoTimelineItem } from "@/components/admin/contexto-timeline-item";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { SiteShell } from "@/components/app-header";
 import { StatusKindBadge } from "@/components/status-badges";
@@ -26,7 +27,12 @@ export default async function ContextoPage({ params }: Props) {
   const result = await getContextoPanoramaAction(id);
 
   return (
-    <SiteShell width="5xl" mainClassName="pb-20">
+    <SiteShell
+      width="5xl"
+      mainClassName="pb-20"
+      backHref="/dashboard/analise"
+      backLabel="Análise"
+    >
       {!result.ok ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-8 text-center">
           <h1 className="font-heading text-2xl font-semibold text-brand-deep">
@@ -80,28 +86,12 @@ export default async function ContextoPage({ params }: Props) {
             </h2>
             <ol className="relative space-y-4 border-l border-brand/20 pl-6">
               {result.data.edicoes.map((e) => (
-                <li key={e.id_projeto} className="relative">
-                  <span className="absolute -left-[1.625rem] top-2 size-3 rounded-full bg-brand ring-4 ring-white" />
-                  <Link
-                    href={e.href}
-                    className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="text-xs font-semibold tracking-wide text-[var(--gray-400)] uppercase">
-                          {e.ano}
-                        </div>
-                        <div className="font-heading text-lg font-semibold text-brand-deep">
-                          {e.Nome_projeto}
-                        </div>
-                      </div>
-                      <div className="text-xs tabular-nums text-muted-foreground">
-                        {e.inscritos} insc. · {e.selecionados} sel. ·{" "}
-                        {e.oficinas} ofc.
-                      </div>
-                    </div>
-                  </Link>
-                </li>
+                <ContextoTimelineItem
+                  key={e.id_projeto}
+                  edicao={e}
+                  contextoId={result.data.id}
+                  contextoNome={result.data.label}
+                />
               ))}
             </ol>
           </section>

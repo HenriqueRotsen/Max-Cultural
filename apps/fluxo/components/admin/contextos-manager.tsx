@@ -17,6 +17,10 @@ import {
   updateOficinaAction,
   updateProjetoAction,
 } from "@/app/actions/contextos";
+import {
+  toggleSortDir,
+  type SortDir,
+} from "@/lib/table-sort";
 import type {
   ContextoSelectOption,
   ProjetoSelectOption,
@@ -46,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { SortableTableHead } from "@/components/sortable-table-head";
 
 type Tab = "contextos" | "projetos" | "oficinas";
 
@@ -60,6 +65,8 @@ type Props = {
   oficinas: OficinaDTO[];
   canCreate?: boolean;
   canWrite?: boolean;
+  sort: string;
+  sortDir: SortDir;
 };
 
 export function ContextosManager({
@@ -73,6 +80,8 @@ export function ContextosManager({
   oficinas,
   canCreate = false,
   canWrite = false,
+  sort,
+  sortDir,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -109,16 +118,27 @@ export function ContextosManager({
     setSearchDraft(q);
   }, [q]);
 
+  const [projCtxSearch, setProjCtxSearch] = useState("");
+
   useEffect(() => {
-    if (!projOpen) return;
+    if (!projOpen) {
+      setProjCtxSearch("");
+      return;
+    }
     let cancelled = false;
-    void listContextosSelectAction({ editableOnly: true }).then((rows) => {
-      if (!cancelled) setProjContextos(rows);
-    });
+    const timer = window.setTimeout(() => {
+      void listContextosSelectAction({
+        q: projCtxSearch,
+        editableOnly: true,
+      }).then((rows) => {
+        if (!cancelled) setProjContextos(rows);
+      });
+    }, 200);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [projOpen]);
+  }, [projOpen, projCtxSearch]);
 
   useEffect(() => {
     if (!ofOpen) return;
@@ -148,16 +168,50 @@ export function ContextosManager({
   }, [ofOpen, ofForm.contextoId]);
 
   const pagerParams = useMemo(
-    () => ({ tab, q: q || undefined, page: page > 1 ? String(page) : undefined }),
-    [tab, q, page],
+    () => ({
+      tab,
+      q: q || undefined,
+      page: page > 1 ? String(page) : undefined,
+      sort: sort !== "nome" ? sort : undefined,
+      sortDir: sortDir !== "asc" ? sortDir : undefined,
+    }),
+    [tab, q, page, sort, sortDir],
   );
 
-  function tabHref(next: Tab) {
+  function listHref(next: {
+    tab?: Tab;
+    q?: string;
+    page?: number;
+    sort?: string;
+    sortDir?: SortDir;
+  }) {
     const params = new URLSearchParams();
-    params.set("tab", next);
-    if (q) params.set("q", q);
-    const qs = params.toString();
-    return `/dashboard/contextos${qs ? `?${qs}` : ""}`;
+    params.set("tab", next.tab ?? tab);
+    const query = next.q ?? q;
+    if (query) params.set("q", query);
+    const p = next.page ?? page;
+    if (p > 1) params.set("page", String(p));
+    const s = next.sort ?? sort;
+    const d = next.sortDir ?? sortDir;
+    if (s && s !== "nome") params.set("sort", s);
+    if (d && d !== "asc") params.set("sortDir", d);
+    return `/dashboard/contextos?${params.toString()}`;
+  }
+
+  function toggleSort(key: string) {
+    startTransition(() => {
+      router.push(
+        listHref({
+          sort: key,
+          sortDir: toggleSortDir(sort, sortDir, key),
+          page: 1,
+        }),
+      );
+    });
+  }
+
+  function tabHref(next: Tab) {
+    return listHref({ tab: next, page: 1, sort: "nome", sortDir: "asc" });
   }
 
   function refreshList() {
@@ -398,6 +452,24 @@ export function ContextosManager({
 
       {tab === "contextos" ? (
         <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/60 bg-brand-mist/50 px-4 py-2">
+            <SortableTableHead
+              label="Nome"
+              sortKey="nome"
+              activeKey={sort}
+              activeDir={sortDir}
+              onSort={toggleSort}
+            />
+            <SortableTableHead
+              label="Projetos"
+              sortKey="projetos"
+              activeKey={sort}
+              activeDir={sortDir}
+              onSort={toggleSort}
+              className="w-28 justify-end"
+              align="right"
+            />
+          </div>
           <ul className="divide-y divide-border/60">
             {contextos.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -477,6 +549,32 @@ export function ContextosManager({
 
       {tab === "projetos" ? (
         <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">
+          <div className="hidden items-center gap-2 border-b border-border/60 bg-brand-mist/50 px-4 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,0.8fr)_auto]">
+            <SortableTableHead
+              label="Contexto"
+              sortKey="contexto"
+              activeKey={sort}
+              activeDir={sortDir}
+              onSort={toggleSort}
+            />
+            <SortableTableHead
+              label="Projeto"
+              sortKey="nome"
+              activeKey={sort}
+              activeDir={sortDir}
+              onSort={toggleSort}
+            />
+            <SortableTableHead
+              label="PRONAC"
+              sortKey="pronac"
+              activeKey={sort}
+              activeDir={sortDir}
+              onSort={toggleSort}
+            />
+            <span className="text-xs font-semibold text-brand-deep text-right">
+              Ações
+            </span>
+          </div>
           <ul className="divide-y divide-border/60">
             {projetos.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -569,6 +667,25 @@ export function ContextosManager({
 
       {tab === "oficinas" ? (
         <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">
+          <div className="hidden items-center gap-2 border-b border-border/60 bg-brand-mist/50 px-4 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]">
+            <SortableTableHead
+              label="Contexto / Projeto"
+              sortKey="contexto"
+              activeKey={sort}
+              activeDir={sortDir}
+              onSort={toggleSort}
+            />
+            <SortableTableHead
+              label="Oficina"
+              sortKey="nome"
+              activeKey={sort}
+              activeDir={sortDir}
+              onSort={toggleSort}
+            />
+            <span className="text-xs font-semibold text-brand-deep text-right">
+              Ações
+            </span>
+          </div>
           <ul className="divide-y divide-border/60">
             {oficinas.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -707,12 +824,17 @@ export function ContextosManager({
           <DialogHeader>
             <DialogTitle>Editar projeto</DialogTitle>
             <DialogDescription>
-              Ajuste o contexto (programa) e demais metadados do projeto.
+              Mova o projeto para outro contexto (programa) ou ajuste metadados.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="space-y-1.5">
               <Label>Contexto</Label>
+              <Input
+                value={projCtxSearch}
+                placeholder="Buscar contexto…"
+                onChange={(e) => setProjCtxSearch(e.target.value)}
+              />
               <Select
                 value={projForm.contextoId || undefined}
                 onValueChange={(v) =>
