@@ -98,7 +98,7 @@ async function assertSyncStillActive(syncRunId: string) {
 }
 
 export async function enqueueSync(options: SyncOptions = {}) {
-  const forceCrawler = options.forceCrawler ?? false;
+  const forceCrawler = true;
   const pronacs = (options.pronacs || []).filter(Boolean);
 
   if (options.workspaceId) {
@@ -202,7 +202,6 @@ async function buildWorkState(options: SyncOptions): Promise<WorkState> {
  * Usa cache + paralelismo — mesmos dados, menos requests repetidos.
  */
 export async function executeSyncRun(syncRunId: string, options: SyncOptions = {}) {
-  const forceCrawler = options.forceCrawler ?? false;
   const pronacs = (options.pronacs || []).filter(Boolean);
 
   const claimed = await prisma.syncRun.updateMany({
@@ -212,8 +211,9 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
     },
     data: {
       status: "running",
+      forceCrawler: true,
       startedAt: new Date(),
-      progressMessage: "Iniciando (cache + paralelo)…",
+      progressMessage: "Iniciando pela área logada do SALIC…",
     },
   });
   if (claimed.count === 0) {
@@ -223,7 +223,7 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
 
   const accounts = await accountsForSync(options);
 
-  const allLogs: string[] = [`SyncRun ${syncRunId}`];
+  const allLogs: string[] = [`Atualização ${syncRunId}`];
   let projectsSynced = 0;
   let paymentsUpserted = 0;
   let hadError = false;
@@ -246,38 +246,24 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
     for (const account of accounts) {
       await flush(`Conta ${account.name} (${formatCgccpf(account.cgccpf)})`);
       try {
-        if (forceCrawler) {
-          await flush("Modo forçado: crawler");
-          const { syncAccountViaCrawler } = await import("@/lib/salic/crawler");
-          const result = await syncAccountViaCrawler({
-            salicAccountId: account.id,
-            pronacs: pronacs.length ? pronacs : undefined,
-            onProgress: async (m) => {
-              await flush(m);
-            },
-          });
-          projectsSynced += result.projectsSynced;
-          paymentsUpserted += result.paymentsUpserted;
-          if (result.paymentsDeleted) {
-            allLogs.push(`pagamentosRemovidos=${result.paymentsDeleted}`);
-          }
-          if (result.projectsDeleted) {
-            allLogs.push(`projetosRemovidos=${result.projectsDeleted}`);
-          }
-          hadSuccess = true;
-        } else {
-          const result = await syncAccountViaApi({
-            salicAccountId: account.id,
-            pronacs: pronacs.length ? pronacs : undefined,
-            onProgress: async (m, meta) => {
-              await flush(m, meta);
-            },
-          });
-          projectsSynced += result.projectsSynced;
-          paymentsUpserted += result.paymentsUpserted;
-          hadSuccess = true;
-          allLogs.push(...result.log);
+        await flush("Conectando à área logada do SALIC…");
+        const { syncAccountViaCrawler } = await import("@/lib/salic/crawler");
+        const result = await syncAccountViaCrawler({
+          salicAccountId: account.id,
+          pronacs: pronacs.length ? pronacs : undefined,
+          onProgress: async (m) => {
+            await flush(m);
+          },
+        });
+        projectsSynced += result.projectsSynced;
+        paymentsUpserted += result.paymentsUpserted;
+        if (result.paymentsDeleted) {
+          allLogs.push(`pagamentosRemovidos=${result.paymentsDeleted}`);
         }
+        if (result.projectsDeleted) {
+          allLogs.push(`projetosRemovidos=${result.projectsDeleted}`);
+        }
+        hadSuccess = true;
       } catch (error) {
         if (error instanceof SyncCancelledError) throw error;
         hadError = true;

@@ -797,7 +797,7 @@ export async function startSync(formData: FormData) {
     await assertAccountInWorkspace(accountId, entitlements.workspaceId);
   }
 
-  const forceCrawler = formData.get("forceCrawler") === "on";
+  const forceCrawler = true;
   const pronacRaw = String(formData.get("pronac") || "");
   const pronacs = pronacRaw
     .split(/[\s,;]+/)
@@ -805,9 +805,7 @@ export async function startSync(formData: FormData) {
     .filter(Boolean);
 
   const { after } = await import("next/server");
-  const { enqueueSync, executeSyncRun, startChunkedSync } = await import(
-    "@/lib/sync/run"
-  );
+  const { enqueueSync, executeSyncRun } = await import("@/lib/sync/run");
 
   const options = {
     salicAccountId: accountId,
@@ -818,16 +816,8 @@ export async function startSync(formData: FormData) {
 
   const syncRun = await enqueueSync(options);
 
-  const mode =
-    process.env.SYNC_MODE || (process.env.VERCEL ? "chunked" : "full");
-
   after(() => {
-    const job =
-      mode === "chunked" && !forceCrawler
-        ? startChunkedSync(syncRun.id, options)
-        : executeSyncRun(syncRun.id, options);
-
-    void job.catch(async (error) => {
+    void executeSyncRun(syncRun.id, options).catch(async (error) => {
       const message = error instanceof Error ? error.message : String(error);
       await prisma.syncRun.update({
         where: { id: syncRun.id },
@@ -842,7 +832,7 @@ export async function startSync(formData: FormData) {
   });
 
   revalidatePath("/sync");
-  return { syncRunId: syncRun.id, mode };
+  return { syncRunId: syncRun.id, mode: "full" };
 }
 
 async function assertAccountInWorkspace(accountId: string, workspaceId: string) {

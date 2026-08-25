@@ -44,6 +44,11 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // APIs do hub: nunca redirecionar para login (retornam 401 JSON).
+  if (pathname.startsWith("/api/hub")) {
+    return response;
+  }
+
   let hubOk = false;
   if (isHubSsoEnabled()) {
     try {

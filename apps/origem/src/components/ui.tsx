@@ -8,8 +8,8 @@ export function PageHeader({
   actions,
 }: {
   title: ReactNode;
-  description?: string;
-  breadcrumb?: string;
+  description?: ReactNode;
+  breadcrumb?: ReactNode;
   actions?: ReactNode;
 }) {
   return (

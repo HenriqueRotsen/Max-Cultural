@@ -1,14 +1,52 @@
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
 import { DemoBanner } from "@/components/DemoBanner";
+import { NotificationBell } from "@/components/planning/NotificationBell";
 import { isAuthEnabled, isDemoMode, isDevOpenAuth, needsLogin } from "@/lib/auth/config";
 import { origemHubLoginUrl } from "@/lib/auth/hub";
 import { getSessionUser, getWorkspaceContext } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
+import { refreshPaymentDueNotifications } from "@/lib/planning/actions";
+
+async function TopBar({
+  workspaceId,
+  userId,
+}: {
+  workspaceId: string;
+  userId?: string;
+}) {
+  if (userId) {
+    await refreshPaymentDueNotifications().catch(() => undefined);
+  }
+  const notifications = await prisma.appNotification.findMany({
+    where: {
+      workspaceId,
+      ...(userId ? { OR: [{ userId }, { userId: null }] } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+
+  return (
+    <div className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2">
+      <NotificationBell
+        items={notifications.map((n) => ({
+          id: n.id,
+          title: n.title,
+          body: n.body,
+          href: n.href,
+          type: n.type,
+          createdAt: n.createdAt.toISOString(),
+          readAt: n.readAt?.toISOString() || null,
+        }))}
+      />
+    </div>
+  );
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  // Dev aberto / demo: sem login, workspace bootstrap.
   if (!needsLogin()) {
-    const { entitlements } = await getWorkspaceContext();
+    const { entitlements, session } = await getWorkspaceContext();
     const demo = isDemoMode();
     return (
       <div className="shell">
@@ -20,6 +58,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         />
         <div className="shell-main">
           <DemoBanner />
+          <TopBar
+            workspaceId={entitlements.workspaceId}
+            userId={session?.id}
+          />
           <div className="content">{children}</div>
         </div>
       </div>
@@ -42,6 +84,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         syncEnabled={session.entitlements.syncEnabled}
       />
       <div className="shell-main">
+        <TopBar
+          workspaceId={session.workspace.id}
+          userId={session.id}
+        />
         <div className="content">{children}</div>
       </div>
     </div>

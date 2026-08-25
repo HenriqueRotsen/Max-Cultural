@@ -30,9 +30,21 @@ export default async function HomePage() {
               </p>
               <h1 className="mt-1 text-2xl font-semibold text-[var(--navy)]">Olá, {user.name}</h1>
               <p className="mt-1 text-sm text-[var(--gray-500)]">
-                Escolha o produto. O acesso segue o papel configurado neste hub.
+                Escolha o produto ou abra o resumo dos projetos no hub.
               </p>
             </div>
+            <Link
+              href="/projetos"
+              className="card block p-5 transition hover:shadow-md"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+                Hub
+              </p>
+              <p className="mt-1 text-lg font-semibold text-[var(--navy)]">Projetos</p>
+              <p className="mt-1 text-sm text-[var(--gray-600)]">
+                Resumo, saldos e atalhos rápidos para cada projeto.
+              </p>
+            </Link>
             <div className="grid gap-4 sm:grid-cols-2">
               {showOrigem ? (
                 <a href={`${origem}/painel`} className="card p-5 transition hover:shadow-md">

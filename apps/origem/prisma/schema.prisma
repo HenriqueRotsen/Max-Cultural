@@ -96,9 +96,11 @@ model Workspace {
   accounts         SalicAccount[]
   watchedSuppliers WatchedSupplier[]
   observadoBonds   ObservadoBond[]
-  catalogSuppliers CatalogSupplier[]
-  catalogFavorites CatalogFavorite[]
+  catalogSuppliers   CatalogSupplier[]
+  catalogFavorites   CatalogFavorite[]
   catalogEngagements CatalogEngagement[]
+  planningProjects   PlanningProject[]
+  appNotifications   AppNotification[]
 
   @@index([plan])
 }
@@ -165,6 +167,7 @@ model SalicAccount {
   relatedParties     RelatedParty[]
   corporatePeriods   CorporatePeriod[]
   observadoBonds     ObservadoBond[]
+  planningProjects   PlanningProject[]
 
   @@unique([workspaceId, cgccpf])
   @@index([active])
@@ -207,6 +210,10 @@ model Project {
   pronac         String
   name           String?
   salicProjectId String?
+  /** Situação textual vinda do SALIC (área logada) */
+  situacao       String?
+  /** EM_ANDAMENTO | ENCERRADO */
+  lifecycleStatus String   @default("EM_ANDAMENTO")
   /** Valor captado no SALIC (base dos % de conformidade) */
   valorCaptado   Decimal?  @db.Decimal(14, 2)
   /** Valor aprovado no SALIC (referência) */
@@ -229,10 +236,12 @@ model Project {
   salicAccountId String
   salicAccount   SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
   payments       Payment[]
+  planningProject PlanningProject?
 
   @@unique([salicAccountId, pronac])
   @@index([pronac])
   @@index([complianceRulesetId])
+  @@index([lifecycleStatus])
 }
 
 enum DatePrecision {
@@ -402,15 +411,26 @@ model SyncRun {
   @@index([createdAt])
 }
 
-/** Pacote operacional de tetos (histórico + vigente) */
+enum RulesetKind {
+  AUDIT_CAPS
+  PLANNING
+  BOTH
+}
+
+/** Pacote operacional de tetos (histórico + vigente) — federal e estadual */
 model ComplianceRuleset {
   id                 String        @id @default(cuid())
   version            String        @unique
   sourceCode         String
   sourceUrl          String
+  /** FEDERAL ou UF (SP, MG, …) */
+  jurisdiction       String        @default("FEDERAL")
+  kind               RulesetKind   @default(BOTH)
   effectiveFrom      DateTime
   effectiveTo        DateTime?
   caps               Json
+  /** Parâmetros de Planejamento (%, formulário, checklist) — null em INs só de auditoria legadas */
+  planning           Json?
   legalSummary       String?       @db.Text
   jurisprudenceNotes String?       @db.Text
   contentHash        String?
@@ -420,9 +440,12 @@ model ComplianceRuleset {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  projects Project[]
+  projects         Project[]
+  planningProjects PlanningProject[]
 
   @@index([status])
+  @@index([jurisdiction])
+  @@index([kind])
   @@index([effectiveFrom])
   @@index([createdAt])
 }
@@ -537,12 +560,215 @@ model CatalogEngagement {
   notes       String?
   /** Pagamento SALIC que originou esta contratação (espelho da Auditoria). */
   salicPaymentId String? @unique
+  /** Origem: AUDIT | PLANNING_NF */
+  source             String  @default("AUDIT")
+  planningProjectId  String?
+  budgetLineId       String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  service   CatalogService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  service         CatalogService   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  planningProject PlanningProject? @relation(fields: [planningProjectId], references: [id], onDelete: SetNull)
+  budgetLine      ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  commitment      RubricCommitment?
+  documents       PlanningDocument[]
 
   @@index([workspaceId, hiredAt])
+  @@index([planningProjectId])
+  @@index([budgetLineId])
   @@map("catalog_engagements")
+}
+
+enum CommitmentStatus {
+  RESERVED
+  PAID
+  CANCELLED
+}
+
+enum PlanningDocumentKind {
+  NF
+  PAYMENT_PROOF
+  TAX_PROOF
+}
+
+enum PlanningDocumentStatus {
+  PROCESSING
+  REVIEW
+  IMPORTED
+  FAILED
+}
+
+enum AppNotificationType {
+  PAYMENT_DUE_SOON
+  PAYMENT_OVERDUE
+  RUBRIC_NEAR
+}
+
+/** Projeto de execução no Planejamento (planilha homologada one-shot). */
+model PlanningProject {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  accountId      String
+  /** FEDERAL ou UF */
+  jurisdiction   String
+  rulesetVersion String
+  /** PRONAC ou código estadual */
+  externalCode   String
+  name           String?
+  /** Projeto de auditoria SALIC, se vinculado */
+  projectId      String?   @unique
+  importedAt     DateTime?
+  /** SALIC_HOMOLOGADA | STATE_FILE */
+  importSource   String?
+  /** EM_ANDAMENTO | ENCERRADO */
+  lifecycleStatus String   @default("EM_ANDAMENTO")
+  /**
+   * Envio acumulado de NF/comprovantes ao SALIC:
+   * IDLE | AGUARDANDO | ENVIANDO | CONCLUIDO | FALHOU | CANCELADO
+   */
+  salicPublishStatus           String    @default("IDLE")
+  salicPublishMessage          String?
+  salicPublishStartedAt        DateTime?
+  salicPublishCancelRequested  Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account         SalicAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ruleset         ComplianceRuleset @relation(fields: [rulesetVersion], references: [version], onDelete: Restrict)
+  project         Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sheet           ProjectBudgetSheet?
+  commitments     RubricCommitment[]
+  engagements     CatalogEngagement[]
+  documents       PlanningDocument[]
+
+  @@unique([workspaceId, accountId, externalCode])
+  @@index([workspaceId, updatedAt])
+  @@index([jurisdiction])
+  @@index([lifecycleStatus])
+  @@map("planning_projects")
+}
+
+model ProjectBudgetSheet {
+  id                String   @id @default(cuid())
+  planningProjectId String   @unique
+  kind              String   @default("HOMOLOGADA")
+  totalApproved     Decimal  @db.Decimal(14, 2)
+  importedAt        DateTime
+  sourceFilename    String?
+  available         Boolean  @default(true)
+
+  planningProject PlanningProject     @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  lines           ProjectBudgetLine[]
+
+  @@map("project_budget_sheets")
+}
+
+model ProjectBudgetLine {
+  id                  String   @id @default(cuid())
+  sheetId             String
+  planilhaAprovacaoId String?
+  fonteRecurso        String
+  productName         String
+  stageName           String
+  state               String   @default("")
+  city                String   @default("")
+  itemName            String
+  categoryHint        String?
+  unit                String   @default("Unidade")
+  days                Int      @default(1)
+  quantity            Decimal  @db.Decimal(14, 4) @default(1)
+  occurrences         Decimal  @db.Decimal(14, 4) @default(1)
+  unitPrice           Decimal  @db.Decimal(14, 2) @default(0)
+  /** Valor homologado original (SALIC/arquivo) — base do teto 2× na redistribuição */
+  homologatedAmount   Decimal  @db.Decimal(14, 2)
+  /** Alocação vigente (pode ser redistribuída com ACL; usada no saldo/NF) */
+  approvedAmount      Decimal  @db.Decimal(14, 2)
+  salicComprovado     Decimal? @db.Decimal(14, 2)
+  sortOrder           Int      @default(0)
+
+  sheet       ProjectBudgetSheet  @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  commitments RubricCommitment[]
+  engagements CatalogEngagement[]
+
+  @@index([sheetId])
+  @@index([planilhaAprovacaoId])
+  @@index([categoryHint])
+  @@index([itemName])
+  @@map("project_budget_lines")
+}
+
+model RubricCommitment {
+  id                String           @id @default(cuid())
+  budgetLineId      String
+  planningProjectId String
+  workspaceId       String
+  engagementId      String           @unique
+  amount            Decimal          @db.Decimal(14, 2)
+  status            CommitmentStatus @default(RESERVED)
+  hasBond           Boolean          @default(false)
+  expectedPayAt     DateTime
+  paidAt            DateTime?
+  createdById       String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  budgetLine      ProjectBudgetLine @relation(fields: [budgetLineId], references: [id], onDelete: Cascade)
+  planningProject PlanningProject   @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  engagement      CatalogEngagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  documents       PlanningDocument[]
+
+  @@index([budgetLineId])
+  @@index([planningProjectId])
+  @@index([workspaceId, status])
+  @@index([expectedPayAt])
+  @@map("rubric_commitments")
+}
+
+model PlanningDocument {
+  id                String                 @id @default(cuid())
+  kind              PlanningDocumentKind
+  status            PlanningDocumentStatus @default(PROCESSING)
+  filename          String
+  mimeType          String
+  storagePath       String
+  byteSize          Int                    @default(0)
+  originalByteSize  Int?
+  extractedJson     Json?
+  errorMessage      String?
+  workspaceId       String
+  planningProjectId String?
+  engagementId      String?
+  commitmentId      String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  planningProject PlanningProject?  @relation(fields: [planningProjectId], references: [id], onDelete: SetNull)
+  engagement      CatalogEngagement? @relation(fields: [engagementId], references: [id], onDelete: SetNull)
+  commitment      RubricCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, kind])
+  @@index([commitmentId])
+  @@index([engagementId])
+  @@map("planning_documents")
+}
+
+model AppNotification {
+  id          String              @id @default(cuid())
+  workspaceId String
+  userId      String?
+  type        AppNotificationType
+  title       String
+  body        String
+  href        String?
+  readAt      DateTime?
+  meta        Json?
+  createdAt   DateTime            @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([userId, readAt])
+  @@map("app_notifications")
 }

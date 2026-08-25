@@ -102,3 +102,12 @@ export function can(user: SessionUser, screen: string, action: "view" | "edit") 
   if (!perm) return false;
   return action === "edit" ? perm.canEdit : perm.canView;
 }
+
+/** Hub de projetos: tela dedicada ou qualquer acesso ao Origem. */
+export function canViewProjetos(user: SessionUser) {
+  return (
+    can(user, "cultural.projetos", "view") ||
+    can(user, "origem.app", "view") ||
+    can(user, "origem.planejamento", "view")
+  );
+}

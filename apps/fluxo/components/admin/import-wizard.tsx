@@ -27,13 +27,18 @@ import {
   createContextoAction,
   createOficinaAction,
   createProjetoAction,
+  listContextosSelectAction,
+  listOficinasSelectAction,
+  listProjetosSelectAction,
 } from "@/app/actions/contextos";
+import type {
+  ContextoSelectOption,
+  OficinaSelectOption,
+  ProjetoSelectOption,
+} from "@/lib/hierarchy-list";
 import {
-  oficinaToBatch,
-  type ContextoDTO,
-  type OficinaDTO,
-  type ProjetoDTO,
   type HierarquiaBatch,
+  oficinaToBatch,
 } from "@/lib/contexto";
 import {
   emptySigaCulturalRow,
@@ -119,17 +124,21 @@ function acceptFile(f: File | null | undefined): File | null {
   return f;
 }
 
-type Props = {
-  contextos?: ContextoDTO[];
-  projetos?: ProjetoDTO[];
-  oficinas?: OficinaDTO[];
-};
+function oficinaSelectToBatch(o: OficinaSelectOption): HierarquiaBatch {
+  return {
+    contextoId: o.contextoId,
+    Nome_contexto: o.contextoNome,
+    id_projeto: o.projetoId,
+    id_oficina: o.id,
+    PROPONENTE: o.proponente,
+    PRONAC: o.pronac,
+    Nome_projeto: o.projetoNome,
+    Identificacao_ano_projeto: o.ano,
+    Nome_oficina: o.nome,
+  };
+}
 
-export function ImportWizard({
-  contextos = [],
-  projetos = [],
-  oficinas = [],
-}: Props) {
+export function ImportWizard() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -155,6 +164,11 @@ export function ImportWizard({
   });
   const [newOficinaNome, setNewOficinaNome] = useState("");
 
+  const [contextos, setContextos] = useState<ContextoSelectOption[]>([]);
+  const [projetos, setProjetos] = useState<ProjetoSelectOption[]>([]);
+  const [oficinas, setOficinas] = useState<OficinaSelectOption[]>([]);
+  const [hierarchyLoading, setHierarchyLoading] = useState(false);
+
   const needCreateContexto = !selContextoId;
   const needCreateProjeto = !selProjetoId;
   const needCreateOficina = !selOficinaId;
@@ -174,21 +188,63 @@ export function ImportWizard({
     Nome_oficina: "",
   });
 
-  const projetosFiltrados = useMemo(
-    () =>
-      selContextoId
-        ? projetos.filter((p) => p.contextoId === selContextoId)
-        : projetos,
-    [projetos, selContextoId],
-  );
+  const projetosFiltrados = projetos;
 
-  const oficinasFiltradas = useMemo(
-    () =>
-      selProjetoId
-        ? oficinas.filter((o) => o.projetoId === selProjetoId)
-        : oficinas,
-    [oficinas, selProjetoId],
-  );
+  const oficinasFiltradas = oficinas;
+
+  useEffect(() => {
+    if (step !== "context") return;
+    let cancelled = false;
+    setHierarchyLoading(true);
+    void listContextosSelectAction()
+      .then((rows) => {
+        if (!cancelled) setContextos(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setHierarchyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== "context" || !selContextoId) {
+      setProjetos([]);
+      return;
+    }
+    let cancelled = false;
+    setHierarchyLoading(true);
+    void listProjetosSelectAction({ contextoId: selContextoId })
+      .then((rows) => {
+        if (!cancelled) setProjetos(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setHierarchyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, selContextoId]);
+
+  useEffect(() => {
+    if (step !== "context" || !selProjetoId) {
+      setOficinas([]);
+      return;
+    }
+    let cancelled = false;
+    setHierarchyLoading(true);
+    void listOficinasSelectAction({ projetoId: selProjetoId })
+      .then((rows) => {
+        if (!cancelled) setOficinas(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setHierarchyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, selProjetoId]);
 
   const contextoSelectItems = useMemo(
     () => ({
@@ -330,7 +386,7 @@ export function ImportWizard({
     setSelOficinaId(id);
     setSelProjetoId(found.projetoId);
     setSelContextoId(found.contextoId);
-    setContext(oficinaToBatch(found));
+    setContext(oficinaSelectToBatch(found));
     setHierarchyPhase("select");
   }
 
@@ -485,7 +541,7 @@ export function ImportWizard({
         toast.error("Oficina inválida");
         return;
       }
-      setContext(oficinaToBatch(found));
+      setContext(oficinaSelectToBatch(found));
       await proceedAfterHierarchy();
       return;
     }
@@ -529,6 +585,7 @@ export function ImportWizard({
           pronac: newProj.pronac,
           proponente: newProj.proponente,
           ano: newProj.ano,
+          _fromImport: true,
         });
         if (!createdProj.ok) {
           toast.error(createdProj.error);
@@ -561,7 +618,7 @@ export function ImportWizard({
         toast.error("Oficina inválida");
         return;
       }
-      setContext(oficinaToBatch(found));
+      setContext(oficinaSelectToBatch(found));
       toast.success("Cadastro concluído");
       router.refresh();
     } catch {
@@ -816,8 +873,8 @@ export function ImportWizard({
           <CardHeader className="rounded-none border-b border-[var(--border)] bg-gradient-to-br from-[var(--navy-soft)] to-transparent py-4">
             <CardTitle className="text-xl">Contexto → Projeto → Oficina</CardTitle>
             <CardDescription>
-              Selecione o que já existe. O que ficar em branco será cadastrado ao
-              continuar.
+              Selecione o que já existe. Projetos do MAX Origem já aparecem no contexto
+              inferido pelo nome. O que ficar em branco será cadastrado ao continuar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 pt-6">
@@ -843,6 +900,11 @@ export function ImportWizard({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
+              {hierarchyLoading ? (
+                <p className="text-sm text-muted-foreground sm:col-span-3">
+                  Carregando opções…
+                </p>
+              ) : null}
               <div className="space-y-2">
                 <Label>Contexto</Label>
                 <Select

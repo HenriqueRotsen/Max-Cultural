@@ -13,7 +13,15 @@ import type {
 import { nextIdOficina, nextIdProjeto } from "@/lib/ids";
 import { normalizeAnoProjeto } from "@/lib/normalize";
 import { prisma } from "@/lib/prisma";
-import { assertDataAccess, hasScopeAccess, resolveDataScope } from "@/lib/data-scope";
+import { assertDataAccess, hasScopeAccess, resolveDataScope, contextoWhereFromScope, projetoWhereFromScope, oficinaWhereFromScope } from "@/lib/data-scope";
+import type { Prisma } from "@prisma/client";
+import {
+  HIERARQUIA_PAGE_SIZE,
+  HIERARQUIA_SELECT_LIMIT,
+  type ContextoSelectOption,
+  type OficinaSelectOption,
+  type ProjetoSelectOption,
+} from "@/lib/hierarchy-list";
 import { getEffectivePermissions } from "@/lib/permissions";
 import type { PermissionCode } from "@/lib/permission-catalog";
 
@@ -160,6 +168,417 @@ async function countInscricoesByOficina(ids: string[]) {
     _count: { _all: true },
   });
   return new Map(rows.map((r) => [r.idOficina, r._count._all]));
+}
+
+type HierarchyAccess = {
+  scope: Awaited<ReturnType<typeof resolveDataScope>>;
+  canCreate: boolean;
+  canWrite: boolean;
+};
+
+type ListPageMeta = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+async function requireHierarchyRead(): Promise<HierarchyAccess> {
+  const user = await requireAuth();
+  const perms = await getEffectivePermissions(user.id);
+  if (!perms.has("contextos:read") && !perms.has("import:write")) {
+    throw new Error("Sem permissão");
+  }
+  const scope = await resolveDataScope(user.id);
+  return {
+    scope,
+    canCreate: perms.has("contextos:create") || perms.has("import:write"),
+    canWrite: perms.has("contextos:write"),
+  };
+}
+
+function parsePageInput(page?: number, pageSize = HIERARQUIA_PAGE_SIZE) {
+  const safePage =
+    Number.isFinite(page) && (page ?? 0) >= 1 ? Math.floor(page!) : 1;
+  return {
+    page: safePage,
+    skip: (safePage - 1) * pageSize,
+    take: pageSize,
+    pageSize,
+  };
+}
+
+function pageMeta(total: number, page: number, pageSize: number): ListPageMeta {
+  return {
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(total / pageSize) || 1),
+  };
+}
+
+function mergeWhere<T>(...parts: (T | undefined)[]): T {
+  const filters = parts.filter(
+    (p) => p && Object.keys(p as object).length > 0,
+  ) as T[];
+  if (filters.length === 0) return {} as T;
+  if (filters.length === 1) return filters[0];
+  return { AND: filters } as unknown as T;
+}
+
+function searchContextoWhere(q?: string): Prisma.ContextoWhereInput {
+  const term = q?.trim();
+  if (!term) return {};
+  return { nome: { contains: term, mode: "insensitive" } };
+}
+
+function searchProjetoWhere(q?: string): Prisma.ProjetoWhereInput {
+  const term = q?.trim();
+  if (!term) return {};
+  return {
+    OR: [
+      { nome: { contains: term, mode: "insensitive" } },
+      { pronac: { contains: term, mode: "insensitive" } },
+      { proponente: { contains: term, mode: "insensitive" } },
+    ],
+  };
+}
+
+function searchOficinaWhere(q?: string): Prisma.OficinaWhereInput {
+  const term = q?.trim();
+  if (!term) return {};
+  return {
+    OR: [
+      { nome: { contains: term, mode: "insensitive" } },
+      { projeto: { nome: { contains: term, mode: "insensitive" } } },
+      { projeto: { pronac: { contains: term, mode: "insensitive" } } },
+    ],
+  };
+}
+
+function isEmptyScoped(scope: HierarchyAccess["scope"]) {
+  return (
+    scope.mode !== "ALL" &&
+    !(
+      (scope.contextoIds?.length ?? 0) ||
+      (scope.projetoIds?.length ?? 0) ||
+      (scope.oficinaIds?.length ?? 0)
+    )
+  );
+}
+
+export async function listContextosPageAction(params?: {
+  page?: number;
+  q?: string;
+  pageSize?: number;
+}): Promise<
+  ListPageMeta & {
+    items: ContextoDTO[];
+    canCreate: boolean;
+    canWrite: boolean;
+  }
+> {
+  const { scope, canCreate, canWrite } = await requireHierarchyRead();
+  const pageSize = params?.pageSize ?? HIERARQUIA_PAGE_SIZE;
+  const { page, skip, take } = parsePageInput(params?.page, pageSize);
+
+  if (isEmptyScoped(scope)) {
+    return { items: [], canCreate, canWrite, ...pageMeta(0, page, pageSize) };
+  }
+
+  const where = mergeWhere<Prisma.ContextoWhereInput>(
+    contextoWhereFromScope(scope),
+    searchContextoWhere(params?.q),
+  );
+
+  const total = await prisma.contexto.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, pageCount);
+  const rows = await prisma.contexto.findMany({
+    where,
+    include: { _count: { select: { projetos: true } } },
+    orderBy: { nome: "asc" },
+    skip: (safePage - 1) * pageSize,
+    take,
+  });
+
+  const counts = await countInscricoesByContexto(rows.map((c) => c.id));
+
+  return {
+    ...pageMeta(total, safePage, pageSize),
+    canCreate,
+    canWrite,
+    items: rows.map((c) => {
+      const writeAccess = hasScopeAccess(
+        scope,
+        { contextoId: c.id },
+        { write: true },
+      );
+      return toContextoDto(c, counts.get(c.id) ?? 0, {
+        hasEditorAccess: writeAccess,
+        canEdit: canWrite && writeAccess,
+        canDelete: (canWrite || canCreate) && writeAccess,
+      });
+    }),
+  };
+}
+
+export async function listProjetosPageAction(params?: {
+  page?: number;
+  q?: string;
+  contextoId?: string;
+  pageSize?: number;
+}): Promise<
+  ListPageMeta & {
+    items: ProjetoDTO[];
+    canCreate: boolean;
+    canWrite: boolean;
+  }
+> {
+  const { scope, canCreate, canWrite } = await requireHierarchyRead();
+  const pageSize = params?.pageSize ?? HIERARQUIA_PAGE_SIZE;
+  const { page, skip, take } = parsePageInput(params?.page, pageSize);
+
+  if (isEmptyScoped(scope)) {
+    return { items: [], canCreate, canWrite, ...pageMeta(0, page, pageSize) };
+  }
+
+  const where = mergeWhere<Prisma.ProjetoWhereInput>(
+    projetoWhereFromScope(scope),
+    searchProjetoWhere(params?.q),
+    params?.contextoId ? { contextoId: params.contextoId } : undefined,
+  );
+
+  const total = await prisma.projeto.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, pageCount);
+  const rows = await prisma.projeto.findMany({
+    where,
+    include: {
+      contexto: { select: { nome: true } },
+      _count: { select: { oficinas: true } },
+    },
+    orderBy: [{ nome: "asc" }],
+    skip: (safePage - 1) * pageSize,
+    take,
+  });
+
+  const counts = await countInscricoesByProjeto(rows.map((p) => p.id));
+
+  return {
+    ...pageMeta(total, safePage, pageSize),
+    canCreate,
+    canWrite,
+    items: rows.map((p) => {
+      const writeAccess = hasScopeAccess(
+        scope,
+        { contextoId: p.contextoId, idProjeto: p.id },
+        { write: true },
+      );
+      return toProjetoDto(p, counts.get(p.id) ?? 0, {
+        hasEditorAccess: writeAccess,
+        canEdit: canWrite && writeAccess,
+        canDelete: (canWrite || canCreate) && writeAccess,
+      });
+    }),
+  };
+}
+
+export async function listOficinasPageAction(params?: {
+  page?: number;
+  q?: string;
+  projetoId?: string;
+  contextoId?: string;
+  pageSize?: number;
+}): Promise<
+  ListPageMeta & {
+    items: OficinaDTO[];
+    canCreate: boolean;
+    canWrite: boolean;
+  }
+> {
+  const { scope, canCreate, canWrite } = await requireHierarchyRead();
+  const pageSize = params?.pageSize ?? HIERARQUIA_PAGE_SIZE;
+  const { page, skip, take } = parsePageInput(params?.page, pageSize);
+
+  if (isEmptyScoped(scope)) {
+    return { items: [], canCreate, canWrite, ...pageMeta(0, page, pageSize) };
+  }
+
+  const where = mergeWhere<Prisma.OficinaWhereInput>(
+    oficinaWhereFromScope(scope),
+    searchOficinaWhere(params?.q),
+    params?.projetoId ? { projetoId: params.projetoId } : undefined,
+    params?.contextoId
+      ? { projeto: { contextoId: params.contextoId } }
+      : undefined,
+  );
+
+  const total = await prisma.oficina.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / pageSize) || 1);
+  const safePage = Math.min(page, pageCount);
+  const rows = await prisma.oficina.findMany({
+    where,
+    include: {
+      projeto: {
+        select: {
+          nome: true,
+          pronac: true,
+          proponente: true,
+          ano: true,
+          contextoId: true,
+          contexto: { select: { nome: true } },
+        },
+      },
+    },
+    orderBy: [{ nome: "asc" }],
+    skip: (safePage - 1) * pageSize,
+    take,
+  });
+
+  const counts = await countInscricoesByOficina(rows.map((o) => o.id));
+
+  return {
+    ...pageMeta(total, safePage, pageSize),
+    canCreate,
+    canWrite,
+    items: rows.map((o) => {
+      const writeAccess = hasScopeAccess(
+        scope,
+        {
+          contextoId: o.projeto.contextoId,
+          idProjeto: o.projetoId,
+          idOficina: o.id,
+        },
+        { write: true },
+      );
+      return toOficinaDto(o, counts.get(o.id) ?? 0, {
+        hasEditorAccess: writeAccess,
+        canEdit: canWrite && writeAccess,
+        canDelete: (canWrite || canCreate) && writeAccess,
+      });
+    }),
+  };
+}
+
+export async function listContextosSelectAction(params?: {
+  q?: string;
+  limit?: number;
+  editableOnly?: boolean;
+}): Promise<ContextoSelectOption[]> {
+  const { scope, canWrite } = await requireHierarchyRead();
+  if (isEmptyScoped(scope)) return [];
+
+  const limit = Math.min(
+    Math.max(params?.limit ?? HIERARQUIA_SELECT_LIMIT, 1),
+    500,
+  );
+  const where = mergeWhere<Prisma.ContextoWhereInput>(
+    contextoWhereFromScope(scope),
+    searchContextoWhere(params?.q),
+  );
+
+  const rows = await prisma.contexto.findMany({
+    where,
+    select: { id: true, nome: true },
+    orderBy: { nome: "asc" },
+    take: limit,
+  });
+
+  if (!params?.editableOnly || canWrite) {
+    return rows.map((c) => ({ id: c.id, nome: c.nome }));
+  }
+
+  return rows
+    .filter((c) =>
+      hasScopeAccess(scope, { contextoId: c.id }, { write: true }),
+    )
+    .map((c) => ({ id: c.id, nome: c.nome }));
+}
+
+export async function listProjetosSelectAction(params: {
+  contextoId: string;
+  q?: string;
+  limit?: number;
+}): Promise<ProjetoSelectOption[]> {
+  const { scope } = await requireHierarchyRead();
+  if (isEmptyScoped(scope) || !params.contextoId) return [];
+
+  const limit = Math.min(
+    Math.max(params.limit ?? HIERARQUIA_SELECT_LIMIT, 1),
+    500,
+  );
+  const where = mergeWhere<Prisma.ProjetoWhereInput>(
+    projetoWhereFromScope(scope),
+    { contextoId: params.contextoId },
+    searchProjetoWhere(params.q),
+  );
+
+  const rows = await prisma.projeto.findMany({
+    where,
+    select: { id: true, nome: true, pronac: true, contextoId: true },
+    orderBy: [{ nome: "asc" }],
+    take: limit,
+  });
+
+  return rows.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    pronac: p.pronac,
+    contextoId: p.contextoId,
+  }));
+}
+
+export async function listOficinasSelectAction(params: {
+  projetoId: string;
+  q?: string;
+  limit?: number;
+}): Promise<OficinaSelectOption[]> {
+  const { scope } = await requireHierarchyRead();
+  if (isEmptyScoped(scope) || !params.projetoId) return [];
+
+  const limit = Math.min(
+    Math.max(params.limit ?? HIERARQUIA_SELECT_LIMIT, 1),
+    500,
+  );
+  const where = mergeWhere<Prisma.OficinaWhereInput>(
+    oficinaWhereFromScope(scope),
+    { projetoId: params.projetoId },
+    searchOficinaWhere(params.q),
+  );
+
+  const rows = await prisma.oficina.findMany({
+    where,
+    select: {
+      id: true,
+      nome: true,
+      projetoId: true,
+      projeto: {
+        select: {
+          nome: true,
+          pronac: true,
+          proponente: true,
+          ano: true,
+          contextoId: true,
+          contexto: { select: { nome: true } },
+        },
+      },
+    },
+    orderBy: [{ nome: "asc" }],
+    take: limit,
+  });
+
+  return rows.map((o) => ({
+    id: o.id,
+    nome: o.nome,
+    projetoId: o.projetoId,
+    projetoNome: o.projeto.nome,
+    contextoId: o.projeto.contextoId,
+    contextoNome: o.projeto.contexto?.nome ?? "",
+    pronac: o.projeto.pronac,
+    proponente: o.projeto.proponente,
+    ano: o.projeto.ano,
+  }));
 }
 
 export async function listHierarquiaAction(): Promise<{
@@ -441,6 +860,14 @@ export async function deleteContextoAction(
 export async function createProjetoAction(
   input: ProjetoInput,
 ): Promise<{ ok: true; projeto: ProjetoDTO } | { ok: false; error: string }> {
+  if (!input._fromImport) {
+    return {
+      ok: false,
+      error:
+        "Projetos são criados automaticamente pelo MAX Origem. Edite o contexto de um projeto existente ou crie oficinas.",
+    };
+  }
+
   const actor = await requireAnyPermission([
     "contextos:create",
     "import:write",
@@ -823,9 +1250,9 @@ export async function deleteOficinaAction(
   return { ok: true };
 }
 
-/** Compat: lista oficinas no formato antigo para import (com batch fields). */
-export async function listOficinasParaImportAction() {
+/** @deprecated Prefer listOficinasSelectAction({ projetoId }) */
+export async function listOficinasParaImportAction(projetoId?: string) {
   await requireAnyPermission(["contextos:create", "import:write", "contextos:read"]);
-  const data = await listHierarquiaAction();
-  return data.oficinas;
+  if (!projetoId) return [];
+  return listOficinasSelectAction({ projetoId });
 }

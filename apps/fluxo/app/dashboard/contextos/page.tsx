@@ -1,33 +1,83 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ContextosManager } from "@/components/admin/contextos-manager";
-import { listHierarquiaAction } from "@/app/actions/contextos";
+import {
+  listContextosPageAction,
+  listOficinasPageAction,
+  listProjetosPageAction,
+} from "@/app/actions/contextos";
+import { HIERARQUIA_PAGE_SIZE } from "@/lib/hierarchy-list";
+import {
+  listPageCount,
+  parseListPage,
+} from "@/components/admin/list-pager";
 import { requireDashboardPermission } from "@/lib/dashboard-gate";
 
-export default async function ContextosPage() {
+type Tab = "contextos" | "projetos" | "oficinas";
+
+function parseTab(raw: string | undefined): Tab {
+  if (raw === "projetos" || raw === "oficinas") return raw;
+  return "contextos";
+}
+
+export default async function ContextosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; page?: string; q?: string }>;
+}) {
   await requireDashboardPermission("contextos:read");
+  const sp = await searchParams;
+  const tab = parseTab(sp.tab);
+  const q = sp.q?.trim() || undefined;
+
   let error: string | null = null;
-  let contextos: Awaited<ReturnType<typeof listHierarquiaAction>>["contextos"] =
-    [];
-  let projetos: Awaited<ReturnType<typeof listHierarquiaAction>>["projetos"] =
-    [];
-  let oficinas: Awaited<ReturnType<typeof listHierarquiaAction>>["oficinas"] =
-    [];
   let canCreate = false;
   let canWrite = false;
+  let page = 1;
+  let pageCount = 1;
+  let total = 0;
+
+  const empty = {
+    contextos: [] as Awaited<
+      ReturnType<typeof listContextosPageAction>
+    >["items"],
+    projetos: [] as Awaited<ReturnType<typeof listProjetosPageAction>>["items"],
+    oficinas: [] as Awaited<ReturnType<typeof listOficinasPageAction>>["items"],
+  };
 
   try {
-    const data = await listHierarquiaAction();
-    contextos = data.contextos;
-    projetos = data.projetos;
-    oficinas = data.oficinas;
-    canCreate = data.canCreate;
-    canWrite = data.canWrite;
+    if (tab === "contextos") {
+      const data = await listContextosPageAction({ page: Number(sp.page), q });
+      pageCount = data.pageCount;
+      page = parseListPage(sp.page, pageCount);
+      total = data.total;
+      canCreate = data.canCreate;
+      canWrite = data.canWrite;
+      empty.contextos = data.items;
+    } else if (tab === "projetos") {
+      const data = await listProjetosPageAction({ page: Number(sp.page), q });
+      pageCount = data.pageCount;
+      page = parseListPage(sp.page, pageCount);
+      total = data.total;
+      canCreate = data.canCreate;
+      canWrite = data.canWrite;
+      empty.projetos = data.items;
+    } else {
+      const data = await listOficinasPageAction({ page: Number(sp.page), q });
+      pageCount = data.pageCount;
+      page = parseListPage(sp.page, pageCount);
+      total = data.total;
+      canCreate = data.canCreate;
+      canWrite = data.canWrite;
+      empty.oficinas = data.items;
+    }
   } catch (err) {
     console.error("[contextos]", err);
     error =
       err instanceof Error
         ? `Não foi possível carregar: ${err.message}`
         : "Não foi possível carregar a hierarquia.";
+    page = parseListPage(sp.page, 1);
+    pageCount = listPageCount(total, HIERARQUIA_PAGE_SIZE);
   }
 
   return (
@@ -37,9 +87,10 @@ export default async function ContextosPage() {
           Contexto → Projeto → Oficina
         </h1>
         <p className="text-sm text-muted-foreground">
-          Cadastre o programa (contexto), as edições (projetos com PRONAC) e as
-          oficinas. Só é possível excluir itens sem dados vinculados. Edições
-          ficam registradas na auditoria.
+          Contextos e oficinas são cadastrados aqui. Projetos iniciados no MAX Origem
+          são vinculados automaticamente ao contexto inferido pelo nome (ex.: &quot;Arte em
+          cores 7&quot; → contexto &quot;Arte em cores&quot;). Só é possível excluir itens sem
+          dados vinculados.
         </p>
       </div>
 
@@ -49,9 +100,14 @@ export default async function ContextosPage() {
         </div>
       ) : (
         <ContextosManager
-          initialContextos={contextos}
-          initialProjetos={projetos}
-          initialOficinas={oficinas}
+          tab={tab}
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          q={q ?? ""}
+          contextos={empty.contextos}
+          projetos={empty.projetos}
+          oficinas={empty.oficinas}
           canCreate={canCreate}
           canWrite={canWrite}
         />

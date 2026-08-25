@@ -1,5 +1,8 @@
 /** Defaults e catálogo histórico de INs (linha do tempo). */
 
+import { FEDERAL_ROUANET_PLANNING } from "@/lib/compliance/planning-params";
+import type { PlanningParams } from "@/lib/compliance/planning-params";
+
 export const DEFAULT_SOURCE_URL =
   "https://www.gov.br/cultura/pt-br/acesso-a-informacao/legislacao-e-normativas/instrucao-normativa-minc-no-29-de-29-de-janeiro-de-2026";
 
@@ -163,6 +166,9 @@ export type RulesetSeed = {
   legalSummary: string;
   jurisprudenceNotes: string;
   notes?: string;
+  jurisdiction?: string;
+  kind?: "AUDIT_CAPS" | "PLANNING" | "BOTH";
+  planning?: PlanningParams | null;
 };
 
 /** Linha do tempo das INs (PDF + IN 29/2026 vigente). */
@@ -453,6 +459,9 @@ export const RULESET_CATALOG: RulesetSeed[] = [
     effectiveTo: null,
     status: "active",
     caps: DEFAULT_CAPS,
+    jurisdiction: "FEDERAL",
+    kind: "BOTH",
+    planning: FEDERAL_ROUANET_PLANNING,
     legalSummary:
       "Arts. 23 e 24: proponente 20% (PF/MEI 30%); fornecedor 20%.",
     jurisprudenceNotes:

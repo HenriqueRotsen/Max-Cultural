@@ -4,6 +4,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
+import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton";
 import {
   CATALOG_PAGE_SIZE,
   CatalogPager,
@@ -64,7 +65,13 @@ export default async function CatalogEngagementsPage({
       sort === "price" ? { price: "desc" } : sort === "rating" ? { rating: "desc" } : { hiredAt: "desc" },
     skip: (page - 1) * CATALOG_PAGE_SIZE,
     take: CATALOG_PAGE_SIZE,
-    include: { service: { include: { supplier: true } } },
+    include: {
+      service: { include: { supplier: true } },
+      documents: {
+        select: { id: true, kind: true, filename: true, mimeType: true },
+        orderBy: { createdAt: "asc" },
+      },
+    },
   });
 
   return (
@@ -140,6 +147,16 @@ export default async function CatalogEngagementsPage({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
+                <EngagementDocsButton
+                  engagementId={e.id}
+                  serviceName={e.service.name}
+                  documents={e.documents.map((d) => ({
+                    id: d.id,
+                    kind: d.kind,
+                    filename: d.filename,
+                    mimeType: d.mimeType,
+                  }))}
+                />
                 {e.salicPaymentId ? (
                   <span className="rounded-full bg-[var(--navy-soft)] px-3 py-1 text-xs font-semibold text-[var(--navy)]">
                     SALIC

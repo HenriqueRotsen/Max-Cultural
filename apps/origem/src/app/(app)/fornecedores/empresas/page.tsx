@@ -39,6 +39,8 @@ export default async function CatalogSuppliersPage({
   const minRating = one(sp.minRating) ? Number(one(sp.minRating)) : undefined;
   const sort = one(sp.sort) || "name";
 
+  const cnpjDigits = q.replace(/\D/g, "");
+
   const where = {
     workspaceId: ws,
     ...(state ? { state } : {}),
@@ -49,7 +51,20 @@ export default async function CatalogSuppliersPage({
             { name: { contains: q, mode: "insensitive" as const } },
             { tradeName: { contains: q, mode: "insensitive" as const } },
             { city: { contains: q, mode: "insensitive" as const } },
-            { cnpj: { contains: q.replace(/\D/g, "") } },
+            { notes: { contains: q, mode: "insensitive" as const } },
+            {
+              services: {
+                some: {
+                  OR: [
+                    { name: { contains: q, mode: "insensitive" as const } },
+                    { description: { contains: q, mode: "insensitive" as const } },
+                  ],
+                },
+              },
+            },
+            ...(cnpjDigits.length > 0
+              ? [{ cnpj: { contains: cnpjDigits } }]
+              : []),
           ],
         }
       : {}),
@@ -106,7 +121,7 @@ export default async function CatalogSuppliersPage({
         }
       />
 
-      <form className="card flex flex-wrap items-end gap-3 p-4">
+      <form method="get" className="card flex flex-wrap items-end gap-3 p-4">
         <div className="field min-w-[12rem] flex-1">
           <label htmlFor="q">Busca</label>
           <input id="q" name="q" defaultValue={q} placeholder="Nome, cidade ou CNPJ/CPF" />

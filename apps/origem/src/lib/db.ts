@@ -7,7 +7,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 23;
+const PRISMA_SCHEMA_VERSION = 27;
 
 function createPrismaClient() {
   const adapter = new PrismaPg({
@@ -44,6 +44,21 @@ function clientMatchesSchema(client: PrismaClient): boolean {
   if (!models.CatalogEngagement) return false;
   const engagementFields = (models.CatalogEngagement.fields || []).map((f) => f.name);
   if (!engagementFields.includes("salicPaymentId")) return false;
+  if (!engagementFields.includes("planningProjectId")) return false;
+  if (!models.PlanningProject) return false;
+  if (!models.ProjectBudgetSheet || !models.ProjectBudgetLine) return false;
+  const budgetLineFields = (models.ProjectBudgetLine.fields || []).map((f) => f.name);
+  if (!budgetLineFields.includes("homologatedAmount")) return false;
+  if (!models.RubricCommitment) return false;
+  if (!models.PlanningDocument) return false;
+  if (!models.AppNotification) return false;
+  if (models.PlanProposal || models.PlanBudgetStage) return false;
+  const projectFields = (models.Project.fields || []).map((f) => f.name);
+  if (!projectFields.includes("situacao")) return false;
+  if (!projectFields.includes("lifecycleStatus")) return false;
+  const planningFields = (models.PlanningProject.fields || []).map((f) => f.name);
+  if (!planningFields.includes("lifecycleStatus")) return false;
+  if (!planningFields.includes("salicPublishStatus")) return false;
   return true;
 }
 

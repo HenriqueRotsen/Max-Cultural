@@ -9,7 +9,6 @@ const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000"
   /\/$/,
   "",
 );
-const ACCOUNT_URL = `${HUB_URL}/conta`;
 
 const auditoriaLinks = [
   { href: "/inicio", label: "Início", icon: HomeIcon },
@@ -34,12 +33,24 @@ const fornecedoresLinks = [
 const moduleLinks = [
   { href: "/inicio", label: "Auditoria", icon: AuditIcon },
   { href: "/fornecedores", label: "Fornecedores", icon: UsersIcon },
+  { href: "/planejamento", label: "Planejamento", icon: PlanIcon },
 ];
 
-export function origemNavModule(pathname: string): "home" | "auditoria" | "fornecedores" {
+const planejamentoLinks = [
+  { href: "/planejamento", label: "Projetos", icon: HomeIcon },
+  { href: "/planejamento/novo", label: "Novo projeto", icon: PlanIcon },
+  { href: "/planejamento/buscar", label: "Buscar saldo", icon: ChartIcon },
+];
+
+export function origemNavModule(
+  pathname: string,
+): "home" | "auditoria" | "fornecedores" | "planejamento" {
   if (pathname === "/painel") return "home";
   if (pathname === "/fornecedores" || pathname.startsWith("/fornecedores/")) {
     return "fornecedores";
+  }
+  if (pathname === "/planejamento" || pathname.startsWith("/planejamento/")) {
+    return "planejamento";
   }
   return "auditoria";
 }
@@ -48,6 +59,9 @@ function linkActive(pathname: string, href: string) {
   if (href === "/inicio") return pathname === "/inicio";
   if (href === "/fornecedores") {
     return pathname === "/fornecedores";
+  }
+  if (href === "/planejamento") {
+    return pathname === "/planejamento";
   }
   if (href === "/panorama") {
     return pathname === "/panorama" || /^\/panorama\/(?!pronac(?:\/|$))/.test(pathname);
@@ -81,7 +95,9 @@ export function AppSidebar({
       ? { title: "Módulos", links: moduleLinks }
       : module === "fornecedores"
         ? { title: "Fornecedores", links: fornecedoresLinks }
-        : { title: "Auditoria", links: auditoria };
+        : module === "planejamento"
+          ? { title: "Planejamento", links: planejamentoLinks }
+          : { title: "Auditoria", links: auditoria };
 
   return (
     <aside className="shell-sidebar">
@@ -101,44 +117,74 @@ export function AppSidebar({
           </Link>
         ) : null}
         <NavGroup title={nav.title} links={nav.links} pathname={pathname} />
-        <a
-          href={HUB_URL}
-          className="mt-auto flex items-center rounded-xl px-3 py-2 transition hover:bg-[var(--gray-50)]"
-          aria-label="Voltar ao MAX Cultural"
-        >
-          <img
-            src="/brand/max-cultural.png"
-            alt="MAX Cultural"
-            width={1531}
-            height={571}
-            className="h-9 w-auto max-w-[180px] bg-transparent object-contain object-left"
-          />
-        </a>
-      </nav>
-
-      <div className="border-t border-[var(--border)] px-5 py-4 space-y-3">
-        {userEmail && (
-          <p className="truncate text-xs text-[var(--gray-500)]" title={userEmail}>
-            {userEmail}
-          </p>
-        )}
-        {demoMode ? (
-          <Link href="/" className="btn btn-ghost w-full justify-start px-0">
-            Voltar ao site
-          </Link>
-        ) : (
-          <>
-            <a href={ACCOUNT_URL} className="btn btn-ghost w-full justify-start px-0">
-              Minha conta
+        <div className="mt-auto space-y-4">
+          <div className="border-t border-[var(--border)] pt-4">
+            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+              Hub
+            </p>
+            <a
+              href={HUB_URL}
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
+            >
+              <img
+                src="/brand/max-cultural-mark.png"
+                alt=""
+                width={18}
+                height={18}
+                className="h-[18px] w-[18px] shrink-0 object-contain"
+              />
+              <span className="min-w-0">
+                <span className="block truncate">MAX Cultural</span>
+                <span className="block truncate text-xs font-normal text-[var(--gray-400)]">
+                  Voltar ao hub
+                </span>
+              </span>
             </a>
-            <form action={signOut}>
-              <button type="submit" className="btn btn-ghost w-full justify-start px-0">
-                Sair
-              </button>
-            </form>
-          </>
-        )}
-      </div>
+          </div>
+
+          <div className="border-t border-[var(--border)] pt-4">
+            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+              Conta
+            </p>
+            {demoMode ? (
+              <Link
+                href="/"
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
+              >
+                <LogoutIcon />
+                <span className="min-w-0">
+                  <span className="block truncate">Voltar ao site</span>
+                  {userEmail ? (
+                    <span className="block truncate text-xs font-normal text-[var(--gray-400)]">
+                      {userEmail}
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
+            ) : (
+              <form action={signOut}>
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
+                >
+                  <LogoutIcon />
+                  <span className="min-w-0">
+                    <span className="block truncate">Sair</span>
+                    {userEmail ? (
+                      <span
+                        className="block truncate text-xs font-normal text-[var(--gray-400)]"
+                        title={userEmail}
+                      >
+                        {userEmail}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </nav>
     </aside>
   );
 }
@@ -232,6 +278,25 @@ function AuditIcon({ active }: { active?: boolean }) {
   );
 }
 
+function PlanIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 4h14v16H5V4Z"
+        stroke={stroke(active)}
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 8h8M8 12h8M8 16h5"
+        stroke={stroke(active, true)}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function UsersIcon({ active }: { active?: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -267,6 +332,27 @@ function SyncIcon({ active }: { active?: boolean }) {
       />
       <path d="M17 3.5v4h4" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
       <path d="M7 20.5v-4H3" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M10 7V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-2"
+        stroke={stroke()}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M15 12H4m0 0 3-3m-3 3 3 3"
+        stroke={stroke(undefined, true)}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

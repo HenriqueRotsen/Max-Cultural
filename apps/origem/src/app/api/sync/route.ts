@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     const options = {
       salicAccountId: body.accountId || undefined,
-      forceCrawler: Boolean(body.forceCrawler),
+      forceCrawler: true,
       pronacs: body.pronacs,
       workspaceId: entitlements.workspaceId,
     };

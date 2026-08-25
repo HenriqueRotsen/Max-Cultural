@@ -64,15 +64,39 @@ export function decryptSecret(payload: string): string {
 /**
  * Descriptografa credencial. Aceita valor legado em texto puro
  * (usuários salvos antes da criptografia do login).
+ * Se CREDENTIALS_SECRET mudou (ou o payload está corrompido), retorna null
+ * em vez de derrubar a página — o usuário precisa cadastrar de novo.
  */
 export function decryptCredential(payload: string | null | undefined): string | null {
   if (!payload) return null;
   if (!looksEncrypted(payload)) return payload;
   try {
     return decryptSecret(payload);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      message.includes("Unable to authenticate data") ||
+      message.includes("Unsupported state") ||
+      message.includes("Invalid encrypted payload") ||
+      message.includes("CREDENTIALS_SECRET is not set")
+    ) {
+      console.error(
+        "[crypto] Falha ao descriptografar credencial (CREDENTIALS_SECRET diferente ou payload inválido).",
+      );
+      return null;
+    }
+    throw err;
+  }
+}
+
+/** true se o payload parece cifrado mas não abre com o secret atual. */
+export function isCredentialUnreadable(payload: string | null | undefined): boolean {
+  if (!payload || !looksEncrypted(payload)) return false;
+  try {
+    decryptSecret(payload);
+    return false;
   } catch {
-    // CREDENTIALS_SECRET diferente do que cifrou o valor — não derruba a página.
-    return null;
+    return true;
   }
 }
 

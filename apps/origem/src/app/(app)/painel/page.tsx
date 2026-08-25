@@ -9,10 +9,34 @@ export default function ModulesPage() {
       <PageHeader
         breadcrumb="MAX Origem"
         title="Escolha o módulo"
-        description="Auditoria SALIC ou banco de preços e fornecedores — dois sistemas no mesmo acesso."
+        description="Execução de rubricas, auditoria SALIC e banco de preços — no mesmo acesso."
       />
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-3">
+        <Link
+          href="/planejamento"
+          className="group card relative overflow-hidden p-8 transition hover:border-[#c5d0e4] hover:shadow-md"
+        >
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--gold-soft)] text-[var(--navy)]">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M5 4h14v16H5V4Z"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinejoin="round"
+              />
+              <path d="M8 8h8M8 12h8M8 16h5" stroke="#c4a574" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </span>
+          <h2 className="mt-5 text-2xl font-semibold text-[var(--navy)]">Planejamento</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--gray-500)]">
+            Planilha homologada, reservas por NF e gestão inteligente de rubricas.
+          </p>
+          <p className="mt-6 text-sm font-semibold text-[var(--gold)] group-hover:underline">
+            Abrir planejamento →
+          </p>
+        </Link>
+
         <Link
           href="/inicio"
           className="group card relative overflow-hidden p-8 transition hover:border-[#c5d0e4] hover:shadow-md"
@@ -41,7 +65,7 @@ export default function ModulesPage() {
           href="/fornecedores"
           className="group card relative overflow-hidden p-8 transition hover:border-[#c5d0e4] hover:shadow-md"
         >
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--gold-soft)] text-[var(--navy)]">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--navy-soft)] text-[var(--navy)]">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
               <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.7" />
               <path

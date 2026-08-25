@@ -11,17 +11,18 @@ import {
   refreshProjectFinancials,
 } from "@/lib/salic/persist";
 import type { SalicProduto } from "@/lib/salic/api";
+import { classifyLifecycleFromSituacao } from "@/lib/planning/lifecycle";
 
 const SALIC_BASE = "https://salic.cultura.gov.br";
 const STATE_DIR = path.join(process.cwd(), ".salic-sessions");
 
-type SalicUiProponente = {
+export type SalicUiProponente = {
   idAgenteProponente: number;
   CPF: string;
   Nome: string;
 };
 
-type SalicUiProject = {
+export type SalicUiProject = {
   Pronac: string;
   idPronacHash: string;
   NomeProjeto?: string;
@@ -153,7 +154,7 @@ async function loginSalic(page: Page, username: string, password: string) {
   }
 }
 
-async function withAccountBrowser(
+export async function withAccountBrowser(
   accountId: string,
   username: string,
   password: string,
@@ -190,7 +191,7 @@ async function withAccountBrowser(
   }
 }
 
-async function fetchJson<T>(page: Page, url: string): Promise<T> {
+export async function fetchJson<T>(page: Page, url: string): Promise<T> {
   const result = await page.evaluate(async (path) => {
     const res = await fetch(path, {
       credentials: "include",
@@ -209,6 +210,29 @@ async function fetchJson<T>(page: Page, url: string): Promise<T> {
   } catch {
     throw new Error(`JSON inválido em ${url}: ${result.text.slice(0, 200)}`);
   }
+}
+
+/** Como fetchJson, mas devolve status (útil para 412 = sem planilha homologada). */
+export async function fetchJsonAllowError(
+  page: Page,
+  url: string,
+): Promise<{ ok: boolean; status: number; json: unknown; text: string }> {
+  const result = await page.evaluate(async (path) => {
+    const res = await fetch(path, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text };
+  }, url);
+
+  let json: unknown = null;
+  try {
+    json = JSON.parse(result.text);
+  } catch {
+    json = null;
+  }
+  return { ok: result.ok, status: result.status, json, text: result.text };
 }
 
 function decodeHtmlEntities(value?: string | null): string | undefined {
@@ -252,14 +276,14 @@ function mapUiPagamentoToProduto(
   };
 }
 
-async function listProponentesUi(page: Page): Promise<SalicUiProponente[]> {
+export async function listProponentesUi(page: Page): Promise<SalicUiProponente[]> {
   const json = await fetchJson<{
     data?: { proponentes?: SalicUiProponente[] };
   }>(page, "/projeto/projeto-rest/proponente-ajax");
   return json.data?.proponentes ?? [];
 }
 
-async function listProjectsUi(page: Page, idProponente: number): Promise<SalicUiProject[]> {
+export async function listProjectsUi(page: Page, idProponente: number): Promise<SalicUiProject[]> {
   const json = await fetchJson<{ data?: SalicUiProject[] }>(
     page,
     `/projeto/projeto-rest/index?idProponente=${idProponente}&mecanismo=1`,
@@ -288,13 +312,13 @@ export async function syncAccountViaCrawler(params: {
   });
 
   if (!account.salicUsernameEnc || !account.salicPasswordEnc) {
-    throw new Error("Conta sem credenciais SALIC para crawler");
+    throw new Error("Conta sem usuário e senha do SALIC na área logada");
   }
 
   const username = decryptCredential(account.salicUsernameEnc);
   const password = decryptCredential(account.salicPasswordEnc);
   if (!username || !password) {
-    throw new Error("Conta sem credenciais SALIC para crawler");
+    throw new Error("Conta sem usuário e senha do SALIC na área logada");
   }
   const wantCnpj = normalizeCgccpf(account.cgccpf);
   const filterPronacs = new Set((params.pronacs || []).map(String).filter(Boolean));
@@ -333,8 +357,8 @@ export async function syncAccountViaCrawler(params: {
 
     await push(
       filterPronacs.size
-        ? `Crawler: ${selected.length}/${projects.length} projeto(s) (filtro PRONAC)`
-        : `Crawler: ${selected.length} projeto(s) via REST`,
+        ? `Área logada: ${selected.length}/${projects.length} projeto(s) (filtro PRONAC)`
+        : `Área logada: ${selected.length} projeto(s)`,
     );
 
     if (selected.length === 0) {
@@ -366,12 +390,25 @@ export async function syncAccountViaCrawler(params: {
           pronac: String(listed.Pronac),
           name: listed.NomeProjeto || null,
           salicProjectId: listed.idPronacHash,
+          situacao: listed.Situacao || null,
+          lifecycleStatus: classifyLifecycleFromSituacao(listed.Situacao),
           lastSyncedAt: new Date(),
         },
         update: {
           name: listed.NomeProjeto || undefined,
           salicProjectId: listed.idPronacHash,
+          situacao: listed.Situacao || null,
+          lifecycleStatus: classifyLifecycleFromSituacao(listed.Situacao),
           lastSyncedAt: new Date(),
+        },
+      });
+
+      // Espelha ciclo de vida no planejamento, se já vinculado
+      await prisma.planningProject.updateMany({
+        where: { projectId: project.id },
+        data: {
+          lifecycleStatus: project.lifecycleStatus,
+          name: listed.NomeProjeto || undefined,
         },
       });
 

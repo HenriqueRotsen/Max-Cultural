@@ -43,6 +43,16 @@ a {
   text-decoration: none;
 }
 
+.plan-tab-active {
+  background: var(--navy);
+  color: #ffffff !important;
+}
+
+.plan-tab-active:hover {
+  color: #ffffff !important;
+  filter: brightness(1.06);
+}
+
 input,
 select,
 button,

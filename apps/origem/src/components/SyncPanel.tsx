@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FieldHelp, FieldLabel } from "@/components/FieldHelp";
+import { FieldLabel } from "@/components/FieldHelp";
 import { SyncHistoryTable } from "@/components/SyncHistoryTable";
 import { formatCgccpf } from "@/lib/format";
 import { HELP } from "@/lib/help";
@@ -103,7 +103,6 @@ export function SyncPanel({
   const [error, setError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState("");
   const [pronac, setPronac] = useState("");
-  const [forceCrawler, setForceCrawler] = useState(false);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/sync/status", { cache: "no-store" });
@@ -179,7 +178,7 @@ export function SyncPanel({
     setActive(
       placeholderRun({
         id: "local-starting",
-        forceCrawler,
+        forceCrawler: true,
         progressMessage: "Enviando pedido de atualização…",
         salicAccount: selectedAccount
           ? { name: selectedAccount.name, cgccpf: selectedAccount.cgccpf }
@@ -193,7 +192,7 @@ export function SyncPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accountId: accountId || undefined,
-          forceCrawler,
+          forceCrawler: true,
           pronacs: pronacs.length ? pronacs : undefined,
         }),
       });
@@ -218,7 +217,7 @@ export function SyncPanel({
           placeholderRun({
             id: data.syncRunId,
             status: data.status || "pending",
-            forceCrawler,
+            forceCrawler: true,
             progressMessage: "Na fila…",
             salicAccount: selectedAccount
               ? { name: selectedAccount.name, cgccpf: selectedAccount.cgccpf }
@@ -323,18 +322,10 @@ export function SyncPanel({
             }}
           />
         </div>
-        <label className="flex items-end gap-2 pb-2 text-sm text-[var(--gray-600)]">
-          <input
-            type="checkbox"
-            checked={forceCrawler}
-            disabled={busy}
-            onChange={(e) => setForceCrawler(e.target.checked)}
-          />
-          <span className="inline-flex items-center gap-1.5">
-            Usar área logada do SALIC
-            <FieldHelp text={HELP.forceCrawler} />
-          </span>
-        </label>
+        <div className="md:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] px-4 py-3 text-sm text-[var(--gray-600)]">
+          A atualização usa sempre a <strong>área logada do SALIC</strong> (usuário e
+          senha do proponente). É necessário cadastrar as credenciais na conta.
+        </div>
         <div className="md:col-span-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -380,9 +371,7 @@ export function SyncPanel({
                   ? accounts.find((a) => a.id === accountId)?.name
                   : null) ||
                 "Todas as contas"}
-              {(active?.forceCrawler ?? forceCrawler)
-                ? " · área logada"
-                : " · atualização padrão"}
+              {" · área logada do SALIC"}
             </p>
             <p className="mt-2 text-sm font-medium text-[var(--navy)]">
               {active?.progressMessage || "Iniciando…"}

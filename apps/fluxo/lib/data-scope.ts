@@ -187,6 +187,72 @@ export const resolveDataScope = cache(
   },
 );
 
+/** Contextos visíveis no escopo limitado (direto ou via projetos/oficinas). */
+export function contextoWhereFromScope(
+  scope: DataScopeResolved,
+): Prisma.ContextoWhereInput {
+  if (scope.mode === "ALL") return {};
+  const contextoIds = scope.contextoIds ?? [];
+  const projetoIds = scope.projetoIds ?? [];
+  const oficinaIds = scope.oficinaIds ?? [];
+  if (!contextoIds.length && !projetoIds.length && !oficinaIds.length) {
+    return { id: "__none__" };
+  }
+  const or: Prisma.ContextoWhereInput[] = [];
+  if (contextoIds.length) or.push({ id: { in: contextoIds } });
+  if (projetoIds.length) {
+    or.push({ projetos: { some: { id: { in: projetoIds } } } });
+  }
+  if (oficinaIds.length) {
+    or.push({
+      projetos: {
+        some: { oficinas: { some: { id: { in: oficinaIds } } } },
+      },
+    });
+  }
+  return { OR: or };
+}
+
+/** Projetos visíveis no escopo limitado. */
+export function projetoWhereFromScope(
+  scope: DataScopeResolved,
+): Prisma.ProjetoWhereInput {
+  if (scope.mode === "ALL") return {};
+  const contextoIds = scope.contextoIds ?? [];
+  const projetoIds = scope.projetoIds ?? [];
+  const oficinaIds = scope.oficinaIds ?? [];
+  if (!contextoIds.length && !projetoIds.length && !oficinaIds.length) {
+    return { id: "__none__" };
+  }
+  const or: Prisma.ProjetoWhereInput[] = [];
+  if (projetoIds.length) or.push({ id: { in: projetoIds } });
+  if (contextoIds.length) or.push({ contextoId: { in: contextoIds } });
+  if (oficinaIds.length) {
+    or.push({ oficinas: { some: { id: { in: oficinaIds } } } });
+  }
+  return { OR: or };
+}
+
+/** Oficinas visíveis no escopo limitado. */
+export function oficinaWhereFromScope(
+  scope: DataScopeResolved,
+): Prisma.OficinaWhereInput {
+  if (scope.mode === "ALL") return {};
+  const contextoIds = scope.contextoIds ?? [];
+  const projetoIds = scope.projetoIds ?? [];
+  const oficinaIds = scope.oficinaIds ?? [];
+  if (!contextoIds.length && !projetoIds.length && !oficinaIds.length) {
+    return { id: "__none__" };
+  }
+  const or: Prisma.OficinaWhereInput[] = [];
+  if (oficinaIds.length) or.push({ id: { in: oficinaIds } });
+  if (projetoIds.length) or.push({ projetoId: { in: projetoIds } });
+  if (contextoIds.length) {
+    or.push({ projeto: { contextoId: { in: contextoIds } } });
+  }
+  return { OR: or };
+}
+
 /** Cláusula Prisma para filtrar Inscricao pelo escopo do usuário (leitura). */
 export function inscricaoWhereFromScope(
   scope: DataScopeResolved,

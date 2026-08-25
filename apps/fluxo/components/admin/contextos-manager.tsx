@@ -1,25 +1,33 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   createContextoAction,
   createOficinaAction,
-  createProjetoAction,
   deleteContextoAction,
   deleteOficinaAction,
   deleteProjetoAction,
+  listContextosSelectAction,
+  listProjetosSelectAction,
   updateContextoAction,
   updateOficinaAction,
   updateProjetoAction,
 } from "@/app/actions/contextos";
 import type {
+  ContextoSelectOption,
+  ProjetoSelectOption,
+} from "@/lib/hierarchy-list";
+import type {
   ContextoDTO,
   OficinaDTO,
   ProjetoDTO,
 } from "@/lib/contexto";
-import { Button } from "@/components/ui/button";
+import { ListPager } from "@/components/admin/list-pager";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -42,25 +50,33 @@ import { cn } from "@/lib/utils";
 type Tab = "contextos" | "projetos" | "oficinas";
 
 type Props = {
-  initialContextos: ContextoDTO[];
-  initialProjetos: ProjetoDTO[];
-  initialOficinas: OficinaDTO[];
+  tab: Tab;
+  page: number;
+  pageCount: number;
+  total: number;
+  q: string;
+  contextos: ContextoDTO[];
+  projetos: ProjetoDTO[];
+  oficinas: OficinaDTO[];
   canCreate?: boolean;
   canWrite?: boolean;
 };
 
 export function ContextosManager({
-  initialContextos,
-  initialProjetos,
-  initialOficinas,
+  tab,
+  page,
+  pageCount,
+  total,
+  q,
+  contextos,
+  projetos,
+  oficinas,
   canCreate = false,
   canWrite = false,
 }: Props) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<Tab>("contextos");
-  const [contextos, setContextos] = useState(initialContextos);
-  const [projetos, setProjetos] = useState(initialProjetos);
-  const [oficinas, setOficinas] = useState(initialOficinas);
+  const [searchDraft, setSearchDraft] = useState(q);
 
   const [ctxOpen, setCtxOpen] = useState(false);
   const [ctxEditId, setCtxEditId] = useState<string | null>(null);
@@ -75,6 +91,9 @@ export function ContextosManager({
     proponente: "",
     ano: String(new Date().getFullYear()),
   });
+  const [projContextos, setProjContextos] = useState<ContextoSelectOption[]>(
+    [],
+  );
 
   const [ofOpen, setOfOpen] = useState(false);
   const [ofEditId, setOfEditId] = useState<string | null>(null);
@@ -83,52 +102,67 @@ export function ContextosManager({
     projetoId: "",
     nome: "",
   });
+  const [ofContextos, setOfContextos] = useState<ContextoSelectOption[]>([]);
+  const [ofProjetos, setOfProjetos] = useState<ProjetoSelectOption[]>([]);
 
   useEffect(() => {
-    setContextos(initialContextos);
-    setProjetos(initialProjetos);
-    setOficinas(initialOficinas);
-  }, [initialContextos, initialProjetos, initialOficinas]);
+    setSearchDraft(q);
+  }, [q]);
 
-  const projetosDoContexto = useMemo(
-    () =>
-      ofForm.contextoId
-        ? projetos.filter((p) => p.contextoId === ofForm.contextoId)
-        : projetos,
-    [projetos, ofForm.contextoId],
+  useEffect(() => {
+    if (!projOpen) return;
+    let cancelled = false;
+    void listContextosSelectAction({ editableOnly: true }).then((rows) => {
+      if (!cancelled) setProjContextos(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projOpen]);
+
+  useEffect(() => {
+    if (!ofOpen) return;
+    let cancelled = false;
+    void listContextosSelectAction({ editableOnly: true }).then((rows) => {
+      if (!cancelled) setOfContextos(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ofOpen]);
+
+  useEffect(() => {
+    if (!ofOpen || !ofForm.contextoId) {
+      setOfProjetos([]);
+      return;
+    }
+    let cancelled = false;
+    void listProjetosSelectAction({ contextoId: ofForm.contextoId }).then(
+      (rows) => {
+        if (!cancelled) setOfProjetos(rows);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [ofOpen, ofForm.contextoId]);
+
+  const pagerParams = useMemo(
+    () => ({ tab, q: q || undefined, page: page > 1 ? String(page) : undefined }),
+    [tab, q, page],
   );
 
-  const contextosEditaveis = useMemo(
-    () => contextos.filter((c) => c.hasEditorAccess),
-    [contextos],
-  );
-  const projetosEditaveis = useMemo(
-    () =>
-      (ofForm.contextoId
-        ? projetos.filter((p) => p.contextoId === ofForm.contextoId)
-        : projetos
-      ).filter((p) => p.hasEditorAccess),
-    [projetos, ofForm.contextoId],
-  );
+  function tabHref(next: Tab) {
+    const params = new URLSearchParams();
+    params.set("tab", next);
+    if (q) params.set("q", q);
+    const qs = params.toString();
+    return `/dashboard/contextos${qs ? `?${qs}` : ""}`;
+  }
 
-  const contextoSelectItems = useMemo(
-    () =>
-      Object.fromEntries(
-        contextosEditaveis.map((c) => [c.id, c.nome.trim() || "(sem nome)"]),
-      ),
-    [contextosEditaveis],
-  );
-
-  const projetoSelectItems = useMemo(
-    () =>
-      Object.fromEntries(
-        projetosEditaveis.map((p) => [
-          p.id,
-          p.pronac ? `${p.nome} · ${p.pronac}` : p.nome,
-        ]),
-      ),
-    [projetosEditaveis],
-  );
+  function refreshList() {
+    router.refresh();
+  }
 
   function openCreateCtx() {
     setCtxEditId(null);
@@ -146,44 +180,34 @@ export function ContextosManager({
     startTransition(async () => {
       if (ctxEditId) {
         const r = await updateContextoAction(ctxEditId, { nome: ctxNome });
-        if (!r.ok) { toast.error(r.error); return; }
-        setContextos((prev) =>
-          prev.map((c) => (c.id === ctxEditId ? r.contexto : c)),
-        );
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
         toast.success("Contexto atualizado");
       } else {
         const r = await createContextoAction({ nome: ctxNome });
-        if (!r.ok) { toast.error(r.error); return; }
-        setContextos((prev) =>
-          [...prev, r.contexto].sort((a, b) =>
-            a.nome.localeCompare(b.nome, "pt-BR"),
-          ),
-        );
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
         toast.success("Contexto criado");
       }
       setCtxOpen(false);
+      refreshList();
     });
   }
 
   async function removeCtx(id: string) {
     startTransition(async () => {
       const r = await deleteContextoAction(id);
-      if (!r.ok) { toast.error(r.error); return; }
-      setContextos((prev) => prev.filter((c) => c.id !== id));
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       toast.success("Contexto excluído");
+      refreshList();
     });
-  }
-
-  function openCreateProj() {
-    setProjEditId(null);
-    setProjForm({
-      contextoId: contextos[0]?.id ?? "",
-      nome: "",
-      pronac: "",
-      proponente: "",
-      ano: String(new Date().getFullYear()),
-    });
-    setProjOpen(true);
   }
 
   function openEditProj(p: ProjetoDTO) {
@@ -199,63 +223,41 @@ export function ContextosManager({
   }
 
   async function saveProj() {
+    if (!projEditId) return;
     startTransition(async () => {
-      if (projEditId) {
-        const r = await updateProjetoAction(projEditId, projForm);
-        if (!r.ok) { toast.error(r.error); return; }
-        setProjetos((prev) =>
-          prev.map((p) => (p.id === projEditId ? r.projeto : p)),
-        );
-        toast.success("Projeto atualizado");
-      } else {
-        const r = await createProjetoAction(projForm);
-        if (!r.ok) { toast.error(r.error); return; }
-        setProjetos((prev) =>
-          [...prev, r.projeto].sort((a, b) =>
-            a.nome.localeCompare(b.nome, "pt-BR"),
-          ),
-        );
-        setContextos((prev) =>
-          prev.map((c) =>
-            c.id === r.projeto.contextoId
-              ? { ...c, projetosCount: c.projetosCount + 1 }
-              : c,
-          ),
-        );
-        toast.success("Projeto criado");
+      const r = await updateProjetoAction(projEditId, projForm);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
       }
+      toast.success("Projeto atualizado");
       setProjOpen(false);
+      refreshList();
     });
   }
 
   async function removeProj(id: string) {
     startTransition(async () => {
       const r = await deleteProjetoAction(id);
-      if (!r.ok) { toast.error(r.error); return; }
-      const removed = projetos.find((p) => p.id === id);
-      setProjetos((prev) => prev.filter((p) => p.id !== id));
-      if (removed) {
-        setContextos((prev) =>
-          prev.map((c) =>
-            c.id === removed.contextoId
-              ? { ...c, projetosCount: Math.max(0, c.projetosCount - 1) }
-              : c,
-          ),
-        );
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
       }
       toast.success("Projeto excluído");
+      refreshList();
     });
   }
 
-  function openCreateOf() {
-    const ctxId = contextos[0]?.id ?? "";
-    const firstProj = projetos.find((p) => p.contextoId === ctxId);
+  async function openCreateOf() {
+    const contextosRows = await listContextosSelectAction({ editableOnly: true });
+    const ctxId = contextosRows[0]?.id ?? "";
+    let projetoId = "";
+    if (ctxId) {
+      const projetosRows = await listProjetosSelectAction({ contextoId: ctxId });
+      projetoId = projetosRows[0]?.id ?? "";
+    }
     setOfEditId(null);
-    setOfForm({
-      contextoId: ctxId,
-      projetoId: firstProj?.id ?? "",
-      nome: "",
-    });
+    setOfForm({ contextoId: ctxId, projetoId, nome: "" });
     setOfOpen(true);
   }
 
@@ -276,51 +278,36 @@ export function ContextosManager({
           projetoId: ofForm.projetoId,
           nome: ofForm.nome,
         });
-        if (!r.ok) { toast.error(r.error); return; }
-        setOficinas((prev) =>
-          prev.map((o) => (o.id === ofEditId ? r.oficina : o)),
-        );
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
         toast.success("Oficina atualizada");
       } else {
         const r = await createOficinaAction({
           projetoId: ofForm.projetoId,
           nome: ofForm.nome,
         });
-        if (!r.ok) { toast.error(r.error); return; }
-        setOficinas((prev) =>
-          [...prev, r.oficina].sort((a, b) =>
-            a.nome.localeCompare(b.nome, "pt-BR"),
-          ),
-        );
-        setProjetos((prev) =>
-          prev.map((p) =>
-            p.id === r.oficina.projetoId
-              ? { ...p, oficinasCount: p.oficinasCount + 1 }
-              : p,
-          ),
-        );
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
         toast.success("Oficina criada");
       }
       setOfOpen(false);
+      refreshList();
     });
   }
 
   async function removeOf(id: string) {
     startTransition(async () => {
       const r = await deleteOficinaAction(id);
-      if (!r.ok) { toast.error(r.error); return; }
-      const removed = oficinas.find((o) => o.id === id);
-      setOficinas((prev) => prev.filter((o) => o.id !== id));
-      if (removed) {
-        setProjetos((prev) =>
-          prev.map((p) =>
-            p.id === removed.projetoId
-              ? { ...p, oficinasCount: Math.max(0, p.oficinasCount - 1) }
-              : p,
-          ),
-        );
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
       }
       toast.success("Oficina excluída");
+      refreshList();
     });
   }
 
@@ -335,10 +322,9 @@ export function ContextosManager({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-xl border border-brand/10 bg-white/80 p-1">
           {tabs.map((t) => (
-            <button
+            <Link
               key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
+              href={tabHref(t.id)}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm transition",
                 tab === t.id
@@ -347,18 +333,17 @@ export function ContextosManager({
               )}
             >
               {t.label}
-            </button>
+            </Link>
           ))}
         </div>
-        {canCreate ? (
+        {canCreate && tab !== "projetos" ? (
           <Button
             type="button"
             size="sm"
             className="gap-1.5"
             onClick={() => {
               if (tab === "contextos") openCreateCtx();
-              else if (tab === "projetos") openCreateProj();
-              else openCreateOf();
+              else if (tab === "oficinas") void openCreateOf();
             }}
           >
             <Plus className="size-3.5" />
@@ -367,12 +352,58 @@ export function ContextosManager({
         ) : null}
       </div>
 
+      <form
+        method="get"
+        action="/dashboard/contextos"
+        className="flex flex-wrap items-end gap-2"
+      >
+        <input type="hidden" name="tab" value={tab} />
+        <div className="min-w-[14rem] flex-1 space-y-1">
+          <Label htmlFor="hierarquia-q" className="text-xs">
+            Buscar
+          </Label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="hierarquia-q"
+              name="q"
+              value={searchDraft}
+              placeholder={
+                tab === "contextos"
+                  ? "Nome do contexto…"
+                  : tab === "projetos"
+                    ? "Nome, PRONAC ou proponente…"
+                    : "Nome da oficina ou projeto…"
+              }
+              className="pl-9"
+              onChange={(e) => setSearchDraft(e.target.value)}
+            />
+          </div>
+        </div>
+        <Button type="submit" variant="outline" size="sm" className="mb-0.5">
+          Filtrar
+        </Button>
+        {q ? (
+          <Link
+            href={tabHref(tab)}
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "mb-0.5",
+            )}
+          >
+            Limpar
+          </Link>
+        ) : null}
+      </form>
+
       {tab === "contextos" ? (
         <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">
           <ul className="divide-y divide-border/60">
             {contextos.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
-                Nenhum contexto. Crie o programa (topo da hierarquia).
+                {q
+                  ? "Nenhum contexto encontrado para esta busca."
+                  : "Nenhum contexto. Crie o programa (topo da hierarquia)."}
               </li>
             ) : (
               contextos.map((c) => (
@@ -381,9 +412,12 @@ export function ContextosManager({
                   className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <div className="font-medium text-brand-deep">
+                    <Link
+                      href={`/contexto/${encodeURIComponent(c.id)}`}
+                      className="font-medium text-brand-deep underline-offset-2 hover:underline"
+                    >
                       {c.nome || "(sem nome)"}
-                    </div>
+                    </Link>
                     <div className="text-xs text-muted-foreground">
                       {c.projetosCount} projeto(s)
                       {c.inscricoesCount > 0
@@ -432,6 +466,12 @@ export function ContextosManager({
               ))
             )}
           </ul>
+          <ListPager
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            params={pagerParams}
+          />
         </div>
       ) : null}
 
@@ -440,7 +480,9 @@ export function ContextosManager({
           <ul className="divide-y divide-border/60">
             {projetos.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
-                Nenhum projeto. Vincule um projeto a um contexto (com PRONAC).
+                {q
+                  ? "Nenhum projeto encontrado para esta busca."
+                  : "Nenhum projeto ainda. Inicie um projeto no MAX Origem ou cadastre via importação de planilha."}
               </li>
             ) : (
               projetos.map((p) => (
@@ -450,9 +492,23 @@ export function ContextosManager({
                 >
                   <div className="min-w-0">
                     <div className="text-xs text-muted-foreground">
-                      {p.contextoNome || "(contexto)"}
+                      {p.contextoNome ? (
+                        <Link
+                          href={`/contexto/${encodeURIComponent(p.contextoId)}`}
+                          className="underline-offset-2 hover:text-brand-deep hover:underline"
+                        >
+                          {p.contextoNome}
+                        </Link>
+                      ) : (
+                        "(contexto)"
+                      )}
                     </div>
-                    <div className="font-medium text-brand-deep">{p.nome}</div>
+                    <Link
+                      href={`/projeto/${encodeURIComponent(p.id)}`}
+                      className="font-medium text-brand-deep underline-offset-2 hover:underline"
+                    >
+                      {p.nome}
+                    </Link>
                     <div className="text-xs text-muted-foreground">
                       PRONAC {p.pronac}
                       {p.ano ? ` · ${p.ano}` : ""} · {p.oficinasCount} oficina(s)
@@ -502,6 +558,12 @@ export function ContextosManager({
               ))
             )}
           </ul>
+          <ListPager
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            params={pagerParams}
+          />
         </div>
       ) : null}
 
@@ -510,7 +572,9 @@ export function ContextosManager({
           <ul className="divide-y divide-border/60">
             {oficinas.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
-                Nenhuma oficina. Vincule a um projeto.
+                {q
+                  ? "Nenhuma oficina encontrada para esta busca."
+                  : "Nenhuma oficina. Vincule a um projeto."}
               </li>
             ) : (
               oficinas.map((o) => (
@@ -520,9 +584,34 @@ export function ContextosManager({
                 >
                   <div className="min-w-0">
                     <div className="text-xs text-muted-foreground">
-                      {o.contextoNome || "(contexto)"} → {o.projetoNome}
+                      {o.contextoNome ? (
+                        <Link
+                          href={`/contexto/${encodeURIComponent(o.contextoId)}`}
+                          className="underline-offset-2 hover:text-brand-deep hover:underline"
+                        >
+                          {o.contextoNome}
+                        </Link>
+                      ) : (
+                        "(contexto)"
+                      )}
+                      {" → "}
+                      {o.projetoNome ? (
+                        <Link
+                          href={`/projeto/${encodeURIComponent(o.projetoId)}`}
+                          className="underline-offset-2 hover:text-brand-deep hover:underline"
+                        >
+                          {o.projetoNome}
+                        </Link>
+                      ) : (
+                        "(projeto)"
+                      )}
                     </div>
-                    <div className="font-medium text-brand-deep">{o.nome}</div>
+                    <Link
+                      href={`/projeto/${encodeURIComponent(o.projetoId)}/${encodeURIComponent(o.id)}`}
+                      className="font-medium text-brand-deep underline-offset-2 hover:underline"
+                    >
+                      {o.nome}
+                    </Link>
                     <div className="text-xs text-muted-foreground">
                       {o.inscricoesCount > 0
                         ? `${o.inscricoesCount} inscrição(ões)`
@@ -570,6 +659,12 @@ export function ContextosManager({
               ))
             )}
           </ul>
+          <ListPager
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            params={pagerParams}
+          />
         </div>
       ) : null}
 
@@ -610,11 +705,9 @@ export function ContextosManager({
       <Dialog open={projOpen} onOpenChange={setProjOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {projEditId ? "Editar projeto" : "Novo projeto"}
-            </DialogTitle>
+            <DialogTitle>Editar projeto</DialogTitle>
             <DialogDescription>
-              Cada projeto pertence a um contexto e precisa de PRONAC.
+              Ajuste o contexto (programa) e demais metadados do projeto.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
@@ -625,13 +718,12 @@ export function ContextosManager({
                 onValueChange={(v) =>
                   setProjForm((f) => ({ ...f, contextoId: v ?? "" }))
                 }
-                items={contextoSelectItems}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contextosEditaveis.map((c) => (
+                  {projContextos.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome || "(sem nome)"}
                     </SelectItem>
@@ -710,23 +802,18 @@ export function ContextosManager({
                 value={ofForm.contextoId || undefined}
                 onValueChange={(v) => {
                   const contextoId = v ?? "";
-                  const first = projetos.find(
-                    (p) =>
-                      p.contextoId === contextoId && p.hasEditorAccess,
-                  );
                   setOfForm((f) => ({
                     ...f,
                     contextoId,
-                    projetoId: first?.id ?? "",
+                    projetoId: "",
                   }));
                 }}
-                items={contextoSelectItems}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contextosEditaveis.map((c) => (
+                  {ofContextos.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome || "(sem nome)"}
                     </SelectItem>
@@ -741,15 +828,15 @@ export function ContextosManager({
                 onValueChange={(v) =>
                   setOfForm((f) => ({ ...f, projetoId: v ?? "" }))
                 }
-                items={projetoSelectItems}
+                disabled={!ofForm.contextoId}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projetosEditaveis.map((p) => (
+                  {ofProjetos.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.nome}
+                      {p.pronac ? `${p.nome} · ${p.pronac}` : p.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>

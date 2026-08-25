@@ -14,6 +14,7 @@ export function programaStem(nomeProjeto: unknown): string {
     .replace(/\b(ed\.?|edicao|edição)\b/gi, " ")
     .replace(/\b(i{1,3}|iv|v|vi{0,3}|ix|x)\b/gi, " ")
     .replace(/[–—\-_|/]+/g, " ")
+    .replace(/\s+\d+\s*$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   return slugifyPart(raw);

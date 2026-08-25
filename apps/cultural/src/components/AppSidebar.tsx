@@ -7,6 +7,7 @@ import { logoutAction } from "@/lib/actions/auth";
 
 const links = [
   { href: "/", label: "Início" },
+  { href: "/projetos", label: "Projetos" },
   { href: "/usuarios", label: "Usuários" },
   { href: "/papeis", label: "Papéis" },
   { href: "/logs", label: "Logs" },
@@ -19,12 +20,15 @@ export function AppSidebar({
   canLogs,
 }: {
   userEmail?: string;
+  canProjetos?: boolean;
   canUsers?: boolean;
   canRoles?: boolean;
   canLogs?: boolean;
 }) {
   const pathname = usePathname();
   const visible = links.filter((l) => {
+    // Projetos é tela do hub — sempre visível para quem está logado
+    if (l.href === "/projetos") return true;
     if (l.href === "/usuarios") return canUsers;
     if (l.href === "/papeis") return canRoles;
     if (l.href === "/logs") return canLogs;

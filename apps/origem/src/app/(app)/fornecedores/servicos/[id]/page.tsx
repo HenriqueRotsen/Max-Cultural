@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton";
 import { CatalogPriceDollars } from "@/components/catalog/CatalogPriceDollars";
 import { CatalogServiceAlternatives } from "@/components/catalog/CatalogServiceAlternatives";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
@@ -27,7 +28,15 @@ export default async function CatalogServiceDetailPage({
     where: { id, supplier: { workspaceId: ws } },
     include: {
       supplier: true,
-      engagements: { orderBy: { hiredAt: "desc" } },
+      engagements: {
+        orderBy: { hiredAt: "desc" },
+        include: {
+          documents: {
+            select: { id: true, kind: true, filename: true, mimeType: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
     },
   });
   if (!service) notFound();
@@ -122,14 +131,26 @@ export default async function CatalogServiceDetailPage({
           <ul className="divide-y divide-[var(--border)]">
             {service.engagements.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-4 px-5 py-4 text-sm">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-[var(--navy)]">{formatDate(e.hiredAt)}</p>
                   <p className="text-xs text-[var(--gray-500)]">
                     {e.delayed ? `Atraso${e.delayDays ? ` · ${e.delayDays} dia(s)` : ""}` : "No prazo"}
                     {e.rating ? ` · nota ${e.rating}` : ""}
                   </p>
                 </div>
-                <span className="font-semibold text-[var(--navy)]">{formatCurrency(Number(e.price))}</span>
+                <div className="flex shrink-0 items-center gap-3">
+                  <EngagementDocsButton
+                    engagementId={e.id}
+                    serviceName={service.name}
+                    documents={e.documents.map((d) => ({
+                      id: d.id,
+                      kind: d.kind,
+                      filename: d.filename,
+                      mimeType: d.mimeType,
+                    }))}
+                  />
+                  <span className="font-semibold text-[var(--navy)]">{formatCurrency(Number(e.price))}</span>
+                </div>
               </li>
             ))}
           </ul>
