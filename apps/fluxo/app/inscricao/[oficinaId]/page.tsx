@@ -23,7 +23,10 @@ export default async function InscricaoPage({ params }: { params: Params }) {
 
   return (
     <SiteShell width="3xl" mainClassName="pb-16 pt-4">
-      <InscricaoForm context={context} />
+      <InscricaoForm
+        context={context}
+        turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? ""}
+      />
     </SiteShell>
   );
 }

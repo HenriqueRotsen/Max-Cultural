@@ -1,6 +1,9 @@
 "use server";
 
 import { requirePermission } from "@/lib/auth";
+import { clientIpFromHeaders } from "@/lib/client-ip";
+import { checkInscricaoRateLimit, inscricaoRateLimitRequired } from "@/lib/rate-limit";
+import { turnstileRequired, verifyTurnstileToken } from "@/lib/turnstile";
 import {
   assertDataAccess,
   inscricaoWhereFromScope,
@@ -683,9 +686,33 @@ export async function getAnaliseAction(
 export async function createInscricaoPublicAction(
   input: Partial<SigaCulturalRow> & {
     id_oficina: string;
+    turnstileToken?: string;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const clientIp = await clientIpFromHeaders();
+    const rateLimitKey = `${clientIp}:${input.id_oficina}`;
+
+    if (inscricaoRateLimitRequired()) {
+      const limited = await checkInscricaoRateLimit(rateLimitKey);
+      if (!limited.allowed) {
+        return {
+          ok: false,
+          error: `Muitas tentativas. Aguarde ${limited.retryAfterSec}s e tente novamente.`,
+        };
+      }
+    }
+
+    if (turnstileRequired()) {
+      const valid = await verifyTurnstileToken(input.turnstileToken, clientIp);
+      if (!valid) {
+        return {
+          ok: false,
+          error: "Verificação de segurança inválida. Recarregue a página e tente novamente.",
+        };
+      }
+    }
+
     const existing = await prisma.inscricao.findFirst({
       where: { idOficina: input.id_oficina },
       select: {

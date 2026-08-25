@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@max/auth": "*",
+    "@max/security-headers": "*",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@supabase/ssr": "^0.12.4",

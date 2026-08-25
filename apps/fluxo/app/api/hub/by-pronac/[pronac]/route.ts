@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
-import { AUTH_COOKIE, parseSessionToken } from "@max/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  hubAuthErrorResponse,
+  requireHubAnyPermission,
+} from "@/lib/hub/auth";
 import { aggregateSocio } from "@/lib/socio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function sessionTokenFromRequest(request: Request): string | null {
-  const header = request.headers.get("x-max-session")?.trim();
-  if (header) return header;
-  const cookie = request.headers.get("cookie") || "";
-  for (const part of cookie.split(";").map((p) => p.trim())) {
-    if (part.startsWith(`${AUTH_COOKIE}=`)) {
-      return part.slice(AUTH_COOKIE.length + 1);
-    }
-  }
-  return null;
-}
 
 function fluxoBaseUrl() {
   return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002").replace(/\/$/, "");
@@ -32,10 +23,14 @@ export async function GET(
   context: { params: Promise<{ pronac: string }> },
 ) {
   try {
-    const token = sessionTokenFromRequest(request);
-    const session = token ? await parseSessionToken(token) : null;
-    if (!session?.email && !session?.userId) {
-      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    const auth = await requireHubAnyPermission(request, [
+      "inscricoes:read",
+      "analise:read",
+      "dashboard:access",
+    ]);
+    if (!auth.ok) {
+      const { message, status } = hubAuthErrorResponse(auth);
+      return NextResponse.json({ error: message }, { status });
     }
 
     const { pronac: raw } = await context.params;

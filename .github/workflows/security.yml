@@ -55,5 +55,10 @@ jobs:
       image: semgrep/semgrep
     steps:
       - uses: actions/checkout@v4
-      - run: semgrep ci --config auto --error --exclude node_modules --exclude .next
-        continue-on-error: true
+      - run: >
+          semgrep ci
+          --config p/owasp-top-ten
+          --config p/javascript
+          --error
+          --exclude node_modules
+          --exclude .next
