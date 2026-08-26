@@ -5,7 +5,10 @@ import { NfReviewForm } from "@/components/planning/NfReviewForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { computeProjectBalance } from "@/lib/planning/rubric-balance";
+import { lookupCnpj } from "@/lib/catalog/brasil-api";
+import { normalizeCgccpf } from "@/lib/format";
 import type { ExtractedNf } from "@/lib/nf/extract";
+import { extractPaymentDetails } from "@/lib/nf/payment-details";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +56,29 @@ export default async function RevisarNfPage({
     })
     .filter((l) => l.available > 0);
 
-  const extracted = (doc.extractedJson || { items: [] }) as ExtractedNf;
+  let extracted = (doc.extractedJson || { items: [] }) as ExtractedNf;
+  if (!extracted.payment) {
+    extracted = {
+      ...extracted,
+      payment: extractPaymentDetails(
+        [extracted.serviceDescription, extracted.items?.[0]?.name]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+    };
+  }
+
+  const cnpj = normalizeCgccpf(extracted.cnpj || "");
+  if (cnpj.length === 14 && !extracted.cnaeCode) {
+    const company = await lookupCnpj(cnpj);
+    if (company?.cnaeCode) {
+      extracted = {
+        ...extracted,
+        cnaeCode: company.cnaeCode,
+        cnaeDescription: extracted.cnaeDescription || company.cnaeDescription,
+      };
+    }
+  }
 
   return (
     <div className="space-y-6">

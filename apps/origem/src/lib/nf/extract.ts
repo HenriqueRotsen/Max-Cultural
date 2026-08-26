@@ -2,6 +2,9 @@
  * Extração de NF (estilo Suply): XML NF-e, texto DANFSe/heurística, Ollama opcional.
  */
 
+import { extractPaymentDetails, type NfPaymentDetails } from "@/lib/nf/payment-details";
+import { normalizeCnaeCode } from "@/lib/catalog/cnae";
+
 export type ExtractedItem = {
   name: string;
   category?: string | null;
@@ -19,6 +22,8 @@ export type ExtractedNf = {
   city?: string | null;
   state?: string | null;
   zipCode?: string | null;
+  cnaeCode?: string | null;
+  cnaeDescription?: string | null;
   hiredAt?: string | null;
   location?: string | null;
   serviceDescription?: string | null;
@@ -26,6 +31,7 @@ export type ExtractedNf = {
   items: ExtractedItem[];
   totalPrice?: number | null;
   notes?: string | null;
+  payment?: NfPaymentDetails | null;
 };
 
 function digits(v: string) {
@@ -63,6 +69,20 @@ function pickDate(text: string): string | null {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
+function pickCnae(text: string): { code: string | null; description: string | null } {
+  const withDesc =
+    text.match(/CNAE[:\s]*([0-9.\-\/]{5,15})\s*[-–—:]?\s*([^\n]{5,120})/i) ||
+    text.match(/C[oó]digo\s+CNAE[:\s]*([0-9.\-\/]{5,15})\s*[-–—:]?\s*([^\n]{5,120})/i);
+  if (withDesc) {
+    return {
+      code: normalizeCnaeCode(withDesc[1]),
+      description: withDesc[2]?.trim() || null,
+    };
+  }
+  const codeOnly = text.match(/CNAE[:\s]*([0-9.\-\/]{5,15})/i);
+  return { code: codeOnly ? normalizeCnaeCode(codeOnly[1]) : null, description: null };
+}
+
 function heuristicFromText(text: string): ExtractedNf {
   const cnpj = pickCnpj(text);
   const totalPrice = pickMoney(text);
@@ -80,11 +100,16 @@ function heuristicFromText(text: string): ExtractedNf {
     : totalPrice
       ? [{ name: "Serviço", price: totalPrice, quantity: 1 }]
       : [];
+  const cnae = pickCnae(text);
+  const payment = extractPaymentDetails([desc, text].filter(Boolean).join("\n"));
 
   return {
     cnpj,
     supplierName,
     serviceDescription: desc,
+    cnaeCode: cnae.code,
+    cnaeDescription: cnae.description,
+    payment,
     pronac,
     hiredAt,
     totalPrice,
@@ -117,6 +142,10 @@ function parseNfeXml(xml: string): ExtractedNf | null {
     });
   }
   const hiredAt = dh ? dh.slice(0, 10) : null;
+  const cnaeXml = xml.match(/<emit>[\s\S]*?<CNAE>([^<]+)<\/CNAE>/i)?.[1] || null;
+  const payment = extractPaymentDetails(
+    items.map((i) => i.name).join("\n") + "\n" + xml,
+  );
   return {
     cnpj,
     supplierName,
@@ -124,6 +153,8 @@ function parseNfeXml(xml: string): ExtractedNf | null {
     totalPrice: total ? Number(total) : null,
     hiredAt,
     serviceDescription: items[0]?.name || null,
+    cnaeCode: normalizeCnaeCode(cnaeXml),
+    payment,
     pronac: pickPronac(xml),
     items,
     notes: "NF-e XML",
@@ -134,7 +165,7 @@ async function extractWithOllama(text: string): Promise<ExtractedNf | null> {
   const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   const model = process.env.OLLAMA_MODEL || "llama3.2";
   try {
-    const prompt = `Extraia JSON de nota fiscal brasileira. Campos: cnpj, supplierName, tradeName, hiredAt (YYYY-MM-DD), serviceDescription, pronac, totalPrice, items[{name,price,quantity}]. Texto:\n${text.slice(0, 12000)}`;
+    const prompt = `Extraia JSON de nota fiscal brasileira. Campos: cnpj, supplierName, tradeName, hiredAt (YYYY-MM-DD), serviceDescription, pronac, totalPrice, cnaeCode, cnaeDescription, payment{pixKey,bankName,bankAgency,bankAccount,paymentNotes}, items[{name,price,quantity}]. Texto:\n${text.slice(0, 12000)}`;
     const res = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -146,9 +177,25 @@ async function extractWithOllama(text: string): Promise<ExtractedNf | null> {
     const match = data.response?.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]) as ExtractedNf;
+    const paymentFromText = extractPaymentDetails(
+      [parsed.serviceDescription, text].filter(Boolean).join("\n"),
+    );
+    const payment = parsed.payment
+      ? {
+          pixKey: parsed.payment.pixKey || paymentFromText.pixKey,
+          bankName: parsed.payment.bankName || paymentFromText.bankName,
+          bankAgency: parsed.payment.bankAgency || paymentFromText.bankAgency,
+          bankAccount: parsed.payment.bankAccount || paymentFromText.bankAccount,
+          paymentNotes: parsed.payment.paymentNotes || paymentFromText.paymentNotes,
+        }
+      : paymentFromText;
+    const cnaeFromText = pickCnae(text);
     return {
       ...parsed,
       cnpj: parsed.cnpj ? digits(String(parsed.cnpj)) : null,
+      cnaeCode: normalizeCnaeCode(parsed.cnaeCode) || cnaeFromText.code,
+      cnaeDescription: parsed.cnaeDescription || cnaeFromText.description,
+      payment,
       items: Array.isArray(parsed.items) ? parsed.items : [],
       notes: "ollama",
     };
@@ -210,6 +257,11 @@ export async function extractNfFromBuffer(params: {
 
   const ollama = await extractWithOllama(text);
   if (ollama?.cnpj || ollama?.supplierName || ollama?.totalPrice) {
+    const payment =
+      ollama.payment ||
+      extractPaymentDetails(
+        [ollama.serviceDescription, text].filter(Boolean).join("\n"),
+      );
     return {
       ...ollama,
       pronac: ollama.pronac || pickPronac(text),
@@ -217,6 +269,9 @@ export async function extractNfFromBuffer(params: {
         ollama.serviceDescription ||
         ollama.items?.[0]?.name ||
         null,
+      payment,
+      cnaeCode: ollama.cnaeCode || pickCnae(text).code,
+      cnaeDescription: ollama.cnaeDescription || pickCnae(text).description,
     };
   }
   return heuristicFromText(text);

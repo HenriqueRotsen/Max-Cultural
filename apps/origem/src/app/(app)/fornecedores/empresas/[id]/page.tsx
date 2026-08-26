@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCgccpf } from "@/lib/format";
 import { formatAddressDisplay } from "@/lib/catalog/address";
+import { formatCnaeLabel } from "@/lib/catalog/cnae";
 import { deleteCatalogSupplier } from "@/lib/catalog/actions";
 import { getSupplierInsights } from "@/lib/catalog/pricing-insights";
 import { PageHeader } from "@/components/ui";
@@ -14,6 +15,17 @@ import { CatalogSupplierInsights } from "@/components/catalog/CatalogSupplierIns
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export const dynamic = "force-dynamic";
+
+function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--gray-400)]">
+        {label}
+      </p>
+      <p className="mt-1 text-sm text-[var(--navy)]">{value?.trim() || "—"}</p>
+    </div>
+  );
+}
 
 export default async function CatalogSupplierDetailPage({
   params,
@@ -52,6 +64,13 @@ export default async function CatalogSupplierDetailPage({
   });
 
   const engagementCount = supplier.services.reduce((sum, s) => sum + s._count.engagements, 0);
+  const isCnpj = supplier.cnpj.replace(/\D/g, "").length === 14;
+  const hasPayment =
+    Boolean(supplier.pixKey) ||
+    Boolean(supplier.bankName) ||
+    Boolean(supplier.bankAgency) ||
+    Boolean(supplier.bankAccount) ||
+    Boolean(supplier.paymentNotes);
 
   return (
     <div className="space-y-6">
@@ -104,11 +123,28 @@ export default async function CatalogSupplierDetailPage({
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="card p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
+            Empresa
+          </p>
+          <div className="mt-3 space-y-3">
+            <DetailRow label="Documento" value={formatCgccpf(supplier.cnpj)} />
+            {supplier.tradeName ? (
+              <DetailRow label="Nome fantasia" value={supplier.tradeName} />
+            ) : null}
+            {isCnpj ? (
+              <DetailRow
+                label="CNAE"
+                value={formatCnaeLabel(supplier.cnaeCode, supplier.cnaeDescription)}
+              />
+            ) : null}
+          </div>
+        </div>
+        <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">Contato</p>
           <p className="mt-3 text-sm text-[var(--navy)]">{supplier.phone || "Telefone não informado"}</p>
           <p className="mt-1 text-sm text-[var(--gray-600)]">{supplier.email || "E-mail não informado"}</p>
         </div>
-        <div className="card p-5 md:col-span-2">
+        <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">Endereço</p>
           <p className="mt-3 text-sm text-[var(--navy)]">
             {formatAddressDisplay({
@@ -124,6 +160,35 @@ export default async function CatalogSupplierDetailPage({
             })}
           </p>
         </div>
+      </div>
+
+      <div className="card p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
+          Dados de pagamento
+        </p>
+        {hasPayment ? (
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <DetailRow label="Chave PIX" value={supplier.pixKey} />
+            <DetailRow label="Banco" value={supplier.bankName} />
+            <DetailRow label="Agência" value={supplier.bankAgency} />
+            <DetailRow label="Conta" value={supplier.bankAccount} />
+            {supplier.paymentNotes ? (
+              <div className="sm:col-span-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--gray-400)]">
+                  Observações
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--gray-600)]">
+                  {supplier.paymentNotes}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-[var(--gray-500)]">
+            Ainda sem dados de pagamento. Eles aparecem aqui quando a descrição da NF
+            trouxer PIX/banco ou quando forem preenchidos na edição do fornecedor.
+          </p>
+        )}
       </div>
 
       {supplier.notes ? (

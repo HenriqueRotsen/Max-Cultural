@@ -6,6 +6,7 @@ import { formatFullAddress } from "@/lib/catalog/address";
 import { lookupMunicipioCoords } from "@/lib/catalog/municipio-coords";
 import { indexServiceEmbedding } from "@/lib/catalog/embeddings";
 import { lookupCep, lookupCnpj } from "@/lib/catalog/brasil-api";
+import { normalizeCnaeCode } from "@/lib/catalog/cnae";
 import { parseServiceCategory } from "@/lib/catalog/categories";
 import {
   computeTotal,
@@ -67,6 +68,13 @@ export async function upsertCatalogSupplier(
   if (!isValidCgccpf(cnpj)) return { error: "CNPJ ou CPF inválido." };
   if (name.length < 2) return { error: "Informe a razão social." };
 
+  const isCnpj = cnpj.length === 14;
+  const cnaeCode = normalizeCnaeCode(String(formData.get("cnaeCode") || ""));
+  const cnaeDescription = empty(formData.get("cnaeDescription"));
+  if (isCnpj && !cnaeCode) {
+    return { error: "Informe o CNAE do fornecedor (obrigatório para CNPJ)." };
+  }
+
   const streetType = empty(formData.get("streetType"));
   const streetName = empty(formData.get("streetName"));
   const streetNumber = empty(formData.get("streetNumber"));
@@ -93,6 +101,13 @@ export async function upsertCatalogSupplier(
     tradeName: empty(formData.get("tradeName")),
     phone: empty(formData.get("phone")),
     email: empty(formData.get("email")),
+    cnaeCode: isCnpj ? cnaeCode : null,
+    cnaeDescription: isCnpj ? cnaeDescription : null,
+    pixKey: empty(formData.get("pixKey")),
+    bankName: empty(formData.get("bankName")),
+    bankAgency: empty(formData.get("bankAgency")),
+    bankAccount: empty(formData.get("bankAccount")),
+    paymentNotes: empty(formData.get("paymentNotes")),
     streetType,
     streetName,
     streetNumber,

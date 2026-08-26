@@ -4,6 +4,7 @@ import {
   splitStreetLine,
   type AddressParts,
 } from "@/lib/catalog/address";
+import { normalizeCnaeCode } from "@/lib/catalog/cnae";
 
 export type CnpjLookupResult = {
   cnpj: string;
@@ -11,6 +12,8 @@ export type CnpjLookupResult = {
   tradeName: string | null;
   phone: string | null;
   email: string | null;
+  cnaeCode: string | null;
+  cnaeDescription: string | null;
   streetType: string | null;
   streetName: string | null;
   streetNumber: string | null;
@@ -68,6 +71,8 @@ async function lookupCnpjBrasilApi(cnpj: string): Promise<CnpjLookupResult | nul
     bairro?: string;
     municipio?: string;
     uf?: string;
+    cnae_fiscal?: number | string;
+    cnae_fiscal_descricao?: string;
   };
 
   const phone =
@@ -96,6 +101,8 @@ async function lookupCnpjBrasilApi(cnpj: string): Promise<CnpjLookupResult | nul
     tradeName: data.nome_fantasia || null,
     phone,
     email: data.email || null,
+    cnaeCode: normalizeCnaeCode(data.cnae_fiscal),
+    cnaeDescription: data.cnae_fiscal_descricao?.trim() || null,
     streetType: parts.streetType || null,
     streetName: parts.streetName || null,
     streetNumber: parts.streetNumber || null,
@@ -134,6 +141,8 @@ async function lookupCnpjWs(cnpj: string): Promise<CnpjLookupResult | null> {
       cidade?: { nome?: string | null };
       estado?: { sigla?: string | null };
       tipo_logradouro?: string | null;
+      atividade_principal?: { id?: string | number | null; descricao?: string | null };
+      atividades_secundarias?: Array<{ id?: string | number | null; descricao?: string | null }>;
     };
   };
 
@@ -154,12 +163,15 @@ async function lookupCnpjWs(cnpj: string): Promise<CnpjLookupResult | null> {
     neighborhood: est?.bairro || null,
   });
 
+  const atividade = est?.atividade_principal;
   return {
     cnpj,
     name: data.razao_social || "",
     tradeName: est?.nome_fantasia || null,
     phone,
     email: est?.email || null,
+    cnaeCode: normalizeCnaeCode(atividade?.id),
+    cnaeDescription: atividade?.descricao?.trim() || null,
     streetType: parts.streetType || null,
     streetName: parts.streetName || null,
     streetNumber: parts.streetNumber || null,
@@ -184,11 +196,20 @@ export async function lookupCnpj(
 
   try {
     const fromWs = await lookupCnpjWs(cnpj);
-    if (fromWs?.name) return fromWs;
-
     const fromBrasil = await lookupCnpjBrasilApi(cnpj);
-    if (fromBrasil?.name) return fromBrasil;
 
+    if (fromWs?.name) {
+      if (!fromWs.cnaeCode && fromBrasil?.cnaeCode) {
+        return {
+          ...fromWs,
+          cnaeCode: fromBrasil.cnaeCode,
+          cnaeDescription: fromBrasil.cnaeDescription,
+        };
+      }
+      return fromWs;
+    }
+
+    if (fromBrasil?.name) return fromBrasil;
     return fromWs || fromBrasil;
   } catch (error) {
     console.error("CNPJ lookup failed:", error);

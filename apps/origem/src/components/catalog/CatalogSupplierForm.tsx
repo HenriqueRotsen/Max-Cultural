@@ -8,6 +8,7 @@ import {
   type CatalogActionState,
 } from "@/lib/catalog/actions";
 import { BRAZIL_UF } from "@/lib/catalog/address";
+import { formatCnaeCode } from "@/lib/catalog/cnae";
 
 const initial: CatalogActionState = {};
 
@@ -21,6 +22,13 @@ export function CatalogSupplierForm({
     tradeName: string | null;
     phone: string | null;
     email: string | null;
+    cnaeCode: string | null;
+    cnaeDescription: string | null;
+    pixKey: string | null;
+    bankName: string | null;
+    bankAgency: string | null;
+    bankAccount: string | null;
+    paymentNotes: string | null;
     streetType: string | null;
     streetName: string | null;
     streetNumber: string | null;
@@ -38,6 +46,12 @@ export function CatalogSupplierForm({
   const [tradeName, setTradeName] = useState(supplier?.tradeName ?? "");
   const [phone, setPhone] = useState(supplier?.phone ?? "");
   const [email, setEmail] = useState(supplier?.email ?? "");
+  const [cnaeCode, setCnaeCode] = useState(supplier?.cnaeCode ?? "");
+  const [cnaeDescription, setCnaeDescription] = useState(supplier?.cnaeDescription ?? "");
+  const [pixKey, setPixKey] = useState(supplier?.pixKey ?? "");
+  const [bankName, setBankName] = useState(supplier?.bankName ?? "");
+  const [bankAgency, setBankAgency] = useState(supplier?.bankAgency ?? "");
+  const [bankAccount, setBankAccount] = useState(supplier?.bankAccount ?? "");
   const [streetType, setStreetType] = useState(supplier?.streetType ?? "");
   const [streetName, setStreetName] = useState(supplier?.streetName ?? "");
   const [streetNumber, setStreetNumber] = useState(supplier?.streetNumber ?? "");
@@ -47,6 +61,8 @@ export function CatalogSupplierForm({
   const [stateUf, setStateUf] = useState(supplier?.state ?? "");
   const [zipCode, setZipCode] = useState(supplier?.zipCode ?? "");
 
+  const isCnpj = cnpj.replace(/\D/g, "").length === 14;
+
   async function fillCnpj() {
     const data = await lookupCnpjAction(cnpj);
     if (!data) return;
@@ -55,6 +71,8 @@ export function CatalogSupplierForm({
     if (data.tradeName) setTradeName(data.tradeName);
     if (data.phone) setPhone(data.phone);
     if (data.email) setEmail(data.email);
+    if (data.cnaeCode) setCnaeCode(data.cnaeCode);
+    if (data.cnaeDescription) setCnaeDescription(data.cnaeDescription);
     if (data.streetType) setStreetType(data.streetType);
     if (data.streetName) setStreetName(data.streetName);
     if (data.streetNumber) setStreetNumber(data.streetNumber);
@@ -97,6 +115,33 @@ export function CatalogSupplierForm({
           <label htmlFor="name">Razão social</label>
           <input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
+        {isCnpj ? (
+          <>
+            <div className="field">
+              <label htmlFor="cnaeCode">CNAE principal</label>
+              <input
+                id="cnaeCode"
+                name="cnaeCode"
+                value={cnaeCode}
+                onChange={(e) => setCnaeCode(e.target.value)}
+                placeholder="Ex.: 9001-9/02"
+                required
+              />
+              {cnaeCode ? (
+                <p className="mt-1 text-xs text-[var(--gray-500)]">{formatCnaeCode(cnaeCode)}</p>
+              ) : null}
+            </div>
+            <div className="field">
+              <label htmlFor="cnaeDescription">Descrição do CNAE</label>
+              <input
+                id="cnaeDescription"
+                name="cnaeDescription"
+                value={cnaeDescription}
+                onChange={(e) => setCnaeDescription(e.target.value)}
+              />
+            </div>
+          </>
+        ) : null}
         <div className="field">
           <label htmlFor="phone">Telefone</label>
           <input id="phone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
@@ -149,10 +194,44 @@ export function CatalogSupplierForm({
           <label htmlFor="city">Cidade</label>
           <input id="city" name="city" value={city} onChange={(e) => setCity(e.target.value)} />
         </div>
-        <div className="field sm:col-span-2">
-          <label htmlFor="notes">Notas</label>
-          <textarea id="notes" name="notes" rows={3} defaultValue={supplier?.notes ?? ""} />
+      </div>
+
+      <div className="border-t border-[var(--gray-200)] pt-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
+          Dados de pagamento
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="field sm:col-span-2">
+            <label htmlFor="pixKey">Chave PIX</label>
+            <input id="pixKey" name="pixKey" value={pixKey} onChange={(e) => setPixKey(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="bankName">Banco</label>
+            <input id="bankName" name="bankName" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="bankAgency">Agência</label>
+            <input id="bankAgency" name="bankAgency" value={bankAgency} onChange={(e) => setBankAgency(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="bankAccount">Conta</label>
+            <input id="bankAccount" name="bankAccount" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+          </div>
+          <div className="field sm:col-span-2">
+            <label htmlFor="paymentNotes">Observações de pagamento</label>
+            <textarea
+              id="paymentNotes"
+              name="paymentNotes"
+              rows={3}
+              defaultValue={supplier?.paymentNotes ?? ""}
+            />
+          </div>
         </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="notes">Notas</label>
+        <textarea id="notes" name="notes" rows={3} defaultValue={supplier?.notes ?? ""} />
       </div>
       <button type="submit" className="btn" disabled={pending}>
         {pending ? "Salvando…" : "Salvar fornecedor"}

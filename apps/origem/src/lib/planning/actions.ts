@@ -33,6 +33,12 @@ import {
 import { fifthBusinessDayNextMonth } from "@/lib/planning/business-days";
 import { extractNfFromBuffer } from "@/lib/nf/extract";
 import { storeCompressedDocument } from "@/lib/nf/compress";
+import {
+  extractPaymentDetails,
+  mergePaymentDetails,
+} from "@/lib/nf/payment-details";
+import { lookupCnpj } from "@/lib/catalog/brasil-api";
+import { normalizeCnaeCode } from "@/lib/catalog/cnae";
 import { evaluateSupplierLimit } from "@/lib/compliance/rouanet";
 import { toActiveRules } from "@/lib/compliance/rules";
 
@@ -407,6 +413,15 @@ export async function confirmNfReservation(
   const supplierName = String(formData.get("supplierName") || "").trim();
   const cnpj = normalizeCgccpf(String(formData.get("cnpj") || ""));
   const hiredAtRaw = String(formData.get("hiredAt") || "");
+  let cnaeCode = normalizeCnaeCode(String(formData.get("cnaeCode") || ""));
+  let cnaeDescription = String(formData.get("cnaeDescription") || "").trim() || null;
+  const paymentFromForm = {
+    pixKey: String(formData.get("pixKey") || "").trim() || null,
+    bankName: String(formData.get("bankName") || "").trim() || null,
+    bankAgency: String(formData.get("bankAgency") || "").trim() || null,
+    bankAccount: String(formData.get("bankAccount") || "").trim() || null,
+    paymentNotes: String(formData.get("paymentNotes") || "").trim() || null,
+  };
 
   const doc = await prisma.planningDocument.findFirst({
     where: { id: documentId, workspaceId: entitlements.workspaceId, kind: "NF" },
@@ -425,6 +440,43 @@ export async function confirmNfReservation(
   if (!budgetLineId || !cnpj || !supplierName || !serviceName || !(amount > 0)) {
     return { error: "Preencha fornecedor, serviço, rubrica e valor" };
   }
+
+  const isCnpj = cnpj.length === 14;
+  if (isCnpj && !cnaeCode) {
+    const lookup = await lookupCnpj(cnpj);
+    if (lookup?.cnaeCode) {
+      cnaeCode = lookup.cnaeCode;
+      cnaeDescription = cnaeDescription || lookup.cnaeDescription;
+    }
+  }
+  if (isCnpj && !cnaeCode) {
+    return { error: "Informe o CNAE do fornecedor (obrigatório para CNPJ)." };
+  }
+
+  const extracted = (doc.extractedJson || {}) as {
+    serviceDescription?: string | null;
+    payment?: {
+      pixKey?: string | null;
+      bankName?: string | null;
+      bankAgency?: string | null;
+      bankAccount?: string | null;
+      paymentNotes?: string | null;
+    } | null;
+  };
+  const paymentFromExtract = {
+    pixKey: extracted.payment?.pixKey ?? null,
+    bankName: extracted.payment?.bankName ?? null,
+    bankAgency: extracted.payment?.bankAgency ?? null,
+    bankAccount: extracted.payment?.bankAccount ?? null,
+    paymentNotes: extracted.payment?.paymentNotes ?? null,
+  };
+  const paymentHeuristic = extractPaymentDetails(
+    [serviceName, extracted.serviceDescription].filter(Boolean).join("\n"),
+  );
+  const paymentIncoming = mergePaymentDetails(
+    paymentFromForm,
+    mergePaymentDetails(paymentFromExtract, paymentHeuristic),
+  );
 
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
@@ -473,6 +525,24 @@ export async function confirmNfReservation(
   const expectedPayAt = fifthBusinessDayNextMonth(hiredAt);
 
   const result = await prisma.$transaction(async (tx) => {
+    const existingSupplier = await tx.catalogSupplier.findUnique({
+      where: {
+        workspaceId_cnpj: { workspaceId: entitlements.workspaceId, cnpj },
+      },
+    });
+    const mergedPayment = mergePaymentDetails(
+      existingSupplier
+        ? {
+            pixKey: existingSupplier.pixKey,
+            bankName: existingSupplier.bankName,
+            bankAgency: existingSupplier.bankAgency,
+            bankAccount: existingSupplier.bankAccount,
+            paymentNotes: existingSupplier.paymentNotes,
+          }
+        : null,
+      paymentIncoming,
+    );
+
     const supplier = await tx.catalogSupplier.upsert({
       where: {
         workspaceId_cnpj: { workspaceId: entitlements.workspaceId, cnpj },
@@ -481,8 +551,29 @@ export async function confirmNfReservation(
         workspaceId: entitlements.workspaceId,
         cnpj,
         name: supplierName,
+        cnaeCode: isCnpj ? cnaeCode : null,
+        cnaeDescription: isCnpj ? cnaeDescription : null,
+        pixKey: mergedPayment.pixKey,
+        bankName: mergedPayment.bankName,
+        bankAgency: mergedPayment.bankAgency,
+        bankAccount: mergedPayment.bankAccount,
+        paymentNotes: mergedPayment.paymentNotes,
       },
-      update: { name: supplierName },
+      update: {
+        name: supplierName,
+        ...(isCnpj && cnaeCode
+          ? {
+              cnaeCode: existingSupplier?.cnaeCode || cnaeCode,
+              cnaeDescription:
+                existingSupplier?.cnaeDescription || cnaeDescription,
+            }
+          : {}),
+        pixKey: mergedPayment.pixKey,
+        bankName: mergedPayment.bankName,
+        bankAgency: mergedPayment.bankAgency,
+        bankAccount: mergedPayment.bankAccount,
+        paymentNotes: mergedPayment.paymentNotes,
+      },
     });
 
     let service = await tx.catalogService.findFirst({

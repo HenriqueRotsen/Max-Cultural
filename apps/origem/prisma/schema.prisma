@@ -474,6 +474,9 @@ model CatalogSupplier {
   tradeName      String?
   phone          String?
   email          String?
+  /** CNAE principal (código só dígitos, ex. 9001902). Obrigatório para CNPJ na UI. */
+  cnaeCode       String?
+  cnaeDescription String?
   address        String?
   streetType     String?
   streetName     String?
@@ -486,6 +489,12 @@ model CatalogSupplier {
   zipCode        String?
   latitude       Float?
   longitude      Float?
+  /** Dados de pagamento extraídos/confirmados a partir da descrição da NF. */
+  pixKey         String?
+  bankName       String?
+  bankAgency     String?
+  bankAccount    String?
+  paymentNotes   String?
   notes          String?
   avgRating      Float    @default(0)
   ratingCount    Int      @default(0)
