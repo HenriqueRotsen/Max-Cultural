@@ -42,7 +42,7 @@ import {
 } from "@/lib/schema";
 import { Prisma } from "@prisma/client";
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { aggregateSocio, type SocioBreakdown } from "@/lib/socio";
 import {
   getAnaliseFilterOptions,
