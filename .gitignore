@@ -17,3 +17,5 @@ apps/*/src/generated
 apps/*/src/generated/**
 coverage
 .turbo
+AGENTS.md
+CLAUDE.md
