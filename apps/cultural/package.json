@@ -30,11 +30,10 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/pg": "^8.21.0",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "^19",
+    "@types/react": "^19.2.18",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
