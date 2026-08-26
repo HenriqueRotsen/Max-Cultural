@@ -103,13 +103,21 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   } catch {
     return null;
   }
-  const email = hub?.email?.trim().toLowerCase();
+  if (!hub?.email) return null;
+  return resolveUserFromHubSession(hub);
+});
+
+/** Resolve (ou provisiona) usuário Fluxo a partir da sessão compartilhada do hub. */
+export async function resolveUserFromHubSession(session: {
+  email?: string;
+}): Promise<SessionUser | null> {
+  const email = session.email?.trim().toLowerCase();
   if (!email) return null;
   return ensureUserFromHub({
     email,
     name: email.split("@")[0] || "MAX Cultural",
   });
-});
+}
 
 async function ensureUserFromHub(input: {
   email: string;

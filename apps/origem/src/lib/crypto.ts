@@ -14,6 +14,8 @@ export {
 };
 
 const ALGO = "aes-256-gcm";
+const AUTH_TAG_LENGTH = 16;
+const IV_LENGTH = 12;
 
 function getKey() {
   const secret = process.env.CREDENTIALS_SECRET;
@@ -33,15 +35,21 @@ export function looksEncrypted(payload: string): boolean {
     const iv = Buffer.from(ivB64, "base64");
     const tag = Buffer.from(tagB64, "base64");
     const data = Buffer.from(dataB64, "base64");
-    return iv.length === 12 && tag.length === 16 && data.length > 0;
+    return (
+      iv.length === IV_LENGTH &&
+      tag.length === AUTH_TAG_LENGTH &&
+      data.length > 0
+    );
   } catch {
     return false;
   }
 }
 
 export function encryptSecret(plain: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv(ALGO, getKey(), iv);
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv(ALGO, getKey(), iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
   const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return `${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
@@ -52,8 +60,15 @@ export function decryptSecret(payload: string): string {
   if (!ivB64 || !tagB64 || !dataB64) {
     throw new Error("Invalid encrypted payload");
   }
-  const decipher = createDecipheriv(ALGO, getKey(), Buffer.from(ivB64, "base64"));
-  decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+  const iv = Buffer.from(ivB64, "base64");
+  const tag = Buffer.from(tagB64, "base64");
+  if (iv.length !== IV_LENGTH || tag.length !== AUTH_TAG_LENGTH) {
+    throw new Error("Invalid encrypted payload");
+  }
+  const decipher = createDecipheriv(ALGO, getKey(), iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
+  decipher.setAuthTag(tag);
   const decrypted = Buffer.concat([
     decipher.update(Buffer.from(dataB64, "base64")),
     decipher.final(),

@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireHubSession } from "@/lib/hub/auth";
+import {
+  hubAuthErrorResponse,
+  requireHubAnyPermission,
+} from "@/lib/hub/auth";
 import { programaStem } from "@/lib/programa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const session = await requireHubSession(request);
-  if (!session) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  const auth = await requireHubAnyPermission(request, [
+    "contextos:read",
+    "import:write",
+    "contextos:create",
+  ]);
+  if (!auth.ok) {
+    const { message, status } = hubAuthErrorResponse(auth);
+    return NextResponse.json({ error: message }, { status });
   }
 
   const q = new URL(request.url).searchParams.get("q")?.trim();

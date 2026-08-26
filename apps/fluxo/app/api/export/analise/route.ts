@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import {

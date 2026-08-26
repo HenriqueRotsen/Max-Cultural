@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createInscricaoPublicAction } from "@/app/actions/inscricoes";
 import { ETNIAS, GENEROS, type BatchContext } from "@/lib/schema";
 import { digitsOnly, normalizeSimComDetalhe } from "@/lib/normalize";
+import { TurnstileField } from "@/components/inscricao/turnstile-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,11 +47,16 @@ function maskCep(value: string) {
 
 type Props = {
   context: BatchContext;
+  turnstileSiteKey?: string;
 };
 
-export function InscricaoForm({ context }: Props) {
+export function InscricaoForm({ context, turnstileSiteKey = "" }: Props) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const handleTurnstileToken = useCallback((token: string | null) => {
+    setTurnstileToken(token);
+  }, []);
   const [form, setForm] = useState({
     Nome: "",
     Apelido: "",
@@ -114,6 +120,10 @@ export function InscricaoForm({ context }: Props) {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (turnstileSiteKey && !turnstileToken) {
+      toast.error("Conclua a verificação de segurança antes de enviar.");
+      return;
+    }
     startTransition(async () => {
       const result = await createInscricaoPublicAction({
         ...context,
@@ -123,6 +133,7 @@ export function InscricaoForm({ context }: Props) {
         Telefone: digitsOnly(form.Telefone),
         Possui_deficiencia: normalizeSimComDetalhe(form.Possui_deficiencia),
         RestricaoAlimentar: normalizeSimComDetalhe(form.RestricaoAlimentar),
+        turnstileToken: turnstileToken ?? undefined,
       });
       if (!result.ok) {
         toast.error(result.error);
@@ -374,8 +385,16 @@ export function InscricaoForm({ context }: Props) {
               onChange={(e) => setField("Territorio", e.target.value)}
             />
           </div>
-          <div className="sm:col-span-2 pt-2">
-            <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
+          <div className="sm:col-span-2 pt-2 space-y-3">
+            <TurnstileField
+              siteKey={turnstileSiteKey}
+              onToken={handleTurnstileToken}
+            />
+            <Button
+              type="submit"
+              className="w-full sm:w-auto"
+              disabled={pending || (Boolean(turnstileSiteKey) && !turnstileToken)}
+            >
               {pending ? "Enviando…" : "Enviar inscrição"}
             </Button>
           </div>
