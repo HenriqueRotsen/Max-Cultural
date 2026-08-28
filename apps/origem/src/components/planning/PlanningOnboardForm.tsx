@@ -130,7 +130,7 @@ export function PlanningOnboardForm({
           </button>
         </form>
       ) : (
-        <form action={stAction} className="card space-y-4 p-5" encType="multipart/form-data">
+        <form action={stAction} className="card space-y-4 p-5">
           <p className="text-sm text-[var(--gray-500)]">
             Envie o arquivo da planilha homologada estadual (xlsx/csv/json) uma única vez.
           </p>
