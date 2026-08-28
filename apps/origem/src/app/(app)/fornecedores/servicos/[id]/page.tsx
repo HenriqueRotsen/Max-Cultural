@@ -6,12 +6,20 @@ import { CatalogServiceAlternatives } from "@/components/catalog/CatalogServiceA
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { PageHeader } from "@/components/ui";
 import { getCategoryLabel } from "@/lib/catalog/categories";
+import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { getPriceUnitLabel } from "@/lib/catalog/price-units";
 import { getSupplierInsights } from "@/lib/catalog/pricing-insights";
 import { getServiceAlternatives } from "@/lib/catalog/service-alternatives";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency, formatDate } from "@/lib/format";
+
+const docSelect = {
+  id: true,
+  kind: true,
+  filename: true,
+  mimeType: true,
+} as const;
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +40,19 @@ export default async function CatalogServiceDetailPage({
         orderBy: { hiredAt: "desc" },
         include: {
           documents: {
-            select: { id: true, kind: true, filename: true, mimeType: true },
+            select: docSelect,
             orderBy: { createdAt: "asc" },
+          },
+          commitment: {
+            select: {
+              status: true,
+              amount: true,
+              paidAt: true,
+              documents: { select: docSelect },
+              allocations: {
+                select: { document: { select: docSelect } },
+              },
+            },
           },
         },
       },
@@ -129,30 +148,51 @@ export default async function CatalogServiceDetailPage({
           </p>
         ) : (
           <ul className="divide-y divide-[var(--border)]">
-            {service.engagements.map((e) => (
-              <li key={e.id} className="flex items-center justify-between gap-4 px-5 py-4 text-sm">
-                <div className="min-w-0">
-                  <p className="font-medium text-[var(--navy)]">{formatDate(e.hiredAt)}</p>
-                  <p className="text-xs text-[var(--gray-500)]">
-                    {e.delayed ? `Atraso${e.delayDays ? ` · ${e.delayDays} dia(s)` : ""}` : "No prazo"}
-                    {e.rating ? ` · nota ${e.rating}` : ""}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <EngagementDocsButton
-                    engagementId={e.id}
-                    serviceName={service.name}
-                    documents={e.documents.map((d) => ({
-                      id: d.id,
-                      kind: d.kind,
-                      filename: d.filename,
-                      mimeType: d.mimeType,
-                    }))}
-                  />
-                  <span className="font-semibold text-[var(--navy)]">{formatCurrency(Number(e.price))}</span>
-                </div>
-              </li>
-            ))}
+            {service.engagements.map((e) => {
+              const docs = resolveEngagementDocuments(e);
+              const paid = e.commitment?.status === "PAID";
+              const amount = Number(e.commitment?.amount ?? e.price);
+              return (
+                <li
+                  key={e.id}
+                  className="flex items-center justify-between gap-4 px-5 py-4 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-[var(--navy)]">{formatDate(e.hiredAt)}</p>
+                    <p className="text-xs text-[var(--gray-500)]">
+                      {e.delayed
+                        ? `Atraso${e.delayDays ? ` · ${e.delayDays} dia(s)` : ""}`
+                        : "No prazo"}
+                      {e.rating ? ` · nota ${e.rating}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <EngagementDocsButton
+                      serviceName={service.name}
+                      documents={docs}
+                    />
+                    <div className="text-right">
+                      <p className="font-semibold text-[var(--navy)]">
+                        {formatCurrency(amount)}
+                      </p>
+                      <p
+                        className={`text-[11px] font-semibold ${
+                          paid ? "text-emerald-700" : "text-[var(--gray-400)]"
+                        }`}
+                      >
+                        {paid
+                          ? e.commitment?.paidAt
+                            ? `Pago · ${formatDate(e.commitment.paidAt)}`
+                            : "Pago"
+                          : e.commitment
+                            ? "Reservado"
+                            : "Registrado"}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

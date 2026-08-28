@@ -15,7 +15,13 @@ const allowedDevOrigins = [
 const nextConfig: NextConfig = {
   transpilePackages: ["@max/auth", "@max/security-headers"],
   allowedDevOrigins,
-  serverExternalPackages: ["playwright", "@prisma/client", "@prisma/adapter-pg", "pg"],
+  serverExternalPackages: [
+    "playwright",
+    "@prisma/client",
+    "@prisma/adapter-pg",
+    "pg",
+    "pdf-parse",
+  ],
   async headers() {
     return [
       {

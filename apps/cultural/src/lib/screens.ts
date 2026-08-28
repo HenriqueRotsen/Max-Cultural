@@ -7,6 +7,7 @@ export const SCREENS = [
   { id: "cultural.papeis", label: "Papéis", group: "Cultural" },
   { id: "cultural.logs", label: "Logs", group: "Cultural" },
   { id: "origem.app", label: "MAX Origem", group: "Produtos" },
+  { id: "origem.proponentes", label: "Proponentes", group: "Origem" },
   { id: "origem.auditoria", label: "Auditoria", group: "Origem" },
   { id: "origem.fornecedores", label: "Fornecedores", group: "Origem" },
   { id: "origem.planejamento", label: "Planejamento", group: "Origem" },
@@ -18,6 +19,16 @@ export const SCREENS = [
   {
     id: "origem.planejamento.subir_salic",
     label: "Enviar projeto ao SALIC (Planejamento)",
+    group: "Origem",
+  },
+  {
+    id: "origem.planejamento.readequacao",
+    label: "Readequação de planilha (Planejamento)",
+    group: "Origem",
+  },
+  {
+    id: "origem.planejamento.excluir_nf",
+    label: "Excluir NF/RPA (Planejamento)",
     group: "Origem",
   },
   { id: "fluxo.app", label: "MAX Fluxo", group: "Produtos" },

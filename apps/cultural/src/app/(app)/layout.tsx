@@ -8,6 +8,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (needsPasswordChange(user)) redirect("/onboarding/senha");
   if (needs2faSetup(user)) redirect("/onboarding/2fa");
 
+  const origemUrl = (process.env.NEXT_PUBLIC_ORIGEM_URL || "http://localhost:3001").replace(
+    /\/$/,
+    "",
+  );
+  const fluxoUrl = (process.env.NEXT_PUBLIC_FLUXO_URL || "http://localhost:3002").replace(
+    /\/$/,
+    "",
+  );
+
   return (
     <div className="shell">
       <AppSidebar
@@ -15,6 +24,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         canUsers={can(user, "cultural.usuarios", "view")}
         canRoles={can(user, "cultural.papeis", "view")}
         canLogs={can(user, "cultural.logs", "view")}
+        canOrigem={can(user, "origem.app", "view")}
+        canFluxo={can(user, "fluxo.app", "view")}
+        origemUrl={origemUrl}
+        fluxoUrl={fluxoUrl}
       />
       <div className="shell-main">
         <div className="content">{children}</div>

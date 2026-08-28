@@ -40,6 +40,14 @@ export async function canPublishToSalic(): Promise<boolean> {
   return canHubScreen("origem.planejamento.subir_salic");
 }
 
+export async function canReadequacao(): Promise<boolean> {
+  return canHubScreen("origem.planejamento.readequacao");
+}
+
+export async function canDeleteNf(): Promise<boolean> {
+  return canHubScreen("origem.planejamento.excluir_nf");
+}
+
 async function cookieHeader(): Promise<string> {
   const { cookies } = await import("next/headers");
   const jar = await cookies();

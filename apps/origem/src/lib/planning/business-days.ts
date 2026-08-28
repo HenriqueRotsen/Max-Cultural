@@ -1,6 +1,20 @@
-/** Próximo n-ésimo dia útil a partir do mês seguinte à data (V1: ignora feriados). */
+/** 5º dia útil do mês seguinte à data (V1: ignora feriados). Usa Y/M/D de calendário em America/Sao_Paulo. */
 export function fifthBusinessDayNextMonth(from: Date): Date {
-  return nthBusinessDayOfMonth(from.getFullYear(), from.getMonth() + 1, 5);
+  const parts = calendarYearMonth(from);
+  // mês seguinte (monthIndex 0–11; 12 vira janeiro no nthBusinessDayOfMonth)
+  return nthBusinessDayOfMonth(parts.year, parts.monthIndex + 1, 5);
+}
+
+function calendarYearMonth(from: Date): { year: number; monthIndex: number } {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+  });
+  const parts = fmt.formatToParts(from);
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  return { year, monthIndex: month - 1 };
 }
 
 export function nthBusinessDayOfMonth(

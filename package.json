@@ -10,6 +10,8 @@
     "dev:origem": "npm run dev -w max-origem",
     "dev:fluxo": "npm run dev -w max-fluxo",
     "lint": "npm run lint -w max-cultural-app --if-present && npm run lint -w max-origem --if-present && npm run lint -w max-fluxo --if-present",
+    "test": "npm run test -w max-cultural-app && npm run test -w max-origem && npm run test -w max-fluxo",
+    "test:e2e": "npm run test:e2e -w max-cultural-app && npm run test:e2e -w max-origem && npm run test:e2e -w max-fluxo",
     "audit": "node scripts/ci-audit-gate.mjs"
   },
   "overrides": {

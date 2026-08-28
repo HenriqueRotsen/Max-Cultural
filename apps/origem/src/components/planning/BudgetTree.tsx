@@ -1,5 +1,7 @@
 import { formatCurrency } from "@/lib/format";
 import type { LineBalance } from "@/lib/planning/rubric-balance";
+import { FieldHelp, ThHelp } from "@/components/FieldHelp";
+import { HELP } from "@/lib/help";
 
 type Line = {
   id: string;
@@ -41,21 +43,25 @@ function rowClass(b: LineBalance | undefined) {
 export function BudgetTree({
   lines,
   balances,
+  pctCaptadoTLabel,
 }: {
   lines: Line[];
   balances: Map<string, LineBalance>;
+  /** Ex.: "67,4%" para o thead */
+  pctCaptadoTLabel?: string;
 }) {
   const tree = groupLines(lines);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-4 text-xs text-[var(--gray-500)]">
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" />
-          Perto do limite (≥80%)
+          Perto do disponível (≥80%)
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />
-          No limite ou estourada (≥100%, ou aprovado R$&nbsp;0)
+          No limite do disponível
         </span>
       </div>
 
@@ -65,10 +71,20 @@ export function BudgetTree({
             {fonte}
           </summary>
           <div className="space-y-2 p-3">
-            {[...products.entries()].map(([produto, etapas]) => (
+            {[...products.entries()].map(([produto, etapas]) => {
+              const isAdminProduto = /administra/i.test(produto);
+              const dispHeader = pctCaptadoTLabel
+                ? `Teto operacional (${pctCaptadoTLabel})`
+                : "Teto operacional";
+              return (
               <details key={produto} open className="rounded-lg border border-[var(--border)]">
                 <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
-                  {produto}
+                  <span className="inline-flex items-center gap-1.5">
+                    {produto}
+                    {isAdminProduto ? (
+                      <FieldHelp text={HELP.planningAdminProduto} />
+                    ) : null}
+                  </span>
                 </summary>
                 <div className="space-y-2 p-2">
                   {[...etapas.entries()].map(([etapa, regioes]) => (
@@ -89,16 +105,38 @@ export function BudgetTree({
                               <thead>
                                 <tr className="text-xs text-[var(--gray-500)]">
                                   <th className="py-1 pr-2">Item</th>
-                                  <th className="py-1 pr-2">Aprovado</th>
+                                  <ThHelp
+                                    className="py-1 pr-2"
+                                    help={HELP.planningAprovado}
+                                  >
+                                    Aprovado (MinC)
+                                  </ThHelp>
+                                  <ThHelp
+                                    className="py-1 pr-2"
+                                    help={
+                                      isAdminProduto
+                                        ? HELP.planningAdminProduto
+                                        : HELP.planningDisponivel
+                                    }
+                                  >
+                                    {dispHeader}
+                                  </ThHelp>
                                   <th className="py-1 pr-2">Reservado</th>
                                   <th className="py-1 pr-2">Pago</th>
-                                  <th className="py-1">Saldo</th>
+                                  <ThHelp
+                                    className="py-1"
+                                    help={HELP.planningSaldo}
+                                  >
+                                    Saldo na rubrica
+                                  </ThHelp>
                                 </tr>
                               </thead>
                               <tbody>
                                 {items.map((line) => {
                                   const b = balances.get(line.id);
-                                  const approved = b?.approved ?? (Number(line.approvedAmount) || 0);
+                                  const approved =
+                                    b?.approved ??
+                                    (Number(line.approvedAmount) || 0);
                                   return (
                                     <tr key={line.id} className={rowClass(b)}>
                                       <td className="py-1.5 pr-2">
@@ -117,13 +155,20 @@ export function BudgetTree({
                                         {formatCurrency(approved)}
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
+                                        {formatCurrency(
+                                          b?.availableCap ?? approved,
+                                        )}
+                                      </td>
+                                      <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(b?.reserved ?? 0)}
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(b?.paid ?? 0)}
                                       </td>
                                       <td className="py-1.5 tabular-nums font-medium">
-                                        {formatCurrency(b?.available ?? approved)}
+                                        {formatCurrency(
+                                          b?.available ?? approved,
+                                        )}
                                       </td>
                                     </tr>
                                   );
@@ -137,7 +182,8 @@ export function BudgetTree({
                   ))}
                 </div>
               </details>
-            ))}
+              );
+            })}
           </div>
         </details>
       ))}

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { MaxCulturalLogo } from "@/components/BrandLogo";
 import { logoutAction } from "@/lib/actions/auth";
 
-const links = [
+const hubLinks = [
   { href: "/", label: "Início" },
   { href: "/projetos", label: "Projetos" },
   { href: "/usuarios", label: "Usuários" },
@@ -18,22 +18,33 @@ export function AppSidebar({
   canUsers,
   canRoles,
   canLogs,
+  canOrigem,
+  canFluxo,
+  origemUrl,
+  fluxoUrl,
 }: {
   userEmail?: string;
   canProjetos?: boolean;
   canUsers?: boolean;
   canRoles?: boolean;
   canLogs?: boolean;
+  canOrigem?: boolean;
+  canFluxo?: boolean;
+  origemUrl?: string;
+  fluxoUrl?: string;
 }) {
   const pathname = usePathname();
-  const visible = links.filter((l) => {
-    // Projetos é tela do hub — sempre visível para quem está logado
+  const visible = hubLinks.filter((l) => {
     if (l.href === "/projetos") return true;
     if (l.href === "/usuarios") return canUsers;
     if (l.href === "/papeis") return canRoles;
     if (l.href === "/logs") return canLogs;
     return true;
   });
+
+  const origemHref = `${(origemUrl || "http://localhost:3001").replace(/\/$/, "")}/painel`;
+  const fluxoHref = `${(fluxoUrl || "http://localhost:3002").replace(/\/$/, "")}/dashboard`;
+  const showProducts = Boolean(canOrigem || canFluxo);
 
   return (
     <aside className="shell-sidebar">
@@ -63,6 +74,46 @@ export function AppSidebar({
             </Link>
           );
         })}
+
+        {showProducts ? (
+          <>
+            <p className="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+              Produtos
+            </p>
+            {canOrigem ? (
+              <a
+                href={origemHref}
+                className="flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+                style={{
+                  background: "linear-gradient(165deg, #f5f3ff 0%, #fff 70%)",
+                  boxShadow: "0 0 0 1px #c4b5fd55",
+                }}
+              >
+                <img
+                  src="/brand/max-origem.png"
+                  alt="MAX Origem"
+                  className="h-7 w-auto max-w-[9rem] object-contain object-left"
+                />
+              </a>
+            ) : null}
+            {canFluxo ? (
+              <a
+                href={fluxoHref}
+                className="mt-1 flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+                style={{
+                  background: "linear-gradient(165deg, #f0fdfa 0%, #fff 70%)",
+                  boxShadow: "0 0 0 1px #5eead455",
+                }}
+              >
+                <img
+                  src="/brand/max-fluxo.png"
+                  alt="MAX Fluxo"
+                  className="h-7 w-auto max-w-[9rem] object-contain object-left"
+                />
+              </a>
+            ) : null}
+          </>
+        ) : null}
       </nav>
       <div className="mt-auto border-t border-[var(--border)] px-5 py-4 space-y-3">
         {userEmail ? (

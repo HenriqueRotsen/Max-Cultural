@@ -1,21 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
-import { linkEngagementDocument, type ActionState } from "@/lib/planning/actions";
+import type { EngagementDocItem } from "@/lib/catalog/engagement-docs";
+import {
+  engagementHasFiscalDoc,
+  engagementHasPaymentDoc,
+} from "@/lib/catalog/engagement-docs";
 
-export type EngagementDocItem = {
-  id: string;
-  kind: "NF" | "PAYMENT_PROOF" | "TAX_PROOF" | string;
-  filename: string;
-  mimeType: string;
-};
-
-const initial: ActionState = {};
+export type { EngagementDocItem };
 
 function kindLabel(kind: string) {
   if (kind === "NF") return "Nota fiscal";
+  if (kind === "RPA") return "RPA";
   if (kind === "PAYMENT_PROOF") return "Comprovante";
   if (kind === "TAX_PROOF") return "Comprovante fiscal";
   return kind;
@@ -140,44 +137,50 @@ function DocumentPreview({ doc }: { doc: EngagementDocItem }) {
       </div>
 
       <div className="min-h-0 flex-1">
-      {loading ? (
-        <div className="flex h-full min-h-[72vh] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--gray-50)]">
-          <p className="text-sm text-[var(--gray-500)]">Carregando documento…</p>
-        </div>
-      ) : error ? (
-        <div className="flex h-full min-h-[72vh] flex-col items-center justify-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-6 text-center">
-          <p className="text-sm text-red-700">{error}</p>
-          <a href={downloadUrl} className="btn">
-            Baixar arquivo
-          </a>
-        </div>
-      ) : xml && xmlText != null ? (
-        <div className="h-full min-h-[72vh] overflow-auto rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-3">
-          <pre className="whitespace-pre-wrap break-all text-xs text-[var(--navy)]">{xmlText}</pre>
-        </div>
-      ) : pdfOrImage && blobUrl ? (
-        image ? (
-          <div className="flex h-full min-h-[72vh] items-center justify-center overflow-auto rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={blobUrl} alt={doc.filename} className="max-h-full max-w-full object-contain" />
+        {loading ? (
+          <div className="flex h-full min-h-[72vh] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--gray-50)]">
+            <p className="text-sm text-[var(--gray-500)]">Carregando documento…</p>
           </div>
+        ) : error ? (
+          <div className="flex h-full min-h-[72vh] flex-col items-center justify-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-6 text-center">
+            <p className="text-sm text-red-700">{error}</p>
+            <a href={downloadUrl} className="btn">
+              Baixar arquivo
+            </a>
+          </div>
+        ) : xml && xmlText != null ? (
+          <div className="h-full min-h-[72vh] overflow-auto rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-3">
+            <pre className="whitespace-pre-wrap break-all text-xs text-[var(--navy)]">
+              {xmlText}
+            </pre>
+          </div>
+        ) : pdfOrImage && blobUrl ? (
+          image ? (
+            <div className="flex h-full min-h-[72vh] items-center justify-center overflow-auto rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={blobUrl}
+                alt={doc.filename}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : (
+            <iframe
+              title={doc.filename}
+              src={pdfEmbedSrc(blobUrl)}
+              className="h-full min-h-[72vh] w-full rounded-xl border border-[var(--border)] bg-[var(--gray-50)]"
+            />
+          )
         ) : (
-          <iframe
-            title={doc.filename}
-            src={pdfEmbedSrc(blobUrl)}
-            className="h-full min-h-[72vh] w-full rounded-xl border border-[var(--border)] bg-[var(--gray-50)]"
-          />
-        )
-      ) : (
-        <div className="flex h-full min-h-[72vh] flex-col items-center justify-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-6 text-center">
-          <p className="text-sm text-[var(--gray-500)]">
-            Pré-visualização indisponível para este formato.
-          </p>
-          <a href={downloadUrl} className="btn">
-            Baixar arquivo
-          </a>
-        </div>
-      )}
+          <div className="flex h-full min-h-[72vh] flex-col items-center justify-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-6 text-center">
+            <p className="text-sm text-[var(--gray-500)]">
+              Pré-visualização indisponível para este formato.
+            </p>
+            <a href={downloadUrl} className="btn">
+              Baixar arquivo
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -208,96 +211,24 @@ function DocChip({
   );
 }
 
-function LinkForm({
-  engagementId,
-  kind,
-  label,
-  onDone,
-}: {
-  engagementId: string;
-  kind: "NF" | "PAYMENT_PROOF";
-  label: string;
-  onDone: () => void;
-}) {
-  const action = linkEngagementDocument.bind(null, engagementId);
-  const [state, formAction, pending] = useActionState(action, initial);
-  const [fileName, setFileName] = useState("");
-
-  useEffect(() => {
-    if (state.ok) onDone();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh once on success
-  }, [state.ok]);
-
-  const accept = kind === "NF" ? ".pdf,.xml,application/pdf,text/xml" : ".pdf,image/*";
-  const hint = kind === "NF" ? "PDF ou XML" : "PDF ou imagem";
-
-  return (
-    <form action={formAction} className="space-y-2 rounded-xl border border-dashed border-[var(--border)] bg-[var(--gray-50)] p-3">
-      <input type="hidden" name="kind" value={kind} />
-      <p className="text-xs font-semibold text-[var(--navy)]">{label}</p>
-      {state.error ? <p className="text-sm text-red-700">{state.error}</p> : null}
-      {state.ok ? <p className="text-sm text-emerald-700">Arquivo vinculado.</p> : null}
-
-      <label className="btn btn-ghost w-full cursor-pointer gap-2 border border-[var(--border)] bg-white py-2.5">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M12 16V4m0 0 4 4m-4-4-4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span>{fileName ? "Trocar arquivo" : "Escolher arquivo"}</span>
-        <input
-          name="docFile"
-          type="file"
-          accept={accept}
-          required
-          className="sr-only"
-          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
-        />
-      </label>
-
-      {fileName ? (
-        <p className="truncate text-xs text-[var(--gray-500)]" title={fileName}>
-          {fileName}
-        </p>
-      ) : (
-        <p className="text-xs text-[var(--gray-400)]">{hint}</p>
-      )}
-
-      <button type="submit" className="btn w-full" disabled={pending || !fileName}>
-        {pending ? "Enviando…" : "Vincular"}
-      </button>
-    </form>
-  );
-}
-
 export function EngagementDocsButton({
-  engagementId,
   serviceName,
   documents,
 }: {
-  engagementId: string;
+  /** @deprecated mantido por compatibilidade das páginas existentes */
+  engagementId?: string;
   serviceName: string;
   documents: EngagementDocItem[];
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
 
-  const nfs = useMemo(() => documents.filter((d) => d.kind === "NF"), [documents]);
-  const proofs = useMemo(
-    () => documents.filter((d) => d.kind === "PAYMENT_PROOF" || d.kind === "TAX_PROOF"),
-    [documents],
-  );
-  const hasNf = nfs.length > 0;
-  const hasProof = proofs.length > 0;
-  const all = useMemo(() => [...nfs, ...proofs], [nfs, proofs]);
+  const hasNf = engagementHasFiscalDoc(documents);
+  const hasProof = engagementHasPaymentDoc(documents);
+  const all = useMemo(() => documents, [documents]);
 
   useEffect(() => {
     if (!open) return;
@@ -309,17 +240,13 @@ export function EngagementDocsButton({
 
   const selected = all.find((d) => d.id === selectedId) || null;
 
-  function afterLink() {
-    router.refresh();
-  }
-
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2.5 py-1.5 text-left shadow-sm transition hover:border-[var(--navy)] hover:bg-[var(--navy-soft)]"
-        title="Notas fiscais e comprovantes"
+        title="Arquivos originais da NF/RPA e comprovantes"
         aria-label="Documentos da contratação"
       >
         <span
@@ -336,8 +263,18 @@ export function EngagementDocsButton({
               strokeWidth="1.8"
               strokeLinejoin="round"
             />
-            <path d="M14 2v6h6" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-            <path d="M9 13h6M9 17h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path
+              d="M14 2v6h6"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9 13h6M9 17h4"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         </span>
         <span className="hidden min-w-0 flex-col sm:flex">
@@ -369,8 +306,12 @@ export function EngagementDocsButton({
                       Documentos · {serviceName}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      <DocChip ok={hasNf} label="NF" missing={!hasNf} />
-                      <DocChip ok={hasProof} label="Comprovante" missing={!hasProof} />
+                      <DocChip ok={hasNf} label="NF/RPA" missing={!hasNf} />
+                      <DocChip
+                        ok={hasProof}
+                        label="Comprovante"
+                        missing={!hasProof}
+                      />
                     </div>
                   </div>
                   <button
@@ -389,10 +330,13 @@ export function EngagementDocsButton({
                   <aside className="max-h-[40vh] space-y-3 overflow-y-auto border-b border-[var(--border)] p-3 lg:max-h-none lg:border-b-0 lg:border-r">
                     <div>
                       <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-400)]">
-                        Arquivos
+                        Arquivos originais
                       </p>
                       {all.length === 0 ? (
-                        <p className="text-xs text-[var(--gray-500)]">Nenhum documento ainda.</p>
+                        <p className="text-xs text-[var(--gray-500)]">
+                          Nenhum documento. Envie NF/RPA e comprovante pelo
+                          Planejamento.
+                        </p>
                       ) : (
                         <ul className="space-y-1">
                           {all.map((d) => (
@@ -406,38 +350,18 @@ export function EngagementDocsButton({
                                     : "text-[var(--gray-600)] hover:bg-[var(--gray-50)]"
                                 }`}
                               >
-                                <span className="block truncate">{kindLabel(d.kind)}</span>
-                                <span className="block truncate opacity-70">{d.filename}</span>
+                                <span className="block truncate">
+                                  {kindLabel(d.kind)}
+                                </span>
+                                <span className="block truncate opacity-70">
+                                  {d.filename}
+                                </span>
                               </button>
                             </li>
                           ))}
                         </ul>
                       )}
                     </div>
-
-                    {(!hasNf || !hasProof) && (
-                      <div className="space-y-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-400)]">
-                          Vincular
-                        </p>
-                        {!hasNf ? (
-                          <LinkForm
-                            engagementId={engagementId}
-                            kind="NF"
-                            label="Vincular nota fiscal"
-                            onDone={afterLink}
-                          />
-                        ) : null}
-                        {!hasProof ? (
-                          <LinkForm
-                            engagementId={engagementId}
-                            kind="PAYMENT_PROOF"
-                            label="Vincular comprovante de pagamento"
-                            onDone={afterLink}
-                          />
-                        ) : null}
-                      </div>
-                    )}
                   </aside>
 
                   <div className="flex min-h-0 flex-1 flex-col p-4">
@@ -446,7 +370,8 @@ export function EngagementDocsButton({
                     ) : (
                       <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] bg-[var(--gray-50)] p-6 text-center">
                         <p className="text-sm text-[var(--gray-500)]">
-                          Vincule a NF e o comprovante para visualizar aqui.
+                          Os arquivos originais da NF/RPA e do comprovante
+                          aparecem aqui após o envio no Planejamento.
                         </p>
                       </div>
                     )}

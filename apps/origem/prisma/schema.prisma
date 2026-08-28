@@ -99,8 +99,10 @@ model Workspace {
   catalogSuppliers   CatalogSupplier[]
   catalogFavorites   CatalogFavorite[]
   catalogEngagements CatalogEngagement[]
-  planningProjects   PlanningProject[]
-  appNotifications   AppNotification[]
+  planningProjects          PlanningProject[]
+  planningReadequacaoDrafts PlanningReadequacaoDraft[]
+  appNotifications          AppNotification[]
+  notificationSettings      NotificationSettings[]
 
   @@index([plan])
 }
@@ -597,8 +599,21 @@ enum CommitmentStatus {
 
 enum PlanningDocumentKind {
   NF
+  RPA
   PAYMENT_PROOF
   TAX_PROOF
+}
+
+enum ReadequacaoDraftSource {
+  MANUAL
+  SALIC_READEQUADA
+}
+
+enum ReadequacaoDraftStatus {
+  OPEN
+  EXPORTED
+  APPLIED
+  EXPIRED
 }
 
 enum PlanningDocumentStatus {
@@ -612,6 +627,9 @@ enum AppNotificationType {
   PAYMENT_DUE_SOON
   PAYMENT_OVERDUE
   RUBRIC_NEAR
+  NF_PENDING
+  TAX_DUE_ISS
+  TAX_DUE_FEDERAL
 }
 
 /** Projeto de execução no Planejamento (planilha homologada one-shot). */
@@ -640,6 +658,10 @@ model PlanningProject {
   salicPublishMessage          String?
   salicPublishStartedAt        DateTime?
   salicPublishCancelRequested  Boolean   @default(false)
+  /** Captação operacional (além de Project.valorCaptado da auditoria). */
+  captadoRecebido     Decimal?  @db.Decimal(14, 2)
+  captadoTransferido  Decimal?  @db.Decimal(14, 2)
+  rendimentos         Decimal?  @db.Decimal(14, 2)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -651,6 +673,7 @@ model PlanningProject {
   commitments     RubricCommitment[]
   engagements     CatalogEngagement[]
   documents       PlanningDocument[]
+  readequacaoDrafts PlanningReadequacaoDraft[]
 
   @@unique([workspaceId, accountId, externalCode])
   @@index([workspaceId, updatedAt])
@@ -700,6 +723,7 @@ model ProjectBudgetLine {
   sheet       ProjectBudgetSheet  @relation(fields: [sheetId], references: [id], onDelete: Cascade)
   commitments RubricCommitment[]
   engagements CatalogEngagement[]
+  allocations DocumentRubricAllocation[]
 
   @@index([sheetId])
   @@index([planilhaAprovacaoId])
@@ -715,9 +739,18 @@ model RubricCommitment {
   workspaceId       String
   engagementId      String           @unique
   amount            Decimal          @db.Decimal(14, 2)
+  /** Percentual da NF/RPA alocado nesta fatia (0–100). */
+  allocationSharePct Decimal?        @db.Decimal(7, 4)
   status            CommitmentStatus @default(RESERVED)
   hasBond           Boolean          @default(false)
+  /** Pagamento feito antes da NF — aguarda documento fiscal. */
+  nfPending         Boolean          @default(false)
+  paidWithoutNf     Boolean          @default(false)
   expectedPayAt     DateTime
+  /** Dia escolhido para lembrar do pagamento (NF/RPA reservada). */
+  paymentReminderAt DateTime?
+  /** Dia escolhido para lembrar de anexar NF/RPA (pagamento antecipado). */
+  nfReminderAt      DateTime?
   paidAt            DateTime?
   createdById       String?
   createdAt         DateTime         @default(now())
@@ -727,11 +760,14 @@ model RubricCommitment {
   planningProject PlanningProject   @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
   engagement      CatalogEngagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
   documents       PlanningDocument[]
+  allocations     DocumentRubricAllocation[]
 
   @@index([budgetLineId])
   @@index([planningProjectId])
   @@index([workspaceId, status])
   @@index([expectedPayAt])
+  @@index([paymentReminderAt])
+  @@index([nfReminderAt])
   @@map("rubric_commitments")
 }
 
@@ -746,21 +782,83 @@ model PlanningDocument {
   originalByteSize  Int?
   extractedJson     Json?
   errorMessage      String?
+  /** PJ | PF */
+  personType        String?
+  grossAmount       Decimal?               @db.Decimal(14, 2)
+  netAmount         Decimal?               @db.Decimal(14, 2)
+  taxTotal          Decimal?               @db.Decimal(14, 2)
+  /** { iss, irrf, inss, csll, pis, cofins, other? } */
+  taxesJson         Json?
   workspaceId       String
   planningProjectId String?
   engagementId      String?
+  /** Commitment “principal” legado; preferir allocations. */
   commitmentId      String?
+  /**
+   * Para comprovantes: NF/RPA de origem.
+   * O rateio do comprovante espelha as DocumentRubricAllocation da NF/RPA.
+   */
+  sourceDocumentId  String?
+  /** SHA-256 hex do arquivo original (deduplicação). */
+  contentHash       String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
   planningProject PlanningProject?  @relation(fields: [planningProjectId], references: [id], onDelete: SetNull)
   engagement      CatalogEngagement? @relation(fields: [engagementId], references: [id], onDelete: SetNull)
   commitment      RubricCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  sourceDocument  PlanningDocument?  @relation("DocumentProofSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  derivedProofs   PlanningDocument[] @relation("DocumentProofSource")
+  allocations     DocumentRubricAllocation[]
 
   @@index([workspaceId, kind])
   @@index([commitmentId])
   @@index([engagementId])
+  @@index([sourceDocumentId])
+  @@index([workspaceId, contentHash])
   @@map("planning_documents")
+}
+
+/** Rateio de uma NF/RPA em uma ou mais rubricas (mesma % para valor e impostos). */
+model DocumentRubricAllocation {
+  id            String  @id @default(cuid())
+  documentId    String
+  budgetLineId  String
+  commitmentId  String
+  sharePct      Decimal @db.Decimal(7, 4)
+  amount        Decimal @db.Decimal(14, 2)
+  taxesJson     Json?
+  createdAt     DateTime @default(now())
+
+  document   PlanningDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  budgetLine ProjectBudgetLine @relation(fields: [budgetLineId], references: [id], onDelete: Cascade)
+  commitment RubricCommitment  @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, budgetLineId])
+  @@index([commitmentId])
+  @@map("document_rubric_allocations")
+}
+
+/** Rascunho temporário (24h) de readequação de planilha. */
+model PlanningReadequacaoDraft {
+  id                String                  @id @default(cuid())
+  planningProjectId String
+  workspaceId       String
+  createdById       String?
+  source            ReadequacaoDraftSource  @default(MANUAL)
+  status            ReadequacaoDraftStatus  @default(OPEN)
+  /** Snapshot editável: lines[], totals, captura, meta */
+  snapshotJson      Json
+  expiresAt         DateTime
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  planningProject PlanningProject @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([planningProjectId, status])
+  @@index([workspaceId, expiresAt])
+  @@map("planning_readequacao_drafts")
 }
 
 model AppNotification {
@@ -772,6 +870,8 @@ model AppNotification {
   body        String
   href        String?
   readAt      DateTime?
+  /** Exibir a partir desta data (null = imediato). */
+  scheduledFor DateTime?
   meta        Json?
   createdAt   DateTime            @default(now())
 
@@ -779,5 +879,36 @@ model AppNotification {
 
   @@index([workspaceId, createdAt])
   @@index([userId, readAt])
+  @@index([scheduledFor])
   @@map("app_notifications")
+}
+
+/** Preferências de aviso por usuário no workspace. */
+model NotificationSettings {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  /** AppUser.id (sem FK — alinhado a AppNotification.userId; cobre modo dev aberto). */
+  userId           String
+  paymentDueSoon   Boolean  @default(true)
+  paymentOverdue   Boolean  @default(true)
+  rubricNear       Boolean  @default(true)
+  nfPending        Boolean  @default(true)
+  /** Aviso de ISS retido — vencimento típico dia 10 do mês seguinte. */
+  taxDueIss        Boolean  @default(true)
+  /** Aviso de retenções federais — vencimento típico dia 20 do mês seguinte. */
+  taxDueFederal    Boolean  @default(true)
+  /** Enviar também por e-mail (Resend) para o e-mail da conta. */
+  emailEnabled     Boolean  @default(false)
+  /** Quantos dias antes do vencimento gerar/mostrar aviso de pagamento previsto. */
+  dueSoonDaysAhead Int      @default(5)
+  /** Dias após pagamento antecipado para cobrar NF pendente. */
+  nfPendingDaysAfterPaid Int @default(7)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@map("notification_settings")
 }

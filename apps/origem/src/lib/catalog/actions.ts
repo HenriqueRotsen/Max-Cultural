@@ -7,6 +7,7 @@ import { lookupMunicipioCoords } from "@/lib/catalog/municipio-coords";
 import { indexServiceEmbedding } from "@/lib/catalog/embeddings";
 import { lookupCep, lookupCnpj } from "@/lib/catalog/brasil-api";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
+import { resolveCnaeDescription } from "@/lib/catalog/cnae-lookup";
 import { parseServiceCategory } from "@/lib/catalog/categories";
 import {
   computeTotal,
@@ -53,6 +54,16 @@ export async function lookupCnpjAction(cnpj: string) {
 
 export async function lookupCepAction(cep: string) {
   return lookupCep(cep);
+}
+
+export async function lookupCnaeDescriptionAction(raw: string): Promise<{
+  description: string | null;
+}> {
+  const code = normalizeCnaeCode(raw);
+  if (!code || code.length < 7) return { description: null };
+  const ws = await workspaceId();
+  const description = await resolveCnaeDescription(ws, code);
+  return { description };
 }
 
 export async function upsertCatalogSupplier(

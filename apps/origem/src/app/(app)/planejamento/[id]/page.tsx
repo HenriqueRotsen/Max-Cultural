@@ -6,19 +6,28 @@ import {
   EditRubricsPanel,
   type EditableRubricLine,
 } from "@/components/planning/EditRubricsPanel";
+import { CaptacaoPanel } from "@/components/planning/CaptacaoPanel";
 import { SalicPublishPanel } from "@/components/planning/SalicPublishPanel";
+import { ReadequacaoActions } from "@/components/planning/ReadequacaoActions";
+import { PlanningKpiStrip } from "@/components/planning/PlanningKpiStrip";
+import { PlanningProjectToolbar } from "@/components/planning/PlanningProjectToolbar";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
-import { canExceedRubric, canPublishToSalic } from "@/lib/planning/acl";
+import {
+  canExceedRubric,
+  canPublishToSalic,
+  canReadequacao,
+} from "@/lib/planning/acl";
 import {
   assessSalicPublishReadiness,
-  commitmentStatusLabel,
   importSourceLabel,
   jurisdictionLabel,
   lifecycleLabel,
 } from "@/lib/planning/lifecycle";
-import { computeProjectBalance } from "@/lib/planning/rubric-balance";
+import { computeProjectBalance, isAdminProduct } from "@/lib/planning/rubric-balance";
+import { FieldHelp } from "@/components/FieldHelp";
+import { HELP } from "@/lib/help";
 
 export const dynamic = "force-dynamic";
 
@@ -46,23 +55,41 @@ export default async function PlanningProjectPage({
       sheet: { include: { lines: { orderBy: { sortOrder: "asc" } } } },
       commitments: {
         where: { status: { in: ["RESERVED", "PAID"] } },
-        select: { id: true, budgetLineId: true, amount: true, status: true },
+        select: {
+          id: true,
+          budgetLineId: true,
+          amount: true,
+          status: true,
+          allocationSharePct: true,
+        },
         orderBy: { createdAt: "desc" },
       },
       documents: { select: { kind: true, status: true } },
-      project: { select: { situacao: true } },
+      project: { select: { situacao: true, valorCaptado: true } },
+      readequacaoDrafts: {
+        where: { status: "OPEN" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { id: true, expiresAt: true },
+      },
     },
   });
   if (!project) notFound();
 
+  const valorCaptado = money(project.project?.valorCaptado);
   const bal = project.sheet
     ? computeProjectBalance({
         lines: project.sheet.lines,
         commitments: project.commitments,
+        valorCaptado,
+        captadoRecebido: project.captadoRecebido,
+        captadoTransferido: project.captadoTransferido,
+        rendimentos: project.rendimentos,
       })
     : null;
   const allowExceed = await canExceedRubric();
   const allowPublish = await canPublishToSalic();
+  const allowReadequacao = await canReadequacao();
   const readiness = assessSalicPublishReadiness({
     hasSheet: Boolean(project.sheet),
     documents: project.documents,
@@ -83,11 +110,18 @@ export default async function PlanningProjectPage({
           homologatedAmount: money(l.homologatedAmount),
           approvedAmount: money(l.approvedAmount),
           reserved: bal.lines.get(l.id)?.reserved ?? 0,
+          isAdmin: isAdminProduct(l.productName),
         }))
       : [];
 
+  const pctLabel = bal
+    ? `${(bal.pctCaptadoT * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
+    : undefined;
+  const openDraft = project.readequacaoDrafts[0] || null;
+  const hasAdvancedTools = allowExceed || allowReadequacao;
+
   return (
-    <div className={`space-y-6 ${closed ? "opacity-95" : ""}`}>
+    <div className={`space-y-5 ${closed ? "opacity-95" : ""}`}>
       <PageHeader
         breadcrumb={
           <>
@@ -96,9 +130,9 @@ export default async function PlanningProjectPage({
         }
         title={project.name || project.externalCode}
         description={
-          <>
+          <span className="inline-flex flex-wrap items-center gap-1.5">
             <span
-              className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                 closed
                   ? "bg-[var(--gray-100)] text-[var(--gray-500)]"
                   : "bg-emerald-50 text-emerald-800"
@@ -106,61 +140,137 @@ export default async function PlanningProjectPage({
             >
               {lifecycleLabel(project.lifecycleStatus)}
             </span>
-            {jurisdictionLabel(project.jurisdiction)} · {project.account.name} ·{" "}
-            {importSourceLabel(project.importSource)}
-            {project.project?.situacao ? ` · ${project.project.situacao}` : ""}
-          </>
-        }
-        actions={
-          project.sheet ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {allowExceed && bal ? (
-                <EditRubricsPanel
-                  planningProjectId={project.id}
-                  totalApproved={money(project.sheet.totalApproved)}
-                  lines={editableLines}
-                />
-              ) : null}
-              <Link href={`/planejamento/${project.id}/nf/nova`} className="btn">
-                Subir NF
-              </Link>
-            </div>
-          ) : null
+            <span>
+              {jurisdictionLabel(project.jurisdiction)} · {project.account.name}
+            </span>
+            {project.project?.situacao || project.importSource ? (
+              <FieldHelp
+                text={[
+                  project.importSource
+                    ? `Fonte: ${importSourceLabel(project.importSource)}`
+                    : null,
+                  project.project?.situacao
+                    ? `Situação SALIC: ${project.project.situacao}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+            ) : null}
+          </span>
         }
       />
 
-      {bal ? (
-        <div className="grid gap-3 sm:grid-cols-4">
-          <Stat
-            label="Aprovado"
-            value={formatCurrency(
-              bal.totalApproved > 0
-                ? bal.totalApproved
-                : money(project.sheet?.totalApproved),
-            )}
+      {bal && project.sheet ? (
+        <>
+          <PlanningProjectToolbar
+            projectId={project.id}
+            reservationsCount={project.commitments.length}
+            moreSlot={
+              hasAdvancedTools ? (
+                <>
+                  {allowExceed && bal ? (
+                    <EditRubricsPanel
+                      planningProjectId={project.id}
+                      totalApproved={money(project.sheet.totalApproved)}
+                      lines={editableLines}
+                      menuItem
+                    />
+                  ) : null}
+                  {allowReadequacao ? (
+                    <ReadequacaoActions
+                      planningProjectId={project.id}
+                      openDraftId={openDraft?.id ?? null}
+                      expiresAt={openDraft?.expiresAt?.toISOString() ?? null}
+                      menuItem
+                    />
+                  ) : null}
+                </>
+              ) : undefined
+            }
           />
-          <Stat label="Reservado" value={formatCurrency(bal.totalReserved)} />
-          <Stat label="Pago" value={formatCurrency(bal.totalPaid)} />
-          <Stat label="Saldo" value={formatCurrency(bal.totalAvailable)} />
-        </div>
-      ) : null}
 
-      {allowExceed ? <div data-edit-rubrics-slot /> : null}
+          <PlanningKpiStrip
+            items={[
+              {
+                label: "Aprovado (MinC)",
+                value: formatCurrency(
+                  bal.totalApproved > 0
+                    ? bal.totalApproved
+                    : money(project.sheet.totalApproved),
+                ),
+                help: HELP.planningAprovado,
+              },
+              {
+                label: `Teto (${pctLabel || "—"})`,
+                value: formatCurrency(bal.totalAvailableCap),
+                help: HELP.planningDisponivel,
+                emphasize: true,
+              },
+              {
+                label: "Reservado",
+                value: formatCurrency(bal.totalReserved),
+              },
+              {
+                label: "Pago",
+                value: formatCurrency(bal.totalPaid),
+              },
+              {
+                label: "Saldo",
+                value: formatCurrency(bal.totalAvailable),
+                help: HELP.planningSaldo,
+              },
+            ]}
+          />
 
-      {allowPublish ? (
-        <SalicPublishPanel
-          planningProjectId={project.id}
-          projectName={project.name || project.externalCode}
-          confirmLabel={confirmLabel}
-          publishStatus={project.salicPublishStatus}
-          publishMessage={project.salicPublishMessage}
-          readinessOk={readiness.ok}
-          readinessReasons={readiness.reasons}
-        />
-      ) : null}
+          {allowExceed ? <div data-edit-rubrics-slot /> : null}
 
-      {project.sheet && bal ? (
-        <BudgetTree lines={project.sheet.lines} balances={bal.lines} />
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-[var(--navy)]">
+              Planilha orçamentária
+            </h2>
+            <BudgetTree
+              lines={project.sheet.lines}
+              balances={bal.lines}
+              pctCaptadoTLabel={pctLabel}
+            />
+          </section>
+
+          <div className="space-y-3">
+            <CaptacaoPanel
+              planningProjectId={project.id}
+              valorCaptado={valorCaptado}
+              captadoRecebido={
+                project.captadoRecebido != null
+                  ? money(project.captadoRecebido)
+                  : null
+              }
+              captadoTransferido={
+                project.captadoTransferido != null
+                  ? money(project.captadoTransferido)
+                  : null
+              }
+              rendimentos={
+                project.rendimentos != null ? money(project.rendimentos) : null
+              }
+              pctCaptadoT={bal.pctCaptadoT}
+              operableBase={bal.operableBase}
+              isFederal={project.jurisdiction === "FEDERAL"}
+            />
+
+            {allowPublish ? (
+              <SalicPublishPanel
+                planningProjectId={project.id}
+                projectName={project.name || project.externalCode}
+                confirmLabel={confirmLabel}
+                publishStatus={project.salicPublishStatus}
+                publishMessage={project.salicPublishMessage}
+                readinessOk={readiness.ok}
+                readinessReasons={readiness.reasons}
+              />
+            ) : null}
+          </div>
+        </>
       ) : (
         <div className="card p-5 text-sm text-[var(--gray-500)]">
           Planilha ainda não importada. Use{" "}
@@ -170,33 +280,6 @@ export default async function PlanningProjectPage({
           com o mesmo PRONAC para importar a planilha homologada pela área logada.
         </div>
       )}
-
-      {project.commitments.length > 0 ? (
-        <div className="card p-5">
-          <h2 className="mb-3 font-semibold text-[var(--navy)]">Reservas recentes</h2>
-          <ul className="space-y-2 text-sm">
-            {project.commitments.slice(0, 12).map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/planejamento/compromissos/${c.id}`}
-                  className="text-[var(--gold)] hover:underline"
-                >
-                  {commitmentStatusLabel(c.status)} · {formatCurrency(Number(c.amount))}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card px-4 py-3">
-      <p className="text-xs uppercase tracking-wide text-[var(--gray-400)]">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--navy)]">{value}</p>
     </div>
   );
 }

@@ -48,6 +48,7 @@ async function main() {
       { roleId: operador.id, screen: "cultural.home", canView: true, canEdit: false },
       { roleId: operador.id, screen: "cultural.projetos", canView: true, canEdit: false },
       { roleId: operador.id, screen: "origem.app", canView: true, canEdit: true },
+      { roleId: operador.id, screen: "origem.proponentes", canView: true, canEdit: true },
       { roleId: operador.id, screen: "origem.auditoria", canView: true, canEdit: true },
       { roleId: operador.id, screen: "origem.fornecedores", canView: true, canEdit: true },
       { roleId: operador.id, screen: "origem.planejamento", canView: true, canEdit: true },

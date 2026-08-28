@@ -18,6 +18,7 @@ export function SalicPublishPanel({
   publishMessage,
   readinessOk,
   readinessReasons,
+  defaultOpen = false,
 }: {
   planningProjectId: string;
   projectName: string;
@@ -27,6 +28,7 @@ export function SalicPublishPanel({
   publishMessage: string | null;
   readinessOk: boolean;
   readinessReasons: string[];
+  defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -96,17 +98,29 @@ export function SalicPublishPanel({
     });
   }
 
+  const autoOpen = defaultOpen || busy || Boolean(publishMessage);
+
   return (
-    <div className="card space-y-3 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold text-[var(--navy)]">Enviar ao SALIC</h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
+    <details className="card group" open={autoOpen || undefined}>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-5 py-4 marker:content-none [&::-webkit-details-marker]:hidden">
+        <span className="font-semibold text-[var(--navy)]">Enviar ao SALIC</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            readinessOk
+              ? "bg-emerald-50 text-emerald-800"
+              : "bg-amber-50 text-amber-900"
+          }`}
+        >
+          {readinessOk ? "Pronto para enviar" : "Pendências"}
+        </span>
+      </summary>
+      <div className="space-y-3 border-t border-[var(--border)] px-5 pb-5 pt-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="max-w-xl text-sm text-[var(--gray-500)]">
             Notas e comprovantes ficam guardados no Origem. Quem tem permissão pode
             enviar o pacote pela área logada do SALIC — com confirmação por escrito e
             contagem de segurança.
           </p>
-        </div>
         {!busy && readinessOk ? (
           <button type="button" className="btn" onClick={() => setOpen(true)}>
             Subir projeto
@@ -122,17 +136,17 @@ export function SalicPublishPanel({
             Cancelar envio
           </button>
         ) : null}
-      </div>
+        </div>
 
-      {!readinessOk ? (
+        {!readinessOk ? (
         <ul className="list-disc space-y-1 pl-5 text-sm text-amber-800">
           {readinessReasons.map((r) => (
             <li key={r}>{r}</li>
           ))}
         </ul>
-      ) : null}
+        ) : null}
 
-      {publishMessage ? (
+        {publishMessage ? (
         <p
           className={`rounded-lg border px-3 py-2 text-sm ${
             publishStatus === "FALHOU" || publishStatus === "CANCELADO"
@@ -147,9 +161,9 @@ export function SalicPublishPanel({
             ? ` · ${secondsLeft}s`
             : ""}
         </p>
-      ) : null}
+        ) : null}
 
-      {open ? (
+        {open ? (
         <div className="space-y-3 rounded-xl border border-[var(--border)] bg-white p-4">
           <p className="text-sm text-[var(--gray-600)]">
             Para confirmar o envio de <strong>{projectName}</strong>, digite o nome
@@ -191,9 +205,10 @@ export function SalicPublishPanel({
             </button>
           </div>
         </div>
-      ) : null}
+        ) : null}
 
-      {error && !open ? <p className="text-sm text-red-700">{error}</p> : null}
-    </div>
+        {error && !open ? <p className="text-sm text-red-700">{error}</p> : null}
+      </div>
+    </details>
   );
 }

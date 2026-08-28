@@ -44,14 +44,14 @@ export async function storeCompressedDocument(params: {
 }): Promise<{ storagePath: string; byteSize: number; originalByteSize: number }> {
   await ensureUploadDir();
   const originalByteSize = params.buffer.length;
-  const safe = params.filename.replace(/[^\w.\-]+/g, "_").slice(0, 120);
+  const safe = params.filename.replace(/[^\w.\-]+/g, "_").slice(0, 160);
   const stamp = Date.now();
   const isPdf =
     params.mimeType.includes("pdf") || /\.pdf$/i.test(params.filename);
 
   if (isPdf) {
-    const rawPath = path.join(UPLOAD_ROOT, `${stamp}-raw-${safe}`);
-    const outPath = path.join(UPLOAD_ROOT, `${stamp}-${safe}`);
+    const rawPath = path.join(UPLOAD_ROOT, `${safe}-${stamp}-raw`);
+    const outPath = path.join(UPLOAD_ROOT, `${safe}-${stamp}`);
     await writeFile(rawPath, params.buffer);
     const ok = await runGs(rawPath, outPath);
     if (ok) {
@@ -66,7 +66,7 @@ export async function storeCompressedDocument(params: {
         };
       }
     }
-    const finalPath = path.join(UPLOAD_ROOT, `${stamp}-${safe}`);
+    const finalPath = path.join(UPLOAD_ROOT, `${safe}-${stamp}`);
     await writeFile(finalPath, params.buffer);
     return { storagePath: finalPath, byteSize: originalByteSize, originalByteSize };
   }
@@ -78,7 +78,7 @@ export async function storeCompressedDocument(params: {
     /\.(xml|txt|csv)$/i.test(params.filename)
   ) {
     const gz = await gzipAsync(params.buffer);
-    const finalPath = path.join(UPLOAD_ROOT, `${stamp}-${safe}.gz`);
+    const finalPath = path.join(UPLOAD_ROOT, `${safe}-${stamp}.gz`);
     await writeFile(finalPath, gz);
     return {
       storagePath: finalPath,
@@ -87,7 +87,7 @@ export async function storeCompressedDocument(params: {
     };
   }
 
-  const finalPath = path.join(UPLOAD_ROOT, `${stamp}-${safe}`);
+  const finalPath = path.join(UPLOAD_ROOT, `${safe}-${stamp}`);
   await writeFile(finalPath, params.buffer);
   return { storagePath: finalPath, byteSize: originalByteSize, originalByteSize };
 }

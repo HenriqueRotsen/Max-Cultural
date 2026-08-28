@@ -11,6 +11,10 @@ import {
   flattenHomologatedPlanilha,
   type HomologatedLine,
 } from "@/lib/planning/homologada";
+import {
+  fetchCaptacaoOnPage,
+  type SalicCaptacaoValues,
+} from "@/lib/planning/captacao-salic";
 
 export class HomologadaImportError extends Error {
   constructor(message: string) {
@@ -49,6 +53,7 @@ export async function fetchHomologatedLinesFromSalic(params: {
   projectName: string | null;
   idPronacHash: string | null;
   idPronac: number | null;
+  captacao: SalicCaptacaoValues | null;
 }> {
   const account = await prisma.salicAccount.findUniqueOrThrow({
     where: { id: params.accountId },
@@ -70,6 +75,7 @@ export async function fetchHomologatedLinesFromSalic(params: {
   let projectName: string | null = null;
   let idPronacHash: string | null = null;
   let idPronac: number | null = null;
+  let captacao: SalicCaptacaoValues | null = null;
 
   await withAccountBrowser(account.id, username, password, async (page) => {
     const proponentes = await listProponentesUi(page);
@@ -103,9 +109,108 @@ export async function fetchHomologatedLinesFromSalic(params: {
     }
     lines = flat.lines;
     totalApproved = flat.totalApproved;
+
+    if (listed.idPronacHash) {
+      try {
+        captacao = await fetchCaptacaoOnPage(page, listed.idPronacHash);
+        if (captacao.projectName) projectName = captacao.projectName;
+      } catch {
+        captacao = null;
+      }
+    }
   });
 
-  return { lines, totalApproved, projectName, idPronacHash, idPronac };
+  return { lines, totalApproved, projectName, idPronacHash, idPronac, captacao };
+}
+
+async function fetchPlanilhaReadequadaData(
+  page: Parameters<Parameters<typeof withAccountBrowser>[3]>[0],
+  idPronac: number | string,
+) {
+  // Endpoint da planilha readequada (fase 5 / PLANILHA ATUAL). Fallbacks comuns do SALIC.
+  const candidates = [
+    `/projeto/orcamento/obter-planilha-readequada-ajax?idPronac=${idPronac}`,
+    `/projeto/orcamento/planilha-readequada?idPronac=${idPronac}`,
+    `/planilha-readequada?idPronac=${idPronac}`,
+  ];
+  let lastMsg = "Nenhuma planilha readequada encontrada";
+  for (const url of candidates) {
+    const res = await fetchJsonAllowError(page, url);
+    if (res.status === 412 || !res.ok) {
+      lastMsg =
+        (res.json as { msg?: string } | null)?.msg || lastMsg;
+      continue;
+    }
+    const payload = res.json as { success?: string; data?: unknown; msg?: string };
+    if (payload.success === "false" || payload.data == null) {
+      lastMsg = payload.msg || lastMsg;
+      continue;
+    }
+    return payload.data;
+  }
+  throw new HomologadaImportError(lastMsg);
+}
+
+/** Linhas da planilha readequada (aprovados atuais no SALIC). */
+export async function fetchReadequadaLinesFromSalic(params: {
+  accountId: string;
+  pronac: string;
+}): Promise<
+  Array<
+    HomologatedLine & {
+      homologatedAmount: number;
+    }
+  >
+> {
+  const account = await prisma.salicAccount.findUniqueOrThrow({
+    where: { id: params.accountId },
+  });
+  if (!account.salicUsernameEnc || !account.salicPasswordEnc) {
+    throw new HomologadaImportError("Conta sem credenciais SALIC");
+  }
+  const username = decryptCredential(account.salicUsernameEnc);
+  const password = decryptCredential(account.salicPasswordEnc);
+  if (!username || !password) {
+    throw new HomologadaImportError("Credenciais SALIC inválidas");
+  }
+
+  const wantCnpj = normalizeCgccpf(account.cgccpf);
+  const wantPronac = String(params.pronac).trim();
+  let lines: Array<HomologatedLine & { homologatedAmount: number }> = [];
+
+  await withAccountBrowser(account.id, username, password, async (page) => {
+    const proponentes = await listProponentesUi(page);
+    const match =
+      proponentes.find((p) => normalizeCgccpf(p.CPF) === wantCnpj) ||
+      proponentes.find((p) => normalizeCgccpf(p.Nome) === wantCnpj);
+    if (!match) {
+      throw new HomologadaImportError(
+        `CNPJ ${wantCnpj} não está entre os proponentes deste login SALIC`,
+      );
+    }
+
+    const projects = await listProjectsUi(page, match.idAgenteProponente);
+    const listed: SalicUiProject | undefined = projects.find(
+      (p) => String(p.Pronac) === wantPronac,
+    );
+    if (!listed?.IdPRONAC) {
+      throw new HomologadaImportError(
+        `PRONAC ${wantPronac} não encontrado na área logada deste proponente`,
+      );
+    }
+
+    const data = await fetchPlanilhaReadequadaData(page, listed.IdPRONAC);
+    const flat = flattenHomologatedPlanilha(data);
+    if (flat.lines.length === 0) {
+      throw new HomologadaImportError("Planilha readequada veio vazia");
+    }
+    lines = flat.lines.map((l) => ({
+      ...l,
+      homologatedAmount: l.approvedAmount,
+    }));
+  });
+
+  return lines;
 }
 
 /** Só consulta nome do projeto no SALIC (sem baixar planilha homologada). */

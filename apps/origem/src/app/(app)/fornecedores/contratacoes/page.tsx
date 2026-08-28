@@ -5,6 +5,8 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton";
+import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
+import { jurisdictionLabel } from "@/lib/planning/lifecycle";
 import {
   CATALOG_PAGE_SIZE,
   CatalogPager,
@@ -19,6 +21,18 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 function one(v: string | string[] | undefined) {
   return Array.isArray(v) ? v[0] : v;
 }
+
+function lawLabel(jurisdiction: string | null | undefined) {
+  if (!jurisdiction || jurisdiction === "FEDERAL") return "Lei Federal";
+  return jurisdictionLabel(jurisdiction);
+}
+
+const docSelect = {
+  id: true,
+  kind: true,
+  filename: true,
+  mimeType: true,
+} as const;
 
 export default async function CatalogEngagementsPage({
   searchParams,
@@ -67,19 +81,50 @@ export default async function CatalogEngagementsPage({
     take: CATALOG_PAGE_SIZE,
     include: {
       service: { include: { supplier: true } },
+      planningProject: {
+        select: { externalCode: true, jurisdiction: true },
+      },
       documents: {
-        select: { id: true, kind: true, filename: true, mimeType: true },
+        select: docSelect,
         orderBy: { createdAt: "asc" },
+      },
+      commitment: {
+        select: {
+          status: true,
+          amount: true,
+          paidAt: true,
+          documents: { select: docSelect },
+          allocations: {
+            select: { document: { select: docSelect } },
+          },
+        },
       },
     },
   });
+
+  const salicPaymentIds = engagements
+    .map((e) => e.salicPaymentId)
+    .filter((id): id is string => Boolean(id));
+  const salicPayments =
+    salicPaymentIds.length > 0
+      ? await prisma.payment.findMany({
+          where: { id: { in: salicPaymentIds } },
+          select: {
+            id: true,
+            project: { select: { pronac: true } },
+          },
+        })
+      : [];
+  const salicPronacByPaymentId = new Map(
+    salicPayments.map((p) => [p.id, p.project.pronac] as const),
+  );
 
   return (
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Fornecedores › Contratações"
         title="Contratações"
-        description="Histórico de preços, prazos e avaliações."
+        description="Histórico de serviços, valores pagos e arquivos originais."
         actions={
           <Link href="/fornecedores/contratacoes/novo" className="btn">
             Nova contratação
@@ -133,43 +178,79 @@ export default async function CatalogEngagementsPage({
         </div>
       ) : (
         <div className="space-y-3">
-          {engagements.map((e) => (
-            <div key={e.id} className="card flex items-center justify-between gap-4 p-5">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-[var(--navy)]">{e.service.name}</p>
-                <p className="truncate text-sm text-[var(--gray-500)]">
-                  <Link href={`/fornecedores/empresas/${e.service.supplierId}`} className="hover:underline">
-                    {e.service.supplier.name}
-                  </Link>
-                  {" · "}
-                  {formatDate(e.hiredAt)}
-                  {e.location ? ` · ${e.location}` : ""}
-                </p>
+          {engagements.map((e) => {
+            const docs = resolveEngagementDocuments(e);
+            const paid = e.commitment?.status === "PAID";
+            const amount = Number(e.commitment?.amount ?? e.price);
+            const projectCode =
+              e.planningProject?.externalCode ||
+              (e.salicPaymentId
+                ? salicPronacByPaymentId.get(e.salicPaymentId) || e.location
+                : null);
+            const lei = e.planningProject
+              ? lawLabel(e.planningProject.jurisdiction)
+              : e.salicPaymentId
+                ? "Lei Federal"
+                : null;
+            const projectBadge =
+              projectCode && lei
+                ? `${projectCode} · ${lei}`
+                : projectCode || lei;
+            const placeLabel =
+              e.salicPaymentId || e.planningProjectId ? null : e.location;
+
+            return (
+              <div key={e.id} className="card flex items-center justify-between gap-4 p-5">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-[var(--navy)]">{e.service.name}</p>
+                  <p className="truncate text-sm text-[var(--gray-500)]">
+                    <Link href={`/fornecedores/empresas/${e.service.supplierId}`} className="hover:underline">
+                      {e.service.supplier.name}
+                    </Link>
+                    {" · "}
+                    {formatDate(e.hiredAt)}
+                    {placeLabel ? ` · ${placeLabel}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <EngagementDocsButton
+                    serviceName={e.service.name}
+                    documents={docs}
+                  />
+                  {projectBadge ? (
+                    <span
+                      className="max-w-[14rem] truncate rounded-full bg-[var(--navy-soft)] px-3 py-1 text-xs font-semibold text-[var(--navy)]"
+                      title={projectBadge}
+                    >
+                      {projectBadge}
+                    </span>
+                  ) : null}
+                  {e.delayed ? (
+                    <span className="text-xs font-semibold text-amber-700">Atraso</span>
+                  ) : null}
+                  <div className="text-right">
+                    <p className="font-semibold text-[var(--navy)]">
+                      {formatCurrency(amount)}
+                    </p>
+                    <p
+                      className={`text-[11px] font-semibold ${
+                        paid ? "text-emerald-700" : "text-[var(--gray-400)]"
+                      }`}
+                    >
+                      {paid
+                        ? e.commitment?.paidAt
+                          ? `Pago · ${formatDate(e.commitment.paidAt)}`
+                          : "Pago"
+                        : e.commitment
+                          ? "Reservado"
+                          : "Registrado"}
+                    </p>
+                  </div>
+                  <CatalogStars value={e.rating} />
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <EngagementDocsButton
-                  engagementId={e.id}
-                  serviceName={e.service.name}
-                  documents={e.documents.map((d) => ({
-                    id: d.id,
-                    kind: d.kind,
-                    filename: d.filename,
-                    mimeType: d.mimeType,
-                  }))}
-                />
-                {e.salicPaymentId ? (
-                  <span className="rounded-full bg-[var(--navy-soft)] px-3 py-1 text-xs font-semibold text-[var(--navy)]">
-                    SALIC
-                  </span>
-                ) : null}
-                {e.delayed ? (
-                  <span className="text-xs font-semibold text-amber-700">Atraso</span>
-                ) : null}
-                <span className="font-semibold text-[var(--navy)]">{formatCurrency(Number(e.price))}</span>
-                <CatalogStars value={e.rating} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
           <CatalogPager
             page={page}
             pageCount={pageCount}

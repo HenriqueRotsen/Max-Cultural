@@ -9,10 +9,10 @@ export default function ModulesPage() {
       <PageHeader
         breadcrumb="MAX Origem"
         title="Escolha o módulo"
-        description="Execução de rubricas, auditoria SALIC e banco de preços — no mesmo acesso."
+        description="Proponentes, planejamento de rubricas, auditoria SALIC e banco de preços — no mesmo acesso."
       />
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <Link
           href="/planejamento"
           className="group card relative overflow-hidden p-8 transition hover:border-[#c5d0e4] hover:shadow-md"
@@ -38,6 +38,30 @@ export default function ModulesPage() {
         </Link>
 
         <Link
+          href="/contas"
+          className="group card relative overflow-hidden p-8 transition hover:border-[#c5d0e4] hover:shadow-md"
+        >
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--navy-soft)] text-[var(--navy)]">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M4 20V7l8-3 8 3v13"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinejoin="round"
+              />
+              <path d="M9 20v-5h6v5" stroke="#c4a574" strokeWidth="1.7" />
+            </svg>
+          </span>
+          <h2 className="mt-5 text-2xl font-semibold text-[var(--navy)]">Proponentes</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--gray-500)]">
+            Cadastro SALIC, credenciais e mapa societário dos proponentes.
+          </p>
+          <p className="mt-6 text-sm font-semibold text-[var(--gold)] group-hover:underline">
+            Abrir proponentes →
+          </p>
+        </Link>
+
+        <Link
           href="/inicio"
           className="group card relative overflow-hidden p-8 transition hover:border-[#c5d0e4] hover:shadow-md"
         >
@@ -49,12 +73,17 @@ export default function ModulesPage() {
                 strokeWidth="1.7"
                 strokeLinejoin="round"
               />
-              <path d="M14 3v5h5M8 12h8M8 15h8M8 18h5" stroke="#c4a574" strokeWidth="1.7" strokeLinecap="round" />
+              <path
+                d="M14 3v5h5M8 12h8M8 15h8M8 18h5"
+                stroke="#c4a574"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
             </svg>
           </span>
           <h2 className="mt-5 text-2xl font-semibold text-[var(--navy)]">Auditoria</h2>
           <p className="mt-2 text-sm leading-relaxed text-[var(--gray-500)]">
-            Sync SALIC, insights, relatório e mapa societário dos proponentes.
+            Sync SALIC, insights por fornecedor e relatório de auditoria.
           </p>
           <p className="mt-6 text-sm font-semibold text-[var(--gold)] group-hover:underline">
             Abrir auditoria →

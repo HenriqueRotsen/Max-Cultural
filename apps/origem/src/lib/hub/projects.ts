@@ -137,14 +137,18 @@ function toSummary(
     importSource: string | null;
     updatedAt: Date;
     rulesetVersion: string;
+    captadoRecebido?: unknown;
+    captadoTransferido?: unknown;
+    rendimentos?: unknown;
     account: { name: string };
     ruleset: { sourceCode: string; version: string } | null;
-    project: { situacao: string | null } | null;
+    project: { situacao: string | null; valorCaptado?: unknown } | null;
     sheet: {
       totalApproved: unknown;
       lines: Array<{
         id: string;
         approvedAmount: unknown;
+        productName?: string | null;
       }>;
     } | null;
     commitments: Array<{ budgetLineId: string; amount: unknown; status: string }>;
@@ -156,6 +160,10 @@ function toSummary(
     ? computeProjectBalance({
         lines: p.sheet.lines,
         commitments: p.commitments,
+        valorCaptado: p.project?.valorCaptado,
+        captadoRecebido: p.captadoRecebido,
+        captadoTransferido: p.captadoTransferido,
+        rendimentos: p.rendimentos,
       })
     : null;
 
@@ -197,10 +205,10 @@ export async function listHubProjectSummaries(
     include: {
       account: { select: { name: true } },
       ruleset: { select: { sourceCode: true, version: true } },
-      project: { select: { situacao: true } },
+      project: { select: { situacao: true, valorCaptado: true } },
       sheet: {
         include: {
-          lines: { select: { id: true, approvedAmount: true } },
+          lines: { select: { id: true, approvedAmount: true, productName: true } },
         },
       },
       commitments: {
@@ -231,6 +239,9 @@ export async function listHubProjectSummaries(
         importSource: r.importSource,
         updatedAt: r.updatedAt,
         rulesetVersion: r.rulesetVersion,
+        captadoRecebido: r.captadoRecebido,
+        captadoTransferido: r.captadoTransferido,
+        rendimentos: r.rendimentos,
         account: r.account,
         ruleset: r.ruleset,
         project: r.project,
@@ -257,10 +268,10 @@ export async function getHubProjectBySlug(
     include: {
       account: { select: { name: true } },
       ruleset: { select: { sourceCode: true, version: true } },
-      project: { select: { situacao: true } },
+      project: { select: { situacao: true, valorCaptado: true } },
       sheet: {
         include: {
-          lines: { select: { id: true, approvedAmount: true } },
+          lines: { select: { id: true, approvedAmount: true, productName: true } },
         },
       },
       commitments: {
@@ -291,6 +302,9 @@ export async function getHubProjectBySlug(
         importSource: r.importSource,
         updatedAt: r.updatedAt,
         rulesetVersion: r.rulesetVersion,
+        captadoRecebido: r.captadoRecebido,
+        captadoTransferido: r.captadoTransferido,
+        rendimentos: r.rendimentos,
         account: r.account,
         ruleset: r.ruleset,
         project: r.project,

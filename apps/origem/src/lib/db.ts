@@ -7,7 +7,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 27;
+const PRISMA_SCHEMA_VERSION = 33;
 
 function createPrismaClient() {
   const adapter = new PrismaPg({
@@ -52,6 +52,7 @@ function clientMatchesSchema(client: PrismaClient): boolean {
   if (!models.RubricCommitment) return false;
   if (!models.PlanningDocument) return false;
   if (!models.AppNotification) return false;
+  if (!models.NotificationSettings) return false;
   if (models.PlanProposal || models.PlanBudgetStage) return false;
   const projectFields = (models.Project.fields || []).map((f) => f.name);
   if (!projectFields.includes("situacao")) return false;

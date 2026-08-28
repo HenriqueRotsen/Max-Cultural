@@ -6,7 +6,11 @@ import { isAuthEnabled, isDemoMode, isDevOpenAuth, needsLogin } from "@/lib/auth
 import { origemHubLoginUrl } from "@/lib/auth/hub";
 import { getSessionUser, getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { refreshPaymentDueNotifications } from "@/lib/planning/actions";
+import {
+  enabledNotificationTypes,
+} from "@/lib/planning/notification-settings";
+import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
+import { notificationVisibleWhere } from "@/lib/planning/reminder-dates";
 
 async function TopBar({
   workspaceId,
@@ -15,17 +19,26 @@ async function TopBar({
   workspaceId: string;
   userId?: string;
 }) {
-  if (userId) {
-    await refreshPaymentDueNotifications().catch(() => undefined);
-  }
-  const notifications = await prisma.appNotification.findMany({
-    where: {
-      workspaceId,
-      ...(userId ? { OR: [{ userId }, { userId: null }] } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  const prefs = await getNotificationPrefs(workspaceId, userId);
+  const enabledTypes = enabledNotificationTypes(prefs);
+
+  const notifications =
+    enabledTypes.length === 0
+      ? []
+      : await prisma.appNotification.findMany({
+          where: {
+            workspaceId,
+            type: { in: enabledTypes },
+            AND: [
+              notificationVisibleWhere(),
+              ...(userId
+                ? [{ OR: [{ userId }, { userId: null }] as const }]
+                : []),
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        });
 
   return (
     <div className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2">

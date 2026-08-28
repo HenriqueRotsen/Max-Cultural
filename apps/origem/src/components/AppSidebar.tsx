@@ -15,9 +15,13 @@ const auditoriaLinks = [
   { href: "/panorama", label: "Insights", icon: ChartIcon },
   { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon },
   { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon },
-  { href: "/contas", label: "Proponentes", icon: BuildingIcon },
   { href: "/sync", label: "Atualizar", icon: SyncIcon },
   { href: "/observados", label: "Observados", icon: UsersIcon },
+];
+
+const proponentesLinks = [
+  { href: "/contas", label: "Proponentes", icon: BuildingIcon },
+  { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon },
 ];
 
 const fornecedoresLinks = [
@@ -31,9 +35,10 @@ const fornecedoresLinks = [
 ];
 
 const moduleLinks = [
+  { href: "/planejamento", label: "Planejamento", icon: PlanIcon },
+  { href: "/contas", label: "Proponentes", icon: BuildingIcon },
   { href: "/inicio", label: "Auditoria", icon: AuditIcon },
   { href: "/fornecedores", label: "Fornecedores", icon: UsersIcon },
-  { href: "/planejamento", label: "Planejamento", icon: PlanIcon },
 ];
 
 const planejamentoLinks = [
@@ -44,8 +49,11 @@ const planejamentoLinks = [
 
 export function origemNavModule(
   pathname: string,
-): "home" | "auditoria" | "fornecedores" | "planejamento" {
+): "home" | "auditoria" | "fornecedores" | "planejamento" | "proponentes" {
   if (pathname === "/painel") return "home";
+  if (pathname === "/contas" || pathname.startsWith("/contas/")) {
+    return "proponentes";
+  }
   if (pathname === "/fornecedores" || pathname.startsWith("/fornecedores/")) {
     return "fornecedores";
   }
@@ -67,7 +75,10 @@ function linkActive(pathname: string, href: string) {
     return pathname === "/panorama" || /^\/panorama\/(?!pronac(?:\/|$))/.test(pathname);
   }
   if (href === "/contas") {
-    return pathname === "/contas" || pathname.startsWith("/contas/");
+    return pathname === "/contas";
+  }
+  if (href === "/contas/mapa") {
+    return pathname === "/contas/mapa" || pathname.startsWith("/contas/mapa/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -86,18 +97,27 @@ export function AppSidebar({
   const module = origemNavModule(pathname);
   const auditoria = auditoriaLinks.filter((l) => {
     if (!syncEnabled && l.href === "/sync") return false;
-    if (demoMode && (l.href === "/sync" || l.href === "/contas")) return false;
+    if (demoMode && l.href === "/sync") return false;
+    return true;
+  });
+  const proponentes = demoMode
+    ? []
+    : proponentesLinks;
+  const modules = moduleLinks.filter((l) => {
+    if (demoMode && l.href === "/contas") return false;
     return true;
   });
 
   const nav =
     module === "home"
-      ? { title: "Módulos", links: moduleLinks }
-      : module === "fornecedores"
-        ? { title: "Fornecedores", links: fornecedoresLinks }
-        : module === "planejamento"
-          ? { title: "Planejamento", links: planejamentoLinks }
-          : { title: "Auditoria", links: auditoria };
+      ? { title: "Módulos", links: modules }
+      : module === "proponentes"
+        ? { title: "Proponentes", links: proponentes }
+        : module === "fornecedores"
+          ? { title: "Fornecedores", links: fornecedoresLinks }
+          : module === "planejamento"
+            ? { title: "Planejamento", links: planejamentoLinks }
+            : { title: "Auditoria", links: auditoria };
 
   return (
     <aside className="shell-sidebar">
@@ -124,21 +144,20 @@ export function AppSidebar({
             </p>
             <a
               href={HUB_URL}
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
+              className="flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+              style={{
+                /* Mix da logo Cultural: laranja + teal + roxo */
+                background:
+                  "linear-gradient(135deg, #fff4e6 0%, #e6f9fb 48%, #f3eefc 100%)",
+                boxShadow: "0 0 0 1px #f0702040, 0 0 0 1px #00a0b033",
+              }}
+              aria-label="Voltar ao MAX Cultural"
             >
               <img
-                src="/brand/max-cultural-mark.png"
-                alt=""
-                width={18}
-                height={18}
-                className="h-[18px] w-[18px] shrink-0 object-contain"
+                src="/brand/max-cultural.png"
+                alt="MAX Cultural"
+                className="h-7 w-auto max-w-[9rem] object-contain object-left"
               />
-              <span className="min-w-0">
-                <span className="block truncate">MAX Cultural</span>
-                <span className="block truncate text-xs font-normal text-[var(--gray-400)]">
-                  Voltar ao hub
-                </span>
-              </span>
             </a>
           </div>
 

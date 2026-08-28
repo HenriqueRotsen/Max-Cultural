@@ -1,22 +1,34 @@
 export type LineBalance = {
   lineId: string;
   approved: number;
+  /** Teto operacional (aprovado × fator de captura). */
+  availableCap: number;
   reserved: number;
   paid: number;
+  /** Saldo operacional = availableCap − reserved. */
   available: number;
+  isAdmin: boolean;
+  /** Estourou o aprovado MinC. */
+  overApproved: boolean;
+  /** Estourou o disponível operacional. */
   over: boolean;
   near: boolean;
 };
 
 export type ProjectBalance = {
   totalApproved: number;
+  totalAvailableCap: number;
   totalReserved: number;
   totalPaid: number;
   totalAvailable: number;
+  pctCaptadoT: number;
+  pctCaptadoOnly: number;
+  operableBase: number;
+  valorCaptado: number;
   lines: Map<string, LineBalance>;
 };
 
-function n(v: unknown): number {
+export function n(v: unknown): number {
   if (v == null) return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
   if (typeof v === "string") {
@@ -25,7 +37,6 @@ function n(v: unknown): number {
   }
   if (typeof v === "object") {
     const obj = v as { toNumber?: () => number; toString?: () => string };
-    // Prisma Decimal / decimal.js — precisa do `this` da instância
     if (typeof obj.toNumber === "function") {
       const x = obj.toNumber();
       if (Number.isFinite(x)) return x;
@@ -39,19 +50,68 @@ function n(v: unknown): number {
   return 0;
 }
 
+/** Produto Administração (SALIC) — não permite excesso sobre o disponível. */
+export function isAdminProduct(productName: string | null | undefined): boolean {
+  return /administra/i.test(String(productName || ""));
+}
+
+export function computeCaptacaoFactors(input: {
+  totalApproved: number;
+  valorCaptado?: unknown;
+  captadoRecebido?: unknown;
+  captadoTransferido?: unknown;
+  rendimentos?: unknown;
+}): {
+  valorCaptado: number;
+  operableBase: number;
+  pctCaptadoT: number;
+  pctCaptadoOnly: number;
+} {
+  const totalApproved = Math.max(0, n(input.totalApproved));
+  const valorCaptado = Math.max(0, n(input.valorCaptado));
+  const recebido = Math.max(0, n(input.captadoRecebido));
+  const transferido = Math.max(0, n(input.captadoTransferido));
+  const rendimentos = Math.max(0, n(input.rendimentos));
+  const operableBase = Math.max(0, valorCaptado + recebido + rendimentos - transferido);
+  const hasCaptacaoSignal =
+    valorCaptado > 0 || recebido > 0 || rendimentos > 0 || transferido > 0;
+  // Sem dados de captação ainda: disponível = aprovado (100%), para não zerar o operacional.
+  const pctCaptadoT =
+    totalApproved > 0
+      ? hasCaptacaoSignal
+        ? operableBase / totalApproved
+        : 1
+      : 0;
+  const pctCaptadoOnly =
+    totalApproved > 0
+      ? hasCaptacaoSignal
+        ? valorCaptado / totalApproved
+        : 1
+      : 0;
+  return { valorCaptado, operableBase, pctCaptadoT, pctCaptadoOnly };
+}
+
 /**
- * reserved = soma RESERVED|PAID; available = approved - reserved (modo normal).
- * near = ≥80% do aprovado e ainda abaixo do limite (20% abaixo do teto).
- * over = ≥100% do aprovado (no limite ou estourado).
+ * Saldo operacional usa disponível (aprovado × %Captado), não o aprovado puro.
+ * Todas as rubricas (incl. Administração) escalam pelo mesmo %Captado(T),
+ * para o total disponível coincidir com a Base operável.
  */
 export function computeProjectBalance(input: {
-  lines: Array<{ id: string; approvedAmount: unknown }>;
+  lines: Array<{
+    id: string;
+    approvedAmount: unknown;
+    productName?: string | null;
+  }>;
   commitments: Array<{
     budgetLineId: string;
     amount: unknown;
     status: string;
   }>;
-  /** Fração do aprovado a partir da qual a linha fica “próxima” (laranja). Default 0.8. */
+  valorCaptado?: unknown;
+  captadoRecebido?: unknown;
+  captadoTransferido?: unknown;
+  rendimentos?: unknown;
+  /** Fração do disponível a partir da qual a linha fica “próxima”. Default 0.8. */
   nearPct?: number;
 }): ProjectBalance {
   const nearPct = input.nearPct ?? 0.8;
@@ -66,13 +126,24 @@ export function computeProjectBalance(input: {
     lines.set(line.id, {
       lineId: line.id,
       approved,
+      availableCap: approved,
       reserved: 0,
       paid: 0,
       available: approved,
+      isAdmin: isAdminProduct(line.productName),
+      overApproved: false,
       over: false,
       near: false,
     });
   }
+
+  const factors = computeCaptacaoFactors({
+    totalApproved,
+    valorCaptado: input.valorCaptado,
+    captadoRecebido: input.captadoRecebido,
+    captadoTransferido: input.captadoTransferido,
+    rendimentos: input.rendimentos,
+  });
 
   for (const c of input.commitments) {
     if (c.status === "CANCELLED") continue;
@@ -87,20 +158,29 @@ export function computeProjectBalance(input: {
     }
   }
 
+  let totalAvailableCap = 0;
   for (const bal of lines.values()) {
-    bal.available = bal.approved - bal.reserved;
-    // Aprovado 0 = já no limite (nada a gastar). Caso contrário, ≥100% do aprovado.
-    bal.over =
+    bal.availableCap = bal.approved * factors.pctCaptadoT;
+    totalAvailableCap += bal.availableCap;
+    bal.available = bal.availableCap - bal.reserved;
+    bal.overApproved =
       bal.approved <= 0 || bal.reserved >= bal.approved - 1e-9;
+    bal.over =
+      bal.availableCap <= 0 || bal.reserved >= bal.availableCap - 1e-9;
     bal.near =
-      !bal.over && bal.reserved >= bal.approved * nearPct - 1e-9;
+      !bal.over && bal.reserved >= bal.availableCap * nearPct - 1e-9;
   }
 
   return {
     totalApproved,
+    totalAvailableCap,
     totalReserved,
     totalPaid,
-    totalAvailable: totalApproved - totalReserved,
+    totalAvailable: totalAvailableCap - totalReserved,
+    pctCaptadoT: factors.pctCaptadoT,
+    pctCaptadoOnly: factors.pctCaptadoOnly,
+    operableBase: factors.operableBase,
+    valorCaptado: factors.valorCaptado,
     lines,
   };
 }
@@ -110,7 +190,9 @@ export type ReserveCheckResult =
   | { ok: false; message: string };
 
 /**
- * Valida reserva. Com allowOverflow: linha ≤ 2× aprovado e projeto ≤ total aprovado.
+ * Reserva usa saldo disponível.
+ * Admin: nunca overflow.
+ * allowOverflow (demais): até 2× aprovado e projeto ≤ total aprovado.
  */
 export function canReserveAmount(params: {
   lineId: string;
@@ -120,7 +202,7 @@ export function canReserveAmount(params: {
 }): ReserveCheckResult {
   const amount = params.amount;
   if (!(amount > 0)) {
-    return { ok: false, message: "Valor da NF deve ser maior que zero" };
+    return { ok: false, message: "Valor deve ser maior que zero" };
   }
   const line = params.balance.lines.get(params.lineId);
   if (!line) {
@@ -129,6 +211,16 @@ export function canReserveAmount(params: {
 
   const nextLineReserved = line.reserved + amount;
   const nextProjectReserved = params.balance.totalReserved + amount;
+
+  if (line.isAdmin) {
+    if (amount > line.available + 1e-6) {
+      return {
+        ok: false,
+        message: `Administração não pode exceder o disponível (R$ ${line.available.toFixed(2)})`,
+      };
+    }
+    return { ok: true, overflow: false };
+  }
 
   if (!params.allowOverflow) {
     if (amount > line.available + 1e-6) {
@@ -140,6 +232,7 @@ export function canReserveAmount(params: {
     return { ok: true, overflow: false };
   }
 
+  // Overflow ACL: teto é aprovado (não disponível)
   if (nextLineReserved > line.approved * 2 + 1e-6) {
     return {
       ok: false,

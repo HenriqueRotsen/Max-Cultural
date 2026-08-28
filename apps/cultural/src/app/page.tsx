@@ -21,6 +21,10 @@ export default async function HomePage() {
           canUsers={can(user, "cultural.usuarios", "view")}
           canRoles={can(user, "cultural.papeis", "view")}
           canLogs={can(user, "cultural.logs", "view")}
+          canOrigem={showOrigem}
+          canFluxo={showFluxo}
+          origemUrl={origem}
+          fluxoUrl={fluxo}
         />
         <div className="shell-main">
           <div className="content space-y-6">
@@ -47,7 +51,16 @@ export default async function HomePage() {
             </Link>
             <div className="grid gap-4 sm:grid-cols-2">
               {showOrigem ? (
-                <a href={`${origem}/painel`} className="card p-5 transition hover:shadow-md">
+                <a
+                  href={`${origem}/painel`}
+                  className="card p-5 transition hover:shadow-md"
+                  style={{
+                    borderColor: "#c4b5fd",
+                    background:
+                      "linear-gradient(165deg, #f5f3ff 0%, #fff 42%, #fff 100%)",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 0 0 1px #c4b5fd33",
+                  }}
+                >
                   <img
                     src="/brand/max-origem.png"
                     alt="MAX Origem"
@@ -59,7 +72,16 @@ export default async function HomePage() {
                 </a>
               ) : null}
               {showFluxo ? (
-                <a href={`${fluxo}/dashboard`} className="card p-5 transition hover:shadow-md">
+                <a
+                  href={`${fluxo}/dashboard`}
+                  className="card p-5 transition hover:shadow-md"
+                  style={{
+                    borderColor: "#5eead4",
+                    background:
+                      "linear-gradient(165deg, #f0fdfa 0%, #fff 42%, #fff 100%)",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 0 0 1px #5eead433",
+                  }}
+                >
                   <img
                     src="/brand/max-fluxo.png"
                     alt="MAX Fluxo"

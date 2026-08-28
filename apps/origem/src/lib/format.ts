@@ -56,6 +56,34 @@ export function cgccpfValidationError(value: string | null | undefined): string 
   return "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos)";
 }
 
+/** Máscara progressiva para input (CPF até 11 dígitos; CNPJ a partir de 12). */
+export function formatCgccpfInput(value: string): string {
+  const digits = normalizeCgccpf(value).slice(0, 14);
+  if (!digits) return "";
+  if (digits.length <= 11) {
+    const p1 = digits.slice(0, 3);
+    const p2 = digits.slice(3, 6);
+    const p3 = digits.slice(6, 9);
+    const p4 = digits.slice(9, 11);
+    let out = p1;
+    if (p2) out += `.${p2}`;
+    if (p3) out += `.${p3}`;
+    if (p4) out += `-${p4}`;
+    return out;
+  }
+  const p1 = digits.slice(0, 2);
+  const p2 = digits.slice(2, 5);
+  const p3 = digits.slice(5, 8);
+  const p4 = digits.slice(8, 12);
+  const p5 = digits.slice(12, 14);
+  let out = p1;
+  if (p2) out += `.${p2}`;
+  if (p3) out += `.${p3}`;
+  if (p4) out += `/${p4}`;
+  if (p5) out += `-${p5}`;
+  return out;
+}
+
 /** CPF `000.000.000-00` ou CNPJ `00.000.000/0000-00`. */
 export function formatCgccpf(value: string | null | undefined): string {
   if (value == null || value === "") return "—";
@@ -64,11 +92,8 @@ export function formatCgccpf(value: string | null | undefined): string {
   if (digits.length >= 12 && digits.length < 14) {
     digits = digits.padStart(14, "0");
   }
-  if (digits.length === 11) {
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-  }
-  if (digits.length === 14) {
-    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+  if (digits.length === 11 || digits.length === 14) {
+    return formatCgccpfInput(digits);
   }
   return value.trim() || "—";
 }
@@ -79,6 +104,27 @@ export function formatCurrency(value: number | string): string {
     style: "currency",
     currency: "BRL",
   }).format(n || 0);
+}
+
+/** Valor monetário pt-BR sem símbolo: `1.234.567,89`. */
+export function formatBrMoney(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "";
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+/** Aceita `1.234.567,89`, `1234,89` ou `1234.89`. */
+export function parseBrMoney(raw: string | null | undefined): number | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const normalized = s.includes(",")
+    ? s.replace(/\./g, "").replace(",", ".")
+    : s.replace(/,/g, "");
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 100) / 100;
 }
 
 /** Percentual pt-BR com casas fixas (padrão 4 — ex.: 10,8746%). */

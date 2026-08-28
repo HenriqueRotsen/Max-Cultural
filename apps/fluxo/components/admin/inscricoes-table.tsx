@@ -518,7 +518,7 @@ export function InscricoesTable({
         </div>
       </div>
 
-      {/* Tabela reduzida */}
+      {/* Tabela reduzida — colunas extras só em telas maiores; o resto fica no expandido */}
       <div className="overflow-hidden rounded-xl border border-brand/10 bg-white/90 shadow-sm">
         <Table>
           <TableHeader>
@@ -533,7 +533,7 @@ export function InscricoesTable({
                   onSort={toggleSort}
                 />
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden sm:table-cell">
                 <SortableTableHead
                   label="CPF"
                   sortKey="cpf"
@@ -542,7 +542,7 @@ export function InscricoesTable({
                   onSort={toggleSort}
                 />
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden md:table-cell">
                 <SortableTableHead
                   label="Projeto"
                   sortKey="projeto"
@@ -551,7 +551,7 @@ export function InscricoesTable({
                   onSort={toggleSort}
                 />
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden lg:table-cell">
                 <SortableTableHead
                   label="Oficina"
                   sortKey="oficina"
@@ -560,7 +560,7 @@ export function InscricoesTable({
                   onSort={toggleSort}
                 />
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden lg:table-cell">
                 <SortableTableHead
                   label="Cidade/UF"
                   sortKey="cidade"
@@ -569,7 +569,7 @@ export function InscricoesTable({
                   onSort={toggleSort}
                 />
               </TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="hidden xl:table-cell">Status</TableHead>
               <TableHead className="w-24">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -611,10 +611,10 @@ export function InscricoesTable({
                           )}
                         </Button>
                       </TableCell>
-                      <TableCell className="max-w-[12rem] font-medium">
+                      <TableCell className="min-w-0 max-w-[14rem] font-medium whitespace-normal sm:max-w-[16rem]">
                         <span className="line-clamp-2">{row.Nome}</span>
                       </TableCell>
-                      <TableCell className="font-mono text-xs whitespace-nowrap">
+                      <TableCell className="hidden font-mono text-xs whitespace-nowrap sm:table-cell">
                         {row.CPF ? (
                           <Link
                             href={`/pessoa/${row.CPF.replace(/\D/g, "")}`}
@@ -627,7 +627,7 @@ export function InscricoesTable({
                           "—"
                         )}
                       </TableCell>
-                      <TableCell className="max-w-[14rem]">
+                      <TableCell className="hidden min-w-0 max-w-[14rem] whitespace-normal md:table-cell">
                         <Link
                           href={projetoHref(row)}
                           className="block underline-offset-2 hover:underline"
@@ -638,7 +638,7 @@ export function InscricoesTable({
                           </div>
                         </Link>
                       </TableCell>
-                      <TableCell className="max-w-[12rem]">
+                      <TableCell className="hidden min-w-0 max-w-[12rem] whitespace-normal lg:table-cell">
                         <Link
                           href={oficinaHref(row)}
                           className="block underline-offset-2 hover:underline"
@@ -649,12 +649,12 @@ export function InscricoesTable({
                           </div>
                         </Link>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm">
+                      <TableCell className="hidden whitespace-nowrap text-sm lg:table-cell">
                         {row.Cidade}
                         {row.Estado ? `/${row.Estado}` : ""}
                         {!row.Cidade && !row.Estado ? "—" : ""}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden xl:table-cell">
                         <StatusBadgesCell row={row} />
                       </TableCell>
                       <TableCell>
@@ -669,7 +669,7 @@ export function InscricoesTable({
                           }}
                         >
                           <Pencil className="size-3.5" />
-                          Editar
+                          <span className="hidden sm:inline">Editar</span>
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -712,7 +712,27 @@ export function InscricoesTable({
                               </div>
                             </div>
 
+                            <div className="flex flex-wrap gap-2 xl:hidden">
+                              <StatusBadgesCell row={row} />
+                            </div>
+
                             <div className="grid gap-4 rounded-xl border border-brand/10 bg-white/80 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                              <div className="min-w-0 sm:hidden">
+                                <div className="text-xs text-muted-foreground">CPF</div>
+                                <div className="text-sm font-medium">
+                                  {row.CPF ? (
+                                    <Link
+                                      href={`/pessoa/${row.CPF.replace(/\D/g, "")}`}
+                                      className="text-brand-deep underline-offset-2 hover:underline"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {formatCellDisplay("CPF", row.CPF) || "—"}
+                                    </Link>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </div>
+                              </div>
                               <div className="min-w-0">
                                 <div className="text-xs text-muted-foreground">
                                   Projeto
@@ -725,7 +745,7 @@ export function InscricoesTable({
                                   {row.Nome_projeto || "—"}
                                 </Link>
                               </div>
-                              <div className="min-w-0 sm:col-span-1 lg:col-span-1">
+                              <div className="min-w-0">
                                 <div className="text-xs text-muted-foreground">
                                   Oficina
                                 </div>

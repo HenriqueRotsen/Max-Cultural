@@ -31,7 +31,11 @@ export default async function NovoPlanejamentoPage() {
       />
       {!accounts.length ? (
         <div className="card p-5 text-sm text-[var(--gray-500)]">
-          Cadastre um proponente em Auditoria → Contas antes de iniciar um projeto.
+          Cadastre um proponente em{" "}
+          <Link href="/contas" className="font-semibold text-[var(--navy)] underline">
+            Proponentes
+          </Link>{" "}
+          antes de iniciar um projeto.
         </div>
       ) : (
         <PlanningOnboardForm

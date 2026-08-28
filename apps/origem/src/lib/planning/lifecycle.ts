@@ -47,6 +47,7 @@ export function jurisdictionLabel(jurisdiction: string | null | undefined): stri
 
 export function importSourceLabel(source: string | null | undefined): string {
   if (source === "SALIC_HOMOLOGADA") return "Planilha do SALIC";
+  if (source === "SALIC_READEQUADA") return "Readequação do SALIC";
   if (source === "STATE_FILE") return "Arquivo estadual";
   return "Sem planilha";
 }
@@ -56,6 +57,10 @@ export function commitmentStatusLabel(status: string): string {
   if (status === "PAID") return "Pago";
   if (status === "CANCELLED") return "Cancelado";
   return status;
+}
+
+export function nfPendingBadge(): string {
+  return "NF pendente";
 }
 
 export type PublishReadiness = { ok: boolean; reasons: string[] };
@@ -82,9 +87,11 @@ export function assessSalicPublishReadiness(input: {
     reasons.push("Há documentos com falha — corrija ou remova antes de enviar.");
   }
 
-  const nfsOk = docs.filter((d) => d.kind === "NF" && d.status === "IMPORTED");
+  const nfsOk = docs.filter(
+    (d) => (d.kind === "NF" || d.kind === "RPA") && d.status === "IMPORTED",
+  );
   if (nfsOk.length === 0) {
-    reasons.push("Inclua ao menos uma nota fiscal revisada e reservada.");
+    reasons.push("Inclua ao menos uma NF ou RPA revisada e reservada.");
   }
 
   if (input.commitments.some((c) => c.status === "RESERVED")) {

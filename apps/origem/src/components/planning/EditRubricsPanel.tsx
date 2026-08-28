@@ -16,6 +16,7 @@ export type EditableRubricLine = {
   homologatedAmount: number;
   approvedAmount: number;
   reserved: number;
+  isAdmin?: boolean;
 };
 
 function round2(n: number) {
@@ -26,10 +27,12 @@ export function EditRubricsPanel({
   planningProjectId,
   totalApproved,
   lines,
+  menuItem = false,
 }: {
   planningProjectId: string;
   totalApproved: number;
   lines: EditableRubricLine[];
+  menuItem?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -113,31 +116,43 @@ export function EditRubricsPanel({
 
             <ul className="space-y-2">
               {lines.map((line) => {
-                const max = round2(line.homologatedAmount * 2);
+                const admin = Boolean(line.isAdmin);
+                const max = admin
+                  ? round2(line.approvedAmount)
+                  : round2(line.homologatedAmount * 2);
                 const min = round2(line.reserved);
                 const value = values[line.id] ?? line.approvedAmount;
                 const open = Boolean(expanded[line.id]);
-                const aboveHomolog = value > line.homologatedAmount + 0.005;
+                const aboveHomolog = !admin && value > line.homologatedAmount + 0.005;
 
                 return (
                   <li
                     key={line.id}
                     className={`rounded-xl border px-3 py-2 ${
-                      aboveHomolog
-                        ? "border-amber-300 bg-amber-50/60"
-                        : "border-[var(--border)] bg-white"
+                      admin
+                        ? "border-[var(--border)] bg-[var(--gray-50)]"
+                        : aboveHomolog
+                          ? "border-amber-300 bg-amber-50/60"
+                          : "border-[var(--border)] bg-white"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        title="Ajustar / exceder rubrica"
+                        title={
+                          admin
+                            ? "Administração não pode ser excedida"
+                            : "Ajustar / exceder rubrica"
+                        }
                         aria-label={`Ajustar rubrica ${line.itemName}`}
                         aria-expanded={open}
+                        disabled={admin}
                         className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition ${
-                          open
-                            ? "border-[var(--navy)] bg-[var(--navy)] text-white"
-                            : "border-[var(--border)] text-[var(--navy)] hover:bg-[var(--gray-50)]"
+                          admin
+                            ? "cursor-not-allowed border-[var(--border)] text-[var(--gray-400)]"
+                            : open
+                              ? "border-[var(--navy)] bg-[var(--navy)] text-white"
+                              : "border-[var(--border)] text-[var(--navy)] hover:bg-[var(--gray-50)]"
                         }`}
                         onClick={() =>
                           setExpanded((prev) => ({
@@ -257,7 +272,13 @@ export function EditRubricsPanel({
     <>
       <button
         type="button"
-        className={editing ? "btn-secondary" : "btn"}
+        className={
+          menuItem
+            ? "w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-[var(--navy)] hover:bg-[var(--gray-50)]"
+            : editing
+              ? "btn-secondary"
+              : "btn"
+        }
         onClick={editing ? cancel : startEdit}
         disabled={pending}
       >

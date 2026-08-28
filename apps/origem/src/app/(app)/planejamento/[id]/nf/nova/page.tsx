@@ -26,11 +26,11 @@ export default async function NovaNfPage({
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> /{" "}
-            <Link href={`/planejamento/${id}`}>{project.externalCode}</Link> / NF
+            <Link href={`/planejamento/${id}`}>{project.externalCode}</Link> / NF-RPA
           </>
         }
-        title="Subir nota fiscal"
-        description="O sistema extrai os dados e, na confirmação, reserva a rubrica e cadastra no módulo Fornecedores."
+        title="Subir NF ou RPA"
+        description="Primeiro escolha o tipo do documento; depois envie o arquivo para extrair os dados."
       />
       <NfUploadForm planningProjectId={id} />
     </div>

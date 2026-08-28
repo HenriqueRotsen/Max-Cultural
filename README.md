@@ -16,9 +16,10 @@ Princípio: portar o que já funciona (Salink, Suply no Salink, SigaCultural) e 
 
 ## Origem — módulos
 
-1. **Auditoria** — sync SALIC, panorama, conformidade, contas.
-2. **Fornecedores** — banco de observados e mapa societário/organizacional.
-3. **Planejamento** (NF → PRONAC) — fase 2 de produto, fora desta entrega.
+1. **Planejamento** — planilha homologada, NF/RPA, rubricas e readequação.
+2. **Proponentes** — contas SALIC, credenciais e mapa societário.
+3. **Auditoria** — sync SALIC, panorama, conformidade e relatório.
+4. **Fornecedores** — banco de preços, serviços, contratações e análises.
 
 Tagline Origem: Criação · Planejamento · Auditoria. Fluxo: Execução · Gestão · Acompanhamento.
 

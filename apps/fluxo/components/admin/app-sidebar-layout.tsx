@@ -222,7 +222,13 @@ function SidebarPanel({
       <div className="px-3 pb-3">
         <a
           href={HUB_URL}
-          className="flex items-center rounded-lg px-2.5 py-2 transition-colors hover:bg-brand-mist"
+          className="flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+          style={{
+            /* Mix da logo Cultural: laranja + teal + roxo */
+            background:
+              "linear-gradient(135deg, #fff4e6 0%, #e6f9fb 48%, #f3eefc 100%)",
+            boxShadow: "0 0 0 1px #f0702040, 0 0 0 1px #00a0b033",
+          }}
           aria-label="Voltar ao MAX Cultural"
         >
           <img
@@ -230,7 +236,7 @@ function SidebarPanel({
             alt="MAX Cultural"
             width={1531}
             height={571}
-            className="h-9 w-auto max-w-[180px] bg-transparent object-contain object-left"
+            className="h-7 w-auto max-w-[9rem] bg-transparent object-contain object-left"
           />
         </a>
       </div>

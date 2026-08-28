@@ -63,7 +63,7 @@ export function NotificationBell({ items }: { items: Item[] }) {
             items.map((n) => (
               <li key={n.id}>
                 <Link
-                  href={n.href || "#"}
+                  href={n.href || "/notificacoes"}
                   className={`block rounded-lg px-3 py-2 text-sm hover:bg-[var(--gray-50)] ${
                     n.readAt ? "opacity-60" : ""
                   }`}
@@ -78,6 +78,14 @@ export function NotificationBell({ items }: { items: Item[] }) {
             ))
           )}
         </ul>
+        <div className="mt-2 border-t border-[var(--border)] px-2 pt-2">
+          <Link
+            href="/notificacoes"
+            className="block rounded-lg px-3 py-2 text-center text-xs font-semibold text-[var(--gold)] hover:bg-[var(--gray-50)]"
+          >
+            Ver todas e configurações
+          </Link>
+        </div>
       </div>
     </details>
   );

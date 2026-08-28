@@ -6,16 +6,26 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import {
   importSourceLabel,
   jurisdictionLabel,
-  lifecycleLabel,
 } from "@/lib/planning/lifecycle";
 import { computeProjectBalance } from "@/lib/planning/rubric-balance";
-import { refreshPaymentDueNotifications } from "@/lib/planning/actions";
 
 export const dynamic = "force-dynamic";
 
+function money(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (
+    typeof v === "object" &&
+    typeof (v as { toNumber?: () => number }).toNumber === "function"
+  ) {
+    return (v as { toNumber: () => number }).toNumber();
+  }
+  const n = Number(String(v));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default async function PlanejamentoIndexPage() {
   const { entitlements } = await getWorkspaceContext();
-  await refreshPaymentDueNotifications().catch(() => undefined);
 
   const projects = await prisma.planningProject.findMany({
     where: { workspaceId: entitlements.workspaceId },
@@ -27,7 +37,7 @@ export default async function PlanejamentoIndexPage() {
         where: { status: { in: ["RESERVED", "PAID"] } },
         select: { budgetLineId: true, amount: true, status: true },
       },
-      project: { select: { situacao: true } },
+      project: { select: { situacao: true, valorCaptado: true } },
     },
   });
 
@@ -39,7 +49,6 @@ export default async function PlanejamentoIndexPage() {
       <PageHeader
         breadcrumb="Planejamento"
         title="Projetos"
-        description="Planilha homologada (importação única) e gestão de rubricas por nota fiscal."
         actions={
           <Link href="/planejamento/novo" className="btn">
             Novo projeto
@@ -92,8 +101,11 @@ function ProjectSection({
     importedAt: Date | null;
     importSource: string | null;
     lifecycleStatus: string;
+    captadoRecebido: unknown;
+    captadoTransferido: unknown;
+    rendimentos: unknown;
     account: { name: string };
-    project: { situacao: string | null } | null;
+    project: { situacao: string | null; valorCaptado: unknown } | null;
     sheet: {
       lines: unknown[];
       totalApproved?: unknown;
@@ -128,6 +140,10 @@ function ProjectSection({
               ? computeProjectBalance({
                   lines: p.sheet.lines as never,
                   commitments: p.commitments as never,
+                  valorCaptado: money(p.project?.valorCaptado),
+                  captadoRecebido: p.captadoRecebido,
+                  captadoTransferido: p.captadoTransferido,
+                  rendimentos: p.rendimentos,
                 })
               : null;
             return (
@@ -141,23 +157,14 @@ function ProjectSection({
                 }`}
               >
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p
-                      className={`truncate font-semibold ${
-                        muted ? "text-[var(--gray-500)]" : "text-[var(--navy)]"
-                      }`}
-                    >
-                      {p.externalCode}
-                      {p.name ? ` — ${p.name}` : ""}
-                    </p>
-                    <span
-                      className={`badge ${
-                        muted ? "badge-muted" : "badge-success"
-                      }`}
-                    >
-                      {lifecycleLabel(p.lifecycleStatus)}
-                    </span>
-                  </div>
+                  <p
+                    className={`truncate font-semibold ${
+                      muted ? "text-[var(--gray-500)]" : "text-[var(--navy)]"
+                    }`}
+                  >
+                    {p.externalCode}
+                    {p.name ? ` — ${p.name}` : ""}
+                  </p>
                   <p className="truncate text-sm text-[var(--gray-500)]">
                     {jurisdictionLabel(p.jurisdiction)} · {p.account.name}
                     {p.importedAt

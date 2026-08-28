@@ -47,7 +47,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Início › Proponentes"
+        breadcrumb="Proponentes"
         title="Proponentes SALIC"
         description={`Contas vinculadas aos proponentes no SALIC. Regras: ${rules.sourceCode}.`}
       />

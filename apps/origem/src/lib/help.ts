@@ -70,4 +70,16 @@ export const HELP = {
     "Soma dos pagamentos só aos fornecedores que você marcou para acompanhar — os % usam captado e comprovado.",
   pendingNorm:
     "O governo publicou uma mudança nas regras. O MAX Origem guardou a nova versão para revisão antes de usá-la nos avisos.",
+
+  // Planejamento / disponível
+  planningDisponivel:
+    "Teto operacional da rubrica = orçamento aprovado × % sobre o aprovado. Sem captação, usa 100% do aprovado.",
+  planningSaldo:
+    "Saldo na rubrica = teto operacional − reservado − pago. Pagamentos antecipados (sem NF) já entram como pago.",
+  planningAprovado:
+    "Orçamento aprovado (MinC) na planilha homologada do projeto.",
+  planningCaptacao:
+    "Captado, recebido e transferido vêm do SALIC. Rendimentos são manuais. Base de captação = captado + recebido + rendimentos − transferido; o % sobre o aprovado ajusta o teto operacional de todas as rubricas.",
+  planningAdminProduto:
+    "Produto Administração: o teto operacional também segue o % sobre o aprovado. Não pode usar a permissão de exceder rubrica.",
 } as const;

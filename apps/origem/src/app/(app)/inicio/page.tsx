@@ -103,11 +103,6 @@ export default async function HomePage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {[
               {
-                href: "/contas",
-                title: "Proponentes",
-                text: "Cadastre o CNPJ/CPF e, se quiser, o acesso ao SALIC dos proponentes.",
-              },
-              {
                 href: "/observados",
                 title: "Observados",
                 text: "Escolha quem você quer acompanhar de perto na análise.",
@@ -123,6 +118,11 @@ export default async function HomePage() {
                       href: "/sync",
                       title: "Atualizar",
                       text: "Busca projetos e pagamentos no SALIC para o MAX Origem.",
+                    },
+                    {
+                      href: "/auditoria",
+                      title: "Relatório",
+                      text: "Gere PDF de auditoria com PRONACs e mapa do proponente.",
                     },
                   ]
                 : [
