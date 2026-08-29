@@ -54,7 +54,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
 
       {pendingReview && (
         <div
-          className="rounded-xl border border-[#e5d3bb] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]"
+          className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]"
           role="status"
         >
           <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -80,7 +80,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
       </nav>
 
       {error && (
-        <div className="rounded-xl border border-[#e5d3bb] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
+        <div className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
           {error}
         </div>
       )}

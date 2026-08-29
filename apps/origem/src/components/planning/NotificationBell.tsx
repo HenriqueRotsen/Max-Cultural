@@ -35,7 +35,7 @@ export function NotificationBell({ items }: { items: Item[] }) {
         </svg>
         <span>Avisos</span>
         {unread > 0 ? (
-          <span className="rounded-full bg-[var(--gold)] px-2 py-0.5 text-xs font-bold text-white">
+          <span className="accent-fill rounded-full px-2 py-0.5 text-xs font-bold">
             {unread}
           </span>
         ) : null}

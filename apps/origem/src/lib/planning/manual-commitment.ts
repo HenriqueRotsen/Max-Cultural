@@ -16,7 +16,7 @@ import { parseReminderDate } from "@/lib/planning/reminder-dates";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import { sendNotificationEmail } from "@/lib/planning/notify-email";
 import { buildPlanningDocumentFilename } from "@/lib/nf/document-filename";
-import { persistPlanningUpload } from "@/lib/nf/persist-upload";
+import { persistPlanningUpload, DuplicateDocumentError } from "@/lib/nf/persist-upload";
 import { extractProofFromBuffer } from "@/lib/nf/extract";
 import {
   checkPaymentAmount,
@@ -471,12 +471,14 @@ export async function uploadAdvancePayment(
       filename: proofDisplayName,
       mimeType: file.type || "application/octet-stream",
       workspaceId: entitlements.workspaceId,
-      rejectDuplicate: true,
+      rejectDuplicate: {
+        planningProjectId: project.id,
+        kinds: ["PAYMENT_PROOF"],
+      },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.startsWith("DUPLICATE:")) {
-      return { error: msg.slice("DUPLICATE:".length) };
+    if (e instanceof DuplicateDocumentError) {
+      return { error: e.message.slice("DUPLICATE:".length) };
     }
     throw e;
   }

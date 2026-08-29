@@ -42,7 +42,7 @@ export function ComplianceAlerts({
           alert.level === "critical"
             ? "border-[#f2c7c7] bg-[#fdecec]"
             : alert.level === "attention"
-              ? "border-[#e5d3bb] bg-[var(--gold-soft)]"
+              ? "border-[var(--gold-border)] bg-[var(--gold-soft)]"
               : "border-[var(--border)] bg-[var(--navy-soft)]";
         return (
           <div

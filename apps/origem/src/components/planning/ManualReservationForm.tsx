@@ -11,6 +11,7 @@ import {
   RubricSearchSelect,
   type RubricSelectOption,
 } from "@/components/planning/RubricSearchSelect";
+import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 
 const initial: ActionState = {};
 
@@ -86,10 +87,12 @@ export function ManualReservationForm({
         <textarea name="notes" rows={2} />
       </label>
 
-      <label className="inline-flex items-center gap-2 text-sm">
-        <input type="checkbox" name="hasBond" />
-        Vínculo declarado (hasBond)
-      </label>
+      <ToggleSwitch
+        boxed
+        name="hasBond"
+        label="Vínculo declarado com o projeto"
+        description="Marque se o fornecedor tem vínculo com o proponente nesta IN."
+      />
 
       <button type="submit" className="btn" disabled={pending}>
         {pending ? "Reservando…" : "Criar reserva"}

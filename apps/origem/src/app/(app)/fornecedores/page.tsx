@@ -138,7 +138,7 @@ export default async function CatalogDashboardPage() {
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--gray-50)]">
                     <div
-                      className="h-full rounded-full bg-[var(--gold)]"
+                      className="h-full rounded-full accent-bar"
                       style={{ width: `${Math.max(6, (Number(row.total) / maxCat) * 100)}%` }}
                     />
                   </div>

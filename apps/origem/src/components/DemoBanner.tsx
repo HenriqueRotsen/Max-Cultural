@@ -5,7 +5,7 @@ export function DemoBanner() {
   if (!isDemoMode()) return null;
   return (
     <div
-      className="border-b border-[#e5d3bb] bg-[var(--gold-soft)] px-4 py-2.5 text-center text-sm text-[var(--navy)]"
+      className="border-b border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-2.5 text-center text-sm text-[var(--navy)]"
       role="status"
     >
       <strong>Modo demonstração</strong>

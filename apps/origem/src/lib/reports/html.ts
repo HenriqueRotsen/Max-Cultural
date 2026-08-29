@@ -23,8 +23,10 @@ import {
 import { corporateMapCopy, corporateRoleLabel } from "@/lib/corporate/copy";
 
 const NAVY = "#192d5c";
-const GOLD = "#be9f79";
-const GOLD_SOFT = "#f5efe8";
+const GOLD = "#5b52c9";
+const GOLD_SOFT = "#ebe9f8";
+const GOLD_GRADIENT = "linear-gradient(135deg, #6b4fc9 0%, #3b82d6 100%)";
+const GOLD_BORDER = "#d4cff0";
 const NAVY_SOFT = "#eef1f7";
 const GRAY_500 = "#6b7280";
 const GRAY_100 = "#eef0f4";
@@ -397,6 +399,7 @@ function shellHtml(params: {
       --navy: ${NAVY};
       --gold: ${GOLD};
       --gold-soft: ${GOLD_SOFT};
+      --gold-gradient: ${GOLD_GRADIENT};
       --navy-soft: ${NAVY_SOFT};
       --gray-500: ${GRAY_500};
       --border: ${BORDER};
@@ -566,7 +569,7 @@ function shellHtml(params: {
       width: 6px;
       height: 6px;
       border-radius: 99px;
-      background: var(--gold);
+      background: var(--gold-gradient);
       margin-right: 8px;
       vertical-align: middle;
     }
@@ -580,7 +583,7 @@ function shellHtml(params: {
     .mini-bar > span {
       display: block;
       height: 100%;
-      background: var(--gold);
+      background: var(--gold-gradient);
       border-radius: 99px;
     }
     .alert {
@@ -594,7 +597,7 @@ function shellHtml(params: {
     .alert strong { display: block; margin-bottom: 4px; }
     .alert p { margin: 0; color: var(--gray-500); }
     .alert.info { background: var(--navy-soft); }
-    .alert.attention { background: var(--gold-soft); border-color: #e5d3bb; }
+    .alert.attention { background: var(--gold-soft); border-color: ${GOLD_BORDER}; }
     .alert.critical { background: #fdecec; border-color: #f2c7c7; }
     .card, .panel.keep {
       break-inside: avoid;
@@ -1080,7 +1083,7 @@ export async function renderPronacOverviewHtml(params: {
                 : `<span style="color:${GRAY_500}">Não</span>`
             }</td>
             <td>
-              <div class="mini-bar"><span style="width:${Math.min(100, pct)}%;background:${over ? "#d94c4c" : near ? "#e67e22" : GOLD}"></span></div>
+              <div class="mini-bar"><span style="width:${Math.min(100, pct)}%;background:${over ? "#d94c4c" : near ? "#e67e22" : GOLD_GRADIENT}"></span></div>
             </td>
             <td class="num">${s.count}</td>
           </tr>

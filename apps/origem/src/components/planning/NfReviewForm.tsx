@@ -11,6 +11,7 @@ import {
   RubricSearchSelect,
   type RubricSelectOption,
 } from "@/components/planning/RubricSearchSelect";
+import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 
 const initial: ActionState = {};
 
@@ -567,7 +568,7 @@ export function NfReviewForm({
             <input
               type="date"
               readOnly
-              className="bg-[var(--gray-50)]"
+              disabled
               value={defaultExpectedPayAt || ""}
               title="Prazo legal calculado a partir da data de contratação/emissão"
             />
@@ -622,13 +623,12 @@ export function NfReviewForm({
         </div>
       </div>
 
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" name="hasBond" className="mt-1" />
-        <span>
-          Este fornecedor tem vínculo com o proponente nesta IN (conta no teto do
-          proponente / Observado).
-        </span>
-      </label>
+      <ToggleSwitch
+        boxed
+        name="hasBond"
+        label="Vínculo com o proponente"
+        description="Este fornecedor tem vínculo com o proponente nesta IN (conta no teto do proponente / Observado)."
+      />
 
       <button type="submit" className="btn" disabled={!canSubmit}>
         {pending ? "Reservando…" : `Confirmar ${kind} e reservar`}

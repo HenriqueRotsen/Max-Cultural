@@ -9,6 +9,7 @@ import type { ActionState } from "@/lib/planning/action-state";
 import type { ProducerSheetRow } from "@/lib/planning/producer-sheet";
 import { formatCurrency } from "@/lib/format";
 import type { RubricSelectOption } from "@/components/planning/RubricSearchSelect";
+import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 
 type ParseState = ActionState & { rows?: ProducerSheetRow[] };
 
@@ -119,12 +120,12 @@ export function ProducerSheetImportForm({
                 {reviewRows.map((r, idx) => (
                   <tr key={r.rowIndex} className="border-t border-[var(--border)]">
                     <td className="py-2 pr-2">
-                      <input
-                        type="checkbox"
+                      <ToggleSwitch
+                        compact
                         checked={r.include}
-                        onChange={(e) => {
+                        onCheckedChange={(include) => {
                           const next = [...reviewRows];
-                          next[idx] = { ...r, include: e.target.checked };
+                          next[idx] = { ...r, include };
                           setReviewRows(next);
                         }}
                       />

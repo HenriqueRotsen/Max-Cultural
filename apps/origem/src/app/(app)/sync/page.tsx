@@ -108,7 +108,7 @@ export default async function SyncPage({
       />
 
       {pageError && (
-        <div className="rounded-xl border border-[#e5d3bb] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
+        <div className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
           {pageError}
         </div>
       )}

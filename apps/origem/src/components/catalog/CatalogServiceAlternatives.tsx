@@ -17,7 +17,7 @@ function reasonChips(alt: ServiceAlternative) {
   if (alt.betterRating) {
     chips.push({
       label: "Melhor avaliação",
-      className: "border-[var(--gold)] bg-[var(--gold-soft)] text-[#8a6a3b]",
+      className: "border-[var(--gold)] bg-[var(--gold-soft)] text-[var(--gold-ink)]",
     });
   }
   if (alt.equal) {

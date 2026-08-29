@@ -11,6 +11,7 @@ import {
   type AllocRow,
 } from "@/components/planning/RubricAllocationFields";
 import type { RubricSelectOption } from "@/components/planning/RubricSearchSelect";
+import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 
 const initial: ActionState = {};
 
@@ -254,10 +255,11 @@ export function AdvancePaymentForm({
             />
           </label>
 
-          <label className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm">
-            <input type="checkbox" name="hasBond" className="rounded" />
-            Vínculo declarado com o projeto
-          </label>
+          <ToggleSwitch
+            boxed
+            name="hasBond"
+            label="Vínculo declarado com o projeto"
+          />
         </section>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-5">

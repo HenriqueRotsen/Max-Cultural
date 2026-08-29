@@ -245,7 +245,7 @@ function NavGroup({
 }
 
 function stroke(active?: boolean, gold?: boolean) {
-  if (active) return gold ? "#c4a574" : "#4a1d6e";
+  if (active) return gold ? "#5b52c9" : "#4a1d6e";
   return "#6b7280";
 }
 

@@ -191,7 +191,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--gray-100)]">
                     <div
-                      className={`h-full rounded-full ${active ? "bg-[var(--gold)]" : "bg-[var(--navy)]"}`}
+                      className={`h-full rounded-full ${active ? "accent-bar" : "bg-[var(--navy)]"}`}
                       style={{ width: `${Math.min(100, r.sharePct)}%` }}
                     />
                   </div>
@@ -245,7 +245,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--gray-100)]">
                     <div
-                      className="h-full rounded-full bg-[var(--gold)]"
+                      className="h-full rounded-full accent-bar"
                       style={{ width: `${Math.min(100, s.sharePct)}%` }}
                     />
                   </div>
@@ -349,7 +349,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
                     <td className="min-w-[120px]">
                       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--gray-100)]">
                         <div
-                          className="h-full rounded-full bg-[var(--gold)]"
+                          className="h-full rounded-full accent-bar"
                           style={{
                             width: `${Math.min(100, p.sharePct)}%`,
                           }}

@@ -9,28 +9,69 @@ export type StoredPlanningUpload = {
   contentHash: string;
 };
 
+export type PlanningDocumentKindFilter =
+  | "NF"
+  | "RPA"
+  | "PAYMENT_PROOF"
+  | "TAX_PROOF";
+
+export type DuplicateCheckScope = {
+  planningProjectId?: string;
+  kinds?: PlanningDocumentKindFilter[];
+};
+
+export type DuplicateDocumentInfo = {
+  id: string;
+  kind: string;
+  filename: string;
+  planningProjectId: string | null;
+  status: string;
+};
+
+export class DuplicateDocumentError extends Error {
+  readonly duplicate: DuplicateDocumentInfo;
+
+  constructor(duplicate: DuplicateDocumentInfo) {
+    super(
+      `DUPLICATE:Este arquivo já foi enviado (${duplicate.kind} · ${duplicate.filename}).`,
+    );
+    this.name = "DuplicateDocumentError";
+    this.duplicate = duplicate;
+  }
+}
+
 export async function persistPlanningUpload(params: {
   buffer: Buffer;
   filename: string;
   mimeType: string;
   workspaceId: string;
-  /** Se true, bloqueia upload idêntico no workspace. */
-  rejectDuplicate?: boolean;
+  /** true = workspace inteiro; objeto = escopo (ex.: só NF/RPA do projeto). */
+  rejectDuplicate?: boolean | DuplicateCheckScope;
 }): Promise<StoredPlanningUpload> {
   const contentHash = hashDocumentContent(params.buffer);
 
   if (params.rejectDuplicate) {
+    const scope =
+      params.rejectDuplicate === true ? {} : params.rejectDuplicate;
     const dup = await prisma.planningDocument.findFirst({
       where: {
         workspaceId: params.workspaceId,
         contentHash,
+        ...(scope.planningProjectId
+          ? { planningProjectId: scope.planningProjectId }
+          : {}),
+        ...(scope.kinds?.length ? { kind: { in: scope.kinds } } : {}),
       },
-      select: { id: true, filename: true, kind: true },
+      select: {
+        id: true,
+        filename: true,
+        kind: true,
+        planningProjectId: true,
+        status: true,
+      },
     });
     if (dup) {
-      throw new Error(
-        `DUPLICATE:Este arquivo já foi enviado (${dup.kind} · ${dup.filename}).`,
-      );
+      throw new DuplicateDocumentError(dup);
     }
   }
 

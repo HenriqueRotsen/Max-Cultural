@@ -149,7 +149,7 @@ export default async function PronacPanoramaPage({
       />
 
       {pendingReview && (
-        <p className="rounded-xl border border-[#e5d3bb] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
+        <p className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
           <span className="inline-flex items-center gap-1.5">
             As regras oficiais mudaram e precisam de revisão antes de valerem nos avisos (
             {pendingReview.sourceCode}).

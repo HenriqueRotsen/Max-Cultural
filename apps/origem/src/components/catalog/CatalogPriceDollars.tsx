@@ -7,7 +7,7 @@ import { formatPriceLevel, PRICE_LEVELS, type AxisLevels, type PriceLevel } from
 const LEVEL_STYLES: Record<PriceLevel, string> = {
   1: "border-[#a7f3d0] bg-[#ecfdf5] text-[#065f46]",
   2: "border-[var(--border)] bg-[var(--gray-50)] text-[var(--gray-600)]",
-  3: "border-[var(--gold)] bg-[var(--gold-soft)] text-[#8a6a3b]",
+  3: "border-[var(--gold)] bg-[var(--gold-soft)] text-[var(--gold-ink)]",
   4: "border-[#fecaca] bg-[#fef2f2] text-[#9f1239]",
 };
 

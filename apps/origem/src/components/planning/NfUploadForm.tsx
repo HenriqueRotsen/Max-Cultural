@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
-import { uploadNfForReview, type ActionState } from "@/lib/planning/actions";
+import { uploadNfForReview } from "@/lib/planning/actions";
+import type { ActionState } from "@/lib/planning/action-state";
 
 const initial: ActionState = {};
 
@@ -117,9 +119,17 @@ export function NfUploadForm({
       </div>
 
       {state.error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {state.error}
-        </p>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          <p>{state.error}</p>
+          {state.href ? (
+            <Link
+              href={state.href}
+              className="mt-2 inline-block font-semibold text-[var(--navy)] underline"
+            >
+              Abrir documento existente →
+            </Link>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="field">

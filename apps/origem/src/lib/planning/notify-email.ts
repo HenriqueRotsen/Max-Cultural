@@ -42,7 +42,7 @@ export async function sendNotificationEmail(params: {
       html: `
         <p style="font-family:sans-serif;font-size:15px;color:#1a1a1a">${escapeHtml(params.body)}</p>
         <p style="font-family:sans-serif;margin-top:16px">
-          <a href="${escapeAttr(link)}" style="color:#c4a574;font-weight:600">Abrir no MAX Origem</a>
+          <a href="${escapeAttr(link)}" style="color:#5b52c9;font-weight:600">Abrir no MAX Origem</a>
         </p>
       `,
     });

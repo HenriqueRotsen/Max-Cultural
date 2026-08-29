@@ -379,7 +379,7 @@ export function SyncPanel({
 
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--gray-100)]">
               <div
-                className="h-full rounded-full bg-[var(--gold)] transition-all duration-500"
+                className="h-full rounded-full accent-bar transition-all duration-500"
                 style={{
                   width:
                     percent == null

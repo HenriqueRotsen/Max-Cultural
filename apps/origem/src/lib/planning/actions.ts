@@ -57,6 +57,7 @@ import {
 } from "@/lib/nf/document-cross-check";
 import { storeCompressedDocument } from "@/lib/nf/compress";
 import {
+  DuplicateDocumentError,
   findFiscalDocumentDuplicate,
   persistPlanningUpload,
 } from "@/lib/nf/persist-upload";
@@ -553,12 +554,33 @@ export async function uploadNfForReview(
       filename: displayName,
       mimeType: file.type || "application/octet-stream",
       workspaceId: entitlements.workspaceId,
-      rejectDuplicate: true,
+      rejectDuplicate: {
+        planningProjectId,
+        kinds: ["NF", "RPA"],
+      },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.startsWith("DUPLICATE:")) {
-      return { error: msg.slice("DUPLICATE:".length) };
+    if (e instanceof DuplicateDocumentError) {
+      const d = e.duplicate;
+      if (
+        d.planningProjectId === planningProjectId &&
+        d.status === "REVIEW"
+      ) {
+        return {
+          error:
+            "Este arquivo já foi enviado e aguarda revisão. Continue a revisão em vez de reenviar o mesmo PDF.",
+          href: `/planejamento/${planningProjectId}/nf/${d.id}/revisar`,
+        };
+      }
+      if (
+        d.planningProjectId === planningProjectId &&
+        d.status === "IMPORTED"
+      ) {
+        return {
+          error: `Esta nota já foi reservada (${d.filename}). Exclua a NF antes de reenviar o mesmo arquivo.`,
+        };
+      }
+      return { error: e.message.slice("DUPLICATE:".length) };
     }
     throw e;
   }
@@ -1691,12 +1713,14 @@ export async function uploadPaymentProof(
       filename: proofDisplayName,
       mimeType: file.type || "application/octet-stream",
       workspaceId: entitlements.workspaceId,
-      rejectDuplicate: true,
+      rejectDuplicate: {
+        planningProjectId: commitment.planningProjectId,
+        kinds: [kind],
+      },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.startsWith("DUPLICATE:")) {
-      return { error: msg.slice("DUPLICATE:".length) };
+    if (e instanceof DuplicateDocumentError) {
+      return { error: e.message.slice("DUPLICATE:".length) };
     }
     throw e;
   }
