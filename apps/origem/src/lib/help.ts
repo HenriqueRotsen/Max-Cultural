@@ -81,5 +81,5 @@ export const HELP = {
   planningCaptacao:
     "Captado, recebido e transferido vêm do SALIC. Rendimentos são manuais. Base de captação = captado + recebido + rendimentos − transferido; o % sobre o aprovado ajusta o teto operacional de todas as rubricas.",
   planningAdminProduto:
-    "Produto Administração: o teto operacional também segue o % sobre o aprovado. Não pode usar a permissão de exceder rubrica.",
+    "Produto Administração: o saldo usa 100% do aprovado MinC (não reduz pela captação). Não pode usar a permissão de exceder rubrica.",
 } as const;

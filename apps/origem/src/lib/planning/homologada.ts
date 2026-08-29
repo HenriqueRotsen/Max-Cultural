@@ -59,7 +59,14 @@ function str(v: unknown, fallback = ""): string {
 /** Heurística simples item → categoria do catálogo. */
 export function inferCategoryHint(itemName: string): string | null {
   const t = itemName.toLowerCase();
-  if (/ti\b|tecnolog|software|sistema|informátic|informatic/.test(t)) return "ti_tecnologia";
+  if (
+    /ti\b|tecnolog|software|sistema|informátic|informatic|computador|aplicativo|aplicação|aplicacao/.test(
+      t,
+    ) ||
+    /desenvolvimento/.test(t) && /programa|software|sistema|computador|aplicativo/.test(t)
+  ) {
+    return "ti_tecnologia";
+  }
   if (/transporte|frete|logístic|logistic|passagem/.test(t)) return "logistica_transporte";
   if (/limpeza|conservação|conservacao|facilities/.test(t)) return "facilities_limpeza";
   if (/manuten/.test(t)) return "manutencao";

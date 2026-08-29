@@ -19,7 +19,10 @@ import {
 import { prisma } from "@/lib/db";
 import { formatCurrency, parseBrMoney } from "@/lib/format";
 import { computeProjectBalance } from "@/lib/planning/rubric-balance";
-import { scoreRubricAgainstText } from "@/lib/planning/recommend-rubric";
+import {
+  adherenceRecommendThreshold,
+  scoreRubricAgainstText,
+} from "@/lib/planning/recommend-rubric";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +72,7 @@ function SortHeader({
   currentDir,
   base,
   align = "left",
+  className = "",
 }: {
   label: string;
   column: SortKey;
@@ -76,6 +80,7 @@ function SortHeader({
   currentDir: "asc" | "desc";
   base: Record<string, string | undefined>;
   align?: "left" | "right";
+  className?: string;
 }) {
   const active = currentSort === column;
   const nextDir = active && currentDir === "desc" ? "asc" : "desc";
@@ -87,7 +92,9 @@ function SortHeader({
   const arrow = active ? (currentDir === "asc" ? "↑" : "↓") : "↕";
 
   return (
-    <th className={align === "right" ? "text-right" : "text-left"}>
+    <th
+      className={`${align === "right" ? "text-right" : "text-left"} ${className}`.trim()}
+    >
       <Link
         href={href}
         className={`inline-flex items-center gap-1 hover:text-[var(--navy)] ${
@@ -186,6 +193,7 @@ export default async function BuscarSaldoPage({
     available: number;
     categoryHint: string | null;
     score: number;
+    label: string;
     reasons: string[];
   };
 
@@ -219,8 +227,9 @@ export default async function BuscarSaldoPage({
               available: b.available,
             },
             recommendText,
+            { cnaeCode },
           )
-        : { score: 0, reasons: [] as string[] };
+        : { score: 0, label: "Sem compatibilidade", reasons: [] as string[] };
 
       hits.push({
         projectId: p.id,
@@ -233,6 +242,7 @@ export default async function BuscarSaldoPage({
         available: b.available,
         categoryHint: line.categoryHint,
         score: scored.score,
+        label: scored.label,
         reasons: scored.reasons,
       });
     }
@@ -441,7 +451,13 @@ export default async function BuscarSaldoPage({
                 {cnaeFromCatalog?.cnaeDescription && !cnaeDescRaw.trim()
                   ? " (catálogo)"
                   : ""}
-                . Sem outra ordenação, a lista prioriza aderência.
+                . Sem outra ordenação, a lista prioriza aderência (escala 0–100).
+                {topScore === 0 ? (
+                  <span className="mt-1 block text-[var(--gray-500)]">
+                    Nenhuma rubrica compatível com este CNAE — confira se o projeto tem
+                    itens da categoria correspondente.
+                  </span>
+                ) : null}
               </p>
             ) : (
               <p className="text-xs text-[var(--gray-400)]">
@@ -473,7 +489,7 @@ export default async function BuscarSaldoPage({
           Nenhuma rubrica com saldo para este filtro.
         </p>
       ) : (
-        <div className="card overflow-hidden">
+        <div className="card">
           <div className="border-b border-[var(--border)] bg-[var(--gray-50)] px-5 py-3">
             <p className="text-sm text-[var(--gray-600)]">
               <span className="font-semibold text-[var(--navy)]">{total}</span>{" "}
@@ -486,7 +502,7 @@ export default async function BuscarSaldoPage({
               ) : null}
             </p>
           </div>
-          <div className="table-wrap px-2 sm:px-3">
+          <div className="table-wrap px-2 pb-1 sm:px-3">
             <table className="data">
               <thead>
                 <tr>
@@ -533,6 +549,7 @@ export default async function BuscarSaldoPage({
                       currentDir={dir}
                       base={filterBase}
                       align="right"
+                      className="min-w-[9.5rem]"
                     />
                   ) : null}
                   <SortHeader
@@ -542,19 +559,21 @@ export default async function BuscarSaldoPage({
                     currentDir={dir}
                     base={filterBase}
                     align="right"
+                    className="col-money col-sticky-end"
                   />
                 </tr>
               </thead>
               <tbody>
                 {pageHits.map((h) => {
+                  const recommendThreshold = adherenceRecommendThreshold(topScore);
                   const recommended =
                     recommendOn &&
                     topScore > 0 &&
-                    h.score >= Math.max(8, topScore * 0.75);
+                    h.score >= recommendThreshold;
                   return (
                     <tr
                       key={`${h.projectId}-${h.lineId}`}
-                      className={recommended ? "bg-[var(--navy-soft)]/40" : undefined}
+                      className={recommended ? "row-recommended bg-[var(--navy-soft)]/40" : undefined}
                     >
                       <td className="whitespace-nowrap">
                         <Link
@@ -570,13 +589,8 @@ export default async function BuscarSaldoPage({
                       <td className="min-w-[14rem] max-w-[22rem]">
                         <p className="font-medium text-[var(--navy)]">{h.itemName}</p>
                         {recommended ? (
-                          <p className="mt-1 text-xs text-[var(--gold)]">
+                          <p className="mt-1 text-xs font-medium text-[var(--gold)]">
                             Recomendada
-                            {h.reasons[0] ? ` · ${h.reasons[0]}` : ""}
-                          </p>
-                        ) : h.reasons[0] ? (
-                          <p className="mt-1 text-xs text-[var(--gray-400)]">
-                            {h.reasons[0]}
                           </p>
                         ) : null}
                       </td>
@@ -587,11 +601,45 @@ export default async function BuscarSaldoPage({
                         {h.categoryHint ? getCategoryLabel(h.categoryHint) : "—"}
                       </td>
                       {recommendOn ? (
-                        <td className="text-right tabular-nums text-sm text-[var(--gray-600)]">
-                          {h.score > 0 ? h.score.toFixed(0) : "—"}
+                        <td className="min-w-[9.5rem] align-top">
+                          <div className="flex flex-col items-end gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-1.5 w-14 overflow-hidden rounded-full bg-[var(--gray-100)]"
+                                aria-hidden
+                              >
+                                <div
+                                  className={`h-full rounded-full ${
+                                    h.score >= 75
+                                      ? "accent-bar"
+                                      : h.score >= 50
+                                        ? "bg-[#5b52c9]"
+                                        : h.score >= 25
+                                          ? "bg-[#7c8db5]"
+                                          : h.score > 0
+                                            ? "bg-[var(--gray-400)]"
+                                            : "bg-transparent"
+                                  }`}
+                                  style={{ width: `${h.score}%` }}
+                                />
+                              </div>
+                              <span
+                                className={`min-w-[2ch] text-right text-sm font-semibold tabular-nums ${
+                                  h.score > 0
+                                    ? "text-[var(--navy)]"
+                                    : "text-[var(--gray-400)]"
+                                }`}
+                              >
+                                {h.score}
+                              </span>
+                            </div>
+                            <p className="max-w-[11rem] text-right text-[10px] leading-snug text-[var(--gray-500)]">
+                              {h.label}
+                            </p>
+                          </div>
                         </td>
                       ) : null}
-                      <td className="whitespace-nowrap text-right font-semibold tabular-nums text-[var(--navy)]">
+                      <td className="col-money col-sticky-end font-semibold text-[var(--navy)]">
                         {formatCurrency(h.available)}
                       </td>
                     </tr>

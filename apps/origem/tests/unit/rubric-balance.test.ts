@@ -37,7 +37,7 @@ describe("rubric-balance", () => {
     expect(bal.lines.get("a")!.available).toBe(500);
   });
 
-  it("administração também escala pelo % captado (base = total disponível)", () => {
+  it("administração mantém 100% do aprovado mesmo com captação parcial", () => {
     const bal = computeProjectBalance({
       lines: [
         { id: "a", approvedAmount: 1000, productName: "Produção" },
@@ -46,14 +46,13 @@ describe("rubric-balance", () => {
       commitments: [],
       valorCaptado: 600,
     });
-    // % = 600/1200 = 0.5 → produção 500; admin 100
     expect(bal.pctCaptadoT).toBe(0.5);
     expect(bal.operableBase).toBe(600);
-    expect(bal.totalAvailableCap).toBe(600);
     expect(bal.lines.get("a")!.availableCap).toBe(500);
     expect(bal.lines.get("b")!.isAdmin).toBe(true);
-    expect(bal.lines.get("b")!.availableCap).toBe(100);
-    expect(bal.lines.get("b")!.available).toBe(100);
+    expect(bal.lines.get("b")!.availableCap).toBe(200);
+    expect(bal.lines.get("b")!.available).toBe(200);
+    expect(bal.totalAvailableCap).toBe(700);
   });
 
   it("calcula saldo por linha e total", () => {
@@ -78,7 +77,7 @@ describe("rubric-balance", () => {
     expect(bal.lines.get("b")!.available).toBe(200);
   });
 
-  it("ARTE EM CORES 5ª: disponível total = Base (captado − transferido)", () => {
+  it("ARTE EM CORES 5ª: produção segue captação; administração fica em 100%", () => {
     const bal = computeProjectBalance({
       lines: [
         { id: "prod", approvedAmount: 1923662.18, productName: "Produção" },
@@ -92,9 +91,20 @@ describe("rubric-balance", () => {
       valorCaptado: 1400000,
       captadoTransferido: 5371.44,
     });
+    const pct =
+      bal.operableBase /
+      (1923662.18 + 823281.78);
     expect(bal.operableBase).toBeCloseTo(1394628.56, 2);
-    expect(bal.totalAvailableCap).toBeCloseTo(1394628.56, 2);
-    expect(bal.totalAvailable).toBeCloseTo(1394628.56, 2);
+    expect(bal.pctCaptadoT).toBeCloseTo(pct, 6);
+    expect(bal.lines.get("admin")!.availableCap).toBeCloseTo(823281.78, 2);
+    expect(bal.lines.get("prod")!.availableCap).toBeCloseTo(
+      1923662.18 * pct,
+      2,
+    );
+    expect(bal.totalAvailableCap).toBeCloseTo(
+      823281.78 + 1923662.18 * pct,
+      2,
+    );
   });
 
   it("bloqueia reserva acima do disponível sem permissão de excesso", () => {

@@ -1,4 +1,5 @@
 import { inferCategoryHint } from "@/lib/planning/homologada";
+import { normalizeCnaeCode } from "@/lib/catalog/cnae";
 
 export type RubricCandidate = {
   id: string;
@@ -17,6 +18,27 @@ export type RubricSuggestion = {
   score: number;
   reasons: string[];
 };
+
+export type RubricScore = {
+  /** 0–100 */
+  score: number;
+  reasons: string[];
+  /** Primeiro motivo, pronto para exibir na UI. */
+  label: string;
+};
+
+const WEIGHTS = {
+  categoryExact: 40,
+  categoryInferred: 24,
+  item: 35,
+  stage: 12,
+  keywords: 8,
+  amount: 10,
+  history: 30,
+  location: 8,
+} as const;
+
+const RECOMMEND_MIN_SCORE = 15;
 
 function norm(s: string) {
   return s
@@ -54,6 +76,7 @@ const STOP = new Set([
   "cultura",
   "edicao",
   "edição",
+  "cnae",
 ]);
 
 function tokens(s: string): string[] {
@@ -72,41 +95,97 @@ function tokenOverlapScore(queryTokens: string[], haystack: string): number {
   return hits / queryTokens.length;
 }
 
-/** Pontua uma rubrica contra texto livre (CNAE, descrição de serviço, etc.). */
+function clampScore(value: number) {
+  return Math.round(Math.min(100, Math.max(0, value)));
+}
+
+function scoreLabel(score: number, reasons: string[]) {
+  if (reasons[0]) return reasons[0];
+  if (score >= 75) return "Alta aderência";
+  if (score >= 50) return "Boa aderência";
+  if (score >= 25) return "Aderência parcial";
+  if (score > 0) return "Baixa aderência";
+  return "Sem compatibilidade";
+}
+
+function inferCategoryFromCnaeCode(code: string | null | undefined): string | null {
+  const digits = normalizeCnaeCode(code);
+  if (!digits || digits.length < 2) return null;
+  const div = digits.slice(0, 2);
+  const byDiv: Record<string, string> = {
+    "35": "energia",
+    "41": "construcao_reforma",
+    "42": "construcao_reforma",
+    "43": "construcao_reforma",
+    "49": "logistica_transporte",
+    "50": "logistica_transporte",
+    "51": "logistica_transporte",
+    "52": "logistica_transporte",
+    "53": "logistica_transporte",
+    "56": "alimentacao_eventos",
+    "62": "ti_tecnologia",
+    "63": "ti_tecnologia",
+    "69": "juridico",
+    "71": "engenharia_consultoria",
+    "73": "marketing_comunicacao",
+    "78": "rh_recrutamento",
+    "80": "seguranca",
+    "81": "facilities_limpeza",
+  };
+  return byDiv[div] ?? null;
+}
+
+function extractCnaeCodeFromText(text: string): string | null {
+  const tagged = text.match(/cnae\s*([\d./-]+)/i);
+  if (tagged?.[1]) return normalizeCnaeCode(tagged[1]);
+  return null;
+}
+
+/** Pontua uma rubrica contra texto livre (CNAE, descrição de serviço, etc.). Escala 0–100. */
 export function scoreRubricAgainstText(
   line: Pick<
     RubricCandidate,
     "itemName" | "stageName" | "productName" | "categoryHint" | "available" | "isAdmin"
   >,
   serviceText: string,
-  opts?: { grossAmount?: number | null },
-): { score: number; reasons: string[] } {
+  opts?: { grossAmount?: number | null; cnaeCode?: string | null },
+): RubricScore {
   const text = serviceText.trim();
-  if (!text) return { score: 0, reasons: [] };
+  if (!text) return { score: 0, reasons: [], label: "Sem compatibilidade" };
 
   const qTokens = tokens(text);
-  const category = inferCategoryHint(text || "outros");
+  const cnaeCode = opts?.cnaeCode ?? extractCnaeCodeFromText(text);
+  const category =
+    inferCategoryFromCnaeCode(cnaeCode) || inferCategoryHint(text || "outros");
+  const lineCategory =
+    line.categoryHint || inferCategoryHint(line.itemName) || null;
   const gross =
     opts?.grossAmount && opts.grossAmount > 0 ? opts.grossAmount : null;
 
   let score = 0;
   const reasons: string[] = [];
 
-  if (
-    category &&
-    category !== "outros" &&
-    line.categoryHint &&
-    line.categoryHint === category
-  ) {
-    score += 22;
-    reasons.push("Categoria alinhada ao CNAE/serviço");
+  if (category && category !== "outros" && lineCategory === category) {
+    if (line.categoryHint === category) {
+      score += WEIGHTS.categoryExact;
+      reasons.push(
+        cnaeCode
+          ? "Categoria alinhada ao CNAE"
+          : "Categoria alinhada ao serviço",
+      );
+    } else {
+      score += WEIGHTS.categoryInferred;
+      reasons.push("Item parece da mesma categoria do CNAE");
+    }
   }
 
   const itemOverlap = tokenOverlapScore(qTokens, line.itemName);
   if (itemOverlap > 0) {
-    score += 35 * itemOverlap;
+    score += WEIGHTS.item * itemOverlap;
     if (itemOverlap >= 0.34) {
       reasons.push("Nome da rubrica parecido com a descrição");
+    } else if (!reasons.length) {
+      reasons.push("Termos em comum com o CNAE");
     }
   }
 
@@ -115,30 +194,54 @@ export function scoreRubricAgainstText(
     `${line.stageName} ${line.productName}`,
   );
   if (stageOverlap > 0) {
-    score += 12 * stageOverlap;
-  }
-
-  const itemN = norm(line.itemName);
-  for (const t of qTokens) {
-    if (t.length >= 5 && itemN.includes(t)) {
-      score += 4;
+    score += WEIGHTS.stage * stageOverlap;
+    if (stageOverlap >= 0.34 && !reasons.some((r) => r.includes("etapa"))) {
+      reasons.push("Etapa/produto com termos em comum");
     }
   }
 
+  const itemN = norm(line.itemName);
+  let keywordPts = 0;
+  for (const t of qTokens) {
+    if (t.length >= 5 && itemN.includes(t)) {
+      keywordPts += 2;
+    }
+  }
+  if (keywordPts > 0) {
+    score += Math.min(WEIGHTS.keywords, keywordPts);
+  }
+
   if (gross != null) {
-    if (line.available + 0.009 >= gross) score += 10;
-    else if (line.available > 0) score += 2;
-    else if (line.isAdmin) score -= 8;
+    if (line.available + 0.009 >= gross) {
+      score += WEIGHTS.amount;
+      reasons.push("Saldo cobre o valor da nota");
+    } else if (line.available > 0) {
+      score += 3;
+    } else if (line.isAdmin) {
+      score -= 8;
+    }
   }
 
   if (
     line.isAdmin &&
     !/admin|coordenac|coordenação|gestao|gestão/.test(norm(text))
   ) {
-    score -= 6;
+    score -= 8;
   }
 
-  return { score, reasons: reasons.slice(0, 3) };
+  const finalScore = clampScore(score);
+  const trimmedReasons = reasons.slice(0, 3);
+  return {
+    score: finalScore,
+    reasons: trimmedReasons,
+    label: scoreLabel(finalScore, trimmedReasons),
+  };
+}
+
+/** Limiar mínimo para destacar rubrica como recomendada (0–100). */
+export function adherenceRecommendThreshold(topScore: number) {
+  if (topScore <= 0) return 100;
+  return Math.max(RECOMMEND_MIN_SCORE, topScore * 0.75);
 }
 
 /**
@@ -179,8 +282,8 @@ export function recommendRubric(params: {
 
     const hist = history[line.id] || 0;
     if (hist > 0 && maxHist > 0) {
-      const boost = 45 * (hist / maxHist);
-      score += boost;
+      const boost = WEIGHTS.history * (hist / maxHist);
+      score = clampScore(score + boost);
       reasons.unshift(
         hist === 1
           ? "Já usado com este fornecedor neste projeto"
@@ -189,9 +292,9 @@ export function recommendRubric(params: {
     }
 
     if (nfState && norm(line.state) === nfState) {
-      score += 4;
+      score = clampScore(score + 4);
       if (nfCity && norm(line.city).includes(nfCity.split(/\s+/)[0] || "")) {
-        score += 4;
+        score = clampScore(score + 4);
         reasons.push("Local da rubrica combina");
       }
     }
@@ -205,7 +308,7 @@ export function recommendRubric(params: {
     }
   }
 
-  if (!best || best.score < 8) {
+  if (!best || best.score < RECOMMEND_MIN_SCORE) {
     const withSaldo =
       gross != null
         ? candidates.find((l) => l.available + 0.009 >= gross)

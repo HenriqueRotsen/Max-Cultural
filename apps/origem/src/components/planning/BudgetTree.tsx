@@ -1,5 +1,8 @@
 import { formatCurrency } from "@/lib/format";
-import type { LineBalance } from "@/lib/planning/rubric-balance";
+import {
+  isAdminProduct,
+  type LineBalance,
+} from "@/lib/planning/rubric-balance";
 import { FieldHelp, ThHelp } from "@/components/FieldHelp";
 import { HELP } from "@/lib/help";
 
@@ -72,7 +75,7 @@ export function BudgetTree({
           </summary>
           <div className="space-y-2 p-3">
             {[...products.entries()].map(([produto, etapas]) => {
-              const isAdminProduto = /administra/i.test(produto);
+              const isAdminProduto = isAdminProduct(produto);
               const dispHeader = pctCaptadoTLabel
                 ? `Teto operacional (${pctCaptadoTLabel})`
                 : "Teto operacional";
@@ -111,16 +114,14 @@ export function BudgetTree({
                                   >
                                     Aprovado (MinC)
                                   </ThHelp>
-                                  <ThHelp
-                                    className="py-1 pr-2"
-                                    help={
-                                      isAdminProduto
-                                        ? HELP.planningAdminProduto
-                                        : HELP.planningDisponivel
-                                    }
-                                  >
-                                    {dispHeader}
-                                  </ThHelp>
+                                  {!isAdminProduto ? (
+                                    <ThHelp
+                                      className="py-1 pr-2"
+                                      help={HELP.planningDisponivel}
+                                    >
+                                      {dispHeader}
+                                    </ThHelp>
+                                  ) : null}
                                   <th className="py-1 pr-2">Reservado</th>
                                   <th className="py-1 pr-2">Pago</th>
                                   <ThHelp
@@ -154,11 +155,13 @@ export function BudgetTree({
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(approved)}
                                       </td>
-                                      <td className="py-1.5 pr-2 tabular-nums">
-                                        {formatCurrency(
-                                          b?.availableCap ?? approved,
-                                        )}
-                                      </td>
+                                      {!isAdminProduto ? (
+                                        <td className="py-1.5 pr-2 tabular-nums">
+                                          {formatCurrency(
+                                            b?.availableCap ?? approved,
+                                          )}
+                                        </td>
+                                      ) : null}
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(b?.reserved ?? 0)}
                                       </td>

@@ -92,9 +92,8 @@ export function computeCaptacaoFactors(input: {
 }
 
 /**
- * Saldo operacional usa disponível (aprovado × %Captado), não o aprovado puro.
- * Todas as rubricas (incl. Administração) escalam pelo mesmo %Captado(T),
- * para o total disponível coincidir com a Base operável.
+ * Saldo operacional das rubricas de produção usa aprovado × %Captado(T).
+ * Administração usa 100% do aprovado MinC (sem redução pela captação).
  */
 export function computeProjectBalance(input: {
   lines: Array<{
@@ -160,7 +159,9 @@ export function computeProjectBalance(input: {
 
   let totalAvailableCap = 0;
   for (const bal of lines.values()) {
-    bal.availableCap = bal.approved * factors.pctCaptadoT;
+    bal.availableCap = bal.isAdmin
+      ? bal.approved
+      : bal.approved * factors.pctCaptadoT;
     totalAvailableCap += bal.availableCap;
     bal.available = bal.availableCap - bal.reserved;
     bal.overApproved =
