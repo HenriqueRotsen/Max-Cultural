@@ -73,11 +73,6 @@ export function ManualReservationForm({
       </label>
 
       <label className="field">
-        <span>Descrição do serviço</span>
-        <input name="serviceName" placeholder="Opcional — usa o nome do fornecedor" />
-      </label>
-
-      <label className="field">
         <span>Data prevista de pagamento</span>
         <input name="expectedPayAt" type="date" />
       </label>

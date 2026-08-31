@@ -7,6 +7,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { canDeleteNf } from "@/lib/planning/acl";
 import { computeProjectBalance, isAdminProduct } from "@/lib/planning/rubric-balance";
+import { rubricSelectLabel } from "@/lib/planning/rubric-label";
 import { recommendRubric } from "@/lib/planning/recommend-rubric";
 import { lookupCnpj } from "@/lib/catalog/brasil-api";
 import { normalizeCgccpf } from "@/lib/format";
@@ -156,7 +157,8 @@ export default async function RevisarNfPage({
     const b = bal.lines.get(l.id)!;
     return {
       id: l.id,
-      label: `${l.stageName} · ${l.itemName}`,
+      label: rubricSelectLabel(l),
+      sortOrder: l.sortOrder,
       available: b.available,
       isAdmin: isAdminProduct(l.productName),
       stageName: l.stageName,
@@ -269,6 +271,7 @@ export default async function RevisarNfPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref={`/planejamento/${id}/nf/nova`}
         breadcrumb={
           <>
             <Link href={`/planejamento/${id}`}>{project.externalCode}</Link> / Revisar{" "}

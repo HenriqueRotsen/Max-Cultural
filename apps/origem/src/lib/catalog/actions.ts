@@ -325,9 +325,13 @@ export async function deleteCatalogEngagement(id: string) {
   const ws = await workspaceId();
   const row = await prisma.catalogEngagement.findFirst({
     where: { id, workspaceId: ws },
+    include: { commitment: { select: { id: true } } },
   });
   if (!row) return;
   if (row.salicPaymentId) {
+    redirect("/fornecedores/contratacoes");
+  }
+  if (row.commitment) {
     redirect("/fornecedores/contratacoes");
   }
   await prisma.catalogEngagement.delete({ where: { id } });

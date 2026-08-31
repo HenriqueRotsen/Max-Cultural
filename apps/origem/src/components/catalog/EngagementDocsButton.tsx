@@ -18,17 +18,6 @@ function kindLabel(kind: string) {
   return kind;
 }
 
-function canPreview(mime: string, filename: string) {
-  const m = mime.toLowerCase();
-  const f = filename.toLowerCase();
-  return (
-    m.includes("pdf") ||
-    f.endsWith(".pdf") ||
-    m.startsWith("image/") ||
-    /\.(png|jpe?g|gif|webp)$/i.test(f)
-  );
-}
-
 function isXml(mime: string, filename: string) {
   const m = mime.toLowerCase();
   const f = filename.toLowerCase();
@@ -67,20 +56,50 @@ function pdfEmbedSrc(url: string) {
 function DocumentPreview({ doc }: { doc: EngagementDocItem }) {
   const previewUrl = `/api/planning/documents/${doc.id}`;
   const downloadUrl = `${previewUrl}?download=1`;
-  const pdfOrImage = canPreview(doc.mimeType, doc.filename);
   const pdf = isPdf(doc.mimeType, doc.filename);
   const xml = isXml(doc.mimeType, doc.filename);
   const image = isImage(doc.mimeType, doc.filename);
 
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [xmlText, setXmlText] = useState<string | null>(null);
+  const [pdfReady, setPdfReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (pdf) {
+      setLoading(true);
+      setError(null);
+      setPdfReady(false);
+      setBlobUrl(null);
+      setXmlText(null);
+
+      fetch(previewUrl, { credentials: "include" })
+        .then(async (res) => {
+          if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            let message = `Erro ${res.status} ao carregar o documento.`;
+            try {
+              const parsed = JSON.parse(body) as { error?: string };
+              if (parsed.error) message = parsed.error;
+            } catch {
+              if (body.trim()) message = body.trim();
+            }
+            throw new Error(message);
+          }
+          setPdfReady(true);
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Não foi possível carregar.");
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+
     let objectUrl: string | null = null;
     setLoading(true);
     setError(null);
+    setPdfReady(false);
     setBlobUrl(null);
     setXmlText(null);
 
@@ -113,7 +132,7 @@ function DocumentPreview({ doc }: { doc: EngagementDocItem }) {
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [doc.id, previewUrl, xml, doc]);
+  }, [doc.id, previewUrl, xml, pdf, doc]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -154,23 +173,21 @@ function DocumentPreview({ doc }: { doc: EngagementDocItem }) {
               {xmlText}
             </pre>
           </div>
-        ) : pdfOrImage && blobUrl ? (
-          image ? (
-            <div className="flex h-full min-h-[72vh] items-center justify-center overflow-auto rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={blobUrl}
-                alt={doc.filename}
-                className="max-h-full max-w-full object-contain"
-              />
-            </div>
-          ) : (
-            <iframe
-              title={doc.filename}
-              src={pdfEmbedSrc(blobUrl)}
-              className="h-full min-h-[72vh] w-full rounded-xl border border-[var(--border)] bg-[var(--gray-50)]"
+        ) : pdf && pdfReady ? (
+          <iframe
+            title={doc.filename}
+            src={pdfEmbedSrc(previewUrl)}
+            className="h-full min-h-[72vh] w-full rounded-xl border border-[var(--border)] bg-[var(--gray-50)]"
+          />
+        ) : image && blobUrl ? (
+          <div className="flex h-full min-h-[72vh] items-center justify-center overflow-auto rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={blobUrl}
+              alt={doc.filename}
+              className="max-h-full max-w-full object-contain"
             />
-          )
+          </div>
         ) : (
           <div className="flex h-full min-h-[72vh] flex-col items-center justify-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-6 text-center">
             <p className="text-sm text-[var(--gray-500)]">

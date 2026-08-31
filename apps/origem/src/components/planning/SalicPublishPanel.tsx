@@ -6,7 +6,8 @@ import {
   beginSalicPublishCountdown,
   cancelSalicPublish,
   startSalicPublishUpload,
-} from "@/lib/planning/actions";
+} from "@/lib/planning/federal/actions";
+import { ConfirmDialog } from "@/components/ui/AppDialog";
 
 const COUNTDOWN_SECONDS = 10;
 
@@ -34,6 +35,7 @@ export function SalicPublishPanel({
   const [typed, setTyped] = useState("");
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
 
@@ -67,16 +69,14 @@ export function SalicPublishPanel({
   }, [waiting, planningProjectId, router]);
 
   function requestCancel() {
-    if (
-      !window.confirm(
-        "Cancelar o envio ao SALIC? Será pedida confirmação e o processo será interrompido.",
-      )
-    ) {
-      return;
-    }
+    setConfirmCancelOpen(true);
+  }
+
+  function confirmCancel() {
     setError(null);
     start(async () => {
       const result = await cancelSalicPublish(planningProjectId);
+      setConfirmCancelOpen(false);
       if (result.error) setError(result.error);
       setOpen(false);
       setTyped("");
@@ -117,8 +117,9 @@ export function SalicPublishPanel({
       <div className="space-y-3 border-t border-[var(--border)] px-5 pb-5 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <p className="max-w-xl text-sm text-[var(--gray-500)]">
-            Notas e comprovantes ficam guardados no Origem. Quem tem permissão pode
-            enviar o pacote pela área logada do SALIC — com confirmação por escrito e
+            Cada comprovante sobe ao SALIC sozinho ou unificado com a NF/RPA em um
+            único PDF. Se a NF chegar depois de um pagamento antecipado, o comprovante
+            é substituído pela versão completa. Envio com confirmação por escrito e
             contagem de segurança.
           </p>
         {!busy && readinessOk ? (
@@ -209,6 +210,18 @@ export function SalicPublishPanel({
 
         {error && !open ? <p className="text-sm text-red-700">{error}</p> : null}
       </div>
+
+      <ConfirmDialog
+        open={confirmCancelOpen}
+        title="Cancelar envio ao SALIC?"
+        description="O processo de envio será interrompido. Você poderá iniciar novamente depois."
+        confirmLabel="Cancelar envio"
+        cancelLabel="Voltar"
+        tone="danger"
+        pending={pending}
+        onCancel={() => setConfirmCancelOpen(false)}
+        onConfirm={confirmCancel}
+      />
     </details>
   );
 }

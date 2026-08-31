@@ -75,7 +75,7 @@ async function saveStorageState(
   await writeFile(statePath(accountId), JSON.stringify(state, null, 2), "utf8");
 }
 
-async function waitPastCloudflare(page: Page) {
+export async function waitPastCloudflare(page: Page) {
   await page.waitForFunction(
     () => {
       const title = document.title || "";
@@ -460,11 +460,47 @@ export async function syncAccountViaCrawler(params: {
         seenExternalIds,
       );
       paymentsDeleted += removed;
+
+      const { reconcileLinkedPlanningSalicFromExternalIds, syncSalicComprovadoFromRelacaoPagamentos } =
+        await import("@/lib/planning/federal/salic-reconcile");
+      const planningCleared = await reconcileLinkedPlanningSalicFromExternalIds(
+        project.id,
+        seenExternalIds,
+      );
+
+      const planning = await prisma.planningProject.findFirst({
+        where: { projectId: project.id },
+        select: { id: true },
+      });
+      let comprovadoUpdated = 0;
+      if (planning && rows.length > 0) {
+        const salicItems = rows
+          .filter((row) => row.idComprovantePagamento != null)
+          .map((row) => ({
+            id: String(row.idComprovantePagamento),
+            planilhaAprovacaoId:
+              row.idPlanilhaAprovacao != null ? String(row.idPlanilhaAprovacao) : null,
+            supplierName: row.Fornecedor?.trim() || "Fornecedor",
+            supplierDoc: row.CNPJCPF?.trim() || "",
+            amount: row.vlPagamento ?? 0,
+            paymentDate: row.DtPagamento?.trim() || null,
+            proofNumber: row.nrComprovante?.trim() || null,
+            rubricItem: row.Item?.trim() || null,
+          }));
+        const sync = await syncSalicComprovadoFromRelacaoPagamentos(
+          planning.id,
+          salicItems,
+        );
+        comprovadoUpdated = sync.updated;
+      }
+
       projectsSynced += 1;
       seenPronacs.add(String(listed.Pronac));
       await push(
         `PRONAC ${listed.Pronac}: ${seenExternalIds.size} comprovantes no SALIC` +
-          (removed ? ` · ${removed} removidos do MAX Origem` : ""),
+          (removed ? ` · ${removed} removidos do MAX Origem` : "") +
+          (planningCleared ? ` · ${planningCleared} desvinculado(s) no planejamento` : "") +
+          (comprovadoUpdated ? ` · ${comprovadoUpdated} rubrica(s) com pago atualizado` : ""),
       );
     }
 

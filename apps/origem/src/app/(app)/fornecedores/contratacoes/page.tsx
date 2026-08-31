@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { PageHeader } from "@/components/ui";
+import { PageBackLink, PageHeader } from "@/components/ui";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton";
 import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
@@ -121,6 +121,7 @@ export default async function CatalogEngagementsPage({
 
   return (
     <div className="space-y-6">
+      <PageBackLink href="/fornecedores" label="Voltar ao banco de preços" />
       <PageHeader
         breadcrumb="Fornecedores › Contratações"
         title="Contratações"

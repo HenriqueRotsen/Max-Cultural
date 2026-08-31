@@ -217,6 +217,7 @@ async function syncPaymentsAsEngagements(
       where: { id: { in: ids } },
       select: {
         id: true,
+        externalId: true,
         itemName: true,
         amount: true,
         paymentDate: true,
@@ -228,9 +229,23 @@ async function syncPaymentsAsEngagements(
       },
     });
 
+    const { tryLinkPaymentToPlanningEngagement } = await import(
+      "@/lib/planning/federal/audit-reconcile"
+    );
+
+    const paymentsToMirror = [];
+    for (const payment of payments) {
+      const linked = await tryLinkPaymentToPlanningEngagement({
+        paymentId: payment.id,
+        paymentExternalId: payment.externalId,
+        workspaceId,
+      });
+      if (!linked) paymentsToMirror.push(payment);
+    }
+
     const supplierIds = [
       ...new Set(
-        payments
+        paymentsToMirror
           .map((p) => catalogByCnpj.get(usableCgccpf(p.supplier.cgccpf) || "") || "")
           .filter(Boolean),
       ),
@@ -254,7 +269,7 @@ async function syncPaymentsAsEngagements(
     }> = [];
     const seenNew = new Set<string>();
 
-    for (const payment of payments) {
+    for (const payment of paymentsToMirror) {
       const cgccpf = usableCgccpf(payment.supplier.cgccpf);
       const supplierId = cgccpf ? catalogByCnpj.get(cgccpf) : undefined;
       if (!supplierId) continue;
@@ -294,7 +309,7 @@ async function syncPaymentsAsEngagements(
     }
 
     const engagements = [];
-    for (const payment of payments) {
+    for (const payment of paymentsToMirror) {
       const cgccpf = usableCgccpf(payment.supplier.cgccpf);
       const supplierId = cgccpf ? catalogByCnpj.get(cgccpf) : undefined;
       if (!supplierId) continue;
@@ -318,6 +333,7 @@ async function syncPaymentsAsEngagements(
         location: payment.project.pronac,
         notes: bits.length ? bits.join(" · ") : null,
         salicPaymentId: payment.id,
+        source: "AUDIT",
         createdAt: now,
         updatedAt: now,
       });
@@ -340,7 +356,13 @@ async function dropOrphanSalicEngagements(workspaceId: string, livePaymentIds: s
   if (isDemoMode()) return;
   const live = new Set(livePaymentIds);
   const mirrored = await prisma.catalogEngagement.findMany({
-    where: { workspaceId, salicPaymentId: { not: null } },
+    where: {
+      workspaceId,
+      salicPaymentId: { not: null },
+      source: "AUDIT",
+      // Não apagar contratações do planejamento (têm reserva).
+      commitment: { is: null },
+    },
     select: { id: true, serviceId: true, salicPaymentId: true },
   });
   const stale = mirrored.filter(

@@ -4,7 +4,7 @@ import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton"
 import { CatalogPriceDollars } from "@/components/catalog/CatalogPriceDollars";
 import { CatalogServiceAlternatives } from "@/components/catalog/CatalogServiceAlternatives";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
-import { PageHeader } from "@/components/ui";
+import { PageBackLink, PageHeader } from "@/components/ui";
 import { getCategoryLabel } from "@/lib/catalog/categories";
 import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { getPriceUnitLabel } from "@/lib/catalog/price-units";
@@ -98,6 +98,7 @@ export default async function CatalogServiceDetailPage({
 
   return (
     <div className="space-y-6">
+      <PageBackLink href="/fornecedores/servicos" label="Voltar aos serviços" />
       <PageHeader
         breadcrumb="Fornecedores › Serviços"
         title={

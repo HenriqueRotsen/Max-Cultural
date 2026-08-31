@@ -34,6 +34,7 @@ export default async function AnexarNfPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref={`/planejamento/compromissos/${commitmentId}`}
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> /{" "}

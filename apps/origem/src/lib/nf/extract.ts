@@ -4,6 +4,7 @@
 
 import { PDFParse } from "pdf-parse";
 import { extractPaymentDetails, type NfPaymentDetails } from "@/lib/nf/payment-details";
+import { extractFiscalNumbersFromText, fiscalNumberFields } from "@/lib/nf/fiscal-number";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
 
 export type ExtractedItem = {
@@ -53,6 +54,16 @@ export type ExtractedFiscalDoc = {
   taxes?: ExtractedTaxes | null;
   notes?: string | null;
   payment?: NfPaymentDetails | null;
+  /** Número canônico para SALIC (NFS-e ou RPA). */
+  fiscalNumber?: string | null;
+  /** NFS-e: número da nota. */
+  nfseNumber?: string | null;
+  /** NFS-e: número do RPS (só referência). */
+  rpsNumber?: string | null;
+  /** @deprecated use fiscalNumber */
+  nfNumber?: string | null;
+  /** @deprecated use fiscalNumber */
+  invoiceNumber?: string | null;
   extractOk?: boolean;
   /** Texto bruto usado na extração (PDF/XML). */
   rawText?: string | null;
@@ -113,6 +124,41 @@ function pickDate(text: string): string | null {
   const m = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (!m) return null;
   return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+/** Número da NF/RPA para prestação de contas no SALIC. */
+export function pickFiscalDocumentNumber(
+  text: string,
+  documentKind: "NF" | "RPA" = "NF",
+): string | null {
+  return extractFiscalNumbersFromText(text, documentKind).fiscalNumber;
+}
+
+/** Nº do documento de pagamento (TED, DOC, autenticação) no comprovante bancário. */
+export function pickPaymentDocumentNumber(text: string): string | null {
+  const patterns = [
+    /\bTED\b[^\d]{0,60}(\d{6,20})/i,
+    /n[uú]mero\s+(?:do\s+)?(?:documento|doc\.?|transa[cç][aã]o)[:\s\n]+(\d{6,20})/i,
+    /(?:autentica[cç][aã]o|identificador|id\s+transa[cç][aã]o)[:\s\n]+([A-Z0-9]{6,40})/i,
+    /\bDOC[:\s]+(\d{6,20})/i,
+    /ref[eê]rencia[:\s\n]+(\d{6,20})/i,
+    /comprovante[^\d]{0,30}(\d{6,20})/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return null;
+}
+
+/** Data do pagamento no comprovante (YYYY-MM-DD). */
+export function pickPaymentProofDate(text: string): string | null {
+  const labeled =
+    text.match(
+      /(?:data\s+(?:da\s+)?(?:transa[cç][aã]o|pagamento|efetiva[cç][aã]o)|efetivado\s+em|realizado\s+em|pagamento\s+em)[:\s\n]+(\d{2}\/\d{2}\/\d{4})/i,
+    )?.[1] || null;
+  if (labeled) return pickDate(labeled);
+  return pickDate(text);
 }
 
 function pickCnae(text: string): { code: string | null; description: string | null } {
@@ -220,6 +266,8 @@ export type ExtractedProof = {
   amount?: number | null;
   taxes?: ExtractedTaxes | null;
   taxTotal?: number | null;
+  paymentDate?: string | null;
+  paymentDocumentNumber?: string | null;
   extractOk: boolean;
 };
 
@@ -246,6 +294,8 @@ export async function extractProofFromBuffer(params: {
   const taxes = text ? extractTaxes(text) : {};
   const taxTotal = taxTotalOf(taxes);
   const amount = text ? pickPaymentProofAmount(text) : null;
+  const paymentDocumentNumber = text ? pickPaymentDocumentNumber(text) : null;
+  const paymentDate = text ? pickPaymentProofDate(text) : null;
 
   return {
     rawText: text,
@@ -253,7 +303,11 @@ export async function extractProofFromBuffer(params: {
     amount,
     taxes,
     taxTotal: taxTotal || null,
-    extractOk: Boolean(text && (amount != null || taxTotal > 0)),
+    paymentDate,
+    paymentDocumentNumber,
+    extractOk: Boolean(
+      text && (amount != null || taxTotal > 0 || paymentDocumentNumber || paymentDate),
+    ),
   };
 }
 
@@ -305,6 +359,7 @@ function heuristicFromText(text: string): ExtractedFiscalDoc {
   const cnae = pickCnae(text);
   const payment = extractPaymentDetails([desc, text].filter(Boolean).join("\n"));
   const extractOk = Boolean(docId || supplierName || gross);
+  const fiscalNums = fiscalNumberFields(text, kind.documentKind);
 
   return {
     documentKind: kind.documentKind,
@@ -323,6 +378,7 @@ function heuristicFromText(text: string): ExtractedFiscalDoc {
     pronac,
     hiredAt,
     items,
+    ...fiscalNums,
     notes: extractOk ? "extraído por heurística" : "sem texto útil — preencha manualmente",
     extractOk,
   };
@@ -357,6 +413,7 @@ function parseNfeXml(xml: string): ExtractedFiscalDoc | null {
     xml.match(/<dhEmi>([^<]+)<\/dhEmi>/i)?.[1] ||
     xml.match(/<dEmi>([^<]+)<\/dEmi>/i)?.[1] ||
     xml.match(/<DataEmissao>([^<]+)<\/DataEmissao>/i)?.[1];
+  const fiscalNums = fiscalNumberFields(xml, "NF");
   const items: ExtractedItem[] = [];
   const prodRe = /<det[\s\S]*?<xProd>([^<]+)<\/xProd>[\s\S]*?<vProd>([^<]+)<\/vProd>/gi;
   let m: RegExpExecArray | null;
@@ -403,6 +460,7 @@ function parseNfeXml(xml: string): ExtractedFiscalDoc | null {
     payment,
     pronac: pickPronac(xml),
     items,
+    ...fiscalNums,
     notes: "NF XML",
     extractOk: Boolean(cnpj || supplierName || gross),
   };
@@ -612,6 +670,7 @@ function extractFromDanfseText(text: string): ExtractedFiscalDoc | null {
     serviceBlock,
     /Local da Presta[cç][aã]o\s*\n?\s*(.+)/i,
   );
+  const fiscalNums = fiscalNumberFields(normalized, kind.documentKind);
 
   return {
     documentKind: kind.documentKind,
@@ -645,6 +704,7 @@ function extractFromDanfseText(text: string): ExtractedFiscalDoc | null {
         quantity: 1,
       },
     ],
+    ...fiscalNums,
     notes: "Extraído do EMITENTE/Prestador (DANFSe)",
     extractOk: true,
   };
@@ -767,6 +827,7 @@ export async function extractNfFromBuffer(params: {
         (taxTotalOf(ollama.taxes || extractTaxes(text)) || null),
       cnaeCode: ollama.cnaeCode || pickCnae(text).code,
       cnaeDescription: ollama.cnaeDescription || pickCnae(text).description,
+      ...fiscalNumberFields(text, ollama.documentKind || "NF"),
       extractOk: true,
     };
   }

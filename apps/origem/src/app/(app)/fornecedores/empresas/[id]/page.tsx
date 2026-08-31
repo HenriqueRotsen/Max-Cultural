@@ -7,7 +7,7 @@ import { formatAddressDisplay } from "@/lib/catalog/address";
 import { formatCnaeLabel } from "@/lib/catalog/cnae";
 import { deleteCatalogSupplier } from "@/lib/catalog/actions";
 import { getSupplierInsights } from "@/lib/catalog/pricing-insights";
-import { PageHeader } from "@/components/ui";
+import { PageBackLink, PageHeader } from "@/components/ui";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { CatalogFavoriteButton } from "@/components/catalog/CatalogFavoriteButton";
 import { CatalogPriceDollars } from "@/components/catalog/CatalogPriceDollars";
@@ -74,6 +74,7 @@ export default async function CatalogSupplierDetailPage({
 
   return (
     <div className="space-y-6">
+      <PageBackLink href="/fornecedores/empresas" label="Voltar aos fornecedores" />
       <PageHeader
         breadcrumb="Fornecedores › Ficha"
         title={

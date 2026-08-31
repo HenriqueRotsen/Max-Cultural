@@ -5,46 +5,21 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { normalizeCgccpf, parseBrMoney } from "@/lib/format";
-import { canDeleteNf, canExceedRubric, canPublishToSalic, canReadequacao } from "@/lib/planning/acl";
-import {
-  assessSalicPublishReadiness,
-  classifyLifecycleFromSituacao,
-} from "@/lib/planning/lifecycle";
+import { canDeleteNf, canExceedRubric, canReadequacao } from "@/lib/planning/acl";
 import { listPlanningRulesets } from "@/lib/planning/rulesets";
 import {
-  provisionFluxoProjeto,
-  resolveFluxoContexto,
   listFluxoContextos,
   type FluxoContextoOption,
   type FluxoContextResolve,
 } from "@/lib/fluxo/provision-projeto";
-import {
-  fetchHomologatedLinesFromSalic,
-  fetchReadequadaLinesFromSalic,
-  fetchSalicProjectPreview,
-  HomologadaImportError,
-  linkHomologatedSheetsForOpenProjects,
-  persistHomologatedSheet,
-} from "@/lib/planning/import-homologada";
-import {
-  applyCaptacaoToPlanningProject,
-  CaptacaoImportError,
-  fetchCaptacaoFromSalic,
-  syncCaptacaoForWorkspace,
-} from "@/lib/planning/captacao-salic";
-import { parseStateHomologatedFile } from "@/lib/planning/state-file";
 import {
   canReserveAmount,
   computeProjectBalance,
   isAdminProduct,
 } from "@/lib/planning/rubric-balance";
 import { fifthBusinessDayNextMonth } from "@/lib/planning/business-days";
-import {
-  parseReminderDate,
-} from "@/lib/planning/reminder-dates";
-import {
-  taxDueSummaryFromCompetence,
-} from "@/lib/planning/tax-due-dates";
+import { parseReminderDate } from "@/lib/planning/reminder-dates";
+import { taxDueSummaryFromCompetence } from "@/lib/planning/tax-due-dates";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import { sendNotificationEmail } from "@/lib/planning/notify-email";
 import { extractNfFromBuffer, extractProofFromBuffer, scaleTaxes, taxTotalOf } from "@/lib/nf/extract";
@@ -56,12 +31,19 @@ import {
   mergeWarnings,
 } from "@/lib/nf/document-cross-check";
 import { storeCompressedDocument } from "@/lib/nf/compress";
+import { normalizeFiscalNumber } from "@/lib/nf/fiscal-number";
+import { buildPlanningDocumentFilename } from "@/lib/nf/document-filename";
 import {
   DuplicateDocumentError,
   findFiscalDocumentDuplicate,
   persistPlanningUpload,
 } from "@/lib/nf/persist-upload";
-import { buildPlanningDocumentFilename } from "@/lib/nf/document-filename";
+import { findOrCreateCatalogServiceForRubric } from "@/lib/catalog/service-from-rubric";
+import {
+  buildSalicPublishPackages,
+  executeSalicPublishPackage,
+  markSalicRepublishAfterNfAttach,
+} from "@/lib/planning/federal/salic-publish";
 import {
   extractPaymentDetails,
   mergePaymentDetails,
@@ -72,120 +54,20 @@ import { evaluateSupplierLimit } from "@/lib/compliance/rouanet";
 import { toActiveRules } from "@/lib/compliance/rules";
 import {
   READEQUACAO_TTL_MS,
-  budgetLineIdentityKey,
+  expireOpenReadequacaoDrafts,
   exportReadequacaoCsv,
+  moneyN,
   snapshotFromProject,
   validateReadequacaoSnapshot,
   type ReadequacaoSnapshot,
-  moneyN,
 } from "@/lib/planning/readequacao";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
+import { revalidatePlanning } from "@/lib/planning/server-utils";
 
 export type { ActionState } from "@/lib/planning/action-state";
 import type { ActionState } from "@/lib/planning/action-state";
 
-function revalidatePlanning(id?: string) {
-  revalidatePath("/planejamento");
-  revalidatePath("/planejamento/buscar");
-  revalidatePath("/fornecedores");
-  revalidatePath("/fornecedores/contratacoes");
-  if (id) {
-    revalidatePath(`/planejamento/${id}`);
-    revalidatePath(`/planejamento/${id}/nf/nova`);
-    revalidatePath(`/planejamento/${id}/reservas`);
-    revalidatePath(`/planejamento/${id}/importar-produtor`);
-  }
-}
-
-/** Espelha no Fluxo (não bloqueia o Origem). Retorna erro para exibir na UI. */
-async function syncFluxoProjeto(params: {
-  pronac: string;
-  nome: string;
-  proponente?: string;
-  fluxoContextMode?: string;
-  fluxoContextoId?: string;
-  fluxoContextoNome?: string;
-  autoMatchContexto?: boolean;
-  /** Importação em lote: cria contexto se não houver match; falhas só logam. */
-  bulk?: boolean;
-}): Promise<string | null> {
-  const mode = params.fluxoContextMode || "auto";
-  const result = await provisionFluxoProjeto({
-    pronac: params.pronac,
-    nome: params.nome,
-    proponente: params.proponente,
-    contextoId: mode === "link" ? params.fluxoContextoId : undefined,
-    contextoNome: mode === "create" ? params.fluxoContextoNome : undefined,
-    createContexto: mode === "create" || Boolean(params.bulk),
-    autoMatchContexto: mode === "auto" || Boolean(params.bulk),
-  });
-  if (!result.ok) {
-    if (params.bulk) {
-      console.warn("[planning→fluxo]", result.error);
-      return null;
-    }
-    return result.error;
-  }
-  return null;
-}
-
-function readFluxoContextFromForm(formData: FormData) {
-  return {
-    fluxoContextMode: String(formData.get("fluxoContextMode") || "auto"),
-    fluxoContextoId: String(formData.get("fluxoContextoId") || "").trim(),
-    fluxoContextoNome: String(formData.get("fluxoContextoNome") || "").trim(),
-  };
-}
-
 export type { FluxoContextResolve } from "@/lib/fluxo/provision-projeto";
-
-export async function previewPlanningProjectContext(
-  accountId: string,
-  pronac: string,
-  projectNameHint?: string,
-): Promise<
-  | {
-      ok: true;
-      projectName: string;
-      resolve: FluxoContextResolve;
-    }
-  | { ok: false; error: string }
-> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-  const code = pronac.trim();
-  if (!code) return { ok: false, error: "Informe o código do projeto" };
-
-  let projectName = projectNameHint?.trim() || code;
-
-  if (accountId) {
-    const account = await prisma.salicAccount.findFirst({
-      where: { id: accountId, workspaceId: entitlements.workspaceId },
-    });
-    if (!account) return { ok: false, error: "Proponente inválido" };
-    try {
-      const preview = await fetchSalicProjectPreview({
-        accountId,
-        pronac: code,
-      });
-      if (preview.projectName) projectName = preview.projectName;
-    } catch (e) {
-      const msg =
-        e instanceof HomologadaImportError
-          ? e.message
-          : e instanceof Error
-            ? e.message
-            : "Falha ao consultar SALIC";
-      return { ok: false, error: msg };
-    }
-  }
-
-  const resolve = await resolveFluxoContexto(projectName);
-  if (!resolve) {
-    return { ok: false, error: "Não foi possível consultar contextos no Fluxo." };
-  }
-
-  return { ok: true, projectName, resolve };
-}
 
 export async function listFluxoContextosAction(
   q?: string,
@@ -194,208 +76,7 @@ export async function listFluxoContextosAction(
   return listFluxoContextos(q);
 }
 
-export async function startPlanningProjectFederal(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-  const accountId = String(formData.get("accountId") || "");
-  const externalCode = String(formData.get("externalCode") || "").trim();
-  const rulesetVersion = String(formData.get("rulesetVersion") || "").trim();
 
-  if (!accountId || !externalCode || !rulesetVersion) {
-    return { error: "Preencha proponente, PRONAC e norma" };
-  }
-
-  const account = await prisma.salicAccount.findFirst({
-    where: { id: accountId, workspaceId: entitlements.workspaceId },
-  });
-  if (!account) return { error: "Proponente inválido" };
-
-  const existing = await prisma.planningProject.findUnique({
-    where: {
-      workspaceId_accountId_externalCode: {
-        workspaceId: entitlements.workspaceId,
-        accountId,
-        externalCode,
-      },
-    },
-  });
-  if (existing?.importedAt) {
-    return { error: "Este PRONAC já foi iniciado neste proponente" };
-  }
-
-  let fetched;
-  try {
-    fetched = await fetchHomologatedLinesFromSalic({
-      accountId,
-      pronac: externalCode,
-    });
-  } catch (e) {
-    const msg =
-      e instanceof HomologadaImportError
-        ? e.message
-        : e instanceof Error
-          ? e.message
-          : "Falha ao importar planilha homologada";
-    return { error: msg };
-  }
-
-  const auditProject = await prisma.project.upsert({
-    where: {
-      salicAccountId_pronac: { salicAccountId: accountId, pronac: externalCode },
-    },
-    create: {
-      salicAccountId: accountId,
-      pronac: externalCode,
-      name: fetched.projectName,
-      salicProjectId: fetched.idPronacHash,
-    },
-    update: {
-      name: fetched.projectName || undefined,
-      salicProjectId: fetched.idPronacHash || undefined,
-    },
-  });
-
-  const project =
-    existing ||
-    (await prisma.planningProject.create({
-      data: {
-        workspaceId: entitlements.workspaceId,
-        accountId,
-        jurisdiction: "FEDERAL",
-        rulesetVersion,
-        externalCode,
-        name: fetched.projectName,
-        projectId: auditProject.id,
-        lifecycleStatus: auditProject.lifecycleStatus || "EM_ANDAMENTO",
-      },
-    }));
-
-  if (existing) {
-    await prisma.planningProject.update({
-      where: { id: existing.id },
-      data: {
-        name: fetched.projectName,
-        projectId: auditProject.id,
-        rulesetVersion,
-      },
-    });
-  }
-
-  await persistHomologatedSheet({
-    planningProjectId: project.id,
-    lines: fetched.lines,
-    totalApproved: fetched.totalApproved,
-    importSource: "SALIC_HOMOLOGADA",
-  });
-
-  if (fetched.captacao) {
-    await applyCaptacaoToPlanningProject({
-      planningProjectId: project.id,
-      captacao: fetched.captacao,
-    });
-  }
-
-  const fluxoErr = await syncFluxoProjeto({
-    pronac: externalCode,
-    nome: fetched.projectName || externalCode,
-    proponente: account.name,
-    ...readFluxoContextFromForm(formData),
-  });
-  if (fluxoErr) return { error: fluxoErr };
-
-  revalidatePlanning(project.id);
-  redirect(`/planejamento/${project.id}`);
-}
-
-export async function startPlanningProjectState(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-  const accountId = String(formData.get("accountId") || "");
-  const externalCode = String(formData.get("externalCode") || "").trim();
-  const rulesetVersion = String(formData.get("rulesetVersion") || "").trim();
-  const jurisdiction = String(formData.get("jurisdiction") || "").trim();
-  const file = formData.get("sheetFile");
-
-  if (!accountId || !externalCode || !rulesetVersion || !jurisdiction) {
-    return { error: "Preencha UF, proponente, código e norma" };
-  }
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Envie o arquivo da planilha homologada" };
-  }
-
-  const account = await prisma.salicAccount.findFirst({
-    where: { id: accountId, workspaceId: entitlements.workspaceId },
-  });
-  if (!account) return { error: "Proponente inválido" };
-
-  const existing = await prisma.planningProject.findUnique({
-    where: {
-      workspaceId_accountId_externalCode: {
-        workspaceId: entitlements.workspaceId,
-        accountId,
-        externalCode,
-      },
-    },
-  });
-  if (existing?.importedAt) {
-    return { error: "Este código já foi iniciado neste proponente" };
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  let parsed;
-  try {
-    parsed = parseStateHomologatedFile(buffer, file.name);
-  } catch (e) {
-    return {
-      error: e instanceof Error ? e.message : "Falha ao ler a planilha",
-    };
-  }
-
-  const project =
-    existing ||
-    (await prisma.planningProject.create({
-      data: {
-        workspaceId: entitlements.workspaceId,
-        accountId,
-        jurisdiction,
-        rulesetVersion,
-        externalCode,
-        name: externalCode,
-      },
-    }));
-
-  if (existing) {
-    await prisma.planningProject.update({
-      where: { id: existing.id },
-      data: { rulesetVersion, jurisdiction },
-    });
-  }
-
-  await persistHomologatedSheet({
-    planningProjectId: project.id,
-    lines: parsed.lines,
-    totalApproved: parsed.totalApproved,
-    sourceFilename: file.name,
-    importSource: "STATE_FILE",
-  });
-
-  const fluxoErr = await syncFluxoProjeto({
-    pronac: externalCode,
-    nome: project.name || externalCode,
-    proponente: account.name,
-    ...readFluxoContextFromForm(formData),
-  });
-  if (fluxoErr) return { error: fluxoErr };
-
-  revalidatePlanning(project.id);
-  redirect(`/planejamento/${project.id}`);
-}
 
 export async function updatePlanningCaptacao(
   planningProjectId: string,
@@ -431,68 +112,6 @@ export async function updatePlanningCaptacao(
   return { ok: true };
 }
 
-export async function refreshPlanningCaptacaoFromSalic(
-  planningProjectId: string,
-  _prev: ActionState = {},
-  _formData?: FormData,
-): Promise<ActionState> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-  const project = await prisma.planningProject.findFirst({
-    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
-  });
-  if (!project) return { error: "Projeto não encontrado" };
-  if (project.jurisdiction !== "FEDERAL") {
-    return { error: "Captação automática disponível só para projetos federais (SALIC)" };
-  }
-
-  try {
-    const captacao = await fetchCaptacaoFromSalic({
-      accountId: project.accountId,
-      pronac: project.externalCode,
-    });
-    await applyCaptacaoToPlanningProject({
-      planningProjectId: project.id,
-      captacao,
-    });
-  } catch (e) {
-    const msg =
-      e instanceof CaptacaoImportError
-        ? e.message
-        : e instanceof Error
-          ? e.message
-          : "Falha ao carregar captação do SALIC";
-    return { error: msg };
-  }
-
-  revalidatePlanning(planningProjectId);
-  return { ok: true };
-}
-
-/** Atualiza Captação de recursos de todos os projetos federais do workspace. */
-export async function refreshAllPlanningCaptacaoFromSalic(): Promise<ActionState> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-  try {
-    const result = await syncCaptacaoForWorkspace(entitlements.workspaceId);
-    revalidatePlanning();
-    if (result.synced === 0 && result.errors.length > 0) {
-      return {
-        error: `Nenhum projeto atualizado. ${result.errors.slice(0, 3).join(" · ")}`,
-      };
-    }
-    return {
-      ok: true,
-      message: `Captação atualizada em ${result.synced} projeto(s)${
-        result.skipped ? ` · ${result.skipped} ignorado(s)` : ""
-      }.`,
-    };
-  } catch (e) {
-    return {
-      error: e instanceof Error ? e.message : "Falha ao sincronizar captação",
-    };
-  }
-}
 
 export async function uploadNfForReview(
   planningProjectId: string,
@@ -782,6 +401,61 @@ export async function deletePlanningFiscalDocument(
   return { ok: true, message: `${doc.kind} excluída.` };
 }
 
+/** Atualiza o número da NF/RPA já importada (sem reenviar o PDF). */
+export async function updateImportedFiscalNumber(
+  documentId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser();
+  const { entitlements } = await getWorkspaceContext();
+
+  const fiscalNumberRaw = String(formData.get("fiscalNumber") || "").trim();
+  const doc = await prisma.planningDocument.findFirst({
+    where: {
+      id: documentId,
+      workspaceId: entitlements.workspaceId,
+      kind: { in: ["NF", "RPA"] },
+      status: "IMPORTED",
+    },
+  });
+  if (!doc) {
+    return { error: "NF/RPA importada não encontrada." };
+  }
+
+  const kind = doc.kind === "RPA" ? "RPA" : "NF";
+  const fiscalNumber = normalizeFiscalNumber(fiscalNumberRaw, kind);
+  if (!fiscalNumber) {
+    return {
+      error:
+        kind === "RPA"
+          ? "Informe o número do RPA (ex.: 26/2026)."
+          : "Informe o número da NFS-e.",
+    };
+  }
+
+  await prisma.planningDocument.update({
+    where: { id: doc.id },
+    data: {
+      extractedJson: {
+        ...((doc.extractedJson || {}) as object),
+        fiscalNumber,
+        nfNumber: fiscalNumber,
+        invoiceNumber: fiscalNumber,
+        fiscalNumberSource: "manual",
+      },
+    },
+  });
+
+  if (doc.planningProjectId) {
+    revalidatePlanning(doc.planningProjectId);
+    revalidatePath(`/planejamento/${doc.planningProjectId}/reservas`);
+  }
+  revalidatePath("/planejamento");
+
+  return { ok: true, message: "Número atualizado." };
+}
+
 async function attachNfToPendingCommitment(params: {
   session: { id: string; email?: string | null };
   entitlements: { workspaceId: string };
@@ -796,11 +470,11 @@ async function attachNfToPendingCommitment(params: {
   formData: FormData;
   attachCommitmentId: string;
   hasBond: boolean;
-  serviceName: string;
   supplierName: string;
   cnpj: string;
   grossAmount: number;
   taxesFromForm: Record<string, number | null>;
+  fiscalNumber: string;
 }): Promise<ActionState> {
   const {
     session,
@@ -810,15 +484,15 @@ async function attachNfToPendingCommitment(params: {
     formData,
     attachCommitmentId,
     hasBond,
-    serviceName,
     supplierName,
     cnpj,
     grossAmount,
     taxesFromForm,
+    fiscalNumber,
   } = params;
 
-  if (!cnpj || !supplierName || !serviceName || !(grossAmount > 0)) {
-    return { error: "Preencha fornecedor, serviço e valor bruto" };
+  if (!cnpj || !supplierName || !(grossAmount > 0)) {
+    return { error: "Preencha fornecedor e valor bruto" };
   }
 
   const sharesRaw = String(formData.get("allocationsJson") || "[]");
@@ -994,6 +668,13 @@ async function attachNfToPendingCommitment(params: {
           grossAmount,
           taxTotal,
           taxesJson: taxesFromForm as object,
+          extractedJson: {
+            ...((doc.extractedJson || {}) as object),
+            fiscalNumber,
+            nfNumber: fiscalNumber,
+            invoiceNumber: fiscalNumber,
+            fiscalNumberSource: "manual",
+          },
         },
       });
       if (claimed.count !== 1) {
@@ -1054,6 +735,50 @@ async function attachNfToPendingCommitment(params: {
     throw err;
   }
 
+  if (proof) {
+    const needsRepublish = await markSalicRepublishAfterNfAttach(proof.id);
+    if (needsRepublish && commitment.planningProjectId) {
+      const project = await prisma.planningProject.findUnique({
+        where: { id: commitment.planningProjectId },
+        select: { externalCode: true, jurisdiction: true },
+      });
+      if (project && isFederalPlanning(project.jurisdiction)) {
+        const refreshed = await prisma.planningDocument.findMany({
+          where: {
+            planningProjectId: commitment.planningProjectId,
+            status: "IMPORTED",
+          },
+          select: {
+            id: true,
+            kind: true,
+            status: true,
+            filename: true,
+            mimeType: true,
+            storagePath: true,
+            sourceDocumentId: true,
+            salicComprovanteId: true,
+            salicPublishMode: true,
+            salicRepublishPending: true,
+          },
+        });
+        const pkg = buildSalicPublishPackages(refreshed).find(
+          (p) => p.proofId === proof.id && p.action === "REPUBLISH_MERGED",
+        );
+        if (pkg) {
+          try {
+            await executeSalicPublishPackage({
+              planningProjectId: commitment.planningProjectId,
+              externalCode: project.externalCode,
+              pkg,
+            });
+          } catch {
+            // Mantém salicRepublishPending para retry manual via painel SALIC.
+          }
+        }
+      }
+    }
+  }
+
   revalidatePlanning(commitment.planningProjectId!);
   redirect(`/planejamento/compromissos/${commitment.id}`);
 }
@@ -1067,7 +792,6 @@ export async function confirmNfReservation(
   const { entitlements } = await getWorkspaceContext();
 
   const hasBond = formData.get("hasBond") === "on" || formData.get("hasBond") === "true";
-  const serviceName = String(formData.get("serviceName") || "").trim();
   const supplierName = String(formData.get("supplierName") || "").trim();
   const cnpj = normalizeCgccpf(String(formData.get("cnpj") || ""));
   const hiredAtRaw = String(formData.get("hiredAt") || "");
@@ -1076,6 +800,7 @@ export async function confirmNfReservation(
   let cnaeDescription = String(formData.get("cnaeDescription") || "").trim() || null;
   const grossAmount =
     parseBrMoney(String(formData.get("grossAmount") || formData.get("amount") || "")) || 0;
+  const fiscalNumberRaw = String(formData.get("fiscalNumber") || "").trim();
   const paymentFromForm = {
     pixKey: String(formData.get("pixKey") || "").trim() || null,
     bankName: String(formData.get("bankName") || "").trim() || null,
@@ -1124,6 +849,17 @@ export async function confirmNfReservation(
     return { error: "Documento ainda não está pronto para reserva." };
   }
 
+  const docKindEarly = doc.kind === "RPA" ? "RPA" : "NF";
+  const fiscalNumber = normalizeFiscalNumber(fiscalNumberRaw, docKindEarly);
+  if (!fiscalNumber) {
+    return {
+      error:
+        docKindEarly === "RPA"
+          ? "Informe o número do RPA (ex.: 26/2026)."
+          : "Informe o número da NFS-e.",
+    };
+  }
+
   const attachCommitmentId = String(
     formData.get("attachCommitmentId") || "",
   ).trim();
@@ -1139,7 +875,6 @@ export async function confirmNfReservation(
       hasBond:
         formData.get("hasBond") === "on" ||
         formData.get("hasBond") === "true",
-      serviceName: String(formData.get("serviceName") || "").trim(),
       supplierName: String(formData.get("supplierName") || "").trim(),
       cnpj: normalizeCgccpf(String(formData.get("cnpj") || "")),
       grossAmount:
@@ -1155,6 +890,7 @@ export async function confirmNfReservation(
         cofins: parseBrMoney(String(formData.get("taxCofins") || "")),
         other: parseBrMoney(String(formData.get("taxOther") || "")),
       },
+      fiscalNumber,
     });
   }
 
@@ -1168,8 +904,8 @@ export async function confirmNfReservation(
     },
   });
   if (!project?.sheet) return { error: "Projeto sem planilha" };
-  if (!cnpj || !supplierName || !serviceName || !(grossAmount > 0)) {
-    return { error: "Preencha fornecedor, serviço e valor bruto" };
+  if (!cnpj || !supplierName || !(grossAmount > 0)) {
+    return { error: "Preencha fornecedor e valor bruto" };
   }
   if (allocations.length === 0) {
     return { error: "Informe ao menos uma rubrica no rateio" };
@@ -1213,7 +949,7 @@ export async function confirmNfReservation(
     paymentNotes: extracted.payment?.paymentNotes ?? null,
   };
   const paymentHeuristic = extractPaymentDetails(
-    [serviceName, extracted.serviceDescription].filter(Boolean).join("\n"),
+    extracted.serviceDescription || "",
   );
   const paymentIncoming = mergePaymentDetails(
     paymentFromForm,
@@ -1225,6 +961,11 @@ export async function confirmNfReservation(
       ? Number(project.project.valorCaptado)
       : null) ?? 0;
 
+  const { loadPublishedPaidByLine } = await import(
+    "@/lib/planning/federal/audit-reconcile"
+  );
+  const publishedPaidByLine = await loadPublishedPaidByLine(project.id);
+
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
@@ -1232,6 +973,7 @@ export async function confirmNfReservation(
     captadoRecebido: project.captadoRecebido,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
+    publishedPaidByLine,
   });
 
   const allowOverflow = await canExceedRubric();
@@ -1344,6 +1086,7 @@ export async function confirmNfReservation(
       captadoRecebido: project.captadoRecebido,
       captadoTransferido: project.captadoTransferido,
       rendimentos: project.rendimentos,
+      publishedPaidByLine,
     });
     for (const slice of slices) {
       const line = project.sheet!.lines.find((l) => l.id === slice.budgetLineId);
@@ -1415,28 +1158,18 @@ export async function confirmNfReservation(
       },
     });
 
-    let service = await tx.catalogService.findFirst({
-      where: {
-        supplierId: supplier.id,
-        name: { equals: serviceName, mode: "insensitive" },
-      },
-    });
-    if (!service) {
-      service = await tx.catalogService.create({
-        data: {
-          supplierId: supplier.id,
-          name: serviceName,
-          category:
-            project.sheet!.lines.find((l) => l.id === slices[0]!.budgetLineId)
-              ?.categoryHint || "outros",
-        },
-      });
-    }
-
     let primaryCommitmentId: string | null = null;
     let primaryEngagementId: string | null = null;
 
     for (const slice of slices) {
+      const line = project.sheet!.lines.find((l) => l.id === slice.budgetLineId);
+      if (!line) throw new Error("BALANCE:Rubrica do rateio não encontrada");
+      const service = await findOrCreateCatalogServiceForRubric(tx, {
+        supplierId: supplier.id,
+        rubricName: line.itemName,
+        categoryHint: line.categoryHint,
+      });
+
       const engagement = await tx.catalogEngagement.create({
         data: {
           workspaceId: entitlements.workspaceId,
@@ -1497,6 +1230,13 @@ export async function confirmNfReservation(
         netAmount: Math.round((grossAmount - taxTotal) * 100) / 100,
         taxTotal,
         taxesJson: taxesFromForm as object,
+        extractedJson: {
+          ...(doc.extractedJson as object),
+          fiscalNumber,
+          nfNumber: fiscalNumber,
+          invoiceNumber: fiscalNumber,
+          fiscalNumberSource: "manual",
+        },
       },
     });
 
@@ -1796,6 +1536,19 @@ export async function uploadPaymentProof(
     ...new Set(siblingAllocs.map((a) => a.commitmentId)),
   ];
 
+  const paidAt = (() => {
+    if (
+      proofExtracted.paymentDate &&
+      /^\d{4}-\d{2}-\d{2}/.test(proofExtracted.paymentDate)
+    ) {
+      const parsed = new Date(
+        `${proofExtracted.paymentDate.slice(0, 10)}T12:00:00Z`,
+      );
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  })();
+
   await prisma.$transaction(async (tx) => {
     const proof = await tx.planningDocument.create({
       data: {
@@ -1807,6 +1560,7 @@ export async function uploadPaymentProof(
         byteSize: stored.byteSize,
         originalByteSize: stored.originalByteSize,
         contentHash: stored.contentHash,
+        extractedJson: proofExtracted as object,
         workspaceId: entitlements.workspaceId,
         planningProjectId: commitment.planningProjectId,
         engagementId: commitment.engagementId,
@@ -1836,7 +1590,7 @@ export async function uploadPaymentProof(
           workspaceId: entitlements.workspaceId,
           status: "RESERVED",
         },
-        data: { status: "PAID", paidAt: new Date() },
+        data: { status: "PAID", paidAt },
       });
       for (const cid of siblingCommitmentIds) {
         await tx.appNotification.deleteMany({
@@ -2434,338 +2188,10 @@ export async function saveRubricReallocation(
  * Espelha os projetos da Auditoria no Planejamento.
  * Para os em andamento sem planilha, vincula a planilha homologada pela área logada.
  */
-export async function importAuditoriaProjectsToPlanning(): Promise<ActionState> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
 
-  const rulesets = await listPlanningRulesets();
-  const rulesetVersion = rulesets[0]?.version;
-  if (!rulesetVersion) {
-    return { error: "Nenhuma norma de conformidade ativa para vincular aos projetos." };
-  }
-
-  const auditProjects = await prisma.project.findMany({
-    where: { salicAccount: { workspaceId: entitlements.workspaceId } },
-    include: {
-      planningProject: { select: { id: true } },
-      salicAccount: { select: { id: true, name: true } },
-    },
-    orderBy: { pronac: "asc" },
-  });
-
-  let created = 0;
-  let updated = 0;
-
-  for (const p of auditProjects) {
-    const lifecycle =
-      p.lifecycleStatus === "ENCERRADO"
-        ? "ENCERRADO"
-        : classifyLifecycleFromSituacao(p.situacao);
-
-    if (p.planningProject) {
-      await prisma.planningProject.update({
-        where: { id: p.planningProject.id },
-        data: {
-          lifecycleStatus: lifecycle,
-          name: p.name || undefined,
-        },
-      });
-      if (p.lifecycleStatus !== lifecycle) {
-        await prisma.project.update({
-          where: { id: p.id },
-          data: { lifecycleStatus: lifecycle },
-        });
-      }
-      updated += 1;
-      await syncFluxoProjeto({
-        pronac: p.pronac,
-        nome: p.name || p.pronac,
-        proponente: p.salicAccount.name,
-        bulk: true,
-      });
-      continue;
-    }
-
-    await prisma.planningProject.create({
-      data: {
-        workspaceId: entitlements.workspaceId,
-        accountId: p.salicAccountId,
-        jurisdiction: "FEDERAL",
-        rulesetVersion,
-        externalCode: p.pronac,
-        name: p.name,
-        projectId: p.id,
-        lifecycleStatus: lifecycle,
-      },
-    });
-    created += 1;
-    await syncFluxoProjeto({
-      pronac: p.pronac,
-      nome: p.name || p.pronac,
-      proponente: p.salicAccount.name,
-      bulk: true,
-    });
-  }
-
-  const sheets = await linkHomologatedSheetsForOpenProjects(entitlements.workspaceId);
-
-  revalidatePlanning();
-  return {
-    ok: true,
-    id: `${created}:${updated}:${sheets.linked}:${sheets.skipped}`,
-    error:
-      sheets.errors.length > 0
-        ? sheets.errors.slice(0, 5).join(" · ") +
-          (sheets.errors.length > 5 ? ` · (+${sheets.errors.length - 5})` : "")
-        : undefined,
-  };
-}
-
-function normalizeConfirmName(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-/** Confirmação escrita + inicia contagem regressiva de 10s (status AGUARDANDO). */
-export async function beginSalicPublishCountdown(
-  planningProjectId: string,
-  typedName: string,
-): Promise<ActionState> {
-  await requireUser();
-  if (!(await canPublishToSalic())) {
-    return { error: "Sem permissão para enviar projetos ao SALIC." };
-  }
-  const { entitlements } = await getWorkspaceContext();
-
-  const project = await prisma.planningProject.findFirst({
-    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
-    include: {
-      sheet: { select: { id: true } },
-      documents: { select: { kind: true, status: true } },
-      commitments: { select: { status: true } },
-    },
-  });
-  if (!project) return { error: "Projeto não encontrado." };
-
-  if (
-    project.salicPublishStatus === "AGUARDANDO" ||
-    project.salicPublishStatus === "ENVIANDO"
-  ) {
-    return { error: "Já existe um envio em andamento para este projeto." };
-  }
-
-  const expected = normalizeConfirmName(project.name || project.externalCode);
-  const got = normalizeConfirmName(typedName);
-  if (!expected || got !== expected) {
-    return {
-      error: "O nome digitado não confere com o nome do projeto. Digite exatamente como aparece.",
-    };
-  }
-
-  const readiness = assessSalicPublishReadiness({
-    hasSheet: Boolean(project.sheet),
-    documents: project.documents,
-    commitments: project.commitments,
-  });
-  if (!readiness.ok) {
-    return { error: readiness.reasons[0] || "Projeto ainda não está pronto para envio." };
-  }
-
-  await prisma.planningProject.update({
-    where: { id: project.id },
-    data: {
-      salicPublishStatus: "AGUARDANDO",
-      salicPublishMessage: "Confirmação recebida. Aguarde 10 segundos para o envio começar.",
-      salicPublishStartedAt: new Date(),
-      salicPublishCancelRequested: false,
-    },
-  });
-
-  revalidatePlanning(project.id);
-  return { ok: true };
-}
-
-/** Após a contagem: inicia o envio (área logada). Pode ser cancelado. */
-export async function startSalicPublishUpload(
-  planningProjectId: string,
-): Promise<ActionState> {
-  await requireUser();
-  if (!(await canPublishToSalic())) {
-    return { error: "Sem permissão para enviar projetos ao SALIC." };
-  }
-  const { entitlements } = await getWorkspaceContext();
-
-  const project = await prisma.planningProject.findFirst({
-    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
-    include: {
-      documents: {
-        where: { status: "IMPORTED" },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, kind: true, filename: true },
-      },
-    },
-  });
-  if (!project) return { error: "Projeto não encontrado." };
-
-  if (project.salicPublishStatus !== "AGUARDANDO") {
-    return { error: "O envio precisa da confirmação e da contagem de 10 segundos." };
-  }
-
-  if (project.salicPublishCancelRequested) {
-    await prisma.planningProject.update({
-      where: { id: project.id },
-      data: {
-        salicPublishStatus: "CANCELADO",
-        salicPublishMessage: "Envio cancelado antes de começar.",
-        salicPublishCancelRequested: false,
-      },
-    });
-    revalidatePlanning(project.id);
-    return { error: "Envio cancelado." };
-  }
-
-  const startedAt = project.salicPublishStartedAt?.getTime() ?? 0;
-  if (Date.now() - startedAt < 9500) {
-    return { error: "Aguarde o fim da contagem de 10 segundos." };
-  }
-
-  await prisma.planningProject.update({
-    where: { id: project.id },
-    data: {
-      salicPublishStatus: "ENVIANDO",
-      salicPublishMessage: "Preparando documentos para a área logada do SALIC…",
-      salicPublishStartedAt: new Date(),
-      salicPublishCancelRequested: false,
-    },
-  });
-  revalidatePlanning(project.id);
-
-  // Envio real via área logada: processa documentos com checagem de cancelamento.
-  // Enquanto o robô de upload no SALIC não estiver completo, registra a fila e conclui
-  // com mensagem clara — os arquivos já ficam guardados no Origem.
-  try {
-    const docs = project.documents;
-    for (let i = 0; i < docs.length; i++) {
-      const row = await prisma.planningProject.findUnique({
-        where: { id: project.id },
-        select: { salicPublishCancelRequested: true },
-      });
-      if (row?.salicPublishCancelRequested) {
-        await prisma.planningProject.update({
-          where: { id: project.id },
-          data: {
-            salicPublishStatus: "CANCELADO",
-            salicPublishMessage: `Envio cancelado (${i}/${docs.length} documentos).`,
-            salicPublishCancelRequested: false,
-          },
-        });
-        revalidatePlanning(project.id);
-        return { error: "Envio cancelado." };
-      }
-
-      const doc = docs[i]!;
-      const label =
-        doc.kind === "NF"
-          ? "nota fiscal"
-          : doc.kind === "PAYMENT_PROOF"
-            ? "comprovante de pagamento"
-            : "comprovante fiscal";
-      await prisma.planningProject.update({
-        where: { id: project.id },
-        data: {
-          salicPublishMessage: `Fila ${i + 1}/${docs.length}: ${label}${
-            doc.filename ? ` (${doc.filename})` : ""
-          }`,
-        },
-      });
-      await new Promise((r) => setTimeout(r, 400));
-    }
-
-    await prisma.planningProject.update({
-      where: { id: project.id },
-      data: {
-        salicPublishStatus: "CONCLUIDO",
-        salicPublishMessage:
-          "Documentos organizados na fila de envio. O depósito automático na área logada do SALIC será concluído nesta etapa nas próximas versões; os arquivos já estão guardados no Origem.",
-        salicPublishCancelRequested: false,
-      },
-    });
-    revalidatePlanning(project.id);
-    return { ok: true };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Falha no envio";
-    await prisma.planningProject.update({
-      where: { id: project.id },
-      data: {
-        salicPublishStatus: "FALHOU",
-        salicPublishMessage: msg,
-        salicPublishCancelRequested: false,
-      },
-    });
-    revalidatePlanning(project.id);
-    return { error: msg };
-  }
-}
-
-export async function cancelSalicPublish(
-  planningProjectId: string,
-): Promise<ActionState> {
-  await requireUser();
-  if (!(await canPublishToSalic())) {
-    return { error: "Sem permissão para cancelar o envio." };
-  }
-  const { entitlements } = await getWorkspaceContext();
-
-  const project = await prisma.planningProject.findFirst({
-    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
-    select: { id: true, salicPublishStatus: true },
-  });
-  if (!project) return { error: "Projeto não encontrado." };
-
-  if (
-    project.salicPublishStatus !== "AGUARDANDO" &&
-    project.salicPublishStatus !== "ENVIANDO"
-  ) {
-    return { error: "Não há envio em andamento para cancelar." };
-  }
-
-  if (project.salicPublishStatus === "AGUARDANDO") {
-    await prisma.planningProject.update({
-      where: { id: project.id },
-      data: {
-        salicPublishStatus: "CANCELADO",
-        salicPublishMessage: "Envio cancelado na contagem regressiva.",
-        salicPublishCancelRequested: false,
-      },
-    });
-  } else {
-    await prisma.planningProject.update({
-      where: { id: project.id },
-      data: {
-        salicPublishCancelRequested: true,
-        salicPublishMessage: "Cancelamento solicitado…",
-      },
-    });
-  }
-
-  revalidatePlanning(project.id);
-  return { ok: true };
-}
 
 
 // ——— Readequação ———
-
-async function expireOpenDrafts(planningProjectId: string, workspaceId: string) {
-  const now = new Date();
-  await prisma.planningReadequacaoDraft.updateMany({
-    where: {
-      planningProjectId,
-      workspaceId,
-      status: "OPEN",
-      expiresAt: { lt: now },
-    },
-    data: { status: "EXPIRED" },
-  });
-}
 
 export async function startReadequacaoDraft(
   planningProjectId: string,
@@ -2775,7 +2201,7 @@ export async function startReadequacaoDraft(
     return { error: "Sem permissão para Readequação." };
   }
   const { entitlements } = await getWorkspaceContext();
-  await expireOpenDrafts(planningProjectId, entitlements.workspaceId);
+  await expireOpenReadequacaoDrafts(planningProjectId, entitlements.workspaceId);
 
   const project = await prisma.planningProject.findFirst({
     where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
@@ -2822,211 +2248,6 @@ export async function startReadequacaoDraft(
   redirect(`/planejamento/${planningProjectId}/readequacao/${draft.id}`);
 }
 
-export async function startReadequacaoFromSalic(
-  planningProjectId: string,
-): Promise<ActionState> {
-  await requireUser();
-  if (!(await canReadequacao())) {
-    return { error: "Sem permissão para Readequação." };
-  }
-  const { entitlements } = await getWorkspaceContext();
-  await expireOpenDrafts(planningProjectId, entitlements.workspaceId);
-
-  const project = await prisma.planningProject.findFirst({
-    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
-    include: {
-      sheet: { include: { lines: { orderBy: { sortOrder: "asc" } } } },
-      commitments: {
-        where: { status: { in: ["RESERVED", "PAID"] } },
-        select: { budgetLineId: true, amount: true },
-      },
-    },
-  });
-  if (!project?.sheet) return { error: "Projeto sem planilha" };
-  if (project.jurisdiction !== "FEDERAL") {
-    return { error: "Readequar com SALIC disponível só para projetos federais." };
-  }
-
-  let linesFromSalic;
-  try {
-    linesFromSalic = await fetchReadequadaLinesFromSalic({
-      accountId: project.accountId,
-      pronac: project.externalCode,
-    });
-  } catch (e) {
-    return {
-      error:
-        e instanceof HomologadaImportError
-          ? e.message
-          : "Falha ao buscar planilha readequada no SALIC",
-    };
-  }
-
-  const reservedByLine = new Map<string, number>();
-  for (const c of project.commitments) {
-    reservedByLine.set(
-      c.budgetLineId,
-      (reservedByLine.get(c.budgetLineId) || 0) + moneyN(c.amount),
-    );
-  }
-
-  const existingByAprovacaoId = new Map(
-    project.sheet.lines
-      .filter((l) => l.planilhaAprovacaoId)
-      .map((l) => [String(l.planilhaAprovacaoId).trim(), l] as const),
-  );
-  const existingByComposite = new Map(
-    project.sheet.lines.map(
-      (l) =>
-        [
-          budgetLineIdentityKey({ ...l, planilhaAprovacaoId: null }),
-          l,
-        ] as const,
-    ),
-  );
-
-  function matchExisting(salic: (typeof linesFromSalic)[number]) {
-    const byId = salic.planilhaAprovacaoId
-      ? existingByAprovacaoId.get(String(salic.planilhaAprovacaoId).trim())
-      : undefined;
-    if (byId) return byId;
-    return existingByComposite.get(
-      budgetLineIdentityKey({ ...salic, planilhaAprovacaoId: null }),
-    );
-  }
-
-  for (const salic of linesFromSalic) {
-    const existing = matchExisting(salic);
-    if (!existing) continue;
-    const reserved = reservedByLine.get(existing.id) || 0;
-    if (reserved > moneyN(salic.approvedAmount) + 1e-6) {
-      return {
-        error: `${existing.itemName}: readequação (R$ ${moneyN(salic.approvedAmount).toFixed(2)}) é menor que o reservado/pago (R$ ${reserved.toFixed(2)}).`,
-      };
-    }
-  }
-
-  const matchedExistingIds = new Set(
-    linesFromSalic
-      .map((l) => matchExisting(l)?.id)
-      .filter((id): id is string => Boolean(id)),
-  );
-  for (const line of project.sheet.lines) {
-    if (matchedExistingIds.has(line.id)) continue;
-    const reserved = reservedByLine.get(line.id) || 0;
-    if (reserved > 0) {
-      return {
-        error: `${line.itemName}: sumiu na readequação do SALIC, mas ainda tem R$ ${reserved.toFixed(2)} reservado/pago. Ajuste as reservas antes de importar.`,
-      };
-    }
-  }
-
-  const now = new Date();
-  const sheetId = project.sheet.id;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.planningReadequacaoDraft.updateMany({
-      where: {
-        planningProjectId,
-        workspaceId: entitlements.workspaceId,
-        status: "OPEN",
-      },
-      data: { status: "EXPIRED" },
-    });
-
-    const keepIds = new Set<string>();
-    let sortOrder = 0;
-    let totalApproved = 0;
-
-    for (const l of linesFromSalic) {
-      const existing = matchExisting(l);
-      const amount = moneyN(l.approvedAmount);
-      totalApproved += amount;
-
-      if (existing) {
-        await tx.projectBudgetLine.update({
-          where: { id: existing.id },
-          data: {
-            planilhaAprovacaoId: l.planilhaAprovacaoId,
-            fonteRecurso: l.fonteRecurso,
-            productName: l.productName,
-            stageName: l.stageName,
-            state: l.state,
-            city: l.city,
-            itemName: l.itemName,
-            categoryHint: l.categoryHint,
-            unit: l.unit || "Unidade",
-            days: l.days || 1,
-            quantity: l.quantity || 1,
-            occurrences: l.occurrences || 1,
-            unitPrice: l.unitPrice || 0,
-            homologatedAmount: amount,
-            approvedAmount: amount,
-            salicComprovado: l.salicComprovado,
-            sortOrder,
-          },
-        });
-        keepIds.add(existing.id);
-      } else {
-        await tx.projectBudgetLine.create({
-          data: {
-            sheetId,
-            planilhaAprovacaoId: l.planilhaAprovacaoId,
-            fonteRecurso: l.fonteRecurso,
-            productName: l.productName,
-            stageName: l.stageName,
-            state: l.state,
-            city: l.city,
-            itemName: l.itemName,
-            categoryHint: l.categoryHint,
-            unit: l.unit || "Unidade",
-            days: l.days || 1,
-            quantity: l.quantity || 1,
-            occurrences: l.occurrences || 1,
-            unitPrice: l.unitPrice || 0,
-            homologatedAmount: amount,
-            approvedAmount: amount,
-            salicComprovado: l.salicComprovado,
-            sortOrder,
-          },
-        });
-      }
-      sortOrder += 1;
-    }
-
-    const staleIds = project.sheet!.lines
-      .filter((l) => !keepIds.has(l.id))
-      .map((l) => l.id);
-    if (staleIds.length > 0) {
-      await tx.projectBudgetLine.deleteMany({
-        where: { id: { in: staleIds }, sheetId },
-      });
-    }
-
-    totalApproved = Math.round(totalApproved * 100) / 100;
-
-    await tx.projectBudgetSheet.update({
-      where: { id: sheetId },
-      data: {
-        totalApproved,
-        importedAt: now,
-        sourceFilename: "SALIC planilha readequada",
-        available: true,
-      },
-    });
-
-    await tx.planningProject.update({
-      where: { id: planningProjectId },
-      data: {
-        importedAt: now,
-        importSource: "SALIC_READEQUADA",
-      },
-    });
-  });
-
-  revalidatePlanning(planningProjectId);
-  redirect(`/planejamento/${planningProjectId}`);
-}
 
 export async function saveReadequacaoDraft(
   draftId: string,

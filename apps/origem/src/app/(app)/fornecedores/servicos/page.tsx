@@ -10,7 +10,7 @@ import {
 } from "@/components/catalog/CatalogPager";
 import { CatalogPriceDollars } from "@/components/catalog/CatalogPriceDollars";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
-import { PageHeader } from "@/components/ui";
+import { PageBackLink, PageHeader } from "@/components/ui";
 import { getCategoryLabel, isServiceCategory, SERVICE_CATEGORIES } from "@/lib/catalog/categories";
 import { getYearTiersForSuppliers } from "@/lib/catalog/pricing-insights";
 
@@ -77,6 +77,7 @@ export default async function CatalogServicesPage({
 
   return (
     <div className="space-y-6">
+      <PageBackLink href="/fornecedores" label="Voltar ao banco de preços" />
       <PageHeader
         breadcrumb="Fornecedores › Serviços"
         title="Serviços"

@@ -35,13 +35,19 @@ export function PlanningProjectToolbar({
   projectId,
   reservationsCount = 0,
   moreSlot,
+  menuOpen: controlledMenuOpen,
+  onMenuOpenChange,
 }: {
   projectId: string;
   reservationsCount?: number;
   /** Botões avançados (editar rubricas, readequação…) */
   moreSlot?: ReactNode;
+  menuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [internalMenuOpen, setInternalMenuOpen] = useState(false);
+  const menuOpen = controlledMenuOpen ?? internalMenuOpen;
+  const setMenuOpen = onMenuOpenChange ?? setInternalMenuOpen;
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -144,12 +150,7 @@ export function PlanningProjectToolbar({
             </button>
             {menuOpen ? (
               <div className="absolute right-0 z-20 mt-1.5 min-w-[14rem] rounded-xl border border-[var(--border)] bg-white p-2 shadow-lg">
-                <div
-                  className="flex flex-col gap-1"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {moreSlot}
-                </div>
+                <div className="flex flex-col gap-1">{moreSlot}</div>
               </div>
             ) : null}
           </div>

@@ -3,9 +3,11 @@
 import { useActionState, useMemo, useState } from "react";
 import {
   startPlanningProjectFederal,
+} from "@/lib/planning/federal/actions";
+import {
   startPlanningProjectState,
-  type ActionState,
-} from "@/lib/planning/actions";
+} from "@/lib/planning/estadual/actions";
+import type { ActionState } from "@/lib/planning/action-state";
 import { FluxoContextField } from "@/components/planning/FluxoContextField";
 
 type Account = { id: string; name: string; cgccpf: string };

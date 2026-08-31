@@ -2,15 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { BudgetTree } from "@/components/planning/BudgetTree";
-import {
-  EditRubricsPanel,
-  type EditableRubricLine,
-} from "@/components/planning/EditRubricsPanel";
+import { PlanningProjectActions } from "@/components/planning/PlanningProjectActions";
+import type { EditableRubricLine } from "@/components/planning/EditRubricsPanel";
 import { CaptacaoPanel } from "@/components/planning/CaptacaoPanel";
-import { SalicPublishPanel } from "@/components/planning/SalicPublishPanel";
-import { ReadequacaoActions } from "@/components/planning/ReadequacaoActions";
+import { PlanningAuditReconcilePanel } from "@/components/planning/PlanningAuditReconcilePanel";
 import { PlanningKpiStrip } from "@/components/planning/PlanningKpiStrip";
-import { PlanningProjectToolbar } from "@/components/planning/PlanningProjectToolbar";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
@@ -20,11 +16,12 @@ import {
   canReadequacao,
 } from "@/lib/planning/acl";
 import {
-  assessSalicPublishReadiness,
   importSourceLabel,
+  isFederalPlanning,
   jurisdictionLabel,
   lifecycleLabel,
 } from "@/lib/planning/lifecycle";
+import { loadPublishedPaidByLine } from "@/lib/planning/federal/audit-reconcile";
 import { computeProjectBalance, isAdminProduct } from "@/lib/planning/rubric-balance";
 import { FieldHelp } from "@/components/FieldHelp";
 import { HELP } from "@/lib/help";
@@ -61,10 +58,10 @@ export default async function PlanningProjectPage({
           amount: true,
           status: true,
           allocationSharePct: true,
+          nfPending: true,
         },
         orderBy: { createdAt: "desc" },
       },
-      documents: { select: { kind: true, status: true } },
       project: { select: { situacao: true, valorCaptado: true } },
       readequacaoDrafts: {
         where: { status: "OPEN" },
@@ -77,6 +74,7 @@ export default async function PlanningProjectPage({
   if (!project) notFound();
 
   const valorCaptado = money(project.project?.valorCaptado);
+  const publishedPaidByLine = await loadPublishedPaidByLine(project.id);
   const bal = project.sheet
     ? computeProjectBalance({
         lines: project.sheet.lines,
@@ -85,23 +83,20 @@ export default async function PlanningProjectPage({
         captadoRecebido: project.captadoRecebido,
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
+        publishedPaidByLine,
       })
     : null;
   const allowExceed = await canExceedRubric();
-  const allowPublish = await canPublishToSalic();
+  const isFederal = isFederalPlanning(project.jurisdiction);
+  const allowPublish = isFederal && (await canPublishToSalic());
   const allowReadequacao = await canReadequacao();
-  const readiness = assessSalicPublishReadiness({
-    hasSheet: Boolean(project.sheet),
-    documents: project.documents,
-    commitments: project.commitments,
-  });
   const closed = project.lifecycleStatus === "ENCERRADO";
-  const confirmLabel = project.name?.trim() || project.externalCode;
 
   const editableLines: EditableRubricLine[] =
     project.sheet && bal
       ? project.sheet.lines.map((l) => ({
           id: l.id,
+          sortOrder: l.sortOrder,
           itemName: l.itemName,
           stageName: l.stageName,
           productName: l.productName,
@@ -118,11 +113,12 @@ export default async function PlanningProjectPage({
     ? `${(bal.pctCaptadoT * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
     : undefined;
   const openDraft = project.readequacaoDrafts[0] || null;
-  const hasAdvancedTools = allowExceed || allowReadequacao;
 
   return (
     <div className={`space-y-5 ${closed ? "opacity-95" : ""}`}>
       <PageHeader
+        backHref="/planejamento"
+        backLabel="Voltar aos projetos"
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> / {project.externalCode}
@@ -143,13 +139,14 @@ export default async function PlanningProjectPage({
             <span>
               {jurisdictionLabel(project.jurisdiction)} · {project.account.name}
             </span>
-            {project.project?.situacao || project.importSource ? (
+            {project.importSource ||
+            (isFederal && project.project?.situacao) ? (
               <FieldHelp
                 text={[
                   project.importSource
                     ? `Fonte: ${importSourceLabel(project.importSource)}`
                     : null,
-                  project.project?.situacao
+                  isFederal && project.project?.situacao
                     ? `Situação SALIC: ${project.project.situacao}`
                     : null,
                 ]
@@ -163,31 +160,16 @@ export default async function PlanningProjectPage({
 
       {bal && project.sheet ? (
         <>
-          <PlanningProjectToolbar
+          <PlanningProjectActions
             projectId={project.id}
             reservationsCount={project.commitments.length}
-            moreSlot={
-              hasAdvancedTools ? (
-                <>
-                  {allowExceed && bal ? (
-                    <EditRubricsPanel
-                      planningProjectId={project.id}
-                      totalApproved={money(project.sheet.totalApproved)}
-                      lines={editableLines}
-                      menuItem
-                    />
-                  ) : null}
-                  {allowReadequacao ? (
-                    <ReadequacaoActions
-                      planningProjectId={project.id}
-                      openDraftId={openDraft?.id ?? null}
-                      expiresAt={openDraft?.expiresAt?.toISOString() ?? null}
-                      menuItem
-                    />
-                  ) : null}
-                </>
-              ) : undefined
-            }
+            allowExceed={allowExceed}
+            allowReadequacao={allowReadequacao}
+            isFederal={isFederal}
+            openDraftId={openDraft?.id ?? null}
+            expiresAt={openDraft?.expiresAt?.toISOString() ?? null}
+            editableLines={editableLines}
+            totalApproved={money(project.sheet.totalApproved)}
           />
 
           <PlanningKpiStrip
@@ -223,8 +205,6 @@ export default async function PlanningProjectPage({
             ]}
           />
 
-          {allowExceed ? <div data-edit-rubrics-slot /> : null}
-
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-[var(--navy)]">
               Planilha orçamentária
@@ -255,18 +235,13 @@ export default async function PlanningProjectPage({
               }
               pctCaptadoT={bal.pctCaptadoT}
               operableBase={bal.operableBase}
-              isFederal={project.jurisdiction === "FEDERAL"}
+              isFederal={isFederal}
             />
 
             {allowPublish ? (
-              <SalicPublishPanel
+              <PlanningAuditReconcilePanel
                 planningProjectId={project.id}
-                projectName={project.name || project.externalCode}
-                confirmLabel={confirmLabel}
-                publishStatus={project.salicPublishStatus}
-                publishMessage={project.salicPublishMessage}
-                readinessOk={readiness.ok}
-                readinessReasons={readiness.reasons}
+                canPublishSalic={allowPublish}
               />
             ) : null}
           </div>

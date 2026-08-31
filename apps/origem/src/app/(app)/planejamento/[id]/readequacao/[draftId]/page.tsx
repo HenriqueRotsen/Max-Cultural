@@ -45,6 +45,7 @@ export default async function ReadequacaoDraftPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref={`/planejamento/${id}`}
         breadcrumb={
           <>
             <Link href={`/planejamento/${id}`}>

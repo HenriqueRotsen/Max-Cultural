@@ -4,6 +4,11 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { confirmNfReservation, type ActionState } from "@/lib/planning/actions";
 import type { ExtractedFiscalDoc } from "@/lib/nf/extract";
+import {
+  fiscalNumberSalicLabel,
+  fiscalNumberSalicPlaceholder,
+  resolveFiscalNumberFromExtracted,
+} from "@/lib/nf/fiscal-number";
 import { formatCgccpfInput, formatCurrency } from "@/lib/format";
 import { formatCnaeInput } from "@/lib/catalog/cnae";
 import { MoneyInput } from "@/components/MoneyInput";
@@ -151,6 +156,9 @@ export function NfReviewForm({
     if (alertMessages.length > 0) setAlertOpen(true);
   }, [alertMessages]);
   const firstItem = extracted.items?.[0];
+  const resolvedKind = documentKind || extracted.documentKind || "NF";
+  const defaultFiscalNumber =
+    resolveFiscalNumberFromExtracted(extracted, resolvedKind) || "";
   const defaultGross =
     extracted.grossAmount ?? extracted.totalPrice ?? firstItem?.price ?? 0;
   const visibleLines = lines.filter((l) => l.available > 0 || l.isAdmin);
@@ -292,6 +300,21 @@ export function NfReviewForm({
             className="w-full"
           />
         </label>
+        <label className="field">
+          <span>{fiscalNumberSalicLabel(resolvedKind)}</span>
+          <input
+            name="fiscalNumber"
+            required
+            defaultValue={defaultFiscalNumber}
+            placeholder={fiscalNumberSalicPlaceholder(resolvedKind)}
+            className="w-full tabular-nums"
+          />
+          {resolvedKind === "NF" && extracted.rpsNumber ? (
+            <span className="mt-1 block text-xs text-[var(--gray-500)]">
+              RPS {extracted.rpsNumber} (referência — não é o número enviado ao SALIC)
+            </span>
+          ) : null}
+        </label>
         {isCnpj ? (
           <>
             <label className="field">
@@ -318,12 +341,13 @@ export function NfReviewForm({
           </>
         ) : null}
         <label className="field sm:col-span-2">
-          <span>Serviço / descrição</span>
+          <span>Descrição na NF (referência)</span>
           <input
             name="serviceName"
-            required
             defaultValue={extracted.serviceDescription || firstItem?.name || ""}
-            className="w-full"
+            className="w-full bg-[var(--gray-50)]"
+            readOnly
+            title="Apenas referência da nota. O catálogo usa o nome da rubrica escolhida no rateio."
           />
         </label>
         <MoneyInput

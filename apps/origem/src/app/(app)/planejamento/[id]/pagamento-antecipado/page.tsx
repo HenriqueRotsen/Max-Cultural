@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PageBackLink } from "@/components/ui";
 import { AdvancePaymentForm } from "@/components/planning/AdvancePaymentForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -9,6 +10,7 @@ import {
   computeProjectBalance,
   isAdminProduct,
 } from "@/lib/planning/rubric-balance";
+import { rubricSelectLabel } from "@/lib/planning/rubric-label";
 import type { RubricSelectOption } from "@/components/planning/RubricSearchSelect";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +58,8 @@ export default async function PagamentoAntecipadoPage({
     const lineBal = bal.lines.get(l.id);
     return {
       id: l.id,
-      label: `${l.stageName} · ${l.itemName}`,
+      label: rubricSelectLabel(l),
+      sortOrder: l.sortOrder,
       available: lineBal?.available ?? 0,
       isAdmin: isAdminProduct(l.productName),
       stageName: l.stageName,
@@ -70,6 +73,7 @@ export default async function PagamentoAntecipadoPage({
 
   return (
     <div className="space-y-6">
+      <PageBackLink href={`/planejamento/${id}`} label="Voltar ao projeto" />
       <div className="flex flex-wrap items-start gap-4">
         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--navy)] to-[#2d4a8a] text-white shadow-md">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden>

@@ -4,7 +4,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCgccpf } from "@/lib/format";
 import { BRAZIL_UF } from "@/lib/catalog/address";
 import { ensureCatalogSuppliersFromAudit } from "@/lib/catalog/from-audit";
-import { PageHeader } from "@/components/ui";
+import { PageBackLink, PageHeader } from "@/components/ui";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { CatalogFavoriteButton } from "@/components/catalog/CatalogFavoriteButton";
 import { CatalogPriceDollars } from "@/components/catalog/CatalogPriceDollars";
@@ -110,6 +110,7 @@ export default async function CatalogSuppliersPage({
 
   return (
     <div className="space-y-6">
+      <PageBackLink href="/fornecedores" label="Voltar ao banco de preços" />
       <PageHeader
         breadcrumb="Fornecedores"
         title="Fornecedores"

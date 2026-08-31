@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
-import { PageHeader } from "@/components/ui";
+import { PageBackLink, PageHeader } from "@/components/ui";
 import { CatalogServiceForm } from "@/components/catalog/CatalogServiceForm";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,7 @@ export default async function NewCatalogServicePage({
 
   return (
     <div className="space-y-6">
+      <PageBackLink href="/fornecedores/servicos" label="Voltar aos serviços" />
       <PageHeader
         breadcrumb="Fornecedores › Serviços › Novo"
         title="Novo serviço"

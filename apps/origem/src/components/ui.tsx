@@ -1,20 +1,41 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { FieldHelp } from "@/components/FieldHelp";
+
+export function PageBackLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex text-sm text-[var(--gray-500)] transition hover:text-[var(--navy)]"
+    >
+      ← {label}
+    </Link>
+  );
+}
 
 export function PageHeader({
   title,
   description,
   breadcrumb,
   actions,
+  backHref,
+  backLabel = "Voltar",
 }: {
   title: ReactNode;
   description?: ReactNode;
   breadcrumb?: ReactNode;
   actions?: ReactNode;
+  backHref?: string;
+  backLabel?: string;
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
+      <div className="min-w-0 flex-1">
+        {backHref ? (
+          <div className="mb-2">
+            <PageBackLink href={backHref} label={backLabel} />
+          </div>
+        ) : null}
         {breadcrumb && (
           <p className="mb-1 text-xs font-medium text-[var(--gray-400)]">{breadcrumb}</p>
         )}

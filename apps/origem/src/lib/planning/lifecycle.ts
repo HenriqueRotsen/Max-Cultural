@@ -45,6 +45,11 @@ export function jurisdictionLabel(jurisdiction: string | null | undefined): stri
   return jurisdiction;
 }
 
+/** Lei Rouanet / SALIC — distinto de projetos estaduais (planilha por arquivo). */
+export function isFederalPlanning(jurisdiction: string | null | undefined): boolean {
+  return jurisdiction === "FEDERAL";
+}
+
 export function importSourceLabel(source: string | null | undefined): string {
   if (source === "SALIC_HOMOLOGADA") return "Planilha do SALIC";
   if (source === "SALIC_READEQUADA") return "Readequação do SALIC";
@@ -63,49 +68,5 @@ export function nfPendingBadge(): string {
   return "NF pendente";
 }
 
-export type PublishReadiness = { ok: boolean; reasons: string[] };
-
-export function assessSalicPublishReadiness(input: {
-  hasSheet: boolean;
-  documents: Array<{ kind: string; status: string }>;
-  commitments: Array<{ status: string }>;
-}): PublishReadiness {
-  const reasons: string[] = [];
-
-  if (!input.hasSheet) {
-    reasons.push("Importe a planilha homologada antes de enviar ao SALIC.");
-  }
-
-  const docs = input.documents;
-  if (docs.some((d) => d.status === "PROCESSING")) {
-    reasons.push("Há documentos ainda sendo processados.");
-  }
-  if (docs.some((d) => d.status === "REVIEW")) {
-    reasons.push("Há notas fiscais aguardando revisão.");
-  }
-  if (docs.some((d) => d.status === "FAILED")) {
-    reasons.push("Há documentos com falha — corrija ou remova antes de enviar.");
-  }
-
-  const nfsOk = docs.filter(
-    (d) => (d.kind === "NF" || d.kind === "RPA") && d.status === "IMPORTED",
-  );
-  if (nfsOk.length === 0) {
-    reasons.push("Inclua ao menos uma NF ou RPA revisada e reservada.");
-  }
-
-  if (input.commitments.some((c) => c.status === "RESERVED")) {
-    reasons.push(
-      "Há reservas sem comprovante de pagamento. Envie os comprovantes ou cancele as reservas.",
-    );
-  }
-
-  if (
-    input.commitments.filter((c) => c.status === "PAID").length === 0 &&
-    nfsOk.length > 0
-  ) {
-    reasons.push("Inclua comprovantes de pagamento das reservas.");
-  }
-
-  return { ok: reasons.length === 0, reasons };
-}
+export type { PublishReadiness } from "@/lib/planning/federal/salic-readiness";
+export { assessSalicPublishReadiness } from "@/lib/planning/federal/salic-readiness";

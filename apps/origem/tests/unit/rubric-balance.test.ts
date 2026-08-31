@@ -107,6 +107,41 @@ describe("rubric-balance", () => {
     );
   });
 
+  it("salicComprovado preenche pago e reservado sem reservas locais", () => {
+    const bal = computeProjectBalance({
+      lines: [{ id: "a", approvedAmount: 1000, productName: "TI", salicComprovado: 350 }],
+      commitments: [],
+      valorCaptado: 1000,
+    });
+    expect(bal.lines.get("a")!.paid).toBe(350);
+    expect(bal.lines.get("a")!.reserved).toBe(350);
+    expect(bal.lines.get("a")!.available).toBe(650);
+    expect(bal.totalPaid).toBe(350);
+  });
+
+  it("local não publicado + salic: soma o gap (sem double-count do publicado)", () => {
+    const bal = computeProjectBalance({
+      lines: [{ id: "a", approvedAmount: 1000, productName: "TI", salicComprovado: 500 }],
+      commitments: [{ budgetLineId: "a", amount: 300, status: "PAID" }],
+      valorCaptado: 1000,
+      publishedPaidByLine: {},
+    });
+    expect(bal.lines.get("a")!.paid).toBe(800);
+    expect(bal.lines.get("a")!.reserved).toBe(800);
+    expect(bal.lines.get("a")!.available).toBe(200);
+  });
+
+  it("local já publicado no SALIC: não soma de novo o salicComprovado", () => {
+    const bal = computeProjectBalance({
+      lines: [{ id: "a", approvedAmount: 1000, productName: "TI", salicComprovado: 500 }],
+      commitments: [{ budgetLineId: "a", amount: 500, status: "PAID" }],
+      valorCaptado: 1000,
+      publishedPaidByLine: { a: 500 },
+    });
+    expect(bal.lines.get("a")!.paid).toBe(500);
+    expect(bal.lines.get("a")!.reserved).toBe(500);
+  });
+
   it("bloqueia reserva acima do disponível sem permissão de excesso", () => {
     const bal = computeProjectBalance({
       lines: [

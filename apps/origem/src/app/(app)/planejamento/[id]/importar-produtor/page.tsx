@@ -8,6 +8,7 @@ import {
   computeProjectBalance,
   isAdminProduct,
 } from "@/lib/planning/rubric-balance";
+import { rubricSelectLabel } from "@/lib/planning/rubric-label";
 import type { RubricSelectOption } from "@/components/planning/RubricSearchSelect";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,8 @@ export default async function ImportarProdutorPage({
     const lineBal = bal.lines.get(l.id);
     return {
       id: l.id,
-      label: `${l.stageName} · ${l.itemName}`,
+      label: rubricSelectLabel(l),
+      sortOrder: l.sortOrder,
       available: lineBal?.available ?? 0,
       isAdmin: isAdminProduct(l.productName),
       stageName: l.stageName,
@@ -65,6 +67,7 @@ export default async function ImportarProdutorPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref={`/planejamento/${id}`}
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> /{" "}

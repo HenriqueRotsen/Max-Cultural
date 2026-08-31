@@ -21,6 +21,7 @@ export default async function NovoPlanejamentoPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref="/planejamento"
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> / Novo

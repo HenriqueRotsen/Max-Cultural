@@ -270,6 +270,11 @@ async function persistProdutosForPronac(params: {
       seenPaymentIds,
       seenExternalIds,
     );
+
+    const { reconcileLinkedPlanningSalicFromExternalIds } = await import(
+      "@/lib/planning/federal/salic-reconcile"
+    );
+    await reconcileLinkedPlanningSalicFromExternalIds(projectId, seenExternalIds);
   }
 
   return {

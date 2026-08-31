@@ -5,6 +5,8 @@ export type LineBalance = {
   availableCap: number;
   reserved: number;
   paid: number;
+  /** Comprovado no SALIC (VlComprovado / sync relação pagamentos). */
+  salicComprovado: number;
   /** Saldo operacional = availableCap − reserved. */
   available: number;
   isAdmin: boolean;
@@ -100,6 +102,7 @@ export function computeProjectBalance(input: {
     id: string;
     approvedAmount: unknown;
     productName?: string | null;
+    salicComprovado?: unknown;
   }>;
   commitments: Array<{
     budgetLineId: string;
@@ -112,6 +115,11 @@ export function computeProjectBalance(input: {
   rendimentos?: unknown;
   /** Fração do disponível a partir da qual a linha fica “próxima”. Default 0.8. */
   nearPct?: number;
+  /**
+   * Valor local já refletido no SALIC (por linha), para calcular o gap
+   * salicComprovado − publicado sem double-count.
+   */
+  publishedPaidByLine?: Map<string, number> | Record<string, number>;
 }): ProjectBalance {
   const nearPct = input.nearPct ?? 0.8;
   const lines = new Map<string, LineBalance>();
@@ -128,6 +136,7 @@ export function computeProjectBalance(input: {
       availableCap: approved,
       reserved: 0,
       paid: 0,
+      salicComprovado: Math.max(0, n(line.salicComprovado)),
       available: approved,
       isAdmin: isAdminProduct(line.productName),
       overApproved: false,
@@ -155,6 +164,27 @@ export function computeProjectBalance(input: {
       bal.paid += amount;
       totalPaid += amount;
     }
+  }
+
+  // Gap do SALIC ainda sem reserva local publicada: evita double-count.
+  const publishedLookup = (lineId: string): number => {
+    if (!input.publishedPaidByLine) return 0;
+    if (input.publishedPaidByLine instanceof Map) {
+      return n(input.publishedPaidByLine.get(lineId));
+    }
+    return n(input.publishedPaidByLine[lineId]);
+  };
+
+  for (const bal of lines.values()) {
+    const salicPaid = bal.salicComprovado;
+    if (!(salicPaid > 0)) continue;
+    const publishedLocal = publishedLookup(bal.lineId);
+    const salicOnly = Math.max(0, salicPaid - publishedLocal);
+    if (!(salicOnly > 0)) continue;
+    bal.reserved += salicOnly;
+    bal.paid += salicOnly;
+    totalReserved += salicOnly;
+    totalPaid += salicOnly;
   }
 
   let totalAvailableCap = 0;

@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import {
-  listFluxoContextosAction,
-  previewPlanningProjectContext,
-} from "@/lib/planning/actions";
+import { listFluxoContextosAction } from "@/lib/planning/actions";
+import { previewPlanningProjectContext } from "@/lib/planning/federal/actions";
 import type { FluxoContextResolve } from "@/lib/fluxo/provision-projeto";
 
 type Props = {

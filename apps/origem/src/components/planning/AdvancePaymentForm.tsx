@@ -187,13 +187,6 @@ export function AdvancePaymentForm({
                 className="tabular-nums"
               />
             </label>
-            <label className="field sm:col-span-2">
-              <span>Descrição do serviço</span>
-              <input
-                name="serviceName"
-                placeholder="Opcional — usa o nome do fornecedor"
-              />
-            </label>
           </div>
         </section>
 

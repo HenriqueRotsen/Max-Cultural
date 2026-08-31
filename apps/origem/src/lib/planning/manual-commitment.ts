@@ -30,6 +30,7 @@ import {
   type ProducerSheetRow,
 } from "@/lib/planning/producer-sheet";
 import type { RubricCandidate } from "@/lib/planning/recommend-rubric";
+import { findOrCreateCatalogServiceForRubric } from "@/lib/catalog/service-from-rubric";
 
 function revalidatePlanning(id?: string) {
   revalidatePath("/planejamento");
@@ -59,6 +60,10 @@ async function loadProjectForReservation(planningProjectId: string) {
     (project.project?.valorCaptado != null
       ? Number(project.project.valorCaptado)
       : null) ?? 0;
+  const { loadPublishedPaidByLine } = await import(
+    "@/lib/planning/federal/audit-reconcile"
+  );
+  const publishedPaidByLine = await loadPublishedPaidByLine(planningProjectId);
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
@@ -66,28 +71,26 @@ async function loadProjectForReservation(planningProjectId: string) {
     captadoRecebido: project.captadoRecebido,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
+    publishedPaidByLine,
   });
-  return { entitlements, project, balance, valorCaptado };
+  return { entitlements, project, balance, valorCaptado, publishedPaidByLine };
 }
 
 type SupplierInput = {
   supplierName: string;
   cnpj: string;
-  serviceName: string;
   cnaeCode?: string;
   cnaeDescription?: string | null;
 };
 
-async function upsertSupplierAndService(
+async function upsertCatalogSupplier(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   params: {
     workspaceId: string;
     supplier: SupplierInput;
-    categoryHint?: string | null;
   },
 ) {
-  const { supplierName, cnpj, serviceName, cnaeCode, cnaeDescription } =
-    params.supplier;
+  const { supplierName, cnpj, cnaeCode, cnaeDescription } = params.supplier;
   const isCnpj = cnpj.length === 14;
 
   const existingSupplier = await tx.catalogSupplier.findUnique({
@@ -119,21 +122,24 @@ async function upsertSupplierAndService(
     },
   });
 
-  let service = await tx.catalogService.findFirst({
-    where: {
-      supplierId: supplier.id,
-      name: { equals: serviceName, mode: "insensitive" },
-    },
+  return supplier;
+}
+
+async function upsertSupplierAndServiceForRubric(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  params: {
+    workspaceId: string;
+    supplier: SupplierInput;
+    rubricName: string;
+    categoryHint?: string | null;
+  },
+) {
+  const supplier = await upsertCatalogSupplier(tx, params);
+  const service = await findOrCreateCatalogServiceForRubric(tx, {
+    supplierId: supplier.id,
+    rubricName: params.rubricName,
+    categoryHint: params.categoryHint,
   });
-  if (!service) {
-    service = await tx.catalogService.create({
-      data: {
-        supplierId: supplier.id,
-        name: serviceName,
-        category: params.categoryHint || "outros",
-      },
-    });
-  }
   return { supplier, service };
 }
 
@@ -153,15 +159,13 @@ export async function createManualReservation(
   const session = await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado } = loaded;
+  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
 
   const budgetLineId = String(formData.get("budgetLineId") || "").trim();
   const amount =
     parseBrMoney(String(formData.get("amount") || "")) || 0;
   const supplierName = String(formData.get("supplierName") || "").trim();
   const cnpj = normalizeCgccpf(String(formData.get("cnpj") || ""));
-  const serviceName =
-    String(formData.get("serviceName") || "").trim() || supplierName;
   const notes = String(formData.get("notes") || "").trim() || null;
   const hasBond =
     formData.get("hasBond") === "on" || formData.get("hasBond") === "true";
@@ -225,6 +229,7 @@ export async function createManualReservation(
         captadoRecebido: project.captadoRecebido,
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
+        publishedPaidByLine,
       });
       const liveCheck = canReserveAmount({
         lineId: budgetLineId,
@@ -234,15 +239,15 @@ export async function createManualReservation(
       });
       if (!liveCheck.ok) throw new Error(`BALANCE:${liveCheck.message}`);
 
-      const { service } = await upsertSupplierAndService(tx, {
+      const { service } = await upsertSupplierAndServiceForRubric(tx, {
         workspaceId: entitlements.workspaceId,
         supplier: {
           supplierName,
           cnpj,
-          serviceName,
           cnaeCode: cnaeCode ?? undefined,
           cnaeDescription: cnaeDescription ?? undefined,
         },
+        rubricName: line.itemName,
         categoryHint: line.categoryHint ?? undefined,
       });
 
@@ -320,14 +325,12 @@ export async function uploadAdvancePayment(
   const session = await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado } = loaded;
+  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
 
   const grossAmount =
     parseBrMoney(String(formData.get("amount") || "")) || 0;
   const supplierName = String(formData.get("supplierName") || "").trim();
   const cnpj = normalizeCgccpf(String(formData.get("cnpj") || ""));
-  const serviceName =
-    String(formData.get("serviceName") || "").trim() || supplierName;
   const notes = String(formData.get("notes") || "").trim() || null;
   const hasBond =
     formData.get("hasBond") === "on" || formData.get("hasBond") === "true";
@@ -501,6 +504,7 @@ export async function uploadAdvancePayment(
         captadoRecebido: project.captadoRecebido,
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
+        publishedPaidByLine,
       });
       for (const slice of slices) {
         const line = project.sheet!.lines.find((l) => l.id === slice.budgetLineId);
@@ -521,18 +525,14 @@ export async function uploadAdvancePayment(
         liveBalance.totalAvailable -= slice.amount;
       }
 
-      const { service } = await upsertSupplierAndService(tx, {
+      const supplier = await upsertCatalogSupplier(tx, {
         workspaceId: entitlements.workspaceId,
         supplier: {
           supplierName,
           cnpj,
-          serviceName,
           cnaeCode: cnaeCode ?? undefined,
           cnaeDescription: cnaeDescription ?? undefined,
         },
-        categoryHint:
-          project.sheet!.lines.find((l) => l.id === slices[0]!.budgetLineId)
-            ?.categoryHint ?? undefined,
       });
 
       let primaryCommitmentId: string | null = null;
@@ -540,6 +540,14 @@ export async function uploadAdvancePayment(
       const commitmentByLine = new Map<string, string>();
 
       for (const slice of slices) {
+        const line = project.sheet!.lines.find((l) => l.id === slice.budgetLineId);
+        if (!line) throw new Error("BALANCE:Rubrica do rateio não encontrada");
+        const service = await findOrCreateCatalogServiceForRubric(tx, {
+          supplierId: supplier.id,
+          rubricName: line.itemName,
+          categoryHint: line.categoryHint,
+        });
+
         const engagement = await tx.catalogEngagement.create({
           data: {
             workspaceId: entitlements.workspaceId,
@@ -638,7 +646,7 @@ export async function confirmProducerReservations(
   const session = await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado } = loaded;
+  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
 
   const rowsRaw = String(formData.get("rowsJson") || "[]");
   let rows: Array<{
@@ -671,6 +679,7 @@ export async function confirmProducerReservations(
     captadoRecebido: project.captadoRecebido,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
+    publishedPaidByLine,
   });
   for (const r of selected) {
     const line = project.sheet!.lines.find((l) => l.id === r.budgetLineId);
@@ -707,15 +716,14 @@ export async function confirmProducerReservations(
       for (const r of selected) {
         const line = project.sheet!.lines.find((l) => l.id === r.budgetLineId)!;
         const cnpj = normalizeCgccpf(r.cnpj);
-        const serviceName = r.item || r.supplier;
 
-        const { service } = await upsertSupplierAndService(tx, {
+        const { service } = await upsertSupplierAndServiceForRubric(tx, {
           workspaceId: entitlements.workspaceId,
           supplier: {
             supplierName: r.supplier,
             cnpj,
-            serviceName,
           },
+          rubricName: line.itemName,
           categoryHint: line.categoryHint ?? undefined,
         });
 
@@ -786,7 +794,7 @@ export async function parseProducerSheetAction(
   await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado } = loaded;
+  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
 
   const file = formData.get("sheetFile");
   if (!(file instanceof File) || file.size === 0) {

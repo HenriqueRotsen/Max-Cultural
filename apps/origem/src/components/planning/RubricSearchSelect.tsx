@@ -2,12 +2,14 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { formatCurrency } from "@/lib/format";
+import { rubricItemNumber } from "@/lib/planning/rubric-label";
 
 export type RubricSelectOption = {
   id: string;
   label: string;
   available: number;
   isAdmin?: boolean;
+  sortOrder?: number;
   stageName?: string;
   itemName?: string;
   productName?: string;
@@ -32,6 +34,7 @@ function matchesQuery(opt: RubricSelectOption, query: string) {
   const hay = norm(
     [
       opt.label,
+      opt.sortOrder != null ? String(rubricItemNumber(opt.sortOrder)) : "",
       opt.stageName,
       opt.itemName,
       opt.productName,
@@ -127,7 +130,9 @@ export function RubricSearchSelect({
         {selected ? (
           <span className="min-w-0 truncate text-[var(--navy)]">
             <span className="font-medium">
-              {selected.itemName || selected.label}
+              {selected.sortOrder != null
+                ? `${rubricItemNumber(selected.sortOrder)}. ${selected.itemName || selected.label}`
+                : selected.itemName || selected.label}
             </span>
             <span className="text-[var(--gray-500)]">
               {" · "}
@@ -194,7 +199,9 @@ export function RubricSearchSelect({
                             }}
                           >
                             <span className="font-medium text-[var(--navy)]">
-                              {opt.itemName || opt.label}
+                              {opt.sortOrder != null
+                                ? `${rubricItemNumber(opt.sortOrder)}. ${opt.itemName || opt.label}`
+                                : opt.itemName || opt.label}
                               {opt.suggested ? (
                                 <span className="ml-1.5 text-xs font-semibold text-emerald-700">
                                   Sugestão

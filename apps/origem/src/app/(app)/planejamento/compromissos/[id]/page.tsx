@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { DeleteNfButton } from "@/components/planning/DeleteNfButton";
+import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { resolveFiscalNumberFromExtracted } from "@/lib/nf/fiscal-number";
 import { canDeleteNf } from "@/lib/planning/acl";
 import {
   commitmentStatusLabel,
@@ -134,6 +136,7 @@ export default async function CompromissoPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref={`/planejamento/${commitment.planningProject.id}/reservas`}
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> /{" "}
@@ -186,10 +189,26 @@ export default async function CompromissoPage({
             : ""}
         </p>
         {sourceNf ? (
-          <p>
-            <span className="text-[var(--gray-500)]">{sourceNf.kind}:</span>{" "}
-            {sourceNf.filename}
-          </p>
+          <>
+            <p>
+              <span className="text-[var(--gray-500)]">{sourceNf.kind}:</span>{" "}
+              {sourceNf.filename}
+            </p>
+            <EditFiscalNumberForm
+              documentId={sourceNf.id}
+              kind={sourceNf.kind === "RPA" ? "RPA" : "NF"}
+              currentNumber={resolveFiscalNumberFromExtracted(
+                (sourceNf.extractedJson || null) as {
+                  fiscalNumber?: string | null;
+                  nfNumber?: string | null;
+                  invoiceNumber?: string | null;
+                  nfseNumber?: string | null;
+                  rpsNumber?: string | null;
+                },
+                sourceNf.kind === "RPA" ? "RPA" : "NF",
+              )}
+            />
+          </>
         ) : commitment.nfPending ? (
           <p className="text-red-700">
             Pagamento registrado — aguardando NF/RPA para regularizar.

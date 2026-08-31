@@ -801,6 +801,15 @@ model PlanningDocument {
   sourceDocumentId  String?
   /** SHA-256 hex do arquivo original (deduplicação). */
   contentHash       String?
+  /** id_comprovante_pagamento no SALIC, após envio bem-sucedido. */
+  salicComprovanteId     String?
+  salicPublishedAt       DateTime?
+  /** PROOF_ONLY | MERGED — como foi enviado pela última vez. */
+  salicPublishMode       String?
+  /** PDF preparado (NF+RPA+comprovante) pronto para upload. */
+  salicMergedStoragePath String?
+  /** Comprovante só no SALIC; NF chegou depois — republicar merged. */
+  salicRepublishPending  Boolean                @default(false)
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 

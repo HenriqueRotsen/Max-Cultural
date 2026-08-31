@@ -2,6 +2,8 @@
  * Snapshot e helpers de readequação de planilha (rascunho 24h).
  */
 
+import { prisma } from "@/lib/db";
+
 export type ReadequacaoLineSnap = {
   id: string;
   fonteRecurso: string;
@@ -203,3 +205,19 @@ export function validateReadequacaoSnapshot(input: {
 }
 
 export const READEQUACAO_TTL_MS = 24 * 60 * 60 * 1000;
+
+export async function expireOpenReadequacaoDrafts(
+  planningProjectId: string,
+  workspaceId: string,
+) {
+  const now = new Date();
+  await prisma.planningReadequacaoDraft.updateMany({
+    where: {
+      planningProjectId,
+      workspaceId,
+      status: "OPEN",
+      expiresAt: { lt: now },
+    },
+    data: { status: "EXPIRED" },
+  });
+}

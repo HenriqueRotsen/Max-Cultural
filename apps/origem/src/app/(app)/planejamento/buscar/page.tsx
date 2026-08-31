@@ -303,6 +303,7 @@ export default async function BuscarSaldoPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        backHref="/planejamento"
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> / Buscar
