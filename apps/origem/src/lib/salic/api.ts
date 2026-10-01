@@ -119,7 +119,9 @@ async function salicFetch<T>(
         "User-Agent":
           "Mozilla/5.0 (compatible; MaxOrigemAuditor/1.0; +https://localhost)",
       },
-      next: { revalidate: 0 },
+      // Server Actions: next.revalidate dispara erros internos do Next (#441)
+      // se forem engolidos em try/catch. Preferir cache: 'no-store'.
+      cache: "no-store",
       signal: controller.signal,
     });
   } catch (error) {

@@ -464,6 +464,8 @@ export async function lookupProponenteByCgccpf(cgccpfRaw: string) {
       source: "proponentes" as const,
     };
   } catch (error) {
+    const { unstable_rethrow } = await import("next/navigation");
+    unstable_rethrow(error);
     const message = error instanceof Error ? error.message : String(error);
     return { found: false as const, error: message };
   }
@@ -485,9 +487,9 @@ export async function lookupCep(cepRaw: string) {
 }
 
 /**
- * CNPJ: BrasilAPI (nome / tipo).
- * CPF: só tenta nome no SALIC.
- * Nunca lança — falhas viram `{ found: false }` (evita React #441 em produção).
+ * CNPJ: BrasilAPI / CNPJ.ws (nome / tipo). SALIC só como último recurso.
+ * CPF: tenta nome no SALIC.
+ * Nunca engole erros internos do Next (evita React #441 em produção).
  */
 export async function lookupAccountByCgccpf(cgccpfRaw: string) {
   try {
@@ -499,7 +501,6 @@ export async function lookupAccountByCgccpf(cgccpfRaw: string) {
       };
     }
 
-    // CPF incompleto de um CNPJ em digitação: não consulta
     if (cgccpf.length === 11 && !isValidCpf(cgccpf)) {
       return { found: false as const, error: "CPF inválido" };
     }
@@ -508,6 +509,7 @@ export async function lookupAccountByCgccpf(cgccpfRaw: string) {
     }
 
     if (cgccpf.length === 14) {
+      let companyError: string | null = null;
       try {
         const { fetchCnpjCompany } = await import("@/lib/lookup/cnpj");
         const company = await fetchCnpjCompany(cgccpf);
@@ -523,31 +525,35 @@ export async function lookupAccountByCgccpf(cgccpfRaw: string) {
       } catch (error) {
         const { unstable_rethrow } = await import("next/navigation");
         unstable_rethrow(error);
-        // Continua no SALIC; se ambos falharem, devolve o erro da BrasilAPI
-        const salic = await lookupProponenteByCgccpf(cgccpf);
-        if (salic.found) {
-          return {
-            found: true as const,
-            source: "salic" as const,
-            cgccpf: salic.cgccpf,
-            name: salic.nome,
-            personType: "PJ" as const,
-          };
-        }
-        const message =
+        companyError =
           error instanceof Error ? error.message : "Consulta CNPJ indisponível";
-        return { found: false as const, error: message };
       }
+
+      // Último recurso: API pública SALIC (pode ser lenta / indisponível)
+      const salic = await lookupProponenteByCgccpf(cgccpf);
+      if (salic.found) {
+        return {
+          found: true as const,
+          source: "salic" as const,
+          cgccpf: salic.cgccpf,
+          name: salic.nome,
+          personType: "PJ" as const,
+        };
+      }
+      return {
+        found: false as const,
+        error:
+          companyError ||
+          salic.error ||
+          "CNPJ não encontrado. Informe o nome manualmente.",
+      };
     }
 
     const salic = await lookupProponenteByCgccpf(cgccpf);
     if (!salic.found) {
       return {
         found: false as const,
-        error:
-          cgccpf.length === 14
-            ? salic.error || "CNPJ não encontrado"
-            : "CPF não encontrado. Informe o nome manualmente.",
+        error: "CPF não encontrado. Informe o nome manualmente.",
       };
     }
 
@@ -556,7 +562,7 @@ export async function lookupAccountByCgccpf(cgccpfRaw: string) {
       source: "salic" as const,
       cgccpf: salic.cgccpf,
       name: salic.nome,
-      personType: (cgccpf.length === 14 ? "PJ" : "PF") as "PJ" | "PF",
+      personType: "PF" as const,
     };
   } catch (error) {
     const { unstable_rethrow } = await import("next/navigation");

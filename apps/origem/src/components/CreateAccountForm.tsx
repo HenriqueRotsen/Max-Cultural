@@ -45,7 +45,13 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
           setStatus("Nome preenchido pelo SALIC.");
         }
       } catch (error) {
-        setStatus(error instanceof Error ? error.message : "Falha na consulta automática");
+        const msg = error instanceof Error ? error.message : String(error);
+        // Erro de protocolo RSC (#441) — deixa preencher o nome manualmente
+        if (/Minified React error #441|digest/i.test(msg)) {
+          setStatus("Consulta automática indisponível. Informe o nome manualmente.");
+        } else {
+          setStatus(msg || "Falha na consulta automática");
+        }
       }
     });
   }

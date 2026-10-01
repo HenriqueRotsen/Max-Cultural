@@ -1,4 +1,4 @@
-/** Consulta pública BrasilAPI CNPJ — https://brasilapi.com.br/docs#tag/CNPJ */
+/** Consulta pública de CNPJ (BrasilAPI + fallback CNPJ.ws). */
 
 export type CnpjQsaMember = {
   name: string;
@@ -71,17 +71,14 @@ function mapQualification(qual: string): "PARTNER" | "ADMINISTRATOR" | "BOTH" {
   return "PARTNER";
 }
 
-export async function fetchCnpjCompany(cnpjRaw: string): Promise<CnpjCompanyResult | null> {
-  const cnpj = cnpjRaw.replace(/\D/g, "");
-  if (cnpj.length !== 14) return null;
+const FETCH_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": "MaxOrigemAuditor/1.0",
+} as const;
 
-  // Sem next.revalidate: em Server Actions o cache do fetch pode lançar
-  // erros internos do Next que, se engolidos, viram React #441 em produção.
+async function fetchCnpjBrasilApi(cnpj: string): Promise<CnpjCompanyResult | null> {
   const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "MaxOrigemAuditor/1.0",
-    },
+    headers: FETCH_HEADERS,
     cache: "no-store",
   });
   if (res.status === 404) return null;
@@ -133,8 +130,7 @@ export async function fetchCnpjCompany(cnpjRaw: string): Promise<CnpjCompanyResu
       if (!memberName) return null;
       const qual = (row.qualificacao_socio || "").trim();
       const rawDoc = (row.cnpj_cpf_do_socio || "").replace(/\D/g, "");
-      const personType: "PF" | "PJ" =
-        rawDoc.length === 14 ? "PJ" : "PF";
+      const personType: "PF" | "PJ" = rawDoc.length === 14 ? "PJ" : "PF";
       return {
         name: memberName,
         cgccpf: rawDoc.length === 11 || rawDoc.length === 14 ? rawDoc : "",
@@ -162,4 +158,93 @@ export async function fetchCnpjCompany(cnpjRaw: string): Promise<CnpjCompanyResu
     foundedAt: parseBrDate(data.data_inicio_atividade),
     qsa,
   };
+}
+
+async function fetchCnpjWs(cnpj: string): Promise<CnpjCompanyResult | null> {
+  const res = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`, {
+    headers: FETCH_HEADERS,
+    cache: "no-store",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Consulta CNPJ.ws indisponível (${res.status})`);
+  }
+
+  const data = (await res.json()) as {
+    razao_social?: string;
+    estabelecimento?: {
+      nome_fantasia?: string | null;
+      email?: string | null;
+      ddd1?: string | null;
+      telefone1?: string | null;
+      cep?: string | null;
+      logradouro?: string | null;
+      numero?: string | null;
+      complemento?: string | null;
+      bairro?: string | null;
+      cidade?: { nome?: string | null };
+      estado?: { sigla?: string | null };
+      tipo_logradouro?: string | null;
+      data_inicio_atividade?: string | null;
+      opcao_mei?: { optante?: boolean | null } | null;
+    };
+  };
+
+  const est = data.estabelecimento;
+  const name =
+    (data.razao_social || "").trim() ||
+    (est?.nome_fantasia || "").trim() ||
+    "";
+  if (!name) return null;
+
+  const phone =
+    est?.ddd1 && est?.telefone1
+      ? formatPhone(`${est.ddd1}${est.telefone1}`)
+      : null;
+  const street =
+    [est?.tipo_logradouro, est?.logradouro].filter(Boolean).join(" ").trim() ||
+    null;
+
+  return {
+    cnpj,
+    name,
+    tradeName: (est?.nome_fantasia || "").trim() || null,
+    email: (est?.email || "").trim().toLowerCase() || null,
+    phone,
+    personType: est?.opcao_mei?.optante ? "MEI" : "PJ",
+    zip: est?.cep ? est.cep.replace(/\D/g, "") : null,
+    street,
+    number: (est?.numero || "").trim() || null,
+    complement: (est?.complemento || "").trim() || null,
+    neighborhood: (est?.bairro || "").trim() || null,
+    city: (est?.cidade?.nome || "").trim() || null,
+    state: (est?.estado?.sigla || "").trim().toUpperCase() || null,
+    foundedAt: parseBrDate(est?.data_inicio_atividade),
+    qsa: [],
+  };
+}
+
+export async function fetchCnpjCompany(
+  cnpjRaw: string,
+): Promise<CnpjCompanyResult | null> {
+  const cnpj = cnpjRaw.replace(/\D/g, "");
+  if (cnpj.length !== 14) return null;
+
+  let lastError: unknown;
+  try {
+    const fromBrasil = await fetchCnpjBrasilApi(cnpj);
+    if (fromBrasil) return fromBrasil;
+  } catch (error) {
+    lastError = error;
+  }
+
+  try {
+    const fromWs = await fetchCnpjWs(cnpj);
+    if (fromWs) return fromWs;
+  } catch (error) {
+    lastError = error;
+  }
+
+  if (lastError) throw lastError;
+  return null;
 }

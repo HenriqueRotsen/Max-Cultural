@@ -54,7 +54,7 @@ function toAddressParts(parts: {
 async function lookupCnpjBrasilApi(cnpj: string): Promise<CnpjLookupResult | null> {
   const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
     headers: { Accept: "application/json", "User-Agent": "MAX-Origem/1.0" },
-    next: { revalidate: 86400 },
+    cache: "no-store",
   });
   if (!res.ok) return null;
 
@@ -122,7 +122,7 @@ async function lookupCnpjBrasilApi(cnpj: string): Promise<CnpjLookupResult | nul
 async function lookupCnpjWs(cnpj: string): Promise<CnpjLookupResult | null> {
   const res = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`, {
     headers: { Accept: "application/json", "User-Agent": "MAX-Origem/1.0" },
-    next: { revalidate: 86400 },
+    cache: "no-store",
   });
   if (!res.ok) return null;
 
