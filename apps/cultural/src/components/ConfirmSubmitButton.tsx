@@ -8,12 +8,14 @@ export function ConfirmSubmitButton({
   className,
   title = "Confirmar",
   confirmLabel = "Confirmar",
+  disabled,
 }: {
   message: string;
   children: React.ReactNode;
   className?: string;
   title?: string;
   confirmLabel?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -30,7 +32,13 @@ export function ConfirmSubmitButton({
 
   return (
     <>
-      <button ref={btnRef} type="button" className={className} onClick={() => setOpen(true)}>
+      <button
+        ref={btnRef}
+        type="button"
+        className={className}
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+      >
         {children}
       </button>
       {open ? (

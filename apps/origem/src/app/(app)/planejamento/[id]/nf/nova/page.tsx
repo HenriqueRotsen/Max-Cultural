@@ -10,10 +10,16 @@ export const dynamic = "force-dynamic";
 
 export default async function NovaNfPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    attachCommitmentId?: string;
+    attachPedidoId?: string;
+  }>;
 }) {
   const { id } = await params;
+  const { attachCommitmentId, attachPedidoId } = await searchParams;
   const { entitlements } = await getWorkspaceContext();
   const project = await prisma.planningProject.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
@@ -41,21 +47,33 @@ export default async function NovaNfPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        backHref={`/planejamento/${id}`}
+        backHref={
+          attachPedidoId
+            ? `/planejamento/${id}/pedidos/${attachPedidoId}`
+            : `/planejamento/${id}`
+        }
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> /{" "}
             <Link href={`/planejamento/${id}`}>{project.externalCode}</Link> / NF-RPA
           </>
         }
-        title="Subir NF ou RPA"
-        description="Primeiro escolha o tipo do documento; depois envie o arquivo para extrair os dados."
+        title={attachPedidoId ? "Vincular NF ou RPA ao pedido" : "Subir NF ou RPA"}
+        description={
+          attachPedidoId
+            ? "Envie a nota do valor total do pedido. A reserva já está feita nas parcelas."
+            : "Primeiro escolha o tipo do documento; depois envie o arquivo para extrair os dados."
+        }
       />
       <PendingFiscalDocuments
         planningProjectId={id}
         documents={pendingDocs}
       />
-      <NfUploadForm planningProjectId={id} />
+      <NfUploadForm
+        planningProjectId={id}
+        attachCommitmentId={attachCommitmentId}
+        attachPedidoId={attachPedidoId}
+      />
     </div>
   );
 }

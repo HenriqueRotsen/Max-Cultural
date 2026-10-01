@@ -1,5 +1,6 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -7,12 +8,25 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 33;
+const PRISMA_SCHEMA_VERSION = 35;
+
+function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).searchParams.get("schema") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL,
-  });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+  const schema = schemaFromDatabaseUrl(connectionString);
+  const pool = new Pool({ connectionString });
+  const adapter = new PrismaPg(pool, schema ? { schema } : undefined);
   return new PrismaClient({ adapter });
 }
 
@@ -50,6 +64,9 @@ function clientMatchesSchema(client: PrismaClient): boolean {
   const budgetLineFields = (models.ProjectBudgetLine.fields || []).map((f) => f.name);
   if (!budgetLineFields.includes("homologatedAmount")) return false;
   if (!models.RubricCommitment) return false;
+  const commitmentFields = (models.RubricCommitment.fields || []).map((f) => f.name);
+  if (!commitmentFields.includes("pedidoId")) return false;
+  if (!models.PlanningPedido) return false;
   if (!models.PlanningDocument) return false;
   if (!models.AppNotification) return false;
   if (!models.NotificationSettings) return false;
@@ -60,6 +77,7 @@ function clientMatchesSchema(client: PrismaClient): boolean {
   const planningFields = (models.PlanningProject.fields || []).map((f) => f.name);
   if (!planningFields.includes("lifecycleStatus")) return false;
   if (!planningFields.includes("salicPublishStatus")) return false;
+  if (!models.AuditLog) return false;
   return true;
 }
 

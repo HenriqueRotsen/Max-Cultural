@@ -28,16 +28,23 @@ export function EditFiscalNumberForm({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const handledOkRef = useRef(false);
+  const onUpdatedRef = useRef(onUpdated);
+  onUpdatedRef.current = onUpdated;
   const action = updateImportedFiscalNumber.bind(null, documentId);
   const [state, formAction, pending] = useActionState(action, initial);
 
   useEffect(() => {
-    if (state.ok) {
-      router.refresh();
-      const value = inputRef.current?.value.trim();
-      if (value) onUpdated?.(value);
+    if (!state.ok) {
+      handledOkRef.current = false;
+      return;
     }
-  }, [state.ok, onUpdated, router]);
+    if (handledOkRef.current) return;
+    handledOkRef.current = true;
+    router.refresh();
+    const value = inputRef.current?.value.trim();
+    if (value) onUpdatedRef.current?.(value);
+  }, [state.ok, router]);
 
   return (
     <form action={formAction} className={compact ? "space-y-2" : "space-y-3"}>

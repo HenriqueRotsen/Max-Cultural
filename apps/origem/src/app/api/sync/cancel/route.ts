@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { assertSyncApiAuth } from "@/lib/sync/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Cancela sync pending/running (libera a fila se travou). */
 export async function POST(request: Request) {
+  const denied = await assertSyncApiAuth(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json().catch(() => ({}))) as {
       syncRunId?: string;

@@ -11,7 +11,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
 import {
-  canExceedRubric,
+  canEditRubricas,
   canPublishToSalic,
   canReadequacao,
 } from "@/lib/planning/acl";
@@ -86,7 +86,7 @@ export default async function PlanningProjectPage({
         publishedPaidByLine,
       })
     : null;
-  const allowExceed = await canExceedRubric();
+  const allowEditRubricas = await canEditRubricas();
   const isFederal = isFederalPlanning(project.jurisdiction);
   const allowPublish = isFederal && (await canPublishToSalic());
   const allowReadequacao = await canReadequacao();
@@ -163,7 +163,7 @@ export default async function PlanningProjectPage({
           <PlanningProjectActions
             projectId={project.id}
             reservationsCount={project.commitments.length}
-            allowExceed={allowExceed}
+            allowEditRubricas={allowEditRubricas}
             allowReadequacao={allowReadequacao}
             isFederal={isFederal}
             openDraftId={openDraft?.id ?? null}

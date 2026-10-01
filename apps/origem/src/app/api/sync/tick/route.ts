@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { tickSyncRun } from "@/lib/sync/run";
+import { assertSyncApiAuth } from "@/lib/sync/api-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -7,6 +8,9 @@ export const dynamic = "force-dynamic";
 
 /** Processa a próxima fatia (1 PRONAC). Usado no modo chunked / Vercel. */
 export async function POST(request: Request) {
+  const denied = await assertSyncApiAuth(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json().catch(() => ({}))) as { syncRunId?: string };
     if (!body.syncRunId) {

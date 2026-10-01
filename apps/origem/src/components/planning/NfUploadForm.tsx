@@ -12,9 +12,11 @@ type DocKind = "NF" | "RPA";
 export function NfUploadForm({
   planningProjectId,
   attachCommitmentId,
+  attachPedidoId,
 }: {
   planningProjectId: string;
   attachCommitmentId?: string;
+  attachPedidoId?: string;
 }) {
   const action = uploadNfForReview.bind(null, planningProjectId);
   const [state, formAction, pending] = useActionState(action, initial);
@@ -83,6 +85,9 @@ export function NfUploadForm({
           name="attachCommitmentId"
           value={attachCommitmentId}
         />
+      ) : null}
+      {attachPedidoId ? (
+        <input type="hidden" name="attachPedidoId" value={attachPedidoId} />
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] px-4 py-3">

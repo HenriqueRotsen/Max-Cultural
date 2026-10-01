@@ -74,7 +74,14 @@ export default async function NotificacoesPage({
             ? `${unreadCount} não lida${unreadCount === 1 ? "" : "s"}`
             : "Todas as lidas ou sem avisos ativos"
         }
-        actions={<MarkAllNotificationsButton />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/planejamento/contas-a-pagar" className="btn btn-ghost">
+              Contas a pagar
+            </Link>
+            <MarkAllNotificationsButton />
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">

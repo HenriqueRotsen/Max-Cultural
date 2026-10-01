@@ -1,13 +1,20 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { can, getSessionUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { generateProvisionalPassword, hashPassword } from "@/lib/password";
-import { SCREEN_IDS } from "@/lib/screens";
+import {
+  ACCESS_PERMISSION_IDS,
+  ACCESS_BY_ID,
+  normalizeGrantedIds,
+} from "@max/auth";
 import { sendInviteEmail } from "@/lib/email";
+
+const USER_CREATED_FLASH = "max_user_created_flash";
 
 export async function createUserAction(formData: FormData) {
   const actor = await getSessionUser();
@@ -45,14 +52,47 @@ export async function createUserAction(formData: FormData) {
     entityId: email,
   });
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+  const emailSimulated =
+    process.env.AUTH_EMAIL_SIMULATE === "true" || !process.env.RESEND_API_KEY;
   await sendInviteEmail({
     to: email,
     name,
     link: `${site}/login`,
+    // Só inclui senha no e-mail quando Resend está ativo (não simulado).
+    provisionalPassword: emailSimulated ? undefined : provisional,
   });
-  redirect(
-    `/usuarios?created=1&email=${encodeURIComponent(email)}&temp=${encodeURIComponent(provisional)}`,
+
+  const jar = await cookies();
+  jar.set(
+    USER_CREATED_FLASH,
+    JSON.stringify({ email, provisional }),
+    {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/usuarios",
+      maxAge: 120,
+      secure: process.env.NODE_ENV === "production",
+    },
   );
+  redirect("/usuarios?created=1");
+}
+
+export async function peekUserCreatedFlash(): Promise<{
+  email: string;
+  provisional: string;
+} | null> {
+  // Só leitura: cookies só podem ser apagadas em Server Action/Route Handler.
+  // O cookie expira em ~2 min (maxAge na criação).
+  const jar = await cookies();
+  const raw = jar.get(USER_CREATED_FLASH)?.value;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { email?: string; provisional?: string };
+    if (!parsed.email || !parsed.provisional) return null;
+    return { email: parsed.email, provisional: parsed.provisional };
+  } catch {
+    return null;
+  }
 }
 
 export async function toggleUserAction(userId: string) {
@@ -92,16 +132,21 @@ export async function saveRolePermissionsAction(formData: FormData) {
     redirect("/papeis?error=" + encodeURIComponent("Papel inválido."));
   }
 
-  const rows = SCREEN_IDS.map((screen) => ({
-    roleId,
-    screen,
-    canView: formData.get(`view:${screen}`) === "on",
-    canEdit: formData.get(`edit:${screen}`) === "on",
-  }));
+  const raw = ACCESS_PERMISSION_IDS.filter(
+    (id) => formData.get(`grant:${id}`) === "on",
+  );
+  const granted = normalizeGrantedIds(raw);
 
   await prisma.$transaction([
     prisma.rolePermission.deleteMany({ where: { roleId } }),
-    prisma.rolePermission.createMany({ data: rows.filter((r) => r.canView || r.canEdit) }),
+    prisma.rolePermission.createMany({
+      data: granted.map((screen) => ({
+        roleId,
+        screen,
+        canView: true,
+        canEdit: screen.endsWith(".edit") || ACCESS_BY_ID[screen]?.kind === "capability",
+      })),
+    }),
   ]);
   await writeAuditLog({
     actorUserId: actor.id,

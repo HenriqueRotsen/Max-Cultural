@@ -81,7 +81,7 @@ async function workspaceFromHubEmail(emailRaw: string, userId?: string) {
       id: userId || `hub_${email}`,
       email,
       name: email.split("@")[0] || "MAX Cultural",
-      role: "ADMIN",
+      role: "USER",
       mustChangePassword: false,
       active: true,
       workspaceId: workspace.id,

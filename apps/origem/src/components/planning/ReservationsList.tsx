@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -167,28 +167,31 @@ export function ReservationsList({
     };
   }
 
-  function handleFiscalNumberUpdated(
-    proofId: string,
-    fiscalNumber: string,
-    itemNumber: number | null,
-    supplierName: string,
-  ) {
-    setPreviewItems((items) =>
-      items.map((item) =>
-        item.proofId === proofId
-          ? {
-              ...item,
-              fiscalNumber,
-              uploadFilename: buildSalicUploadFilename({
-                itemNumber,
-                fiscalDocNumber: fiscalNumber,
-                supplierName,
-              }),
-            }
-          : item,
-      ),
-    );
-  }
+  const handleFiscalNumberUpdated = useCallback(
+    (
+      proofId: string,
+      fiscalNumber: string,
+      itemNumber: number | null,
+      supplierName: string,
+    ) => {
+      setPreviewItems((items) =>
+        items.map((item) =>
+          item.proofId === proofId
+            ? {
+                ...item,
+                fiscalNumber,
+                uploadFilename: buildSalicUploadFilename({
+                  itemNumber,
+                  fiscalDocNumber: fiscalNumber,
+                  supplierName,
+                }),
+              }
+            : item,
+        ),
+      );
+    },
+    [],
+  );
 
   function openPreviewOne(row: ReservationRow) {
     const item = rowToPreviewItem(row);

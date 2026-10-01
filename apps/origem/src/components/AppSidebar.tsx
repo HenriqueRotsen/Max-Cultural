@@ -44,7 +44,8 @@ const moduleLinks = [
 const planejamentoLinks = [
   { href: "/planejamento", label: "Projetos", icon: HomeIcon },
   { href: "/planejamento/novo", label: "Novo projeto", icon: PlanIcon },
-  { href: "/planejamento/buscar", label: "Buscar saldo", icon: ChartIcon },
+  { href: "/planejamento/contas-a-pagar", label: "Contas a pagar", icon: PayableIcon },
+  { href: "/planejamento/buscar", label: "Buscar saldo", icon: SearchBalanceIcon },
 ];
 
 export function origemNavModule(
@@ -87,24 +88,36 @@ export function AppSidebar({
   userEmail,
   syncEnabled = true,
   demoMode = false,
+  allowedScreens,
 }: {
   userEmail?: string;
   isAdmin?: boolean;
   syncEnabled?: boolean;
   demoMode?: boolean;
+  /** IDs do hub; ["*"] libera tudo. */
+  allowedScreens?: string[];
 }) {
   const pathname = usePathname();
   const module = origemNavModule(pathname);
+  const allow = (screen: string) =>
+    !allowedScreens ||
+    allowedScreens.includes("*") ||
+    allowedScreens.includes(screen);
+
   const auditoria = auditoriaLinks.filter((l) => {
     if (!syncEnabled && l.href === "/sync") return false;
     if (demoMode && l.href === "/sync") return false;
-    return true;
+    return allow("origem.auditoria");
   });
-  const proponentes = demoMode
-    ? []
-    : proponentesLinks;
+  const proponentes = demoMode || !allow("origem.proponentes") ? [] : proponentesLinks;
+  const fornecedores = allow("origem.fornecedores") ? fornecedoresLinks : [];
+  const planejamento = allow("origem.planejamento") ? planejamentoLinks : [];
   const modules = moduleLinks.filter((l) => {
     if (demoMode && l.href === "/contas") return false;
+    if (l.href === "/planejamento") return allow("origem.planejamento");
+    if (l.href === "/contas") return allow("origem.proponentes");
+    if (l.href === "/inicio") return allow("origem.auditoria");
+    if (l.href === "/fornecedores") return allow("origem.fornecedores");
     return true;
   });
 
@@ -114,9 +127,9 @@ export function AppSidebar({
       : module === "proponentes"
         ? { title: "Proponentes", links: proponentes }
         : module === "fornecedores"
-          ? { title: "Fornecedores", links: fornecedoresLinks }
+          ? { title: "Fornecedores", links: fornecedores }
           : module === "planejamento"
-            ? { title: "Planejamento", links: planejamentoLinks }
+            ? { title: "Planejamento", links: planejamento }
             : { title: "Auditoria", links: auditoria };
 
   return (
@@ -269,6 +282,55 @@ function ChartIcon({ active }: { active?: boolean }) {
       <path d="M7 16V10" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
       <path d="M12 16V7" stroke={stroke(active)} strokeWidth="1.7" strokeLinecap="round" />
       <path d="M17 16v-4" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PayableIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect
+        x="3"
+        y="6"
+        width="18"
+        height="12"
+        rx="2"
+        stroke={stroke(active)}
+        strokeWidth="1.7"
+      />
+      <path d="M3 10h18" stroke={stroke(active)} strokeWidth="1.7" />
+      <path
+        d="M7 14h3"
+        stroke={stroke(active, true)}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SearchBalanceIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle
+        cx="10.5"
+        cy="10.5"
+        r="6.5"
+        stroke={stroke(active)}
+        strokeWidth="1.7"
+      />
+      <path
+        d="M15.5 15.5 20 20"
+        stroke={stroke(active, true)}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 10.5h5M10.5 8v5"
+        stroke={stroke(active)}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

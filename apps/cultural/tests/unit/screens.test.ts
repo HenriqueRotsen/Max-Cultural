@@ -11,6 +11,8 @@ describe("screens catalog", () => {
     expect(ids.has("origem.app")).toBe(true);
     expect(ids.has("origem.planejamento")).toBe(true);
     expect(ids.has("origem.planejamento.excluir_nf")).toBe(true);
+    expect(ids.has("origem.planejamento.editar_rubricas")).toBe(true);
+    expect(ids.has("cultural.usuarios.edit")).toBe(true);
     expect(ids.has("fluxo.app")).toBe(true);
     expect(ids.has("cultural.home")).toBe(true);
   });

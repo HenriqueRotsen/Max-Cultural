@@ -1,20 +1,34 @@
--- Enable RLS on all public app tables (Supabase/PostgREST advisory).
+-- Enable RLS on app tables in the active schema (public or fluxo).
 -- Sem políticas: roles anon/authenticated não leem dados via PostgREST.
 -- O owner da tabela (conexão Prisma) continua bypassando RLS (sem FORCE).
 
-ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.auth_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.contextos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.email_otps ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.geo_cache ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inscricoes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.oficinas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.password_reset_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.projetos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.role_data_scopes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_data_scopes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE
+  sch text := current_schema();
+  t text;
+  tables text[] := ARRAY[
+    'audit_logs',
+    'auth_sessions',
+    'contextos',
+    'email_otps',
+    'geo_cache',
+    'inscricoes',
+    'oficinas',
+    'password_reset_tokens',
+    'permissions',
+    'projetos',
+    'role_data_scopes',
+    'role_permissions',
+    'roles',
+    'user_data_scopes',
+    'user_permissions',
+    'users'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables
+  LOOP
+    IF to_regclass(format('%I.%I', sch, t)) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', sch, t);
+    END IF;
+  END LOOP;
+END $$;

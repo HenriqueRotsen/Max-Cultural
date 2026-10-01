@@ -6,6 +6,7 @@ import {
   changeOwnPasswordAction,
   updateOwnProfileAction,
 } from "@/lib/actions/account";
+import { PasswordInput } from "@/components/PasswordInput";
 
 const initial: AuthActionState = {};
 
@@ -51,15 +52,30 @@ export function AccountProfileForm({ name }: { name: string }) {
         </div>
         <div className="field">
           <label htmlFor="current">Senha atual</label>
-          <input id="current" name="current" type="password" required autoComplete="current-password" />
+          <PasswordInput
+            id="current"
+            name="current"
+            required
+            autoComplete="current-password"
+          />
         </div>
         <div className="field">
           <label htmlFor="password">Nova senha</label>
-          <input id="password" name="password" type="password" required autoComplete="new-password" />
+          <PasswordInput
+            id="password"
+            name="password"
+            required
+            autoComplete="new-password"
+          />
         </div>
         <div className="field">
           <label htmlFor="confirm">Confirmar nova senha</label>
-          <input id="confirm" name="confirm" type="password" required autoComplete="new-password" />
+          <PasswordInput
+            id="confirm"
+            name="confirm"
+            required
+            autoComplete="new-password"
+          />
         </div>
         {passState.message ? (
           <p className="text-sm text-[#176b3a]">{passState.message}</p>

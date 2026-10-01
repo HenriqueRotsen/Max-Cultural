@@ -52,6 +52,11 @@ export function n(v: unknown): number {
   return 0;
 }
 
+/** Arredonda para centavos — evita deriva de float em totais de planilha. */
+export function roundCents(v: number): number {
+  return Math.round((Number.isFinite(v) ? v : 0) * 100) / 100;
+}
+
 /** Produto Administração (SALIC) — não permite excesso sobre o disponível. */
 export function isAdminProduct(productName: string | null | undefined): boolean {
   return /administra/i.test(String(productName || ""));
@@ -188,12 +193,18 @@ export function computeProjectBalance(input: {
   }
 
   let totalAvailableCap = 0;
+  totalApproved = 0;
   for (const bal of lines.values()) {
-    bal.availableCap = bal.isAdmin
-      ? bal.approved
-      : bal.approved * factors.pctCaptadoT;
+    bal.approved = roundCents(bal.approved);
+    bal.reserved = roundCents(bal.reserved);
+    bal.paid = roundCents(bal.paid);
+    bal.salicComprovado = roundCents(bal.salicComprovado);
+    totalApproved += bal.approved;
+    bal.availableCap = roundCents(
+      bal.isAdmin ? bal.approved : bal.approved * factors.pctCaptadoT,
+    );
     totalAvailableCap += bal.availableCap;
-    bal.available = bal.availableCap - bal.reserved;
+    bal.available = roundCents(bal.availableCap - bal.reserved);
     bal.overApproved =
       bal.approved <= 0 || bal.reserved >= bal.approved - 1e-9;
     bal.over =
@@ -203,15 +214,15 @@ export function computeProjectBalance(input: {
   }
 
   return {
-    totalApproved,
-    totalAvailableCap,
-    totalReserved,
-    totalPaid,
-    totalAvailable: totalAvailableCap - totalReserved,
+    totalApproved: roundCents(totalApproved),
+    totalAvailableCap: roundCents(totalAvailableCap),
+    totalReserved: roundCents(totalReserved),
+    totalPaid: roundCents(totalPaid),
+    totalAvailable: roundCents(totalAvailableCap - totalReserved),
     pctCaptadoT: factors.pctCaptadoT,
     pctCaptadoOnly: factors.pctCaptadoOnly,
-    operableBase: factors.operableBase,
-    valorCaptado: factors.valorCaptado,
+    operableBase: roundCents(factors.operableBase),
+    valorCaptado: roundCents(factors.valorCaptado),
     lines,
   };
 }

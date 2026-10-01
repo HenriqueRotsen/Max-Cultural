@@ -9,16 +9,22 @@ export async function writeAuditLog(input: {
   entityId?: string;
   meta?: Prisma.InputJsonValue;
   ip?: string | null;
+  createdAt?: Date;
 }) {
-  await prisma.auditLog.create({
-    data: {
-      actorUserId: input.actorUserId ?? null,
-      action: input.action,
-      screen: input.screen ?? "",
-      entityType: input.entityType ?? "",
-      entityId: input.entityId ?? "",
-      meta: input.meta ?? undefined,
-      ip: input.ip ?? null,
-    },
-  });
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorUserId: input.actorUserId ?? null,
+        action: input.action,
+        screen: input.screen ?? "",
+        entityType: input.entityType ?? "",
+        entityId: input.entityId ?? "",
+        meta: input.meta ?? undefined,
+        ip: input.ip ?? null,
+        ...(input.createdAt ? { createdAt: input.createdAt } : {}),
+      },
+    });
+  } catch (err) {
+    console.error("[audit]", err);
+  }
 }

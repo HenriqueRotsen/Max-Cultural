@@ -35,6 +35,26 @@ export function classifyLifecycleFromSituacao(
   return "EM_ANDAMENTO";
 }
 
+/** Prestação de contas em curso (apresentada / em análise) — não é execução operacional. */
+export function isPrestacaoContasSituacao(situacao?: string | null): boolean {
+  const s = normalizeSituacao(situacao);
+  if (!s || !/prestacao de contas/.test(s)) return false;
+  // Já classificadas como encerradas (aprovada/concluída) ficam só em Encerrados.
+  if (/(aprovad|conclu|finaliz|homolog)/.test(s)) return false;
+  return true;
+}
+
+export type ProjectListBucket = "execucao" | "prestacao" | "encerrado";
+
+export function projectListBucket(input: {
+  lifecycleStatus: string;
+  situacao?: string | null;
+}): ProjectListBucket {
+  if (input.lifecycleStatus === "ENCERRADO") return "encerrado";
+  if (isPrestacaoContasSituacao(input.situacao)) return "prestacao";
+  return "execucao";
+}
+
 export function lifecycleLabel(status: string | null | undefined): string {
   return status === "ENCERRADO" ? "Encerrado" : "Em andamento";
 }

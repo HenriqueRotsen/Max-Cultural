@@ -5,7 +5,11 @@ config({ path: ".env.local" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
-import { SCREENS } from "../src/lib/screens";
+import {
+  ACCESS_PERMISSION_IDS,
+  ACCESS_BY_ID,
+  ORIGEM_PRIVILEGED_CAPABILITIES,
+} from "@max/auth";
 
 async function main() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -26,36 +30,47 @@ async function main() {
     update: {},
     create: {
       name: "Operador",
-      description: "Origem e Fluxo, sem IAM",
+      description: "Origem e Fluxo operacionais, sem IAM nem capacidades privilegiadas",
       isSystem: true,
     },
   });
 
+  const privileged = new Set<string>(ORIGEM_PRIVILEGED_CAPABILITIES);
+
   await prisma.rolePermission.deleteMany({ where: { roleId: adminRole.id } });
   await prisma.rolePermission.createMany({
-    data: SCREENS.map((s) => ({
+    data: ACCESS_PERMISSION_IDS.map((screen) => ({
       roleId: adminRole.id,
-      screen: s.id,
+      screen,
       canView: true,
-      canEdit: true,
+      canEdit:
+        ACCESS_BY_ID[screen]?.kind === "capability" || screen.endsWith(".edit"),
     })),
   });
 
   const operador = await prisma.role.findUniqueOrThrow({ where: { name: "Operador" } });
+  const operadorIds = ACCESS_PERMISSION_IDS.filter((id) => {
+    if (privileged.has(id)) return false;
+    if (id.startsWith("cultural.usuarios")) return false;
+    if (id.startsWith("cultural.papeis")) return false;
+    if (id === "cultural.logs") return false;
+    return (
+      id === "cultural.home" ||
+      id === "cultural.projetos" ||
+      id.startsWith("origem.") ||
+      id.startsWith("fluxo.")
+    );
+  });
+
   await prisma.rolePermission.deleteMany({ where: { roleId: operador.id } });
   await prisma.rolePermission.createMany({
-    data: [
-      { roleId: operador.id, screen: "cultural.home", canView: true, canEdit: false },
-      { roleId: operador.id, screen: "cultural.projetos", canView: true, canEdit: false },
-      { roleId: operador.id, screen: "origem.app", canView: true, canEdit: true },
-      { roleId: operador.id, screen: "origem.proponentes", canView: true, canEdit: true },
-      { roleId: operador.id, screen: "origem.auditoria", canView: true, canEdit: true },
-      { roleId: operador.id, screen: "origem.fornecedores", canView: true, canEdit: true },
-      { roleId: operador.id, screen: "origem.planejamento", canView: true, canEdit: true },
-      { roleId: operador.id, screen: "fluxo.app", canView: true, canEdit: true },
-      { roleId: operador.id, screen: "fluxo.operacao", canView: true, canEdit: true },
-      { roleId: operador.id, screen: "fluxo.consultas", canView: true, canEdit: true },
-    ],
+    data: operadorIds.map((screen) => ({
+      roleId: operador.id,
+      screen,
+      canView: true,
+      canEdit:
+        ACCESS_BY_ID[screen]?.kind === "capability" || screen.endsWith(".edit"),
+    })),
   });
 
   const email = (process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@maxcultural.local").toLowerCase();

@@ -12,7 +12,7 @@ import { recommendRubric } from "@/lib/planning/recommend-rubric";
 import { lookupCnpj } from "@/lib/catalog/brasil-api";
 import { normalizeCgccpf } from "@/lib/format";
 import type { ExtractedFiscalDoc } from "@/lib/nf/extract";
-import { extractPaymentDetails } from "@/lib/nf/payment-details";
+import { extractPaymentDetails, mergePaymentDetails } from "@/lib/nf/payment-details";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import {
   defaultExpectedPayFromHiredAt,
@@ -31,10 +31,13 @@ export default async function RevisarNfPage({
   searchParams,
 }: {
   params: Promise<{ id: string; docId: string }>;
-  searchParams: Promise<{ attachCommitmentId?: string }>;
+  searchParams: Promise<{
+    attachCommitmentId?: string;
+    attachPedidoId?: string;
+  }>;
 }) {
   const { id, docId } = await params;
-  const { attachCommitmentId } = await searchParams;
+  const { attachCommitmentId, attachPedidoId } = await searchParams;
   const { entitlements, session } = await getWorkspaceContext();
   const doc = await prisma.planningDocument.findFirst({
     where: {
@@ -92,6 +95,36 @@ export default async function RevisarNfPage({
   }
 
   const cnpj = normalizeCgccpf(extracted.cnpj || "");
+  if (cnpj.length === 11 || cnpj.length === 14) {
+    const catalogSupplier = await prisma.catalogSupplier.findUnique({
+      where: {
+        workspaceId_cnpj: {
+          workspaceId: entitlements.workspaceId,
+          cnpj,
+        },
+      },
+      select: {
+        pixKey: true,
+        bankName: true,
+        bankAgency: true,
+        bankAccount: true,
+        paymentNotes: true,
+      },
+    });
+    if (catalogSupplier) {
+      // Prefer extracted NF values; fill blanks from catalog (supplier → form).
+      extracted = {
+        ...extracted,
+        payment: mergePaymentDetails(extracted.payment, {
+          pixKey: catalogSupplier.pixKey,
+          bankName: catalogSupplier.bankName,
+          bankAgency: catalogSupplier.bankAgency,
+          bankAccount: catalogSupplier.bankAccount,
+          paymentNotes: catalogSupplier.paymentNotes,
+        }),
+      };
+    }
+  }
   if (cnpj.length === 14 && !extracted.cnaeCode) {
     const company = await lookupCnpj(cnpj);
     if (company?.cnaeCode) {
@@ -194,6 +227,24 @@ export default async function RevisarNfPage({
       })
     : null;
 
+  const attachPedido = attachPedidoId
+    ? await prisma.planningPedido.findFirst({
+        where: {
+          id: attachPedidoId,
+          workspaceId: entitlements.workspaceId,
+          planningProjectId: id,
+          status: "OPEN",
+        },
+        include: {
+          commitments: {
+            where: { status: "RESERVED" },
+            select: { budgetLineId: true, amount: true },
+            orderBy: { installmentNumber: "asc" },
+          },
+        },
+      })
+    : null;
+
   const attachProofAllocations = attachCommitment
     ? (
         await prisma.planningDocument.findFirst({
@@ -223,7 +274,32 @@ export default async function RevisarNfPage({
 
   const attachTotalAmount =
     attachProofAllocations?.reduce((s, a) => s + a.amount, 0) ??
-    (attachCommitment ? Number(attachCommitment.amount) : null);
+    (attachCommitment ? Number(attachCommitment.amount) : null) ??
+    (attachPedido
+      ? attachPedido.commitments.reduce((s, c) => s + Number(c.amount), 0)
+      : null);
+
+  const attachPedidoAllocations = attachPedido
+    ? (() => {
+        const total = attachPedido.commitments.reduce(
+          (s, c) => s + Number(c.amount),
+          0,
+        );
+        const byLine = new Map<string, number>();
+        for (const c of attachPedido.commitments) {
+          byLine.set(
+            c.budgetLineId,
+            (byLine.get(c.budgetLineId) || 0) + Number(c.amount),
+          );
+        }
+        return [...byLine.entries()].map(([budgetLineId, amount]) => ({
+          budgetLineId,
+          sharePct:
+            total > 0 ? Math.round((amount / total) * 10000) / 100 : 0,
+          amount,
+        }));
+      })()
+    : null;
 
   const prefs = await getNotificationPrefs(
     entitlements.workspaceId,
@@ -297,12 +373,18 @@ export default async function RevisarNfPage({
         documentKind={kind}
         lines={lineOpts}
         suggestedLineId={
-          attachCommitment?.budgetLineId || suggestion?.lineId || null
+          attachCommitment?.budgetLineId ||
+          attachPedido?.commitments[0]?.budgetLineId ||
+          suggestion?.lineId ||
+          null
         }
         suggestionReasons={suggestion?.reasons || []}
         attachCommitmentId={attachCommitment?.id ?? null}
+        attachPedidoId={attachPedido?.id ?? null}
         attachAmount={attachTotalAmount}
-        initialAllocations={attachProofAllocations}
+        initialAllocations={
+          attachProofAllocations ?? attachPedidoAllocations
+        }
         defaultExpectedPayAt={toDateInputValue(expectedPayAt)}
         defaultPaymentReminderAt={defaultPaymentReminder}
         taxDueHint={taxHintParts.length ? taxHintParts.join(" ") : null}

@@ -100,6 +100,7 @@ model Workspace {
   catalogFavorites   CatalogFavorite[]
   catalogEngagements CatalogEngagement[]
   planningProjects          PlanningProject[]
+  planningPedidos           PlanningPedido[]
   planningReadequacaoDrafts PlanningReadequacaoDraft[]
   appNotifications          AppNotification[]
   notificationSettings      NotificationSettings[]
@@ -508,6 +509,7 @@ model CatalogSupplier {
   workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   services    CatalogService[]
   favorites   CatalogFavorite[]
+  pedidos     PlanningPedido[]
 
   @@unique([workspaceId, cnpj])
   @@index([workspaceId, name])
@@ -597,6 +599,12 @@ enum CommitmentStatus {
   CANCELLED
 }
 
+enum PedidoStatus {
+  OPEN
+  FULFILLED
+  CANCELLED
+}
+
 enum PlanningDocumentKind {
   NF
   RPA
@@ -673,6 +681,7 @@ model PlanningProject {
   commitments     RubricCommitment[]
   engagements     CatalogEngagement[]
   documents       PlanningDocument[]
+  pedidos         PlanningPedido[]
   readequacaoDrafts PlanningReadequacaoDraft[]
 
   @@unique([workspaceId, accountId, externalCode])
@@ -738,6 +747,10 @@ model RubricCommitment {
   planningProjectId String
   workspaceId       String
   engagementId      String           @unique
+  /** Pedido (reserva parcelada sem NF) que originou este compromisso. */
+  pedidoId          String?
+  /** Ordem da parcela dentro do pedido (1-based). */
+  installmentNumber Int?
   amount            Decimal          @db.Decimal(14, 2)
   /** Percentual da NF/RPA alocado nesta fatia (0–100). */
   allocationSharePct Decimal?        @db.Decimal(7, 4)
@@ -759,16 +772,45 @@ model RubricCommitment {
   budgetLine      ProjectBudgetLine @relation(fields: [budgetLineId], references: [id], onDelete: Cascade)
   planningProject PlanningProject   @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
   engagement      CatalogEngagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  pedido          PlanningPedido?   @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
   documents       PlanningDocument[]
   allocations     DocumentRubricAllocation[]
 
   @@index([budgetLineId])
   @@index([planningProjectId])
   @@index([workspaceId, status])
+  @@index([pedidoId])
   @@index([expectedPayAt])
   @@index([paymentReminderAt])
   @@index([nfReminderAt])
   @@map("rubric_commitments")
+}
+
+/** Reserva parcelada sem NF — “Pedido” na UI. */
+model PlanningPedido {
+  id                String       @id @default(cuid())
+  workspaceId       String
+  planningProjectId String
+  supplierId        String
+  description       String?
+  totalAmount       Decimal      @db.Decimal(14, 2)
+  status            PedidoStatus @default(OPEN)
+  /** NF/RPA vinculada ao pedido (quando houver). */
+  sourceDocumentId  String?      @unique
+  createdById       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  planningProject PlanningProject   @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  supplier        CatalogSupplier   @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  sourceDocument  PlanningDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  commitments     RubricCommitment[]
+
+  @@index([workspaceId, status])
+  @@index([planningProjectId])
+  @@index([supplierId])
+  @@map("planning_pedidos")
 }
 
 model PlanningDocument {
@@ -819,6 +861,7 @@ model PlanningDocument {
   sourceDocument  PlanningDocument?  @relation("DocumentProofSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   derivedProofs   PlanningDocument[] @relation("DocumentProofSource")
   allocations     DocumentRubricAllocation[]
+  pedidoLinked    PlanningPedido?
 
   @@index([workspaceId, kind])
   @@index([commitmentId])
@@ -920,4 +963,22 @@ model NotificationSettings {
   @@unique([workspaceId, userId])
   @@index([workspaceId])
   @@map("notification_settings")
+}
+
+/** Trilha de atividade (quem fez o quê) — distinto da Auditoria SALIC. */
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  screen      String   @default("")
+  entityType  String   @default("")
+  entityId    String   @default("")
+  meta        Json?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

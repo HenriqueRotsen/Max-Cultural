@@ -27,9 +27,16 @@ export const HEADER_SYNONYMS: Record<string, SigaCulturalColumn> = {
   data_inscricao: "Data_inscricao",
   datainscricao: "Data_inscricao",
   inscricao: "Data_inscricao",
+  carimbo_de_data_hora: "Data_inscricao",
+  carimbo_data_hora: "Data_inscricao",
+  carimbo: "Data_inscricao",
+  timestamp: "Data_inscricao",
+  hora_de_envio: "Data_inscricao",
+  data_hora: "Data_inscricao",
   nome: "Nome",
   nome_completo: "Nome",
   nomecompleto: "Nome",
+  nome_completo_ou_nome_social: "Nome",
   apelido: "Apelido",
   cpf: "CPF",
   data_nascimento: "Data_nascimento",
@@ -226,7 +233,6 @@ export function normalizeHeaderKey(key: string): string {
  */
 function matchHeaderByIncludes(key: string): SigaCulturalColumn | null {
   // perguntas longas de formulário (Google Forms etc.)
-  if (/carimbo|timestamp|hora_de_envio|submission/.test(key)) return null;
   if (/qual_oficina|inscrever.*oficina|oficina_desej/.test(key)) return null;
 
   const rules: Array<[RegExp, SigaCulturalColumn]> = [
@@ -251,14 +257,20 @@ function matchHeaderByIncludes(key: string): SigaCulturalColumn | null {
     [/(genero|sexo|gender|identidade_de_genero)/, "Genero"],
     [/(etnia|raca|cor_raca|cor_ou_raca)/, "Etnia"],
     [/(nascimento|dt_?nasc|birthday|data_de_nascimento)/, "Data_nascimento"],
-    [/(data_de_inscricao|dt_?insc)/, "Data_inscricao"],
+    // Google Forms: "Carimbo de data/hora" → data da inscrição
+    [
+      /(carimbo|timestamp|hora_de_envio|submission_?time|data_hora|data_de_inscricao|dt_?insc)/,
+      "Data_inscricao",
+    ],
     [/(deficiencia|pcd|pessoa_com_deficiencia)/, "Possui_deficiencia"],
     [/(aliment|alergia|restricao)/, "RestricaoAlimentar"],
     [/(escolaridade|formacao|schooling)/, "Escolaridade"],
     [/(instagram|facebook|rede_?social|redesocial|@)/, "Redesocial"],
     [/(territorio|zona|quilombo|comunidade|assentamento|regional)/, "Territorio"],
-    [/(apelido|nome_social)/, "Apelido"],
-    [/(nome_completo|(^|_)nome($|_))/, "Nome"],
+    // nome_completo antes de nome_social (ex.: "Nome completo ou nome social")
+    [/(nome_completo)/, "Nome"],
+    [/(apelido|(^|_)nome_social($|_))/, "Apelido"],
+    [/(^|_)nome($|_)/, "Nome"],
     [/(^|_)(numero|nro)($|_)/, "Numero"],
     [/(complemento)/, "Complemento"],
     [/selecionad/, "Selecionados"],

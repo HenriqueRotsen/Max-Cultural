@@ -30,10 +30,12 @@ Estes passos usam as contas Vercel / Supabase / Resend / DNS do cliente — o c�
 1. **GitHub** `HenriqueRotsen/max-cultural` — este repositório.
 2. **DNS** (`maxcultural.com.br`): apex A/ALIAS Vercel; `www`, `origem`, `fluxo` CNAME `cname.vercel-dns.com`.
 3. **Três projetos Vercel** no mesmo repo, Root Directory por app. Production URLs nos hosts da tabela. `SYNC_MODE=chunked` e `SYNC_CONCURRENCY=2` no Origem.
-4. **Um projeto Supabase** (Auth + Postgres). Site URL = `https://maxcultural.com.br`. Redirect allow list: os três hosts + `/auth/callback` + `/login/2fa`. Origem: `DATABASE_URL` pooler `:6543?pgbouncer=true`, `DIRECT_URL` `:5432`. Fluxo: mesmo projeto, schema `fluxo` (ou segundo database).
+4. **Um projeto Supabase** (Auth + Postgres). Site URL = `https://maxcultural.com.br`. Redirect allow list: os três hosts + `/auth/callback` + `/login/2fa`. Schemas: `public` (Cultural), `origem`, `fluxo`. Bootstrap SQL: [`docs/supabase-bootstrap.sql`](docs/supabase-bootstrap.sql). Checklist completo: [`docs/deploy-teste.md`](docs/deploy-teste.md). Pooler `:6543?pgbouncer=true` + `DIRECT_URL` `:5432`.
 5. **Resend** com domínio autenticado. `EMAIL_FROM=MAX Cultural <noreply@maxcultural.com.br>`.
 
 Cookie de sessão: `max_session`, `domain=.maxcultural.com.br`, `Secure`, `HttpOnly`, `SameSite=Lax`. Preview `*.vercel.app` não compartilha sessão com produção.
+
+**Auditoria:** trilha central no Cultural (`/logs`). Origem e Fluxo enviam eventos via `POST /api/audit`.
 
 ## Auth e 2FA
 

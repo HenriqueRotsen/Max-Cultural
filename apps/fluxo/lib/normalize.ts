@@ -28,13 +28,30 @@ export function stripAccents(value: string): string {
   return value.normalize("NFD").replace(/\p{M}/gu, "");
 }
 
+/** Evita notação científica (Excel) e decimais em campos numéricos. */
+export function coerceDigitSource(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(Math.abs(value)).toString();
+  }
+  const raw = String(value).trim();
+  if (!raw) return "";
+  if (/^\d+\.?\d*e[+\-]?\d+$/i.test(raw)) {
+    const n = Number(raw);
+    if (Number.isFinite(n)) return Math.trunc(Math.abs(n)).toString();
+  }
+  // "52998224725.0" / "31.988519092" raros — só dígitos depois
+  return raw;
+}
+
 export function digitsOnly(value: unknown): string {
-  return String(value ?? "").replace(/\D/g, "");
+  return coerceDigitSource(value).replace(/\D/g, "");
 }
 
 export function normalizeCpf(value: unknown): string {
   let d = digitsOnly(value);
-  if (d.length === 10) d = d.padStart(11, "0");
+  // Excel costuma cortar zeros à esquerda (9–10 dígitos → completa para 11)
+  if (d.length >= 8 && d.length < 11) d = d.padStart(11, "0");
   return d.slice(0, 11);
 }
 
@@ -75,10 +92,24 @@ export function formatCepDisplay(value: unknown): string {
   return `${d.slice(0, 5)}-${d.slice(5)}`;
 }
 
-/** Telefone: só dígitos no armazenamento (exibição formatada na UI) */
+/**
+ * Telefone BR: só dígitos (DDD + número).
+ * Remove DDI 55 e zero de troncal; fica 10 (fixo) ou 11 (celular 9xxxx-xxxx).
+ */
 export function normalizePhone(value: unknown): string {
   let d = digitsOnly(value);
+  // +55 / 55…
   if ((d.length === 12 || d.length === 13) && d.startsWith("55")) {
+    d = d.slice(2);
+  }
+  // 0 + DDD + número (ex.: 031988519092)
+  if ((d.length === 11 || d.length === 12) && d.startsWith("0")) {
+    d = d.slice(1);
+  }
+  // DDI 55 com zero: 55031988519092
+  if (d.length === 14 && d.startsWith("550")) {
+    d = d.slice(3);
+  } else if (d.length === 13 && d.startsWith("55")) {
     d = d.slice(2);
   }
   return d.slice(0, 11);
@@ -377,35 +408,249 @@ export function normalizeFlag01(value: unknown): 0 | 1 {
     : 0;
 }
 
-export function parseFlexibleDate(value: unknown): Date | null {
-  if (value === null || value === undefined || value === "") return null;
-  if (value instanceof Date) return isValid(value) ? value : null;
+function isReasonableYear(year: number): boolean {
+  const now = new Date().getFullYear();
+  return year >= 1900 && year <= now + 1;
+}
 
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-    const d = new Date(excelEpoch.getTime() + value * 86400000);
-    return isValid(d) ? d : null;
+/** Limites de ano para data de nascimento: [atual−100, atual−17], sempre 4 dígitos. */
+export function birthYearBounds(ref: Date = new Date()): {
+  min: number;
+  max: number;
+} {
+  const now = ref.getFullYear();
+  return { min: now - 100, max: now - 17 };
+}
+
+export function isBirthYear(year: number, ref: Date = new Date()): boolean {
+  if (!Number.isInteger(year) || year < 1000 || year > 9999) return false;
+  const { min, max } = birthYearBounds(ref);
+  return year >= min && year <= max;
+}
+
+/** Ano com 2 dígitos → 4 dígitos, priorizando idade 0–120. */
+export function expandTwoDigitYear(yy: number, ref: Date = new Date()): number {
+  if (!Number.isInteger(yy) || yy < 0 || yy > 99) return yy;
+  const now = ref.getFullYear();
+  let year = 2000 + yy;
+  if (year > now) year -= 100;
+  if (now - year > 120) year += 100;
+  return year;
+}
+
+function makeCivilDate(
+  day: number,
+  month: number,
+  year: number,
+): Date | null {
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
+    return null;
+  }
+  if (!isReasonableYear(year)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const d = new Date(year, month - 1, day);
+  if (
+    !isValid(d) ||
+    d.getFullYear() !== year ||
+    d.getMonth() !== month - 1 ||
+    d.getDate() !== day
+  ) {
+    return null;
+  }
+  return d;
+}
+
+function parseExcelSerial(serial: number): Date | null {
+  if (!Number.isFinite(serial) || serial < 1 || serial > 80000) return null;
+  const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+  const d = new Date(excelEpoch.getTime() + serial * 86400000);
+  if (!isValid(d) || !isReasonableYear(d.getUTCFullYear())) return null;
+  // Normaliza para data civil local (sem fuso)
+  return makeCivilDate(
+    d.getUTCDate(),
+    d.getUTCMonth() + 1,
+    d.getUTCFullYear(),
+  );
+}
+
+/** Interpreta só dígitos como data BR (com ou sem separadores na origem). */
+function parseDigitDate(digits: string): Date | null {
+  if (!/^\d+$/.test(digits)) return null;
+
+  if (digits.length === 8) {
+    // DDMMYYYY
+    const br = makeCivilDate(
+      Number(digits.slice(0, 2)),
+      Number(digits.slice(2, 4)),
+      Number(digits.slice(4, 8)),
+    );
+    if (br) return br;
+    // YYYYMMDD
+    return makeCivilDate(
+      Number(digits.slice(6, 8)),
+      Number(digits.slice(4, 6)),
+      Number(digits.slice(0, 4)),
+    );
   }
 
-  const raw = String(value).trim();
+  if (digits.length === 6) {
+    // DDMMYY
+    return makeCivilDate(
+      Number(digits.slice(0, 2)),
+      Number(digits.slice(2, 4)),
+      expandTwoDigitYear(Number(digits.slice(4, 6))),
+    );
+  }
+
+  if (digits.length === 7) {
+    // D + MM + YYYY  (ex.: 4022001 → 4/02/2001)
+    const a = makeCivilDate(
+      Number(digits.slice(0, 1)),
+      Number(digits.slice(1, 3)),
+      Number(digits.slice(3, 7)),
+    );
+    if (a) return a;
+    // DD + M + YYYY
+    return makeCivilDate(
+      Number(digits.slice(0, 2)),
+      Number(digits.slice(2, 3)),
+      Number(digits.slice(3, 7)),
+    );
+  }
+
+  if (digits.length === 5) {
+    // D + MM + YY  (ex.: 40201 → 4/02/01)
+    const a = makeCivilDate(
+      Number(digits.slice(0, 1)),
+      Number(digits.slice(1, 3)),
+      expandTwoDigitYear(Number(digits.slice(3, 5))),
+    );
+    if (a) return a;
+    // DD + M + YY
+    return makeCivilDate(
+      Number(digits.slice(0, 2)),
+      Number(digits.slice(2, 3)),
+      expandTwoDigitYear(Number(digits.slice(3, 5))),
+    );
+  }
+
+  // Serial Excel em texto (ex.: "44927")
+  if (digits.length >= 4 && digits.length <= 5) {
+    return parseExcelSerial(Number(digits));
+  }
+
+  return null;
+}
+
+export function parseFlexibleDate(value: unknown): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) {
+    return isValid(value) && isReasonableYear(value.getFullYear()) ? value : null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Serial Excel ou timestamp-like pequeno
+    if (value > 1000 && value < 80000) return parseExcelSerial(value);
+    const asDate = new Date(value);
+    return isValid(asDate) && isReasonableYear(asDate.getFullYear())
+      ? asDate
+      : null;
+  }
+
+  const rawOriginal = String(value).trim();
+  if (!rawOriginal) return null;
+
+  // Carimbo Google Forms / datetime: "28/09/2026 14:32:10" → usa só a data
+  const raw = rawOriginal
+    .replace(/\s+\d{1,2}:\d{2}(:\d{2})?(\s*[AaPp][Mm])?.*$/, "")
+    .trim();
   if (!raw) return null;
 
-  const iso = parseISO(raw);
-  if (isValid(iso)) return iso;
+  // Dia/mês sem ano (ex.: 04/02, 4-2, 0402) → campo deve ficar em branco
+  if (/^\d{1,2}[/\-. ]+\d{1,2}$/.test(raw)) return null;
+  if (/^\d{3,4}$/.test(raw)) return null;
 
-  // BR first; US (M/d) only when BR parse fails (e.g. month > 12 in middle slot)
+  // ISO explícito (yyyy-mm-dd…) — evita parseISO em strings ambíguas
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const iso = parseISO(raw.slice(0, 10));
+    if (isValid(iso) && isReasonableYear(iso.getFullYear())) {
+      return makeCivilDate(
+        iso.getUTCDate(),
+        iso.getUTCMonth() + 1,
+        iso.getUTCFullYear(),
+      ) ?? iso;
+    }
+  }
+
+  // d/m/y com /, ., - ou espaço (4/2/01, 04.02.2001, 4-2-2001…)
+  const sep = raw.match(
+    /^(\d{1,2})[/\-. ]+(\d{1,2})[/\-. ]+(\d{2}|\d{4})$/,
+  );
+  if (sep) {
+    const a = Number(sep[1]);
+    const b = Number(sep[2]);
+    const yearRaw = sep[3]!;
+    const year =
+      yearRaw.length === 2
+        ? expandTwoDigitYear(Number(yearRaw))
+        : Number(yearRaw);
+
+    // Preferência BR: dia/mês/ano
+    const br = makeCivilDate(a, b, year);
+    if (br) return br;
+
+    // Fallback US só quando o 1º slot não pode ser dia BR (mês > 12 no meio)
+    if (a <= 12 && b > 12) {
+      return makeCivilDate(b, a, year);
+    }
+    return null;
+  }
+
+  // Sem separadores (ou misturados já reduzidos a dígitos)
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length >= 5 && digits.length <= 8) {
+    const fromDigits = parseDigitDate(digits);
+    if (fromDigits) return fromDigits;
+  }
+
+  // Último recurso: formatos date-fns com ano razoável
   for (const fmt of [
     "dd/MM/yyyy",
     "d/M/yyyy",
+    "dd/MM/yy",
+    "d/M/yy",
     "yyyy-MM-dd",
     "dd-MM-yyyy",
-    "M/d/yyyy",
-    "MM/dd/yyyy",
+    "d-M-yyyy",
+    "dd.MM.yyyy",
+    "d.M.yyyy",
+    "dd.MM.yy",
+    "d.M.yy",
   ]) {
     const d = parse(raw, fmt, new Date());
-    if (isValid(d)) return d;
+    if (!isValid(d)) continue;
+    let year = d.getFullYear();
+    // date-fns com yy às vezes devolve 0001–0099
+    if (year >= 0 && year < 100) year = expandTwoDigitYear(year);
+    const fixed = makeCivilDate(d.getDate(), d.getMonth() + 1, year);
+    if (fixed) return fixed;
   }
+
   return null;
+}
+
+/**
+ * Data de nascimento: exige dia/mês/ano (ano com 4 dígitos) e idade entre 17 e 100 anos.
+ * Fora disso → null (campo em branco).
+ */
+export function parseBirthDate(
+  value: unknown,
+  ref: Date = new Date(),
+): Date | null {
+  const d = parseFlexibleDate(value);
+  if (!d) return null;
+  if (!isBirthYear(d.getFullYear(), ref)) return null;
+  return d;
 }
 
 export function formatDateBR(date: Date | null): string {
@@ -459,7 +704,7 @@ export function normalizeRow(
     if (context.Nome_oficina) merged.Nome_oficina = context.Nome_oficina;
   }
 
-  const birth = parseFlexibleDate(merged.Data_nascimento);
+  const birth = parseBirthDate(merged.Data_nascimento);
   const insc = parseFlexibleDate(merged.Data_inscricao) ?? new Date();
   const { Cidade: cidadeSplit, Territorio: territorioSplit } =
     splitCidadeTerritorio({
@@ -498,8 +743,7 @@ export function normalizeRow(
     Territorio: enriched.territorio,
     RestricaoAlimentar: normalizeSimComDetalhe(merged.RestricaoAlimentar),
     Ficousabendo: String(merged.Ficousabendo ?? "").trim(),
-    Data_nascimento:
-      formatDateBR(birth) || String(merged.Data_nascimento ?? "").trim(),
+    Data_nascimento: formatDateBR(birth),
     Data_inscricao:
       formatDateBR(parseFlexibleDate(merged.Data_inscricao)) ||
       formatDateBR(insc) ||

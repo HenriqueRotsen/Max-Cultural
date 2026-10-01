@@ -293,9 +293,10 @@ export async function createManualReservation(
             type: "PAYMENT_DUE_SOON",
             title: `Pagamento previsto — ${project.externalCode}`,
             body: `Reserva manual de R$ ${amount.toFixed(2)} · vencimento ${expectedPayAt.toLocaleDateString("pt-BR")}`,
-            href: `/planejamento/compromissos/${commitment.id}`,
+            href: `/planejamento/contas-a-pagar?due=upcoming&c=${commitment.id}`,
             meta: {
               commitmentId: commitment.id,
+              due: "upcoming",
               expectedPayAt: expectedPayAt.toISOString(),
             },
           },
@@ -764,9 +765,10 @@ export async function confirmProducerReservations(
               type: "PAYMENT_DUE_SOON",
               title: `Pagamento previsto — ${project.externalCode}`,
               body: `Reserva de R$ ${r.amount.toFixed(2)} · ${r.supplier}`,
-              href: `/planejamento/compromissos/${commitment.id}`,
+              href: `/planejamento/contas-a-pagar?due=upcoming&c=${commitment.id}`,
               meta: {
                 commitmentId: commitment.id,
+                due: "upcoming",
                 expectedPayAt: expectedPayAt.toISOString(),
               },
             },

@@ -31,7 +31,11 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "consulta.cpf": "Consulta de CPF",
   "audit.exported": "Relatório de auditoria exportado",
   "inscricao.updated": "Inscrição atualizada",
+  "inscricao.deleted": "Inscrição excluída",
   "inscricao.imported": "Inscrições importadas",
+  "import.confirmed": "Inscrições importadas",
+  "auth.password_reset_completed": "Senha redefinida",
+  "projeto.moved_contexto": "Projeto movido de contexto",
 };
 
 export const AUDIT_ACTION_GROUPS: Array<{

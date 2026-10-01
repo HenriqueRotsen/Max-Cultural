@@ -1,39 +1,32 @@
 import { requireUser } from "@/lib/auth/session";
 import { needsLogin } from "@/lib/auth/config";
-import { culturalHubUrl } from "@max/auth";
+import { hasHubPermission } from "@/lib/auth/hub-permissions";
 
 /**
  * Permissões do hub MAX Cultural para Planejamento.
  * Dev aberto / sem login: libera.
- * Fallback: perfil ADMIN no Origem.
+ * Deny-by-default: hub indisponível ou sem grant → false (sem fallback ADMIN).
  */
-async function canHubScreen(screen: string): Promise<boolean> {
-  const user = await requireUser();
-
+async function canHubScreen(permissionId: string): Promise<boolean> {
+  await requireUser();
   if (!needsLogin()) return true;
+  return hasHubPermission(permissionId);
+}
 
-  try {
-    const hub = culturalHubUrl();
-    const res = await fetch(`${hub}/api/session/permissions`, {
-      headers: { cookie: await cookieHeader() },
-      cache: "no-store",
-    });
-    if (res.ok) {
-      const data = (await res.json()) as {
-        permissions?: Array<{ screen: string; canEdit?: boolean }>;
-      };
-      const hit = data.permissions?.find((p) => p.screen === screen);
-      if (hit) return Boolean(hit.canEdit);
-    }
-  } catch {
-    // hub indisponível — fallback
-  }
+export async function canAccessOrigemApp(): Promise<boolean> {
+  return canHubScreen("origem.app");
+}
 
-  return user.profile.role === "ADMIN";
+export async function canAccessPlanejamento(): Promise<boolean> {
+  return canHubScreen("origem.planejamento");
 }
 
 export async function canExceedRubric(): Promise<boolean> {
   return canHubScreen("origem.planejamento.exceder_rubrica");
+}
+
+export async function canEditRubricas(): Promise<boolean> {
+  return canHubScreen("origem.planejamento.editar_rubricas");
 }
 
 export async function canPublishToSalic(): Promise<boolean> {
@@ -46,13 +39,4 @@ export async function canReadequacao(): Promise<boolean> {
 
 export async function canDeleteNf(): Promise<boolean> {
   return canHubScreen("origem.planejamento.excluir_nf");
-}
-
-async function cookieHeader(): Promise<string> {
-  const { cookies } = await import("next/headers");
-  const jar = await cookies();
-  return jar
-    .getAll()
-    .map((c) => `${c.name}=${c.value}`)
-    .join("; ");
 }

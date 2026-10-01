@@ -32,11 +32,19 @@ export async function sendEmail(input: {
   }
 }
 
-export async function sendInviteEmail(input: { to: string; name: string; link: string }) {
+export async function sendInviteEmail(input: {
+  to: string;
+  name: string;
+  link: string;
+  provisionalPassword?: string;
+}) {
+  const passwordBlock = input.provisionalPassword
+    ? `<p>Senha provisória: <strong>${input.provisionalPassword}</strong></p><p>No primeiro acesso você deverá trocar a senha${process.env.AUTH_2FA_DISABLED === "true" ? "" : " e configurar o autenticador (2FA)"}.</p>`
+    : `<p>Peça a senha provisória ao administrador que criou sua conta.</p>`;
   return sendEmail({
     to: input.to,
     subject: "Convite — MAX Cultural",
-    html: `<p>Olá ${input.name},</p><p>Você foi convidado para o MAX Cultural.</p><p><a href="${input.link}">Definir senha e entrar</a></p>`,
+    html: `<p>Olá ${input.name},</p><p>Você foi convidado para o MAX Cultural.</p>${passwordBlock}<p><a href="${input.link}">Entrar</a></p>`,
   });
 }
 

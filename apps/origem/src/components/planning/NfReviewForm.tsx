@@ -116,6 +116,7 @@ export function NfReviewForm({
   suggestedLineId,
   suggestionReasons,
   attachCommitmentId,
+  attachPedidoId,
   attachAmount,
   initialAllocations,
   defaultExpectedPayAt,
@@ -134,6 +135,8 @@ export function NfReviewForm({
   suggestionReasons?: string[];
   /** Vincula NF a pagamento antecipado existente. */
   attachCommitmentId?: string | null;
+  /** Vincula NF a um Pedido (parcelas já reservadas). */
+  attachPedidoId?: string | null;
   attachAmount?: number | null;
   /** Rateio do comprovante de pagamento antecipado. */
   initialAllocations?: Array<{
@@ -254,16 +257,23 @@ export function NfReviewForm({
           value={attachCommitmentId}
         />
       ) : null}
-      {attachCommitmentId ? (
+      {attachPedidoId ? (
+        <input type="hidden" name="attachPedidoId" value={attachPedidoId} />
+      ) : null}
+      {attachCommitmentId || attachPedidoId ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Vinculando NF ao pagamento antecipado
+          {attachPedidoId
+            ? "Vinculando NF ao pedido"
+            : "Vinculando NF ao pagamento antecipado"}
           {attachAmount != null
             ? ` de ${formatCurrency(attachAmount)}`
             : ""}
           .
-          {initialAllocations && initialAllocations.length > 1
-            ? ` Mantenha o mesmo rateio em ${initialAllocations.length} rubricas.`
-            : " O rateio será fixado na rubrica do compromisso."}
+          {attachPedidoId
+            ? " O valor deve coincidir com o total das parcelas; a reserva já está feita."
+            : initialAllocations && initialAllocations.length > 1
+              ? ` Mantenha o mesmo rateio em ${initialAllocations.length} rubricas.`
+              : " O rateio será fixado na rubrica do compromisso."}
         </p>
       ) : null}
       {state.error ? (
@@ -597,7 +607,7 @@ export function NfReviewForm({
               title="Prazo legal calculado a partir da data de contratação/emissão"
             />
           </label>
-          {!attachCommitmentId ? (
+          {!attachCommitmentId && !attachPedidoId ? (
             <label className="field">
               <span>Lembrar pagamento em</span>
               <input

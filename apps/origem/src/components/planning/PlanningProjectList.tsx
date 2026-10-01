@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { jurisdictionLabel } from "@/lib/planning/lifecycle";
+import { jurisdictionLabel, projectListBucket } from "@/lib/planning/lifecycle";
 
 export type PlanningProjectCard = {
   id: string;
@@ -20,7 +20,7 @@ export type PlanningProjectCard = {
 };
 
 type SortKey = "name" | "code" | "approved" | "balance" | "imported";
-type LifecycleFilter = "all" | "open" | "closed";
+type LifecycleFilter = "execucao" | "prestacao" | "encerrado" | "all";
 
 function norm(s: string) {
   return s
@@ -172,14 +172,17 @@ function ProjectListCard({
 export function PlanningProjectList({ projects }: { projects: PlanningProjectCard[] }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("name");
-  const [lifecycle, setLifecycle] = useState<LifecycleFilter>("open");
+  const [lifecycle, setLifecycle] = useState<LifecycleFilter>("execucao");
   const [jurisdiction, setJurisdiction] = useState<string>("all");
 
   const filtered = useMemo(() => {
     const q = norm(query.trim());
     let list = projects.filter((p) => {
-      if (lifecycle === "open" && p.lifecycleStatus === "ENCERRADO") return false;
-      if (lifecycle === "closed" && p.lifecycleStatus !== "ENCERRADO") return false;
+      const bucket = projectListBucket({
+        lifecycleStatus: p.lifecycleStatus,
+        situacao: p.situacao,
+      });
+      if (lifecycle !== "all" && bucket !== lifecycle) return false;
       if (jurisdiction !== "all" && p.jurisdiction !== jurisdiction) return false;
       if (!q) return true;
       const hay = norm(
@@ -209,8 +212,27 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
     return list;
   }, [projects, query, sort, lifecycle, jurisdiction]);
 
-  const openCount = projects.filter((p) => p.lifecycleStatus !== "ENCERRADO").length;
-  const closedCount = projects.length - openCount;
+  const execucaoCount = projects.filter(
+    (p) =>
+      projectListBucket({
+        lifecycleStatus: p.lifecycleStatus,
+        situacao: p.situacao,
+      }) === "execucao",
+  ).length;
+  const prestacaoCount = projects.filter(
+    (p) =>
+      projectListBucket({
+        lifecycleStatus: p.lifecycleStatus,
+        situacao: p.situacao,
+      }) === "prestacao",
+  ).length;
+  const encerradoCount = projects.filter(
+    (p) =>
+      projectListBucket({
+        lifecycleStatus: p.lifecycleStatus,
+        situacao: p.situacao,
+      }) === "encerrado",
+  ).length;
 
   if (projects.length === 0) {
     return (
@@ -240,8 +262,9 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
         <label className="field min-w-[10rem]">
           <span className="text-xs text-[var(--gray-500)]">Situação</span>
           <select value={lifecycle} onChange={(e) => setLifecycle(e.target.value as LifecycleFilter)}>
-            <option value="open">Em andamento ({openCount})</option>
-            <option value="closed">Encerrados ({closedCount})</option>
+            <option value="execucao">Em execução ({execucaoCount})</option>
+            <option value="prestacao">Prestação / consulta ({prestacaoCount})</option>
+            <option value="encerrado">Encerrados ({encerradoCount})</option>
             <option value="all">Todos ({projects.length})</option>
           </select>
         </label>
@@ -282,7 +305,12 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
               situacao={p.situacao}
               totalApproved={p.totalApproved}
               totalAvailable={p.totalAvailable}
-              muted={p.lifecycleStatus === "ENCERRADO"}
+              muted={
+                projectListBucket({
+                  lifecycleStatus: p.lifecycleStatus,
+                  situacao: p.situacao,
+                }) !== "execucao"
+              }
             />
           ))}
         </div>

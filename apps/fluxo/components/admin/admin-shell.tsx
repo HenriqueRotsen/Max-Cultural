@@ -1,6 +1,9 @@
+import { redirect } from "next/navigation";
+import { culturalHubUrl } from "@max/auth";
 import { AppSidebarLayout } from "@/components/admin/app-sidebar-layout";
 import { requireDashboardUser } from "@/lib/dashboard-gate";
 import { redirectToHubLogin } from "@/lib/hub";
+import { getHubFluxoAccess } from "@/lib/hub-permissions";
 import { getEffectivePermissions } from "@/lib/permissions";
 
 export async function AdminShell({
@@ -22,6 +25,13 @@ export async function AdminShell({
   }
 
   const user = await requireDashboardUser();
+  const hub = await getHubFluxoAccess();
+  if (hub.hasHubSession && !hub.allowedProduct) {
+    redirect(
+      `${culturalHubUrl()}/?error=` +
+        encodeURIComponent("Sem acesso ao MAX Fluxo."),
+    );
+  }
   const permissions = await getEffectivePermissions(user.id);
   if (!permissions.has("dashboard:access")) {
     redirectToHubLogin("/dashboard");

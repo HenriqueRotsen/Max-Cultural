@@ -20,7 +20,17 @@ export default async function AuditoriaPage() {
           Auditoria
         </h1>
         <p className="text-sm text-muted-foreground">
-          Busque e filtre eventos, veja o detalhe completo e exporte relatórios.
+          Cópia local dos eventos. A trilha oficial fica no hub{" "}
+          <a
+            href={(process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
+              /\/$/,
+              "",
+            ) + "/logs"}
+            className="underline underline-offset-2"
+          >
+            MAX Cultural → Logs
+          </a>
+          .
         </p>
       </div>
       <AuditoriaManager

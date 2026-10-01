@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { canPublishToSalic, canReadequacao } from "@/lib/planning/acl";
+import { logPlanningAction } from "@/lib/activity-audit";
 import {
   classifyLifecycleFromSituacao,
   isFederalPlanning,
@@ -702,7 +703,7 @@ export async function publishAllCommitmentsToSalic(
   planningProjectId: string,
   options?: { justificativasByProofId?: Record<string, string> },
 ): Promise<ActionState> {
-  await requireUser();
+  const session = await requireUser();
   if (!(await canPublishToSalic())) {
     return { error: "Sem permissão para enviar ao SALIC." };
   }
@@ -752,6 +753,13 @@ export async function publishAllCommitmentsToSalic(
     result.errors.length > 0
       ? `${result.published} enviado(s); falhas: ${result.errors.slice(0, 3).join(" · ")}`
       : `${result.published} pacote(s) enviado(s) ao SALIC.`;
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.salic_published",
+    entityType: "PlanningProject",
+    entityId: project.id,
+    meta: { published: result.published, errors: result.errors.length },
+  });
   return { ok: true, message: msg };
 }
 

@@ -110,7 +110,7 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
         id: params.id,
         email,
         name,
-        role: "ADMIN",
+        role: "USER",
         mustChangePassword: false,
         active: true,
         workspaceId: workspace.id,

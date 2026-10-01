@@ -12,6 +12,10 @@
     "lint": "npm run lint -w max-cultural-app --if-present && npm run lint -w max-origem --if-present && npm run lint -w max-fluxo --if-present",
     "test": "npm run test -w max-cultural-app && npm run test -w max-origem && npm run test -w max-fluxo",
     "test:e2e": "npm run test:e2e -w max-cultural-app && npm run test:e2e -w max-origem && npm run test:e2e -w max-fluxo",
+    "db:migrate:cultural": "npm run db:migrate -w max-cultural-app",
+    "db:migrate:origem": "npm run db:migrate -w max-origem",
+    "db:migrate:fluxo": "npm run db:migrate -w max-fluxo",
+    "db:seed:cultural": "npm run db:seed -w max-cultural-app",
     "audit": "node scripts/ci-audit-gate.mjs"
   },
   "overrides": {

@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { User } from "@/generated/prisma/client";
 import {
   AUTH_COOKIE,
@@ -12,6 +12,10 @@ import {
   parseSessionToken,
   sessionCookieOptions,
   cookieDeleteOptions,
+  ACCESS_BY_ID,
+  ACCESS_PERMISSION_IDS,
+  grantedIdsFromRoleRows,
+  normalizeGrantedIds,
 } from "@max/auth";
 import { prisma } from "@/lib/db";
 import { is2faDisabled } from "@/lib/totp";
@@ -60,9 +64,8 @@ export async function clearSessionCookie() {
   jar.delete({ name: PENDING_2FA_COOKIE, ...opts });
 }
 
-export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  const jar = await cookies();
-  const parsed = await parseSessionToken(jar.get(AUTH_COOKIE)?.value);
+async function loadSessionUser(token: string | undefined | null): Promise<SessionUser | null> {
+  const parsed = await parseSessionToken(token);
   if (!parsed) return null;
   const user = await prisma.user.findUnique({
     where: { id: parsed.userId },
@@ -71,6 +74,24 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!user || user.deactivatedAt) return null;
   if (user.sessionVersion !== parsed.sessionVersion) return null;
   return user;
+}
+
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
+  const jar = await cookies();
+  const fromCookie = jar.get(AUTH_COOKIE)?.value;
+  if (fromCookie) return loadSessionUser(fromCookie);
+  // Satélites (Origem/Fluxo) chamam APIs do hub via fetch server-side;
+  // o header Cookie é "forbidden" no fetch do Node — usam x-max-session / Bearer.
+  try {
+    const h = await headers();
+    const fromHeader =
+      h.get("x-max-session") ||
+      h.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ||
+      null;
+    return loadSessionUser(fromHeader);
+  } catch {
+    return null;
+  }
 });
 
 export async function getPending2faUser(): Promise<User | null> {
@@ -96,11 +117,20 @@ export function needs2faChallenge(user: { totpEnabled: boolean }) {
   return user.totpEnabled;
 }
 
+export function hasPermission(user: SessionUser, permissionId: string) {
+  if (user.isSuperAdmin) return true;
+  const granted = grantedIdsFromRoleRows(user.role.permissions);
+  return granted.has(permissionId);
+}
+
 export function can(user: SessionUser, screen: string, action: "view" | "edit") {
   if (user.isSuperAdmin) return true;
+  if (action === "view") return hasPermission(user, screen);
+  const editCap = `${screen}.edit`;
+  if (ACCESS_BY_ID[editCap]) return hasPermission(user, editCap);
+  // Legado: canEdit na própria linha da tela / capability.
   const perm = user.role.permissions.find((p) => p.screen === screen);
-  if (!perm) return false;
-  return action === "edit" ? perm.canEdit : perm.canView;
+  return Boolean(perm?.canEdit);
 }
 
 /** Hub de projetos: tela dedicada ou qualquer acesso ao Origem. */
@@ -110,4 +140,9 @@ export function canViewProjetos(user: SessionUser) {
     can(user, "origem.app", "view") ||
     can(user, "origem.planejamento", "view")
   );
+}
+
+export function listGrantedPermissionIds(user: SessionUser): string[] {
+  if (user.isSuperAdmin) return [...ACCESS_PERMISSION_IDS];
+  return normalizeGrantedIds(grantedIdsFromRoleRows(user.role.permissions));
 }

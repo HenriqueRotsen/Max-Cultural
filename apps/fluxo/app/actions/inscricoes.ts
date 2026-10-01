@@ -278,6 +278,12 @@ export async function updateInscricaoAction(input: {
         nomeContexto: existing.nomeContexto,
       }),
     });
+    await writeAuditLog({
+      actorUserId: user.id,
+      action: "inscricao.updated",
+      entityType: "Inscricao",
+      entityId: input.id,
+    });
     return { ok: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro ao salvar";
@@ -303,6 +309,12 @@ export async function deleteInscricaoAction(
     );
     if (!allowed) return { ok: false, error: "Fora do seu escopo de dados." };
     await prisma.inscricao.delete({ where: { id } });
+    await writeAuditLog({
+      actorUserId: user.id,
+      action: "inscricao.deleted",
+      entityType: "Inscricao",
+      entityId: id,
+    });
     return { ok: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro ao excluir";

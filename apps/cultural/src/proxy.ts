@@ -70,6 +70,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // APIs respondem 401 JSON; nunca redirecionar para /login (quebra SSO satélites).
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   if (!session) {
     if (pending) {
       return NextResponse.redirect(new URL("/login/2fa", request.url));

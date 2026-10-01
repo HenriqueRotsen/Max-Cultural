@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { loginAction, type AuthActionState } from "@/lib/actions/auth";
 import { useClientRedirect } from "@/lib/use-client-redirect";
+import { PasswordInput } from "@/components/PasswordInput";
 
 const initial: AuthActionState = {};
 
@@ -22,10 +23,9 @@ export function LoginForm() {
       </div>
       <div className="field">
         <label htmlFor="password">Senha</label>
-        <input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
         />

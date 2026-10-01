@@ -4,6 +4,7 @@ import {
   computeCaptacaoFactors,
   computeProjectBalance,
   isAdminProduct,
+  roundCents,
 } from "@/lib/planning/rubric-balance";
 
 describe("rubric-balance", () => {
@@ -168,5 +169,20 @@ describe("rubric-balance", () => {
     });
     expect(allowed.ok).toBe(true);
     if (allowed.ok) expect(allowed.overflow).toBe(true);
+  });
+
+  it("arredonda totais para centavos (evita deriva de float)", () => {
+    expect(roundCents(0.1 + 0.2)).toBe(0.3);
+    expect(roundCents(10.105)).toBe(10.11);
+    const bal = computeProjectBalance({
+      lines: [
+        { id: "a", approvedAmount: 10.105, productName: "Produção" },
+        { id: "b", approvedAmount: 20.105, productName: "Produção" },
+      ],
+      commitments: [],
+    });
+    // 10.11 + 20.11
+    expect(bal.totalApproved).toBe(30.22);
+    expect(bal.lines.get("a")!.approved).toBe(10.11);
   });
 });

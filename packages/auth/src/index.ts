@@ -1,5 +1,23 @@
 /** Sessão HMAC compartilhada entre Cultural, Origem e Fluxo. */
 
+export {
+  ACCESS_CATALOG,
+  ACCESS_PERMISSION_IDS,
+  ACCESS_BY_ID,
+  ORIGEM_PRIVILEGED_CAPABILITIES,
+  HUB_TO_FLUXO_PERMISSIONS,
+  isAccessPermissionId,
+  childrenOf,
+  productSections,
+  grantedIdsFromRoleRows,
+  normalizeGrantedIds,
+  type AccessKind,
+  type AccessProductGroup,
+  type AccessCatalogEntry,
+  type AccessPermissionId,
+} from "./access-catalog";
+
+
 export const AUTH_COOKIE = "max_session";
 export const PENDING_2FA_COOKIE = "max_pending_2fa";
 export const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;

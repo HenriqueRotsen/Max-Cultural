@@ -61,15 +61,28 @@ describe("auth ACL helpers", () => {
     expect(can(u, "cultural.usuarios", "edit")).toBe(true);
   });
 
-  it("respeita permissões view/edit", () => {
+  it("respeita permissões view/edit via capability .edit", () => {
     const u = user({
       permissions: [
         { screen: "cultural.projetos", canView: true, canEdit: false },
+        { screen: "cultural.usuarios", canView: true, canEdit: false },
+        { screen: "cultural.usuarios.edit", canView: true, canEdit: true },
       ],
     });
     expect(can(u, "cultural.projetos", "view")).toBe(true);
     expect(can(u, "cultural.projetos", "edit")).toBe(false);
-    expect(can(u, "cultural.usuarios", "view")).toBe(false);
+    expect(can(u, "cultural.usuarios", "view")).toBe(true);
+    expect(can(u, "cultural.usuarios", "edit")).toBe(true);
+    expect(can(u, "cultural.papeis", "view")).toBe(false);
+  });
+
+  it("legado canEdit na linha da tela ainda funciona", () => {
+    const u = user({
+      permissions: [
+        { screen: "cultural.usuarios", canView: true, canEdit: true },
+      ],
+    });
+    expect(can(u, "cultural.usuarios", "edit")).toBe(true);
   });
 
   it("canViewProjetos aceita telas relacionadas", () => {

@@ -3,10 +3,12 @@ import {
   formatCpfDisplay,
   formatDateBR,
   formatPhoneDisplay,
+  isBirthYear,
   normalizeCep,
   normalizeCpf,
   normalizeEmail,
   normalizePhone,
+  parseBirthDate,
   parseFlexibleDate,
 } from "@/lib/normalize";
 import type { SigaCulturalColumn, SigaCulturalRow } from "@/lib/schema";
@@ -50,6 +52,14 @@ function isLikelyDate(value: string): boolean {
   return parseFlexibleDate(value) !== null;
 }
 
+function isLikelyBirthDate(value: string): boolean {
+  if (!value) return true;
+  const d = parseBirthDate(value);
+  if (!d) return false;
+  // Exibição sempre com ano de 4 dígitos
+  return isBirthYear(d.getFullYear()) && /^\d{2}\/\d{2}\/\d{4}$/.test(formatDateBR(d));
+}
+
 function isSimNaoDetalhe(value: string): boolean {
   if (!value) return true;
   const v = value.trim();
@@ -77,10 +87,10 @@ export function validateRowFields(row: SigaCulturalRow): FieldIssue[] {
   if (row.CEP && !isLikelyCep(row.CEP)) {
     issues.push({ column: "CEP", message: "CEP inválido (8 dígitos)" });
   }
-  if (row.Data_nascimento && !isLikelyDate(row.Data_nascimento)) {
+  if (row.Data_nascimento && !isLikelyBirthDate(row.Data_nascimento)) {
     issues.push({
       column: "Data_nascimento",
-      message: "Data de nascimento inválida",
+      message: "Data de nascimento inválida (idade entre 17 e 100 anos)",
     });
   }
   if (row.Data_inscricao && !isLikelyDate(row.Data_inscricao)) {
@@ -131,7 +141,10 @@ export function formatCellDisplay(
       return formatCepDisplay(raw) || raw;
     case "Telefone":
       return formatPhoneDisplay(raw) || raw;
-    case "Data_nascimento":
+    case "Data_nascimento": {
+      const d = parseBirthDate(raw);
+      return d ? formatDateBR(d) : raw;
+    }
     case "Data_inscricao": {
       const d = parseFlexibleDate(raw);
       return d ? formatDateBR(d) : raw;
@@ -163,5 +176,8 @@ export function parseCellInput(
   if (column === "CEP") return normalizeCep(value);
   if (column === "Telefone") return normalizePhone(value);
   if (column === "E-mail") return normalizeEmail(value);
+  if (column === "Data_nascimento") {
+    return formatDateBR(parseBirthDate(value));
+  }
   return String(value ?? "").trim();
 }

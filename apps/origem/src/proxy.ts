@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE, culturalLoginUrl, parseSessionToken } from "@max/auth";
 import { needsLogin } from "@/lib/auth/config";
 import { isHubSsoEnabled } from "@/lib/auth/hub";
@@ -38,7 +38,18 @@ export async function proxy(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
-  const { response, user } = await updateSession(request);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  const requestWithPath = new NextRequest(request.url, {
+    method: request.method,
+    headers: requestHeaders,
+  });
+  // Preserve cookies on the cloned request.
+  request.cookies.getAll().forEach((c) => {
+    requestWithPath.cookies.set(c.name, c.value);
+  });
+
+  const { response, user } = await updateSession(requestWithPath);
 
   if (!needsLogin()) {
     return response;

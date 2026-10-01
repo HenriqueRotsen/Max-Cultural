@@ -1,41 +1,23 @@
-export type ScreenAction = "view" | "edit";
+/**
+ * Compat: telas/capacidades do hub.
+ * Fonte de verdade: @max/auth ACCESS_CATALOG.
+ */
+export {
+  ACCESS_CATALOG,
+  ACCESS_PERMISSION_IDS as SCREEN_IDS,
+  ACCESS_BY_ID,
+  type AccessPermissionId as ScreenId,
+} from "@max/auth";
 
-export const SCREENS = [
-  { id: "cultural.home", label: "Início", group: "Cultural" },
-  { id: "cultural.projetos", label: "Projetos", group: "Cultural" },
-  { id: "cultural.usuarios", label: "Usuários", group: "Cultural" },
-  { id: "cultural.papeis", label: "Papéis", group: "Cultural" },
-  { id: "cultural.logs", label: "Logs", group: "Cultural" },
-  { id: "origem.app", label: "MAX Origem", group: "Produtos" },
-  { id: "origem.proponentes", label: "Proponentes", group: "Origem" },
-  { id: "origem.auditoria", label: "Auditoria", group: "Origem" },
-  { id: "origem.fornecedores", label: "Fornecedores", group: "Origem" },
-  { id: "origem.planejamento", label: "Planejamento", group: "Origem" },
-  {
-    id: "origem.planejamento.exceder_rubrica",
-    label: "Exceder rubrica (Planejamento)",
-    group: "Origem",
-  },
-  {
-    id: "origem.planejamento.subir_salic",
-    label: "Enviar projeto ao SALIC (Planejamento)",
-    group: "Origem",
-  },
-  {
-    id: "origem.planejamento.readequacao",
-    label: "Readequação de planilha (Planejamento)",
-    group: "Origem",
-  },
-  {
-    id: "origem.planejamento.excluir_nf",
-    label: "Excluir NF/RPA (Planejamento)",
-    group: "Origem",
-  },
-  { id: "fluxo.app", label: "MAX Fluxo", group: "Produtos" },
-  { id: "fluxo.operacao", label: "Operação", group: "Fluxo" },
-  { id: "fluxo.consultas", label: "Consultas", group: "Fluxo" },
-] as const;
+import { ACCESS_CATALOG } from "@max/auth";
 
-export type ScreenId = (typeof SCREENS)[number]["id"];
-
-export const SCREEN_IDS = SCREENS.map((s) => s.id);
+/** Lista plana para seeds/UI legada (todos os IDs do catálogo). */
+export const SCREENS = ACCESS_CATALOG.map((e) => ({
+  id: e.id,
+  label: e.label,
+  group: e.group,
+  kind: e.kind,
+  parentId: e.parentId,
+  description: e.description,
+  product: e.product,
+}));

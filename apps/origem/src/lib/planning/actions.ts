@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { normalizeCgccpf, parseBrMoney } from "@/lib/format";
-import { canDeleteNf, canExceedRubric, canReadequacao } from "@/lib/planning/acl";
+import { canDeleteNf, canEditRubricas, canExceedRubric, canReadequacao } from "@/lib/planning/acl";
+import { logPlanningAction } from "@/lib/activity-audit";
 import { listPlanningRulesets } from "@/lib/planning/rulesets";
 import {
   listFluxoContextos,
@@ -135,6 +136,7 @@ export async function uploadNfForReview(
   const attachCommitmentId = String(
     formData.get("attachCommitmentId") || "",
   ).trim();
+  const attachPedidoId = String(formData.get("attachPedidoId") || "").trim();
 
   const project = await prisma.planningProject.findFirst({
     where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
@@ -269,9 +271,10 @@ export async function uploadNfForReview(
   });
 
   revalidatePlanning(planningProjectId);
-  const attachQs = attachCommitmentId
-    ? `?attachCommitmentId=${encodeURIComponent(attachCommitmentId)}`
-    : "";
+  const qs = new URLSearchParams();
+  if (attachCommitmentId) qs.set("attachCommitmentId", attachCommitmentId);
+  if (attachPedidoId) qs.set("attachPedidoId", attachPedidoId);
+  const attachQs = qs.toString() ? `?${qs.toString()}` : "";
   redirect(
     `/planejamento/${planningProjectId}/nf/${doc.id}/revisar${attachQs}`,
   );
@@ -285,11 +288,17 @@ export async function uploadNfForReview(
 export async function deletePlanningFiscalDocument(
   documentId: string,
 ): Promise<ActionState> {
-  await requireUser();
+  const session = await requireUser();
   if (!(await canDeleteNf())) {
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.nf_delete_denied",
+      entityType: "PlanningDocument",
+      entityId: documentId,
+    });
     return {
       error:
-        "Sem permissão para excluir NF/RPA. Peça a tela «Excluir NF/RPA (Planejamento)» no MAX Cultural.",
+        "Sem permissão para excluir NF/RPA. Peça a funcionalidade «Excluir NF/RPA» no MAX Cultural.",
     };
   }
   const { entitlements } = await getWorkspaceContext();
@@ -362,10 +371,13 @@ export async function deletePlanningFiscalDocument(
       const engagementIds = commitments.map((c) => c.engagementId);
 
       for (const cid of commitmentIds) {
+        const { paymentAlertHrefsForCommitment } = await import(
+          "@/lib/planning/payment-alerts"
+        );
         await tx.appNotification.deleteMany({
           where: {
             workspaceId: entitlements.workspaceId,
-            href: `/planejamento/compromissos/${cid}`,
+            href: { in: paymentAlertHrefsForCommitment(cid) },
           },
         });
       }
@@ -398,6 +410,13 @@ export async function deletePlanningFiscalDocument(
   if (planningProjectId) revalidatePlanning(planningProjectId);
   revalidatePath("/planejamento");
   revalidatePath("/fornecedores/contratacoes");
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.nf_deleted",
+    entityType: "PlanningDocument",
+    entityId: documentId,
+    meta: { kind: doc.kind, planningProjectId },
+  });
   return { ok: true, message: `${doc.kind} excluída.` };
 }
 
@@ -891,6 +910,38 @@ export async function confirmNfReservation(
         other: parseBrMoney(String(formData.get("taxOther") || "")),
       },
       fiscalNumber,
+    });
+  }
+
+  const attachPedidoId = String(formData.get("attachPedidoId") || "").trim();
+  if (attachPedidoId) {
+    const { attachNfToPedido } = await import("@/lib/planning/pedido");
+    return attachNfToPedido({
+      session,
+      entitlements,
+      documentId,
+      doc,
+      formData,
+      attachPedidoId,
+      supplierName: String(formData.get("supplierName") || "").trim(),
+      cnpj: normalizeCgccpf(String(formData.get("cnpj") || "")),
+      grossAmount:
+        parseBrMoney(
+          String(formData.get("grossAmount") || formData.get("amount") || ""),
+        ) || 0,
+      taxesFromForm: {
+        iss: parseBrMoney(String(formData.get("taxIss") || "")),
+        irrf: parseBrMoney(String(formData.get("taxIrrf") || "")),
+        inss: parseBrMoney(String(formData.get("taxInss") || "")),
+        csll: parseBrMoney(String(formData.get("taxCsll") || "")),
+        pis: parseBrMoney(String(formData.get("taxPis") || "")),
+        cofins: parseBrMoney(String(formData.get("taxCofins") || "")),
+        other: parseBrMoney(String(formData.get("taxOther") || "")),
+      },
+      fiscalNumber,
+      hasBond:
+        formData.get("hasBond") === "on" ||
+        formData.get("hasBond") === "true",
     });
   }
 
@@ -1593,10 +1644,13 @@ export async function uploadPaymentProof(
         data: { status: "PAID", paidAt },
       });
       for (const cid of siblingCommitmentIds) {
+        const { paymentAlertHrefsForCommitment } = await import(
+          "@/lib/planning/payment-alerts"
+        );
         await tx.appNotification.deleteMany({
           where: {
             workspaceId: entitlements.workspaceId,
-            href: `/planejamento/compromissos/${cid}`,
+            href: { in: paymentAlertHrefsForCommitment(cid) },
             type: { in: ["PAYMENT_OVERDUE", "PAYMENT_DUE_SOON"] },
           },
         });
@@ -1768,28 +1822,40 @@ export async function refreshPaymentDueNotifications(opts?: {
       take: 50,
     });
 
+    const { paymentAlertHref, paymentAlertHrefsForCommitment } = await import(
+      "@/lib/planning/payment-alerts"
+    );
+
     for (const c of overdue) {
       // Não filtrar por readAt: marcar lido + refresh não deve recriar.
       const existing = await prisma.appNotification.findMany({
         where: {
           workspaceId: entitlements.workspaceId,
           type: "PAYMENT_OVERDUE",
-          href: `/planejamento/compromissos/${c.id}`,
+          href: { in: paymentAlertHrefsForCommitment(c.id) },
         },
         orderBy: { createdAt: "asc" },
-        select: { id: true },
+        select: { id: true, href: true },
       });
       if (existing.length > 0) {
-        if (existing.length > 1) {
-          await prisma.appNotification.deleteMany({
-            where: { id: { in: existing.slice(1).map((n) => n.id) } },
+        const canonical = paymentAlertHref(c.id, "overdue");
+        const keep =
+          existing.find((n) => n.href === canonical) || existing[0]!;
+        const drop = existing.filter((n) => n.id !== keep.id).map((n) => n.id);
+        if (drop.length > 0) {
+          await prisma.appNotification.deleteMany({ where: { id: { in: drop } } });
+        }
+        if (keep.href !== canonical) {
+          await prisma.appNotification.update({
+            where: { id: keep.id },
+            data: { href: canonical },
           });
         }
         continue;
       }
       const title = `Pagamento em atraso — ${c.planningProject.externalCode}`;
       const body = `Reserva de R$ ${Number(c.amount).toFixed(2)} venceu em ${c.expectedPayAt.toLocaleDateString("pt-BR")}`;
-      const href = `/planejamento/compromissos/${c.id}`;
+      const href = paymentAlertHref(c.id, "overdue");
       await prisma.appNotification.create({
         data: {
           workspaceId: entitlements.workspaceId,
@@ -1798,7 +1864,7 @@ export async function refreshPaymentDueNotifications(opts?: {
           title,
           body,
           href,
-          meta: { commitmentId: c.id },
+          meta: { commitmentId: c.id, due: "overdue" },
         },
       });
       if (prefs.emailEnabled && session.email) {
@@ -1838,22 +1904,33 @@ export async function refreshPaymentDueNotifications(opts?: {
     });
 
     const upcoming = [...withReminder, ...legacy];
+    const { paymentAlertHref, paymentAlertHrefsForCommitment } = await import(
+      "@/lib/planning/payment-alerts"
+    );
 
     for (const c of upcoming) {
       const existing = await prisma.appNotification.findFirst({
         where: {
           workspaceId: entitlements.workspaceId,
           type: "PAYMENT_DUE_SOON",
-          href: `/planejamento/compromissos/${c.id}`,
+          href: { in: paymentAlertHrefsForCommitment(c.id) },
         },
-        select: { id: true },
+        select: { id: true, href: true },
       });
-      if (existing) continue;
+      const canonical = paymentAlertHref(c.id, "upcoming");
+      if (existing) {
+        if (existing.href !== canonical) {
+          await prisma.appNotification.update({
+            where: { id: existing.id },
+            data: { href: canonical },
+          });
+        }
+        continue;
+      }
       const title = `Pagamento previsto — ${c.planningProject.externalCode}`;
       const body = c.paymentReminderAt
         ? `Lembrete: reserva de R$ ${Number(c.amount).toFixed(2)} — pagamento até ${c.expectedPayAt.toLocaleDateString("pt-BR")}.`
         : `Reserva de R$ ${Number(c.amount).toFixed(2)} vence em ${c.expectedPayAt.toLocaleDateString("pt-BR")}`;
-      const href = `/planejamento/compromissos/${c.id}`;
       await prisma.appNotification.create({
         data: {
           workspaceId: entitlements.workspaceId,
@@ -1861,9 +1938,10 @@ export async function refreshPaymentDueNotifications(opts?: {
           type: "PAYMENT_DUE_SOON",
           title,
           body,
-          href,
+          href: canonical,
           meta: {
             commitmentId: c.id,
+            due: "upcoming",
             expectedPayAt: c.expectedPayAt.toISOString(),
             paymentReminderAt: c.paymentReminderAt?.toISOString(),
           },
@@ -1874,7 +1952,7 @@ export async function refreshPaymentDueNotifications(opts?: {
           to: session.email,
           title,
           body,
-          href,
+          href: canonical,
         }).catch(() => false);
       }
     }
@@ -2099,13 +2177,19 @@ export async function saveRubricReallocation(
   planningProjectId: string,
   values: Record<string, number>,
 ): Promise<ActionState> {
-  await requireUser();
+  const session = await requireUser();
   const { entitlements } = await getWorkspaceContext();
 
-  if (!(await canExceedRubric())) {
+  if (!(await canEditRubricas())) {
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.rubric_edit_denied",
+      entityType: "PlanningProject",
+      entityId: planningProjectId,
+    });
     return {
       error:
-        "Sem permissão para editar/exceder rubricas. Peça a tela «Exceder rubrica (Planejamento)» no MAX Cultural.",
+        "Sem permissão para editar rubricas. Peça a funcionalidade «Editar rubricas» no MAX Cultural.",
     };
   }
 
@@ -2181,15 +2265,15 @@ export async function saveRubricReallocation(
   );
 
   revalidatePlanning(planningProjectId);
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.rubrics_edited",
+    entityType: "PlanningProject",
+    entityId: planningProjectId,
+    meta: { lines: updates.length },
+  });
   return { ok: true };
 }
-
-/**
- * Espelha os projetos da Auditoria no Planejamento.
- * Para os em andamento sem planilha, vincula a planilha homologada pela área logada.
- */
-
-
 
 // ——— Readequação ———
 
@@ -2326,7 +2410,7 @@ export async function saveReadequacaoDraft(
 }
 
 export async function applyReadequacaoDraft(draftId: string): Promise<ActionState> {
-  await requireUser();
+  const session = await requireUser();
   if (!(await canReadequacao())) return { error: "Sem permissão." };
   const { entitlements } = await getWorkspaceContext();
 
@@ -2459,6 +2543,13 @@ export async function applyReadequacaoDraft(draftId: string): Promise<ActionStat
   }
 
   revalidatePlanning(project.id);
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.readequacao_applied",
+    entityType: "PlanningReadequacaoDraft",
+    entityId: draftId,
+    meta: { planningProjectId: project.id },
+  });
   redirect(`/planejamento/${project.id}`);
 }
 

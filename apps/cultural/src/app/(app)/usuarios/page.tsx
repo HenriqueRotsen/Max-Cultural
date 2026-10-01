@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { can, getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { createUserAction, toggleUserAction } from "@/lib/actions/iam";
+import {
+  createUserAction,
+  peekUserCreatedFlash,
+  toggleUserAction,
+} from "@/lib/actions/iam";
 import { adminReset2faAction } from "@/lib/actions/auth";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
@@ -17,9 +21,9 @@ export default async function UsuariosPage({
   if (!user || !can(user, "cultural.usuarios", "view")) redirect("/");
   const canEdit = can(user, "cultural.usuarios", "edit");
   const sp = await searchParams;
-  const createdEmail = typeof sp.email === "string" ? sp.email : null;
-  const temp = typeof sp.temp === "string" ? sp.temp : null;
+  const created = sp.created === "1" || sp.created === "true";
   const error = typeof sp.error === "string" ? sp.error : null;
+  const flash = created ? await peekUserCreatedFlash() : null;
   const [users, roles] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
@@ -40,9 +44,15 @@ export default async function UsuariosPage({
       {error ? (
         <p className="auth-alert">{error}</p>
       ) : null}
-      {createdEmail && temp ? (
+      {flash ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
-          Usuário {createdEmail} criado. Senha provisória: <strong>{temp}</strong>
+          Usuário {flash.email} criado. Senha provisória (copie agora — some em
+          breve): <strong>{flash.provisional}</strong>
+        </p>
+      ) : created ? (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
+          Usuário criado. A senha provisória já foi exibida; se precisar, reenvie o
+          convite ou redefina a senha.
         </p>
       ) : null}
 

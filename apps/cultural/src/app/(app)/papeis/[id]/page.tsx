@@ -2,9 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { can, getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { SCREENS } from "@/lib/screens";
-import { saveRolePermissionsAction } from "@/lib/actions/iam";
-import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { grantedIdsFromRoleRows, normalizeGrantedIds } from "@max/auth";
+import { RoleAccessEditor } from "@/components/RoleAccessEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -37,8 +36,9 @@ export default async function PapelAcessosPage({
   });
   if (!role) notFound();
 
-  const map = new Map(role.permissions.map((p) => [p.screen, p]));
-  const groups = [...new Set(SCREENS.map((s) => s.group))];
+  const initialGranted = normalizeGrantedIds(
+    grantedIdsFromRoleRows(role.permissions),
+  );
 
   return (
     <div className="space-y-6">
@@ -55,8 +55,9 @@ export default async function PapelAcessosPage({
         <h1 className="mt-1 text-2xl font-semibold text-[var(--navy)]">
           Acessos · {role.name}
         </h1>
-        <p className="mt-1 text-sm text-[var(--gray-500)]">
-          {role.description || "Defina o que este papel pode ver e editar em cada tela."}
+        <p className="mt-1 max-w-2xl text-sm text-[var(--gray-500)]">
+          {role.description ||
+            "Defina entrada no produto, acesso a telas e funcionalidades específicas. Só aparecem ações que existem de fato."}
           {role._count.users > 0
             ? ` · ${role._count.users} usuário${role._count.users === 1 ? "" : "s"}`
             : ""}
@@ -70,62 +71,12 @@ export default async function PapelAcessosPage({
         </p>
       ) : null}
 
-      <form action={saveRolePermissionsAction} className="card overflow-hidden">
-        <input type="hidden" name="roleId" value={role.id} />
-        {groups.map((group) => (
-          <div key={group}>
-            <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-3">
-              <h2 className="text-sm font-semibold text-[var(--navy)]">{group}</h2>
-            </div>
-            <table className="data w-full text-sm">
-              <thead>
-                <tr>
-                  <th>Tela</th>
-                  <th>Ver</th>
-                  <th>Editar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {SCREENS.filter((s) => s.group === group).map((screen) => {
-                  const perm = map.get(screen.id);
-                  return (
-                    <tr key={screen.id}>
-                      <td>{screen.label}</td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          name={`view:${screen.id}`}
-                          defaultChecked={Boolean(perm?.canView)}
-                          disabled={!canEdit}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          name={`edit:${screen.id}`}
-                          defaultChecked={Boolean(perm?.canEdit)}
-                          disabled={!canEdit}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ))}
-        {canEdit ? (
-          <div className="px-5 py-4">
-            <ConfirmSubmitButton
-              className="btn"
-              message={`Salvar acessos de ${role.name}?`}
-              confirmLabel="Salvar"
-            >
-              Salvar acessos
-            </ConfirmSubmitButton>
-          </div>
-        ) : null}
-      </form>
+      <RoleAccessEditor
+        roleId={role.id}
+        roleName={role.name}
+        canEdit={canEdit}
+        initialGranted={initialGranted}
+      />
     </div>
   );
 }

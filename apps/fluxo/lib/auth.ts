@@ -18,7 +18,7 @@ import {
 } from "@max/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, randomToken } from "@/lib/password";
-import { ADMIN_ROLE_NAME, type PermissionCode } from "@/lib/permission-catalog";
+import { ADMIN_ROLE_NAME, OPERATOR_ROLE_NAME, type PermissionCode } from "@/lib/permission-catalog";
 import {
   getEffectivePermissions,
   type AuthUser,
@@ -139,17 +139,20 @@ async function ensureUserFromHub(input: {
     return existing;
   }
 
-  const adminRole = await prisma.role.findUnique({
-    where: { name: ADMIN_ROLE_NAME },
+  const operatorRole = await prisma.role.findUnique({
+    where: { name: OPERATOR_ROLE_NAME },
   });
-  if (!adminRole) return null;
+  const role =
+    operatorRole ||
+    (await prisma.role.findUnique({ where: { name: ADMIN_ROLE_NAME } }));
+  if (!role) return null;
 
   return prisma.user.create({
     data: {
       email: input.email,
       name: input.name,
       passwordHash: await hashPassword(randomToken()),
-      roleId: adminRole.id,
+      roleId: role.id,
       isSuperAdmin: false,
       mustChangePassword: false,
       totpEnabled: false,

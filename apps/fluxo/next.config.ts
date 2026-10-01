@@ -1,8 +1,20 @@
 import type { NextConfig } from "next";
 import { buildSecurityHeaders } from "@max/security-headers";
 
+/** Extra hosts allowed to load /_next/* in `next dev` (e.g. ngrok). */
+const allowedDevOrigins = [
+  "*.ngrok-free.dev",
+  "*.ngrok-free.app",
+  "*.ngrok.io",
+  ...(process.env.ALLOWED_DEV_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+];
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@max/auth", "@max/security-headers"],
+  allowedDevOrigins,
   async headers() {
     return [
       {

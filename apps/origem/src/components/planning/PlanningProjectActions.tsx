@@ -11,7 +11,7 @@ import { ReadequacaoActions } from "@/components/planning/ReadequacaoActions";
 export function PlanningProjectActions({
   projectId,
   reservationsCount,
-  allowExceed,
+  allowEditRubricas,
   allowReadequacao,
   isFederal,
   openDraftId,
@@ -21,7 +21,7 @@ export function PlanningProjectActions({
 }: {
   projectId: string;
   reservationsCount: number;
-  allowExceed: boolean;
+  allowEditRubricas: boolean;
   allowReadequacao: boolean;
   isFederal: boolean;
   openDraftId: string | null;
@@ -32,7 +32,7 @@ export function PlanningProjectActions({
   const [editRubricsOpen, setEditRubricsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const hasAdvancedTools = allowExceed || allowReadequacao;
+  const hasAdvancedTools = allowEditRubricas || allowReadequacao;
 
   return (
     <>
@@ -44,7 +44,7 @@ export function PlanningProjectActions({
         moreSlot={
           hasAdvancedTools ? (
             <>
-              {allowExceed ? (
+              {allowEditRubricas ? (
                 <button
                   type="button"
                   className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-[var(--navy)] hover:bg-[var(--gray-50)]"
@@ -72,7 +72,7 @@ export function PlanningProjectActions({
         }
       />
 
-      {allowExceed ? (
+      {allowEditRubricas ? (
         <EditRubricsPanel
           planningProjectId={projectId}
           totalApproved={totalApproved}

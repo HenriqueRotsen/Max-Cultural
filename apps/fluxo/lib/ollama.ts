@@ -125,7 +125,8 @@ ${availableTargets.join(", ")}
 Regras:
 - Só mapeie correspondência clara; senão null
 - Cada target no máximo 1 vez
-- Ignore carimbo/timestamp/pergunta de escolha de oficina
+- "Carimbo de data/hora" / timestamp / hora de envio → Data_inscricao
+- Ignore pergunta de escolha de oficina
 - Cabeçalhos "Endereço completo (Rua, número, bairro, cidade, CEP…)" → Lougradouro (o sistema divide depois)
 
 Cabeçalhos:

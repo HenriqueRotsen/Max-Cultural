@@ -1,9 +1,15 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
 import { DemoBanner } from "@/components/DemoBanner";
 import { NotificationBell } from "@/components/planning/NotificationBell";
 import { isAuthEnabled, isDemoMode, isDevOpenAuth, needsLogin } from "@/lib/auth/config";
 import { origemHubLoginUrl } from "@/lib/auth/hub";
+import {
+  getHubPermissions,
+  hubScreenForPath,
+} from "@/lib/auth/hub-permissions";
+import { getHubSessionPayload } from "@/lib/auth/hub";
 import { getSessionUser, getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import {
@@ -11,6 +17,7 @@ import {
 } from "@/lib/planning/notification-settings";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import { notificationVisibleWhere } from "@/lib/planning/reminder-dates";
+import { culturalHubUrl } from "@max/auth";
 
 async function TopBar({
   workspaceId,
@@ -68,6 +75,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           isAdmin={!demo && isDevOpenAuth()}
           syncEnabled={!demo && entitlements.syncEnabled}
           demoMode={demo}
+          allowedScreens={["*"]}
         />
         <div className="shell-main">
           <DemoBanner />
@@ -89,12 +97,48 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/alterar-senha");
   }
 
+  const hubPerms = await getHubPermissions();
+  const canEnterOrigem =
+    hubPerms.ids.has("origem.app") ||
+    hubPerms.ids.has("*") ||
+    // SSO válido + API do hub indisponível: não trancar a entrada no produto.
+    (Boolean(hubPerms.fetchFailed) && Boolean(await getHubSessionPayload()));
+  if (!canEnterOrigem) {
+    redirect(`${culturalHubUrl()}/?error=` + encodeURIComponent("Sem acesso ao MAX Origem."));
+  }
+
+  // Para o menu: se o fetch falhou mas o SSO está ok, libera telas básicas.
+  const allowedScreens = hubPerms.fetchFailed
+    ? [
+        "origem.app",
+        "origem.planejamento",
+        "origem.proponentes",
+        "origem.auditoria",
+        "origem.fornecedores",
+      ]
+    : [...hubPerms.ids];
+
+  const h = await headers();
+  const pathname =
+    h.get("x-pathname") ||
+    h.get("x-invoke-path") ||
+    h.get("next-url") ||
+    "";
+  // Fallback: Next 16 pode não enviar path no layout — gate fino nas páginas via helper.
+  if (pathname && !hubPerms.fetchFailed) {
+    const screen = hubScreenForPath(pathname);
+    if (screen && !hubPerms.ids.has(screen) && !hubPerms.ids.has("*")) {
+      redirect("/painel");
+    }
+  }
+
   return (
     <div className="shell">
       <AppSidebar
         userEmail={session.email}
         isAdmin={session.profile.role === "ADMIN"}
         syncEnabled={session.entitlements.syncEnabled}
+        allowedScreens={allowedScreens}
       />
       <div className="shell-main">
         <TopBar
