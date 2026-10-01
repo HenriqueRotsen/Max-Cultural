@@ -88,8 +88,10 @@ Para cada projeto:
 | `CREDENTIALS_SECRET` | obrigatório |
 | `SYNC_MODE` | `chunked` |
 | `SYNC_CONCURRENCY` | `2` |
+| `CRON_SECRET` | Bearer do cron `/api/cron/sync-salic` (08:00 BRT) |
 | `NEXT_PUBLIC_SITE_URL` | `https://origem.maxcultural.com.br` |
 | `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` | se ainda usar Auth legado |
+| `RESEND_API_KEY` | opcional (e-mail de diligência / avisos) |
 
 ### Fluxo
 

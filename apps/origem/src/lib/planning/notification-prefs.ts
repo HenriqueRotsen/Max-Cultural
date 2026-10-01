@@ -24,6 +24,7 @@ export async function getNotificationPrefs(
     nfPending: row.nfPending ?? true,
     taxDueIss: row.taxDueIss ?? true,
     taxDueFederal: row.taxDueFederal ?? true,
+    salicDiligencia: row.salicDiligencia ?? true,
     emailEnabled: row.emailEnabled,
     dueSoonDaysAhead: Math.min(30, Math.max(1, row.dueSoonDaysAhead || 5)),
     nfPendingDaysAfterPaid: Math.min(

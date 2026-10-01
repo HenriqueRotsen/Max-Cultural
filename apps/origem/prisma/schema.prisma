@@ -638,6 +638,7 @@ enum AppNotificationType {
   NF_PENDING
   TAX_DUE_ISS
   TAX_DUE_FEDERAL
+  SALIC_DILIGENCIA
 }
 
 /** Projeto de execução no Planejamento (planilha homologada one-shot). */
@@ -949,6 +950,8 @@ model NotificationSettings {
   taxDueIss        Boolean  @default(true)
   /** Aviso de retenções federais — vencimento típico dia 20 do mês seguinte. */
   taxDueFederal    Boolean  @default(true)
+  /** Aviso quando o PRONAC entra em diligência no SALIC. */
+  salicDiligencia  Boolean  @default(true)
   /** Enviar também por e-mail (Resend) para o e-mail da conta. */
   emailEnabled     Boolean  @default(false)
   /** Quantos dias antes do vencimento gerar/mostrar aviso de pagamento previsto. */

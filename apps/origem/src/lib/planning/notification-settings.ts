@@ -7,6 +7,7 @@ export type NotificationPrefs = {
   nfPending: boolean;
   taxDueIss: boolean;
   taxDueFederal: boolean;
+  salicDiligencia: boolean;
   emailEnabled: boolean;
   dueSoonDaysAhead: number;
   nfPendingDaysAfterPaid: number;
@@ -19,6 +20,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   nfPending: true,
   taxDueIss: true,
   taxDueFederal: true,
+  salicDiligencia: true,
   emailEnabled: false,
   dueSoonDaysAhead: 5,
   nfPendingDaysAfterPaid: 7,
@@ -34,7 +36,8 @@ export const NOTIFICATION_TYPE_META: Record<
       | "rubricNear"
       | "nfPending"
       | "taxDueIss"
-      | "taxDueFederal";
+      | "taxDueFederal"
+      | "salicDiligencia";
   }
 > = {
   PAYMENT_DUE_SOON: { label: "Pagamento previsto", prefKey: "paymentDueSoon" },
@@ -45,6 +48,10 @@ export const NOTIFICATION_TYPE_META: Record<
   TAX_DUE_FEDERAL: {
     label: "Impostos federais (dia 20)",
     prefKey: "taxDueFederal",
+  },
+  SALIC_DILIGENCIA: {
+    label: "Diligência no SALIC",
+    prefKey: "salicDiligencia",
   },
 };
 
@@ -64,5 +71,6 @@ export function enabledNotificationTypes(
   if (prefs.nfPending) types.push("NF_PENDING");
   if (prefs.taxDueIss) types.push("TAX_DUE_ISS");
   if (prefs.taxDueFederal) types.push("TAX_DUE_FEDERAL");
+  if (prefs.salicDiligencia) types.push("SALIC_DILIGENCIA");
   return types;
 }

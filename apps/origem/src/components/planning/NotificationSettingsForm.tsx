@@ -97,6 +97,13 @@ export function NotificationSettingsForm({
           label="Impostos federais (dia 20)"
           description="IRRF, PIS, COFINS, CSLL e INSS retidos — vencimento típico no dia 20."
         />
+
+        <ToggleSwitch
+          name="salicDiligencia"
+          defaultChecked={prefs.salicDiligencia}
+          label="Diligência no SALIC"
+          description="Aviso quando um PRONAC do workspace entrar em diligência."
+        />
       </div>
 
       <div className="border-t border-[var(--border)] pt-4">

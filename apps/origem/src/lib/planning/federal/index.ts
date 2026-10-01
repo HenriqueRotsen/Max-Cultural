@@ -23,6 +23,13 @@ export {
 } from "@/lib/planning/federal/import-homologada";
 
 export {
+  applyPlanningSheetFromSalic,
+  importPreferredSheetForNewProject,
+  syncPlanningSheetFromSalic,
+  syncPlanningSheetOnPage,
+} from "@/lib/planning/federal/sync-sheet";
+
+export {
   CaptacaoImportError,
   applyCaptacaoToPlanningProject,
   fetchCaptacaoFromSalic,

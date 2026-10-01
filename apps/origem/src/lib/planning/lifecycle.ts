@@ -44,6 +44,12 @@ export function isPrestacaoContasSituacao(situacao?: string | null): boolean {
   return true;
 }
 
+export function isDiligenciaSituacao(situacao?: string | null): boolean {
+  const s = normalizeSituacao(situacao);
+  if (!s) return false;
+  return /diligenc/.test(s);
+}
+
 export type ProjectListBucket = "execucao" | "prestacao" | "encerrado";
 
 export function projectListBucket(input: {

@@ -15,12 +15,10 @@ import {
   type FluxoContextResolve,
 } from "@/lib/fluxo/provision-projeto";
 import {
-  fetchHomologatedLinesFromSalic,
   fetchReadequadaLinesFromSalic,
   fetchSalicProjectPreview,
   HomologadaImportError,
   linkHomologatedSheetsForOpenProjects,
-  persistHomologatedSheet,
 } from "@/lib/planning/federal/import-homologada";
 import {
   applyCaptacaoToPlanningProject,
@@ -137,9 +135,9 @@ export async function startPlanningProjectFederal(
     return { error: "Este PRONAC já foi iniciado neste proponente" };
   }
 
-  let fetched;
+  let preview: Awaited<ReturnType<typeof fetchSalicProjectPreview>>;
   try {
-    fetched = await fetchHomologatedLinesFromSalic({
+    preview = await fetchSalicProjectPreview({
       accountId,
       pronac: externalCode,
     });
@@ -149,7 +147,7 @@ export async function startPlanningProjectFederal(
         ? e.message
         : e instanceof Error
           ? e.message
-          : "Falha ao importar planilha homologada";
+          : "Falha ao consultar o PRONAC no SALIC";
     return { error: msg };
   }
 
@@ -160,12 +158,12 @@ export async function startPlanningProjectFederal(
     create: {
       salicAccountId: accountId,
       pronac: externalCode,
-      name: fetched.projectName,
-      salicProjectId: fetched.idPronacHash,
+      name: preview.projectName,
+      salicProjectId: preview.idPronacHash,
     },
     update: {
-      name: fetched.projectName || undefined,
-      salicProjectId: fetched.idPronacHash || undefined,
+      name: preview.projectName || undefined,
+      salicProjectId: preview.idPronacHash || undefined,
     },
   });
 
@@ -178,7 +176,7 @@ export async function startPlanningProjectFederal(
         jurisdiction: "FEDERAL",
         rulesetVersion,
         externalCode,
-        name: fetched.projectName,
+        name: preview.projectName,
         projectId: auditProject.id,
         lifecycleStatus: auditProject.lifecycleStatus || "EM_ANDAMENTO",
       },
@@ -188,30 +186,43 @@ export async function startPlanningProjectFederal(
     await prisma.planningProject.update({
       where: { id: existing.id },
       data: {
-        name: fetched.projectName,
+        name: preview.projectName,
         projectId: auditProject.id,
         rulesetVersion,
       },
     });
   }
 
-  await persistHomologatedSheet({
-    planningProjectId: project.id,
-    lines: fetched.lines,
-    totalApproved: fetched.totalApproved,
-    importSource: "SALIC_HOMOLOGADA",
-  });
-
-  if (fetched.captacao) {
-    await applyCaptacaoToPlanningProject({
+  let preferred;
+  try {
+    const { importPreferredSheetForNewProject } = await import(
+      "@/lib/planning/federal/sync-sheet"
+    );
+    preferred = await importPreferredSheetForNewProject({
+      accountId,
+      pronac: externalCode,
       planningProjectId: project.id,
-      captacao: fetched.captacao,
+    });
+  } catch (e) {
+    const msg =
+      e instanceof HomologadaImportError
+        ? e.message
+        : e instanceof Error
+          ? e.message
+          : "Falha ao importar planilha do SALIC";
+    return { error: msg };
+  }
+
+  if (preferred.projectName) {
+    await prisma.planningProject.update({
+      where: { id: project.id },
+      data: { name: preferred.projectName },
     });
   }
 
   const fluxoErr = await syncFluxoProjeto({
     pronac: externalCode,
-    nome: fetched.projectName || externalCode,
+    nome: preferred.projectName || preview.projectName || externalCode,
     proponente: account.name,
     ...readFluxoContextFromForm(formData),
   });

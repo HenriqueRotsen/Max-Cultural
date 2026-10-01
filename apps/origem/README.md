@@ -87,9 +87,12 @@ O gargalo é a API SALIC. Otimizações seguras (sem perder dados):
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role (legado Supabase Auth, se usado) |
 | `NEXT_PUBLIC_SITE_URL` | URL canônica do Origem |
 | `RESEND_API_KEY` | Opcional: e-mails de notificação do planejamento |
+| `CRON_SECRET` | Cron diário `GET /api/cron/sync-salic` (08:00 BRT / 11:00 UTC) |
 | `CREDENTIALS_SECRET` | Chave AES-256-GCM para criptografar login e senha SALIC em repouso |
 | `SYNC_CONCURRENCY` | 2–8 no sync (default 4) |
 | `SYNC_MODE` | `full` \| `chunked` |
+
+O sync diário atualiza projetos federais, planilha (readequada se existir, senão homologada), captado e emite aviso de diligência. Valores reservados/pagos não são sobrescritos.
 
 ## Fase 2 (não incluída)
 
