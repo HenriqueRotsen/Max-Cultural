@@ -1,0 +1,82 @@
+# Abre PR com `npm audit fix` (sem --force). Nunca aplica direto no main.
+# Fixes só dentro do range semver já declarado — reduz risco de quebrar o código.
+name: Deps audit fix
+
+on:
+  schedule:
+    # Segunda 12:00 UTC (~09:00 BRT)
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: deps-audit-fix
+  cancel-in-progress: false
+
+jobs:
+  audit-fix-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: npm audit fix (sem --force)
+        id: fix
+        run: |
+          set +e
+          npm audit fix --omit=dev
+          code=$?
+          set -e
+          # exit 1 = ainda há vulns não corrigíveis sem breaking; lock pode ter mudado
+          if [ "$code" -gt 1 ]; then
+            echo "npm audit fix falhou com código $code"
+            exit "$code"
+          fi
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if git diff --quiet -- package-lock.json package.json apps/*/package.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/npm-audit-fix
+          delete-branch: true
+          title: "chore(deps): npm audit fix (sem breaking)"
+          commit-message: |
+            chore(deps): apply npm audit fix without --force
+
+            Automated semver-compatible vulnerability fixes for production deps.
+          body: |
+            ## Summary
+            - Roda `npm audit fix --omit=dev` **sem** `--force` (só upgrades compatíveis com os ranges atuais).
+            - Aberto automaticamente para review + CI (Security / audit gate).
+
+            ## Importante
+            - Vulnerabilidades que exigem major/breaking **não** entram aqui — precisam de override ou bump manual.
+            - Não faça merge se o job **Audit dependencies** ou o build falhar.
+
+            ## Test plan
+            - [ ] CI Security (audit gate) verde
+            - [ ] Smoke login / app afetado após merge
+          labels: |
+            dependencies
+            security
