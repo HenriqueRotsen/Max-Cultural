@@ -1,7 +1,5 @@
-import { isDemoMode } from "@/lib/auth/config";
 import { parseServiceCategory } from "@/lib/catalog/categories";
 import { recomputeServiceStats, recomputeSupplierStats } from "@/lib/catalog/ratings";
-import { demoProjectWhere } from "@/lib/demo";
 import { prisma } from "@/lib/db";
 import { isValidCgccpf, normalizeCgccpf } from "@/lib/format";
 
@@ -64,8 +62,7 @@ export function ensureCatalogFromAudit(workspaceId: string): Promise<void> {
 }
 
 async function collectAuditSuppliers(workspaceId: string): Promise<AuditSupplier[]> {
-  const demo = await demoProjectWhere(workspaceId);
-  const projectScope = { salicAccount: { workspaceId }, ...demo };
+  const projectScope = { salicAccount: { workspaceId } };
 
   const [paidSuppliers, watched] = await Promise.all([
     prisma.supplier.findMany({
@@ -104,11 +101,10 @@ async function collectAuditSuppliers(workspaceId: string): Promise<AuditSupplier
 }
 
 async function syncCatalogSuppliersFromAudit(workspaceId: string) {
-  const demo = await demoProjectWhere(workspaceId);
   const [auditCount, catalogCount] = await Promise.all([
     prisma.supplier.count({
       where: {
-        payments: { some: { project: { salicAccount: { workspaceId }, ...demo } } },
+        payments: { some: { project: { salicAccount: { workspaceId } } } },
       },
     }),
     prisma.catalogSupplier.count({ where: { workspaceId, fromAudit: true } }),
@@ -189,8 +185,7 @@ async function syncPaymentsAsEngagements(
   workspaceId: string,
   catalogByCnpj: Map<string, string>,
 ) {
-  const demo = await demoProjectWhere(workspaceId);
-  const projectScope = { salicAccount: { workspaceId }, ...demo };
+  const projectScope = { salicAccount: { workspaceId } };
   const [paymentIds, mirrored] = await Promise.all([
     prisma.payment.findMany({
       where: { project: projectScope },
@@ -353,7 +348,6 @@ async function syncPaymentsAsEngagements(
 }
 
 async function dropOrphanSalicEngagements(workspaceId: string, livePaymentIds: string[]) {
-  if (isDemoMode()) return;
   const live = new Set(livePaymentIds);
   const mirrored = await prisma.catalogEngagement.findMany({
     where: {

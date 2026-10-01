@@ -8,14 +8,6 @@ export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    const { isDemoMode } = await import("@/lib/auth/config");
-    if (isDemoMode()) {
-      return NextResponse.json(
-        { error: "Sincronização não está disponível no modo demonstração." },
-        { status: 403 },
-      );
-    }
-
     const { getWorkspaceContext } = await import("@/lib/auth/session");
     const { assertAccountInWorkspace, assertCanSync } = await import("@/lib/auth/workspace");
     const { entitlements } = await getWorkspaceContext();

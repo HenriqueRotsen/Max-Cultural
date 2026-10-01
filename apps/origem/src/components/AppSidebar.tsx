@@ -87,13 +87,11 @@ function linkActive(pathname: string, href: string) {
 export function AppSidebar({
   userEmail,
   syncEnabled = true,
-  demoMode = false,
   allowedScreens,
 }: {
   userEmail?: string;
   isAdmin?: boolean;
   syncEnabled?: boolean;
-  demoMode?: boolean;
   /** IDs do hub; ["*"] libera tudo. */
   allowedScreens?: string[];
 }) {
@@ -106,14 +104,12 @@ export function AppSidebar({
 
   const auditoria = auditoriaLinks.filter((l) => {
     if (!syncEnabled && l.href === "/sync") return false;
-    if (demoMode && l.href === "/sync") return false;
     return allow("origem.auditoria");
   });
-  const proponentes = demoMode || !allow("origem.proponentes") ? [] : proponentesLinks;
+  const proponentes = !allow("origem.proponentes") ? [] : proponentesLinks;
   const fornecedores = allow("origem.fornecedores") ? fornecedoresLinks : [];
   const planejamento = allow("origem.planejamento") ? planejamentoLinks : [];
   const modules = moduleLinks.filter((l) => {
-    if (demoMode && l.href === "/contas") return false;
     if (l.href === "/planejamento") return allow("origem.planejamento");
     if (l.href === "/contas") return allow("origem.proponentes");
     if (l.href === "/inicio") return allow("origem.auditoria");
@@ -178,42 +174,25 @@ export function AppSidebar({
             <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
               Conta
             </p>
-            {demoMode ? (
-              <Link
-                href="/"
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
               >
                 <LogoutIcon />
                 <span className="min-w-0">
-                  <span className="block truncate">Voltar ao site</span>
+                  <span className="block truncate">Sair</span>
                   {userEmail ? (
-                    <span className="block truncate text-xs font-normal text-[var(--gray-400)]">
+                    <span
+                      className="block truncate text-xs font-normal text-[var(--gray-400)]"
+                      title={userEmail}
+                    >
                       {userEmail}
                     </span>
                   ) : null}
                 </span>
-              </Link>
-            ) : (
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
-                >
-                  <LogoutIcon />
-                  <span className="min-w-0">
-                    <span className="block truncate">Sair</span>
-                    {userEmail ? (
-                      <span
-                        className="block truncate text-xs font-normal text-[var(--gray-400)]"
-                        title={userEmail}
-                      >
-                        {userEmail}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              </form>
-            )}
+              </button>
+            </form>
           </div>
         </div>
       </nav>

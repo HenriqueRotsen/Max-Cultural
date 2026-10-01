@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import http from "node:http";
 import https from "node:https";
 import { AUTH_COOKIE, culturalHubUrl } from "@max/auth";
-import { needsLogin } from "@/lib/auth/config";
 
 export type HubPermissionsPayload = {
   ids: Set<string>;
@@ -103,10 +102,6 @@ function parsePermissionsPayload(raw: string): HubPermissionsPayload {
  * Deny-by-default: falha de rede / 401 → set vazio + fetchFailed.
  */
 export const getHubPermissions = cache(async (): Promise<HubPermissionsPayload> => {
-  if (!needsLogin()) {
-    return { ids: new Set(["*"]), entries: [], fetchFailed: false };
-  }
-
   try {
     const jar = await cookies();
     const token = jar.get(AUTH_COOKIE)?.value;

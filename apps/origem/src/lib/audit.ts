@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db";
 import { normalizeCgccpf } from "@/lib/crypto";
 import { formatCurrency } from "@/lib/format";
-import { demoProjectWhere } from "@/lib/demo";
 import { toActiveRules } from "@/lib/compliance/rules";
 import { DEFAULT_RULES, type ActiveRules } from "@/lib/compliance/defaults";
 import { isExcludedFromBondItem } from "@/lib/compliance/rouanet";
@@ -117,13 +116,11 @@ function projectScope(filters: PanoramaFilters) {
 
 export async function getPanorama(filters: PanoramaFilters = {}) {
   const matchers = await loadWatchedMatchers(filters.workspaceId);
-  const demoProjects = await demoProjectWhere(filters.workspaceId);
 
   const payments = await prisma.payment.findMany({
     where: {
       project: {
         ...projectScope(filters),
-        ...demoProjects,
       },
       ...(filters.from || filters.to
         ? {
@@ -430,14 +427,12 @@ export async function getSupplierDetail(supplierId: string, filters: PanoramaFil
   const supplier = await prisma.supplier.findUniqueOrThrow({
     where: { id: supplierId },
   });
-  const demoProjects = await demoProjectWhere(filters.workspaceId);
 
   const payments = await prisma.payment.findMany({
     where: {
       supplierId,
       project: {
         ...projectScope(filters),
-        ...demoProjects,
       },
     },
     include: {
@@ -517,12 +512,10 @@ export function formatPercent(part: number, total: number, digits = 4): string {
 export async function getPronacPanorama(filters: PanoramaFilters = {}) {
   const matchers = await loadWatchedMatchers(filters.workspaceId);
   const applyWatched = filters.watchedOnly === true && matchers.count > 0;
-  const demoProjects = await demoProjectWhere(filters.workspaceId);
 
   const projects = await prisma.project.findMany({
     where: {
       ...projectScope(filters),
-      ...demoProjects,
       payments: { some: {} },
     },
     include: {
@@ -644,12 +637,10 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
 export async function getPronacDetail(pronac: string, filters: PanoramaFilters = {}) {
   const matchers = await loadWatchedMatchers(filters.workspaceId);
   const applyWatched = filters.watchedOnly === true && matchers.count > 0;
-  const demoProjects = await demoProjectWhere(filters.workspaceId);
 
   const projects = await prisma.project.findMany({
     where: {
       pronac,
-      ...demoProjects,
       ...(filters.accountId
         ? { salicAccountId: filters.accountId }
         : filters.workspaceId

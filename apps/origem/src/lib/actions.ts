@@ -43,13 +43,6 @@ function parseAccountForm(formData: FormData, syncEnabled: boolean) {
 }
 
 export async function createAccount(formData: FormData) {
-  const { assertNotDemo } = await import("@/lib/demo");
-  try {
-    assertNotDemo("Cadastro de contas");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Indisponível na demo";
-    redirect("/contas?tab=nova&error=" + encodeURIComponent(message));
-  }
 
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { assertCanCreateAccount } = await import("@/lib/auth/workspace");
@@ -92,13 +85,6 @@ export async function createAccount(formData: FormData) {
 }
 
 export async function updateAccount(id: string, formData: FormData) {
-  const { assertNotDemo } = await import("@/lib/demo");
-  try {
-    assertNotDemo("Edição de contas");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Indisponível na demo";
-    redirect(`/contas?tab=suas-contas&error=${encodeURIComponent(message)}#account-${id}`);
-  }
 
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { assertAccountInWorkspace } = await import("@/lib/auth/workspace");
@@ -140,13 +126,6 @@ export async function updateAccount(id: string, formData: FormData) {
 }
 
 export async function clearAccountPassword(id: string) {
-  const { assertNotDemo } = await import("@/lib/demo");
-  try {
-    assertNotDemo("Alteração de credenciais");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Indisponível na demo";
-    redirect(`/contas?tab=suas-contas&error=${encodeURIComponent(message)}`);
-  }
 
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { assertAccountInWorkspace, assertCanSync } = await import("@/lib/auth/workspace");
@@ -163,13 +142,6 @@ export async function clearAccountPassword(id: string) {
 }
 
 export async function deleteAccount(id: string) {
-  const { assertNotDemo } = await import("@/lib/demo");
-  try {
-    assertNotDemo("Exclusão de contas");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Indisponível na demo";
-    redirect(`/contas?tab=suas-contas&error=${encodeURIComponent(message)}`);
-  }
 
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { assertAccountInWorkspace } = await import("@/lib/auth/workspace");
@@ -779,13 +751,6 @@ export async function removeWatchedSupplier(id: string) {
 }
 
 export async function startSync(formData: FormData) {
-  const { assertNotDemo } = await import("@/lib/demo");
-  try {
-    assertNotDemo("Sincronização");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Indisponível na demo";
-    redirect("/sync?error=" + encodeURIComponent(message));
-  }
 
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { assertAccountInWorkspace, assertCanSync } = await import("@/lib/auth/workspace");

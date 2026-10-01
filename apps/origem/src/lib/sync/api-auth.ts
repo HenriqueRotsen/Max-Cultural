@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { AUTH_COOKIE, parseSessionToken } from "@max/auth";
-import { needsLogin } from "@/lib/auth/config";
 import { getSessionUser } from "@/lib/auth/session";
 
 /**
@@ -15,8 +14,6 @@ export async function assertSyncApiAuth(request: Request): Promise<NextResponse 
   if (secret && provided && provided === secret) {
     return null;
   }
-
-  if (!needsLogin()) return null;
 
   const session = await getSessionUser();
   if (session) return null;

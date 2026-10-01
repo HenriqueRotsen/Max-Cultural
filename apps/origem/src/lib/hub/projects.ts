@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import { needsLogin } from "@/lib/auth/config";
 import { getHubSessionPayload, isHubSsoEnabled } from "@/lib/auth/hub";
 import { ensureBootstrapWorkspace } from "@/lib/auth/workspace";
 import { computeProjectBalance } from "@/lib/planning/rubric-balance";
@@ -116,12 +115,6 @@ export async function resolveWorkspaceIdForHubApi(
     if (hub?.email) {
       return workspaceFromHubEmail(hub.email, hub.userId);
     }
-  }
-
-  // 3) Ambiente local aberto
-  if (!needsLogin()) {
-    const workspace = await ensureBootstrapWorkspace();
-    return workspace.id;
   }
 
   return null;

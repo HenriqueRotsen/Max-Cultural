@@ -1,16 +1,15 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
-import { DemoBanner } from "@/components/DemoBanner";
 import { NotificationBell } from "@/components/planning/NotificationBell";
-import { isAuthEnabled, isDemoMode, isDevOpenAuth, needsLogin } from "@/lib/auth/config";
+import { isAuthEnabled } from "@/lib/auth/config";
 import { origemHubLoginUrl } from "@/lib/auth/hub";
 import {
   getHubPermissions,
   hubScreenForPath,
 } from "@/lib/auth/hub-permissions";
 import { getHubSessionPayload } from "@/lib/auth/hub";
-import { getSessionUser, getWorkspaceContext } from "@/lib/auth/session";
+import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import {
   enabledNotificationTypes,
@@ -65,30 +64,6 @@ async function TopBar({
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  if (!needsLogin()) {
-    const { entitlements, session } = await getWorkspaceContext();
-    const demo = isDemoMode();
-    return (
-      <div className="shell">
-        <AppSidebar
-          userEmail={demo ? "demonstração" : isDevOpenAuth() ? "dev aberto" : undefined}
-          isAdmin={!demo && isDevOpenAuth()}
-          syncEnabled={!demo && entitlements.syncEnabled}
-          demoMode={demo}
-          allowedScreens={["*"]}
-        />
-        <div className="shell-main">
-          <DemoBanner />
-          <TopBar
-            workspaceId={entitlements.workspaceId}
-            userId={session?.id}
-          />
-          <div className="content">{children}</div>
-        </div>
-      </div>
-    );
-  }
-
   const session = await getSessionUser();
   if (!session) {
     redirect(origemHubLoginUrl("/painel"));

@@ -939,7 +939,7 @@ model AppNotification {
 model NotificationSettings {
   id               String   @id @default(cuid())
   workspaceId      String
-  /** AppUser.id (sem FK — alinhado a AppNotification.userId; cobre modo dev aberto). */
+  /** AppUser.id (sem FK — alinhado a AppNotification.userId). */
   userId           String
   paymentDueSoon   Boolean  @default(true)
   paymentOverdue   Boolean  @default(true)

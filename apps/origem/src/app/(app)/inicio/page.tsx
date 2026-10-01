@@ -2,8 +2,6 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
 import { getWorkspaceContext } from "@/lib/auth/session";
-import { isDemoMode } from "@/lib/auth/config";
-import { demoProjectWhere } from "@/lib/demo";
 import { PageHeader, StatCard } from "@/components/ui";
 import { HELP } from "@/lib/help";
 
@@ -12,9 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const { entitlements } = await getWorkspaceContext();
   const ws = entitlements.workspaceId;
-  const demoProjects = await demoProjectWhere(ws);
-  const projectFilter = { salicAccount: { workspaceId: ws }, ...demoProjects };
-  const demo = isDemoMode();
+  const projectFilter = { salicAccount: { workspaceId: ws } };
 
   const [accounts, paymentsAgg, watched, lastSync, projects] = await Promise.all([
     prisma.salicAccount.count({ where: { active: true, workspaceId: ws } }),
@@ -52,14 +48,10 @@ export default async function HomePage() {
       <PageHeader
         breadcrumb="Auditoria › Início"
         title="Visão geral"
-        description={
-          demo
-            ? "Demonstração com amostra dos dados — explore insights, PRONACs e fornecedores."
-            : "Acompanhe gastos por fornecedor nos projetos culturais das suas empresas."
-        }
+        description="Acompanhe gastos por fornecedor nos projetos culturais das suas empresas."
         actions={
           <>
-            {entitlements.syncEnabled && !demo && (
+            {entitlements.syncEnabled && (
               <Link href="/sync" className="btn">
                 Atualizar dados
               </Link>
@@ -81,12 +73,12 @@ export default async function HomePage() {
         <StatCard
           label="Projetos"
           value={String(projects)}
-          hint={demo ? "Amostra (~10%) dos PRONACs" : "PRONACs já carregados"}
+          hint="PRONACs já carregados"
         />
         <StatCard
           label="Pagamentos"
           value={String(paymentsAgg._count)}
-          hint={demo ? "Linhas na amostra demo" : "Linhas da relação de pagamento"}
+          hint="Linhas da relação de pagamento"
         />
         <StatCard
           label="Total carregado"
@@ -112,26 +104,16 @@ export default async function HomePage() {
                 title: "Insights",
                 text: "Concentração, maiores fornecedores e projetos em destaque.",
               },
-              ...(!demo
-                ? [
-                    {
-                      href: "/sync",
-                      title: "Atualizar",
-                      text: "Busca projetos e pagamentos no SALIC para o MAX Origem.",
-                    },
-                    {
-                      href: "/auditoria",
-                      title: "Relatório",
-                      text: "Gere PDF de auditoria com PRONACs e mapa do proponente.",
-                    },
-                  ]
-                : [
-                    {
-                      href: "/panorama/pronac",
-                      title: "Por PRONAC",
-                      text: "Veja o detalhe de cada projeto na amostra da demonstração.",
-                    },
-                  ]),
+              {
+                href: "/sync",
+                title: "Atualizar",
+                text: "Busca projetos e pagamentos no SALIC para o MAX Origem.",
+              },
+              {
+                href: "/auditoria",
+                title: "Relatório",
+                text: "Gere PDF de auditoria com PRONACs e mapa do proponente.",
+              },
             ].map((item) => (
               <Link
                 key={item.href}

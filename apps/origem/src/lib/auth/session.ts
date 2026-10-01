@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { isAuthEnabled, needsLogin } from "@/lib/auth/config";
+import { isAuthEnabled } from "@/lib/auth/config";
 import { getHubSessionPayload, origemHubLoginUrl } from "@/lib/auth/hub";
 import {
   entitlementsFromWorkspace,
@@ -134,9 +134,6 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
 }
 
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  if (!needsLogin()) {
-    return null;
-  }
   if (isAuthEnabled()) {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
@@ -174,17 +171,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   };
 });
 
-/** Contexto do workspace atual (Auth, hub ou bootstrap local). */
+/** Contexto do workspace atual (Auth ou hub SSO). */
 export async function getWorkspaceContext(): Promise<WorkspaceContext> {
-  if (!needsLogin()) {
-    const workspace = await ensureBootstrapWorkspace();
-    return {
-      session: null,
-      workspace,
-      entitlements: entitlementsFromWorkspace(workspace),
-    };
-  }
-
   const session = await getSessionUser();
   if (!session) redirect(origemHubLoginUrl("/painel"));
   return {
@@ -195,38 +183,6 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext> {
 }
 
 export async function requireUser(options?: { roles?: AppUserRole[] }) {
-  if (!needsLogin()) {
-    const workspace = await ensureBootstrapWorkspace();
-    const email = process.env.ADMIN_EMAILS?.split(",")[0]?.trim() || "dev@localhost";
-    return {
-      id: "dev-open",
-      email,
-      profile: {
-        id: "dev-open",
-        email,
-        name: "Dev",
-        role: "ADMIN" as const,
-        mustChangePassword: false,
-        active: true,
-        contactEmail: email,
-        contactPhone: "",
-        addressZip: "",
-        addressStreet: "",
-        addressNumber: "",
-        addressComplement: null,
-        addressNeighborhood: "",
-        addressCity: "",
-        addressState: "",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdById: null,
-        workspaceId: workspace.id,
-      },
-      workspace,
-      entitlements: entitlementsFromWorkspace(workspace),
-    } satisfies SessionUser;
-  }
-
   const session = await getSessionUser();
   if (!session) redirect(origemHubLoginUrl("/painel"));
   if (session.profile.mustChangePassword && isAuthEnabled()) redirect("/alterar-senha");
@@ -237,7 +193,5 @@ export async function requireUser(options?: { roles?: AppUserRole[] }) {
 }
 
 export async function requireAdmin() {
-  const { isDemoMode } = await import("@/lib/auth/config");
-  if (isDemoMode()) redirect("/painel");
   return requireUser({ roles: ["ADMIN"] });
 }

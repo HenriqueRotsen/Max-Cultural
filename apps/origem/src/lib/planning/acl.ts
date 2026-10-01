@@ -1,15 +1,12 @@
 import { requireUser } from "@/lib/auth/session";
-import { needsLogin } from "@/lib/auth/config";
 import { hasHubPermission } from "@/lib/auth/hub-permissions";
 
 /**
  * Permissões do hub MAX Cultural para Planejamento.
- * Dev aberto / sem login: libera.
  * Deny-by-default: hub indisponível ou sem grant → false (sem fallback ADMIN).
  */
 async function canHubScreen(permissionId: string): Promise<boolean> {
   await requireUser();
-  if (!needsLogin()) return true;
   return hasHubPermission(permissionId);
 }
 

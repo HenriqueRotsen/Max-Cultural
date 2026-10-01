@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE, culturalLoginUrl, parseSessionToken } from "@max/auth";
-import { needsLogin } from "@/lib/auth/config";
 import { isHubSsoEnabled } from "@/lib/auth/hub";
 import { updateSession } from "@/lib/supabase/middleware";
 
@@ -50,10 +49,6 @@ export async function proxy(request: NextRequest) {
   });
 
   const { response, user } = await updateSession(requestWithPath);
-
-  if (!needsLogin()) {
-    return response;
-  }
 
   // APIs do hub: nunca redirecionar para login (retornam 401 JSON).
   if (pathname.startsWith("/api/hub")) {
