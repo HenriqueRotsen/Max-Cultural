@@ -25,30 +25,19 @@ export type WorkspaceContext = {
   entitlements: PlanEntitlements;
 };
 
-function adminEmails(): Set<string> {
-  return new Set(
-    (process.env.ADMIN_EMAILS || "")
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
 export async function ensureAppUser(params: {
   id: string;
   email: string;
   name?: string | null;
 }): Promise<AppUser & { workspace: Workspace }> {
   const email = params.email.toLowerCase();
-  const isAdmin = adminEmails().has(email);
   const existing = await prisma.appUser.findUnique({
     where: { id: params.id },
     include: { workspace: true },
   });
 
   if (existing) {
-    const data: { role?: AppUserRole; email?: string; name?: string | null } = {};
-    if (isAdmin && existing.role !== "ADMIN") data.role = "ADMIN";
+    const data: { email?: string; name?: string | null } = {};
     if (existing.email !== email) data.email = email;
     if (params.name && params.name !== existing.name) data.name = params.name;
     if (Object.keys(data).length > 0) {
@@ -61,20 +50,18 @@ export async function ensureAppUser(params: {
     return existing;
   }
 
-  const workspace = isAdmin
-    ? await ensureBootstrapWorkspace()
-    : await createWorkspace({
-        name: params.name || email.split("@")[0] || "Workspace",
-        plan: "ESSENTIAL",
-        maxAccounts: 1,
-      });
+  const workspace = await createWorkspace({
+    name: params.name || email.split("@")[0] || "Workspace",
+    plan: "ESSENTIAL",
+    maxAccounts: 1,
+  });
 
   return prisma.appUser.create({
     data: {
       id: params.id,
       email,
       name: params.name || null,
-      role: isAdmin ? "ADMIN" : "USER",
+      role: "USER",
       mustChangePassword: false,
       active: true,
       workspaceId: workspace.id,

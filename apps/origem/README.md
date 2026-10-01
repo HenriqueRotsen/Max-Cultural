@@ -25,11 +25,7 @@ Sem `AUTH_SECRET` + `NEXT_PUBLIC_CULTURAL_URL`, o layout pode falhar o SSO — c
 
 Login e 2FA ficam **só no MAX Cultural** (`AUTH_2FA_DISABLED` no hub).
 
-Com SSO do Cultural:
-
-1. Coloque seu e-mail em `ADMIN_EMAILS`
-2. Crie o usuário no Supabase (ou em **Usuários**) e entre em `/login`
-3. Troque a senha temporária quando pedido
+Com SSO do Cultural, entre pelo hub e abra o Origem. Papéis e permissões ficam no Cultural.
 
 Fluxo de uso:
 
@@ -88,11 +84,9 @@ O gargalo é a API SALIC. Otimizações seguras (sem perder dados):
 | `DATABASE_URL` | Postgres / Supabase |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon (client + SSR) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role (criar/resetar usuários no servidor) |
-| `ADMIN_EMAILS` | Lista CSV de e-mails admin |
-| `NEXT_PUBLIC_SITE_URL` | URL canônica (links de recuperação) |
-| `RESEND_API_KEY` | Envio do formulário `/contato` |
-| `CONTACT_TO_EMAIL` | Destino do contato (default `contato@henriquerotsen.com.br`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role (legado Supabase Auth, se usado) |
+| `NEXT_PUBLIC_SITE_URL` | URL canônica do Origem |
+| `RESEND_API_KEY` | Opcional: e-mails de notificação do planejamento |
 | `CREDENTIALS_SECRET` | Chave AES-256-GCM para criptografar login e senha SALIC em repouso |
 | `SYNC_CONCURRENCY` | 2–8 no sync (default 4) |
 | `SYNC_MODE` | `full` \| `chunked` |

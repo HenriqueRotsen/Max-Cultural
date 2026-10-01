@@ -8,9 +8,6 @@ export function MarketingHeader() {
           <MaxOrigemLogo />
         </a>
         <nav className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <a href="/contato" className="marketing-nav-link">
-            Contato
-          </a>
           <a href="/painel" className="btn">
             Entrar
           </a>
@@ -29,9 +26,6 @@ export function MarketingFooter() {
           MAX Origem — auditoria SALIC e banco de fornecedores.
         </p>
         <div className="mt-4 flex flex-wrap gap-4 text-sm text-[var(--gray-500)]">
-          <a href="/contato" className="hover:text-[var(--navy)]">
-            Contato
-          </a>
           <a href="/painel" className="hover:text-[var(--navy)]">
             Entrar
           </a>

@@ -34,7 +34,6 @@ export async function sendNotificationEmail(params: {
     const { error } = await resend.emails.send({
       from:
         process.env.NOTIFY_FROM_EMAIL ||
-        process.env.CONTACT_FROM_EMAIL ||
         "MAX Origem <onboarding@resend.dev>",
       to: [to],
       subject: params.title,

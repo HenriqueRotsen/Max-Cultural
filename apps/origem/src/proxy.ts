@@ -7,7 +7,6 @@ function isPublicPath(pathname: string) {
   if (
     pathname === "/" ||
     pathname === "/precos" ||
-    pathname === "/contato" ||
     pathname === "/login" ||
     pathname === "/recuperar-senha" ||
     pathname === "/redefinir-senha" ||
