@@ -23,8 +23,12 @@ export const PENDING_2FA_COOKIE = "max_pending_2fa";
 export const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 export const PENDING_2FA_MAX_AGE = 60 * 10;
 
-export function cookieDomain(): string | undefined {
-  const domain = (process.env.AUTH_COOKIE_DOMAIN || "").trim();
+function cookieDomain(): string | undefined {
+  const domain = (process.env.AUTH_COOKIE_DOMAIN || "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    // Leading dot is ignored by browsers; keep canonical host for Next.js.
+    .replace(/^\./, "");
   return domain || undefined;
 }
 
@@ -92,7 +96,7 @@ export type SessionPayload = {
   sessionVersion: number;
   issuedAt: number;
   email?: string;
-  /** Grants embutidos no login (u2). Ausente em tokens legados `u:`. */
+  /** Grants embutidos (tokens `u2` antigos). Tokens novos usam a API do hub. */
   permissions?: string[];
 };
 
@@ -101,21 +105,23 @@ export type Pending2faPayload = {
   issuedAt: number;
 };
 
-/** Token v2: inclui grants para Origem/Fluxo não baterem no hub a cada página. */
+/**
+ * Cookie SSO compartilhado. Formato estável `u:` (com e-mail) —
+ * Origem/Fluxo resolvem grants via /api/session/permissions.
+ * Ainda lê tokens `u2` emitidos entre deploys.
+ */
 export async function createSessionToken(input: {
   userId: string;
   sessionVersion: number;
   email?: string;
+  /** Ignorado na emissão — mantido só p/ compat de assinatura. */
   permissions?: string[];
 }): Promise<string> {
   const issuedAt = Date.now();
   const email = input.email ? encodeURIComponent(input.email) : "";
-  const permissions = Array.isArray(input.permissions)
-    ? encodeURIComponent(
-        [...new Set(input.permissions.map((p) => p.trim()).filter(Boolean))].join(","),
-      )
-    : "";
-  const payload = `u2:${input.userId}:${input.sessionVersion}:${issuedAt}:${email}:${permissions}`;
+  const payload = email
+    ? `u:${input.userId}:${input.sessionVersion}:${issuedAt}:${email}`
+    : `u:${input.userId}:${input.sessionVersion}:${issuedAt}`;
   const signature = await sign(payload);
   return `${payload}.${signature}`;
 }
@@ -132,7 +138,9 @@ export async function parseSessionToken(
   if (!timingSafeEqualString(signature, expected)) return null;
 
   const parts = payload.split(":");
-  if (parts[0] === "u2" && parts.length === 6) {
+
+  // Tokens `u2` emitidos no deploy anterior (ainda válidos até expirar / re-login).
+  if (parts[0] === "u2" && parts.length >= 5) {
     const userId = parts[1]!;
     const sessionVersion = Number(parts[2]);
     const issuedAt = Number(parts[3]);
@@ -145,11 +153,10 @@ export async function parseSessionToken(
     const permissionsRaw = parts[5] ? decodeURIComponent(parts[5]) : "";
     const permissions = permissionsRaw
       ? permissionsRaw.split(",").map((p) => p.trim()).filter(Boolean)
-      : [];
+      : undefined;
     return { userId, sessionVersion, issuedAt, email, permissions };
   }
 
-  // Legado `u:userId:version:issuedAt[:email]`
   if (parts[0] !== "u" || (parts.length !== 4 && parts.length !== 5)) return null;
   const userId = parts[1]!;
   const sessionVersion = Number(parts[2]);

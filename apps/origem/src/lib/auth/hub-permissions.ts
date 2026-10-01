@@ -8,7 +8,7 @@ export type HubPermissionsPayload = {
   ids: Set<string>;
   /** Compat: entradas antigas screen/canView/canEdit */
   entries: Array<{ screen: string; canView: boolean; canEdit: boolean }>;
-  /** true quando a API do hub falhou (rede/401) — distinto de “sem grants”. */
+  /** true quando a API do hub falhou por rede/5xx — distinto de 401 (sessão inválida). */
   fetchFailed?: boolean;
 };
 
@@ -109,9 +109,8 @@ function parsePermissionsPayload(raw: string): HubPermissionsPayload {
 
 /**
  * Permissões do hub:
- * 1) token u2 com grants → usa cookie (rápido)
- * 2) valida sessão viva no Cultural (sessionVersion) — encerra se admin alterou papel
- * 3) token legado → GET /api/session/permissions
+ * 1) token `u2` antigo com grants embutidos → usa cookie (sem round-trip)
+ * 2) senão GET /api/session/permissions (valida sessionVersion no Cultural)
  */
 export const getHubPermissions = cache(async (): Promise<HubPermissionsPayload> => {
   try {
@@ -126,23 +125,16 @@ export const getHubPermissions = cache(async (): Promise<HubPermissionsPayload> 
       return { ids: new Set(), entries: [], fetchFailed: true };
     }
 
-    // Token com grants embutidos: confirma que a sessão ainda é válida no hub.
-    if (parsed.permissions) {
-      try {
-        const alive = await hubGet("/api/session/alive", token, 2500);
-        if (alive.status === 401) {
-          return { ids: new Set(), entries: [], fetchFailed: true };
-        }
-        if (alive.status >= 200 && alive.status < 300) {
-          return payloadFromIds(parsed.permissions);
-        }
-      } catch {
-        // Hub indisponível: usa grants do cookie (disponibilidade > frescura).
-        return payloadFromIds(parsed.permissions);
-      }
+    // Tokens antigos com grants: confia no cookie (SSO) sem bloquear em /alive.
+    if (parsed.permissions && parsed.permissions.length > 0) {
+      return payloadFromIds(parsed.permissions);
     }
 
     const { status, body } = await hubGet("/api/session/permissions", token, 8000);
+    // 401 = sessão revogada/inválida — não é soft-open.
+    if (status === 401) {
+      return { ids: new Set(), entries: [], fetchFailed: false };
+    }
     if (status < 200 || status >= 300) {
       return { ids: new Set(), entries: [], fetchFailed: true };
     }

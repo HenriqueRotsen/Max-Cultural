@@ -16,6 +16,8 @@ export type HubFluxoAccess = {
   hasHubSession: boolean;
   allowedProduct: boolean;
   codes: Set<PermissionCode>;
+  /** Rede/5xx no hub — distinto de 401 (sessão inválida). */
+  fetchFailed?: boolean;
 };
 
 function hubGet(
@@ -60,9 +62,9 @@ function hubGet(
   });
 }
 
-function codesFromHubIds(ids: Set<string>): HubFluxoAccess {
+function codesFromHubIds(ids: Set<string>, fetchFailed = false): HubFluxoAccess {
   if (!ids.has("fluxo.app")) {
-    return { hasHubSession: true, allowedProduct: false, codes: new Set() };
+    return { hasHubSession: true, allowedProduct: false, codes: new Set(), fetchFailed };
   }
   const codes = new Set<PermissionCode>();
   for (const [hubId, mapped] of Object.entries(HUB_TO_FLUXO_PERMISSIONS)) {
@@ -74,12 +76,12 @@ function codesFromHubIds(ids: Set<string>): HubFluxoAccess {
     }
   }
   codes.add("perfil:write");
-  return { hasHubSession: true, allowedProduct: true, codes };
+  return { hasHubSession: true, allowedProduct: true, codes, fetchFailed };
 }
 
 /**
- * Prefer grants do cookie (u2); valida sessão viva no Cultural.
- * Token legado cai no GET /api/session/permissions.
+ * Grants do hub para o Fluxo.
+ * Tokens `u2` antigos usam cookie; senão GET /api/session/permissions.
  */
 export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
   const empty: HubFluxoAccess = {
@@ -94,23 +96,22 @@ export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
     const parsed = token ? await parseSessionToken(token) : null;
     if (!token || !parsed) return empty;
 
-    if (parsed.permissions) {
-      try {
-        const alive = await hubGet("/api/session/alive", token, 2500);
-        if (alive.status === 401) {
-          return { hasHubSession: true, allowedProduct: false, codes: new Set() };
-        }
-        if (alive.status >= 200 && alive.status < 300) {
-          return codesFromHubIds(new Set(parsed.permissions));
-        }
-      } catch {
-        return codesFromHubIds(new Set(parsed.permissions));
-      }
+    if (parsed.permissions && parsed.permissions.length > 0) {
+      return codesFromHubIds(new Set(parsed.permissions));
     }
 
     const { status, body } = await hubGet("/api/session/permissions", token, 8000);
+    if (status === 401) {
+      return { hasHubSession: true, allowedProduct: false, codes: new Set(), fetchFailed: false };
+    }
     if (status < 200 || status >= 300) {
-      return { hasHubSession: true, allowedProduct: false, codes: new Set() };
+      // Hub indisponível: não trancar SSO — libera produto básico.
+      return {
+        hasHubSession: true,
+        allowedProduct: true,
+        codes: new Set<PermissionCode>(["perfil:write"]),
+        fetchFailed: true,
+      };
     }
 
     const data = JSON.parse(body) as {
@@ -136,6 +137,11 @@ export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
 
     return codesFromHubIds(ids);
   } catch {
-    return { hasHubSession: true, allowedProduct: false, codes: new Set() };
+    return {
+      hasHubSession: true,
+      allowedProduct: true,
+      codes: new Set<PermissionCode>(["perfil:write"]),
+      fetchFailed: true,
+    };
   }
 });

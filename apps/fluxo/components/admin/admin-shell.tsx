@@ -26,7 +26,7 @@ export async function AdminShell({
 
   const user = await requireDashboardUser();
   const hub = await getHubFluxoAccess();
-  if (hub.hasHubSession && !hub.allowedProduct) {
+  if (hub.hasHubSession && !hub.allowedProduct && !hub.fetchFailed) {
     redirect(
       `${culturalHubUrl()}/?error=` +
         encodeURIComponent("Sem acesso ao MAX Fluxo."),

@@ -121,6 +121,28 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
 }
 
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
+  // SSO do hub tem prioridade: login único no Cultural.
+  const hub = await getHubSessionPayload();
+  if (hub?.email) {
+    try {
+      const profile = await ensureHubAppUser({
+        id: hub.userId,
+        email: hub.email,
+      });
+      if (profile?.active) {
+        return {
+          id: profile.id,
+          email: profile.email,
+          profile,
+          workspace: profile.workspace,
+          entitlements: entitlementsFromWorkspace(profile.workspace),
+        };
+      }
+    } catch {
+      // Continua para Supabase local se o provisionamento do hub falhar.
+    }
+  }
+
   if (isAuthEnabled()) {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
@@ -142,20 +164,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     }
   }
 
-  const hub = await getHubSessionPayload();
-  if (!hub?.email) return null;
-  const profile = await ensureHubAppUser({
-    id: hub.userId,
-    email: hub.email,
-  });
-  if (!profile?.active) return null;
-  return {
-    id: profile.id,
-    email: profile.email,
-    profile,
-    workspace: profile.workspace,
-    entitlements: entitlementsFromWorkspace(profile.workspace),
-  };
+  return null;
 });
 
 /** Contexto do workspace atual (Auth ou hub SSO). */

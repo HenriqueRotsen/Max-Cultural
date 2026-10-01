@@ -35,12 +35,6 @@ export async function setSessionCookie(user: {
   sessionVersion: number;
   email: string;
 }) {
-  const full = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: userInclude,
-  });
-  const permissions = full ? listGrantedPermissionIds(full) : [];
-
   const jar = await cookies();
   jar.set(
     AUTH_COOKIE,
@@ -48,11 +42,10 @@ export async function setSessionCookie(user: {
       userId: user.id,
       sessionVersion: user.sessionVersion,
       email: user.email,
-      permissions,
     }),
     sessionCookieOptions(MAX_AGE_SECONDS),
   );
-  jar.delete(PENDING_2FA_COOKIE);
+  jar.delete({ name: PENDING_2FA_COOKIE, ...cookieDeleteOptions() });
 }
 
 export async function setPending2faCookie(userId: string) {
@@ -86,15 +79,20 @@ async function loadSessionUser(token: string | undefined | null): Promise<Sessio
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const jar = await cookies();
   const fromCookie = jar.get(AUTH_COOKIE)?.value;
-  if (fromCookie) return loadSessionUser(fromCookie);
+  if (fromCookie) {
+    const user = await loadSessionUser(fromCookie);
+    if (user) return user;
+  }
   // Satélites (Origem/Fluxo) chamam APIs do hub via fetch server-side;
   // o header Cookie é "forbidden" no fetch do Node — usam x-max-session / Bearer.
+  // Também cobre cookie presente mas inválido (sessionVersion) + Bearer fresco.
   try {
     const h = await headers();
     const fromHeader =
       h.get("x-max-session") ||
       h.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ||
       null;
+    if (!fromHeader || fromHeader === fromCookie) return null;
     return loadSessionUser(fromHeader);
   } catch {
     return null;

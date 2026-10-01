@@ -44,8 +44,9 @@ export const getEffectivePermissions = cache(
     set.add("perfil:write");
 
     // Com sessão do hub: interseção com capabilities do Cultural.
+    // Se o hub estiver indisponível (fetchFailed), não esvazia o RBAC local.
     const hub = await getHubFluxoAccess();
-    if (hub.hasHubSession) {
+    if (hub.hasHubSession && !hub.fetchFailed) {
       if (!hub.allowedProduct) return new Set();
       for (const code of [...set]) {
         if (code === "perfil:write") continue;
