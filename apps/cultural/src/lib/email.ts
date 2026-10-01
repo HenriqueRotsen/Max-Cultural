@@ -39,8 +39,8 @@ export async function sendInviteEmail(input: {
   provisionalPassword?: string;
 }) {
   const passwordBlock = input.provisionalPassword
-    ? `<p>Senha provisória: <strong>${input.provisionalPassword}</strong></p><p>No primeiro acesso você deverá trocar a senha${process.env.AUTH_2FA_DISABLED === "true" ? "" : " e configurar o autenticador (2FA)"}.</p>`
-    : `<p>Peça a senha provisória ao administrador que criou sua conta.</p>`;
+    ? `<p>Senha temporária: <strong>${input.provisionalPassword}</strong></p><p>No primeiro acesso você deverá trocar a senha${process.env.AUTH_2FA_DISABLED === "true" ? "" : " e configurar o autenticador (2FA)"}.</p>`
+    : `<p>Peça a senha temporária ao administrador que criou sua conta.</p>`;
   return sendEmail({
     to: input.to,
     subject: "Convite — MAX Cultural",

@@ -75,7 +75,7 @@ Para cada projeto:
 | `DATABASE_URL` / `DIRECT_URL` | schema public |
 | `CREDENTIALS_SECRET` | cifrar TOTP |
 | `NEXT_PUBLIC_SITE_URL` | `https://maxcultural.com.br` |
-| `AUTH_2FA_DISABLED` | `true` no teste (opcional); `false` em prod real |
+| `AUTH_2FA_DISABLED` | `false` (2FA obrigatório no login) |
 | `AUTH_EMAIL_SIMULATE` | `true` se sem Resend |
 | `RESEND_API_KEY` / `EMAIL_FROM` | opcional no teste |
 | `BOOTSTRAP_ADMIN_*` | só para seed local/CI |
@@ -98,7 +98,7 @@ Para cada projeto:
 | `DATABASE_URL` / `DIRECT_URL` | `schema=fluxo` |
 | `NEXT_PUBLIC_APP_URL` | `https://fluxo.maxcultural.com.br` |
 | `NEXT_PUBLIC_HIDE_FLUXO_IAM` | `true` (IAM no hub) |
-| `AUTH_2FA_DISABLED` | `true` |
+| `AUTH_2FA_DISABLED` | `true` (login fica no Cultural; ignore no Fluxo) |
 | `BOOTSTRAP_ADMIN_*` | seed-auth local |
 
 ## 4. Smoke test

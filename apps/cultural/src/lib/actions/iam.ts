@@ -14,7 +14,24 @@ import {
 } from "@max/auth";
 import { sendInviteEmail } from "@/lib/email";
 
-const USER_CREATED_FLASH = "max_user_created_flash";
+const USER_FLASH = "max_user_flash";
+
+export type UserFlash = {
+  email: string;
+  provisional: string;
+  kind: "created" | "password_reset";
+};
+
+async function setUserFlash(flash: UserFlash) {
+  const jar = await cookies();
+  jar.set(USER_FLASH, JSON.stringify(flash), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/usuarios",
+    maxAge: 120,
+    secure: process.env.NODE_ENV === "production",
+  });
+}
 
 export async function createUserAction(formData: FormData) {
   const actor = await getSessionUser();
@@ -58,38 +75,75 @@ export async function createUserAction(formData: FormData) {
     to: email,
     name,
     link: `${site}/login`,
-    // Só inclui senha no e-mail quando Resend está ativo (não simulado).
     provisionalPassword: emailSimulated ? undefined : provisional,
   });
 
-  const jar = await cookies();
-  jar.set(
-    USER_CREATED_FLASH,
-    JSON.stringify({ email, provisional }),
-    {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/usuarios",
-      maxAge: 120,
-      secure: process.env.NODE_ENV === "production",
-    },
-  );
+  await setUserFlash({ email, provisional, kind: "created" });
   redirect("/usuarios?created=1");
 }
 
-export async function peekUserCreatedFlash(): Promise<{
-  email: string;
-  provisional: string;
-} | null> {
-  // Só leitura: cookies só podem ser apagadas em Server Action/Route Handler.
-  // O cookie expira em ~2 min (maxAge na criação).
+export async function adminResetPasswordAction(userId: string) {
+  const actor = await getSessionUser();
+  if (!actor || !can(actor, "cultural.usuarios", "edit")) {
+    redirect("/usuarios?error=" + encodeURIComponent("Sem permissão."));
+  }
+  if (userId === actor.id) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("Use Minha conta para alterar a própria senha."),
+    );
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) {
+    redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
+  }
+
+  const provisional = generateProvisionalPassword();
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash: await hashPassword(provisional),
+      mustChangePassword: true,
+      sessionVersion: { increment: 1 },
+    },
+  });
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "iam.password_reset",
+    screen: "cultural.usuarios",
+    entityType: "user",
+    entityId: userId,
+  });
+
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+  const emailSimulated =
+    process.env.AUTH_EMAIL_SIMULATE === "true" || !process.env.RESEND_API_KEY;
+  await sendInviteEmail({
+    to: target.email,
+    name: target.name,
+    link: `${site}/login`,
+    provisionalPassword: emailSimulated ? undefined : provisional,
+  });
+
+  await setUserFlash({
+    email: target.email,
+    provisional,
+    kind: "password_reset",
+  });
+  redirect("/usuarios?passwordReset=1");
+}
+
+export async function peekUserFlash(): Promise<UserFlash | null> {
   const jar = await cookies();
-  const raw = jar.get(USER_CREATED_FLASH)?.value;
+  const raw = jar.get(USER_FLASH)?.value;
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as { email?: string; provisional?: string };
+    const parsed = JSON.parse(raw) as Partial<UserFlash>;
     if (!parsed.email || !parsed.provisional) return null;
-    return { email: parsed.email, provisional: parsed.provisional };
+    const kind =
+      parsed.kind === "password_reset" ? "password_reset" : "created";
+    return { email: parsed.email, provisional: parsed.provisional, kind };
   } catch {
     return null;
   }

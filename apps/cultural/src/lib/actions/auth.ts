@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
+  can,
   clearSessionCookie,
   getPending2faUser,
   getSessionUser,
@@ -161,13 +162,24 @@ export async function completePasswordChangeAction(
       sessionVersion: { increment: 1 },
     },
   });
-  await setSessionCookie({ ...updated, email: user.email });
   await writeAuditLog({
     actorUserId: user.id,
     action: "auth.password_changed",
     ip: await clientIp(),
   });
-  return { ok: true, redirectTo: needs2faSetup(updated) ? "/onboarding/2fa" : "/" };
+
+  if (needs2faSetup(updated)) {
+    await setSessionCookie({ ...updated, email: user.email });
+    return { ok: true, redirectTo: "/onboarding/2fa" };
+  }
+  if (needs2faChallenge(updated)) {
+    await clearSessionCookie();
+    await setPending2faCookie(updated.id);
+    return { ok: true, redirectTo: "/login/2fa" };
+  }
+
+  await setSessionCookie({ ...updated, email: user.email });
+  return { ok: true, redirectTo: "/" };
 }
 
 export async function startTotpSetupAction(): Promise<
@@ -274,14 +286,71 @@ export async function requestPasswordResetAction(
   return { ok: true, message: "Se o e-mail existir, enviaremos o link." };
 }
 
+export async function resetPasswordWithTokenAction(
+  _prev: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const token = String(formData.get("token") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  if (!token) return { error: "Link inválido ou expirado." };
+  if (password !== confirm) return { error: "As senhas não coincidem." };
+
+  const tokenHash = await hashToken(token);
+  const row = await prisma.passwordResetToken.findFirst({
+    where: {
+      tokenHash,
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    include: { user: true },
+  });
+  if (!row || row.user.deactivatedAt) {
+    return { error: "Link inválido ou expirado." };
+  }
+
+  const strength = validateStrongPassword(password, { email: row.user.email });
+  if (!strength.ok) return { error: strength.error };
+
+  const passwordHash = await hashPassword(password);
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: row.userId },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        sessionVersion: { increment: 1 },
+      },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: row.id },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  await writeAuditLog({
+    actorUserId: row.userId,
+    action: "auth.password_reset_completed",
+    ip: await clientIp(),
+  });
+
+  return {
+    ok: true,
+    message: "Senha atualizada. Faça login com a nova senha.",
+    redirectTo: "/login",
+  };
+}
+
 export async function adminReset2faAction(userId: string) {
   const actor = await getSessionUser();
-  if (
-    !actor ||
-    (!actor.isSuperAdmin &&
-      !actor.role.permissions.some((p) => p.screen === "cultural.usuarios" && p.canEdit))
-  ) {
+  if (!actor || !(actor.isSuperAdmin || can(actor, "cultural.usuarios", "edit"))) {
     redirect("/usuarios?error=" + encodeURIComponent("Sem permissão."));
+  }
+  if (userId === actor.id) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("Para o próprio 2FA, use Minha conta ou peça a outro admin."),
+    );
   }
   const target = await prisma.user.update({
     where: { id: userId },
@@ -301,4 +370,5 @@ export async function adminReset2faAction(userId: string) {
   });
   await send2faNoticeEmail({ to: target.email, name: target.name });
   revalidatePath("/usuarios");
+  redirect("/usuarios?reset2fa=1");
 }

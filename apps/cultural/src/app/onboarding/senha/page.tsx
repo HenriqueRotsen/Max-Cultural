@@ -16,8 +16,11 @@ export default async function OnboardingSenhaPage() {
     <div className="auth-shell">
       <div className="auth-card">
         <MaxCulturalLogoLink href="/login" />
-        <h1 className="auth-title">Nova senha</h1>
-        <p className="auth-lead">Defina uma senha forte (10+ caracteres, maiúscula, dígito e símbolo).</p>
+        <h1 className="auth-title">Senha temporária</h1>
+        <p className="auth-lead">
+          Sua senha atual é provisória. Defina uma senha forte (10+ caracteres, maiúscula,
+          dígito e símbolo). Em seguida você configurará o autenticador (2FA).
+        </p>
         <PasswordChangeForm />
       </div>
     </div>
