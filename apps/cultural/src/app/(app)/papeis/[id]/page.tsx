@@ -67,7 +67,9 @@ export default async function PapelAcessosPage({
       {error ? <p className="auth-alert">{error}</p> : null}
       {saved ? (
         <p className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]">
-          Acessos salvos.
+          Acessos salvos. As sessões dos {role._count.users} usuário
+          {role._count.users === 1 ? "" : "s"} deste papel foram encerradas — será
+          preciso entrar de novo.
         </p>
       ) : null}
 

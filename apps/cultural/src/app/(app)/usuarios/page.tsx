@@ -6,6 +6,7 @@ import {
   createUserAction,
   peekUserFlash,
   toggleUserAction,
+  updateUserRoleAction,
 } from "@/lib/actions/iam";
 import { adminReset2faAction } from "@/lib/actions/auth";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
@@ -25,6 +26,7 @@ export default async function UsuariosPage({
   const created = sp.created === "1" || sp.created === "true";
   const passwordReset = sp.passwordReset === "1" || sp.passwordReset === "true";
   const reset2fa = sp.reset2fa === "1" || sp.reset2fa === "true";
+  const roleUpdated = sp.roleUpdated === "1" || sp.roleUpdated === "true";
   const error = typeof sp.error === "string" ? sp.error : null;
   const flash =
     created || passwordReset ? await peekUserFlash() : null;
@@ -68,6 +70,11 @@ export default async function UsuariosPage({
       {reset2fa ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
           2FA resetado. No próximo login o usuário configura o autenticador de novo.
+        </p>
+      ) : null}
+      {roleUpdated ? (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
+          Papel atualizado. A sessão do usuário foi encerrada — ele precisa entrar de novo.
         </p>
       ) : null}
 
@@ -124,7 +131,33 @@ export default async function UsuariosPage({
               <tr key={u.id}>
                 <td>{u.name}</td>
                 <td>{u.email}</td>
-                <td>{u.role.name}</td>
+                <td>
+                  {canEdit ? (
+                    <form action={updateUserRoleAction} className="inline-flex items-center gap-1">
+                      <input type="hidden" name="userId" value={u.id} />
+                      <select
+                        name="roleId"
+                        defaultValue={u.roleId}
+                        className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-sm"
+                        aria-label={`Papel de ${u.name}`}
+                      >
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ConfirmSubmitButton
+                        className="btn btn-ghost"
+                        message="Trocar o papel deste usuário? A sessão atual será encerrada."
+                      >
+                        Salvar
+                      </ConfirmSubmitButton>
+                    </form>
+                  ) : (
+                    u.role.name
+                  )}
+                </td>
                 <td>
                   {u.totpEnabled
                     ? "Ativo"

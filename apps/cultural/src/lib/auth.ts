@@ -35,6 +35,12 @@ export async function setSessionCookie(user: {
   sessionVersion: number;
   email: string;
 }) {
+  const full = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: userInclude,
+  });
+  const permissions = full ? listGrantedPermissionIds(full) : [];
+
   const jar = await cookies();
   jar.set(
     AUTH_COOKIE,
@@ -42,6 +48,7 @@ export async function setSessionCookie(user: {
       userId: user.id,
       sessionVersion: user.sessionVersion,
       email: user.email,
+      permissions,
     }),
     sessionCookieOptions(MAX_AGE_SECONDS),
   );

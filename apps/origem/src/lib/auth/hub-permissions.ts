@@ -2,7 +2,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import http from "node:http";
 import https from "node:https";
-import { AUTH_COOKIE, culturalHubUrl } from "@max/auth";
+import { AUTH_COOKIE, culturalHubUrl, parseSessionToken } from "@max/auth";
 
 export type HubPermissionsPayload = {
   ids: Set<string>;
@@ -13,15 +13,15 @@ export type HubPermissionsPayload = {
 };
 
 function hubBaseForServer(): string {
-  // Evita ::1 vs 127.0.0.1 em algumas stacks locais.
   return culturalHubUrl().replace("://localhost", "://127.0.0.1");
 }
 
-function fetchHubPermissionsJson(
-  hubBase: string,
+function hubGet(
+  path: string,
   token: string,
+  timeoutMs: number,
 ): Promise<{ status: number; body: string }> {
-  const url = new URL("/api/session/permissions", `${hubBase}/`);
+  const url = new URL(path, `${hubBaseForServer()}/`);
   const lib = url.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
     const req = lib.request(
@@ -36,7 +36,7 @@ function fetchHubPermissionsJson(
           authorization: `Bearer ${token}`,
           "x-max-session": token,
         },
-        timeout: 8000,
+        timeout: timeoutMs,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -52,10 +52,20 @@ function fetchHubPermissionsJson(
     req.on("error", reject);
     req.on("timeout", () => {
       req.destroy();
-      reject(new Error("hub permissions timeout"));
+      reject(new Error("hub request timeout"));
     });
     req.end();
   });
+}
+
+function payloadFromIds(ids: Iterable<string>): HubPermissionsPayload {
+  const set = new Set(ids);
+  const entries = [...set].map((screen) => ({
+    screen,
+    canView: true,
+    canEdit: true,
+  }));
+  return { ids: set, entries, fetchFailed: false };
 }
 
 function parsePermissionsPayload(raw: string): HubPermissionsPayload {
@@ -98,34 +108,46 @@ function parsePermissionsPayload(raw: string): HubPermissionsPayload {
 }
 
 /**
- * Busca permissões do hub Cultural para a sessão atual.
- * Deny-by-default: falha de rede / 401 → set vazio + fetchFailed.
+ * Permissões do hub:
+ * 1) token u2 com grants → usa cookie (rápido)
+ * 2) valida sessão viva no Cultural (sessionVersion) — encerra se admin alterou papel
+ * 3) token legado → GET /api/session/permissions
  */
 export const getHubPermissions = cache(async (): Promise<HubPermissionsPayload> => {
   try {
     const jar = await cookies();
     const token = jar.get(AUTH_COOKIE)?.value;
     if (!token) {
-      if (process.env.NODE_ENV === "development") {
-        console.warn("[hub-permissions] sem cookie max_session");
-      }
       return { ids: new Set(), entries: [], fetchFailed: true };
     }
 
-    const hub = hubBaseForServer();
-    const { status, body } = await fetchHubPermissionsJson(hub, token);
+    const parsed = await parseSessionToken(token);
+    if (!parsed) {
+      return { ids: new Set(), entries: [], fetchFailed: true };
+    }
+
+    // Token com grants embutidos: confirma que a sessão ainda é válida no hub.
+    if (parsed.permissions) {
+      try {
+        const alive = await hubGet("/api/session/alive", token, 2500);
+        if (alive.status === 401) {
+          return { ids: new Set(), entries: [], fetchFailed: true };
+        }
+        if (alive.status >= 200 && alive.status < 300) {
+          return payloadFromIds(parsed.permissions);
+        }
+      } catch {
+        // Hub indisponível: usa grants do cookie (disponibilidade > frescura).
+        return payloadFromIds(parsed.permissions);
+      }
+    }
+
+    const { status, body } = await hubGet("/api/session/permissions", token, 8000);
     if (status < 200 || status >= 300) {
-      if (process.env.NODE_ENV === "development") {
-        console.warn("[hub-permissions] hub status", status, hub, body.slice(0, 120));
-      }
       return { ids: new Set(), entries: [], fetchFailed: true };
     }
-
     return parsePermissionsPayload(body);
-  } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn("[hub-permissions] erro", err);
-    }
+  } catch {
     return { ids: new Set(), entries: [], fetchFailed: true };
   }
 });
@@ -133,8 +155,6 @@ export const getHubPermissions = cache(async (): Promise<HubPermissionsPayload> 
 export async function hasHubPermission(permissionId: string): Promise<boolean> {
   const { ids, fetchFailed } = await getHubPermissions();
   if (ids.has("*")) return true;
-  // Capacidades privilegiadas: sem resposta do hub → negar.
-  // Entrada no produto é tratada no layout (permite se SSO ok e fetch falhou).
   if (fetchFailed) return false;
   return ids.has(permissionId);
 }

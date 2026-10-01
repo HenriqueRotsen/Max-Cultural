@@ -131,7 +131,7 @@ export function RoleAccessEditor({
         <div className="flex items-center gap-3 pt-2">
           <ConfirmSubmitButton
             className="btn"
-            message={`Salvar acessos de ${roleName}?`}
+            message={`Salvar acessos de ${roleName}? Todas as sessões dos usuários deste papel serão encerradas.`}
             confirmLabel="Salvar"
           >
             Salvar acessos

@@ -18,11 +18,12 @@ export type HubFluxoAccess = {
   codes: Set<PermissionCode>;
 };
 
-function fetchHubPermissionsJson(
-  hubBase: string,
+function hubGet(
+  path: string,
   token: string,
+  timeoutMs: number,
 ): Promise<{ status: number; body: string }> {
-  const url = new URL("/api/session/permissions", `${hubBase}/`);
+  const url = new URL(path, `${culturalHubUrl().replace("://localhost", "://127.0.0.1")}/`);
   const lib = url.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
     const req = lib.request(
@@ -37,7 +38,7 @@ function fetchHubPermissionsJson(
           authorization: `Bearer ${token}`,
           "x-max-session": token,
         },
-        timeout: 8000,
+        timeout: timeoutMs,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -53,15 +54,32 @@ function fetchHubPermissionsJson(
     req.on("error", reject);
     req.on("timeout", () => {
       req.destroy();
-      reject(new Error("hub permissions timeout"));
+      reject(new Error("hub request timeout"));
     });
     req.end();
   });
 }
 
+function codesFromHubIds(ids: Set<string>): HubFluxoAccess {
+  if (!ids.has("fluxo.app")) {
+    return { hasHubSession: true, allowedProduct: false, codes: new Set() };
+  }
+  const codes = new Set<PermissionCode>();
+  for (const [hubId, mapped] of Object.entries(HUB_TO_FLUXO_PERMISSIONS)) {
+    if (!ids.has(hubId)) continue;
+    for (const code of mapped) {
+      if (PERMISSION_CODES.includes(code as PermissionCode)) {
+        codes.add(code as PermissionCode);
+      }
+    }
+  }
+  codes.add("perfil:write");
+  return { hasHubSession: true, allowedProduct: true, codes };
+}
+
 /**
- * Permissões do hub mapeadas para códigos do Fluxo.
- * Deny-by-default se hub responder 401/erro.
+ * Prefer grants do cookie (u2); valida sessão viva no Cultural.
+ * Token legado cai no GET /api/session/permissions.
  */
 export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
   const empty: HubFluxoAccess = {
@@ -73,12 +91,24 @@ export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
   try {
     const jar = await cookies();
     const token = jar.get(AUTH_COOKIE)?.value;
-    if (!token || !(await parseSessionToken(token))) {
-      return empty;
+    const parsed = token ? await parseSessionToken(token) : null;
+    if (!token || !parsed) return empty;
+
+    if (parsed.permissions) {
+      try {
+        const alive = await hubGet("/api/session/alive", token, 2500);
+        if (alive.status === 401) {
+          return { hasHubSession: true, allowedProduct: false, codes: new Set() };
+        }
+        if (alive.status >= 200 && alive.status < 300) {
+          return codesFromHubIds(new Set(parsed.permissions));
+        }
+      } catch {
+        return codesFromHubIds(new Set(parsed.permissions));
+      }
     }
 
-    const hub = culturalHubUrl().replace("://localhost", "://127.0.0.1");
-    const { status, body } = await fetchHubPermissionsJson(hub, token);
+    const { status, body } = await hubGet("/api/session/permissions", token, 8000);
     if (status < 200 || status >= 300) {
       return { hasHubSession: true, allowedProduct: false, codes: new Set() };
     }
@@ -104,21 +134,7 @@ export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
       }
     }
 
-    if (!ids.has("fluxo.app")) {
-      return { hasHubSession: true, allowedProduct: false, codes: new Set() };
-    }
-
-    const codes = new Set<PermissionCode>();
-    for (const [hubId, mapped] of Object.entries(HUB_TO_FLUXO_PERMISSIONS)) {
-      if (!ids.has(hubId)) continue;
-      for (const code of mapped) {
-        if (PERMISSION_CODES.includes(code as PermissionCode)) {
-          codes.add(code as PermissionCode);
-        }
-      }
-    }
-    codes.add("perfil:write");
-    return { hasHubSession: true, allowedProduct: true, codes };
+    return codesFromHubIds(ids);
   } catch {
     return { hasHubSession: true, allowedProduct: false, codes: new Set() };
   }

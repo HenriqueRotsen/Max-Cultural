@@ -201,6 +201,11 @@ export async function saveRolePermissionsAction(formData: FormData) {
         canEdit: screen.endsWith(".edit") || ACCESS_BY_ID[screen]?.kind === "capability",
       })),
     }),
+    // Encerra sessões de todos os usuários deste papel (Cultural + satélites).
+    prisma.user.updateMany({
+      where: { roleId },
+      data: { sessionVersion: { increment: 1 } },
+    }),
   ]);
   await writeAuditLog({
     actorUserId: actor.id,
@@ -208,10 +213,52 @@ export async function saveRolePermissionsAction(formData: FormData) {
     screen: "cultural.papeis",
     entityType: "role",
     entityId: roleId,
+    meta: { sessionsInvalidated: true },
   });
   revalidatePath("/papeis");
   revalidatePath(`/papeis/${roleId}`);
   redirect(`/papeis/${roleId}?saved=1`);
+}
+
+/** Troca o papel do usuário e invalida a sessão atual dele. */
+export async function updateUserRoleAction(formData: FormData) {
+  const actor = await getSessionUser();
+  if (!actor || !can(actor, "cultural.usuarios", "edit")) {
+    redirect("/usuarios?error=" + encodeURIComponent("Sem permissão."));
+  }
+  const userId = String(formData.get("userId") ?? "");
+  const roleId = String(formData.get("roleId") ?? "");
+  if (!userId || !roleId) {
+    redirect("/usuarios?error=" + encodeURIComponent("Dados inválidos."));
+  }
+  const [target, role] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.role.findUnique({ where: { id: roleId } }),
+  ]);
+  if (!target || !role) {
+    redirect("/usuarios?error=" + encodeURIComponent("Usuário ou papel inválido."));
+  }
+  if (target.roleId === roleId) {
+    redirect("/usuarios");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      roleId,
+      sessionVersion: { increment: 1 },
+    },
+  });
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "iam.user_role_changed",
+    screen: "cultural.usuarios",
+    entityType: "user",
+    entityId: userId,
+    meta: { roleId, previousRoleId: target.roleId },
+  });
+  revalidatePath("/usuarios");
+  redirect("/usuarios?roleUpdated=1");
 }
 
 export async function createRoleAction(formData: FormData) {

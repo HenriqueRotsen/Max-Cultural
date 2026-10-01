@@ -92,6 +92,8 @@ export type SessionPayload = {
   sessionVersion: number;
   issuedAt: number;
   email?: string;
+  /** Grants embutidos no login (u2). Ausente em tokens legados `u:`. */
+  permissions?: string[];
 };
 
 export type Pending2faPayload = {
@@ -99,16 +101,21 @@ export type Pending2faPayload = {
   issuedAt: number;
 };
 
+/** Token v2: inclui grants para Origem/Fluxo não baterem no hub a cada página. */
 export async function createSessionToken(input: {
   userId: string;
   sessionVersion: number;
   email?: string;
+  permissions?: string[];
 }): Promise<string> {
   const issuedAt = Date.now();
   const email = input.email ? encodeURIComponent(input.email) : "";
-  const payload = email
-    ? `u:${input.userId}:${input.sessionVersion}:${issuedAt}:${email}`
-    : `u:${input.userId}:${input.sessionVersion}:${issuedAt}`;
+  const permissions = Array.isArray(input.permissions)
+    ? encodeURIComponent(
+        [...new Set(input.permissions.map((p) => p.trim()).filter(Boolean))].join(","),
+      )
+    : "";
+  const payload = `u2:${input.userId}:${input.sessionVersion}:${issuedAt}:${email}:${permissions}`;
   const signature = await sign(payload);
   return `${payload}.${signature}`;
 }
@@ -125,6 +132,24 @@ export async function parseSessionToken(
   if (!timingSafeEqualString(signature, expected)) return null;
 
   const parts = payload.split(":");
+  if (parts[0] === "u2" && parts.length === 6) {
+    const userId = parts[1]!;
+    const sessionVersion = Number(parts[2]);
+    const issuedAt = Number(parts[3]);
+    if (!userId || !Number.isFinite(sessionVersion) || !Number.isFinite(issuedAt)) {
+      return null;
+    }
+    const ageMs = Date.now() - issuedAt;
+    if (ageMs < 0 || ageMs > MAX_AGE_SECONDS * 1000) return null;
+    const email = parts[4] ? decodeURIComponent(parts[4]) : undefined;
+    const permissionsRaw = parts[5] ? decodeURIComponent(parts[5]) : "";
+    const permissions = permissionsRaw
+      ? permissionsRaw.split(",").map((p) => p.trim()).filter(Boolean)
+      : [];
+    return { userId, sessionVersion, issuedAt, email, permissions };
+  }
+
+  // Legado `u:userId:version:issuedAt[:email]`
   if (parts[0] !== "u" || (parts.length !== 4 && parts.length !== 5)) return null;
   const userId = parts[1]!;
   const sessionVersion = Number(parts[2]);
