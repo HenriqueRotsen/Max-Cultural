@@ -126,16 +126,8 @@ export async function loginAction(
 }
 
 export async function logoutAction() {
-  const user = await getSessionUser();
-  await clearSessionCookie();
-  if (user) {
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.logout",
-      ip: await clientIp(),
-    });
-  }
-  redirect("/login");
+  // Preferir GET /logout (route) — Server Action + redirect quebrou com digest em prod.
+  redirect("/logout");
 }
 
 export async function completePasswordChangeAction(

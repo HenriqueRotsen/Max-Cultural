@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MaxCulturalLogo } from "@/components/BrandLogo";
-import { logoutAction } from "@/lib/actions/auth";
 
 const hubLinks = [
   { href: "/", label: "Início" },
@@ -131,11 +130,9 @@ export function AppSidebar({
         >
           Minha conta
         </Link>
-        <form action={logoutAction}>
-          <button type="submit" className="btn btn-ghost w-full justify-start px-0">
-            Sair
-          </button>
-        </form>
+        <Link href="/logout" className="btn btn-ghost w-full justify-start px-0">
+          Sair
+        </Link>
       </div>
     </aside>
   );

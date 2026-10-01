@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MaxOrigemLogo } from "@/components/MaxOrigemLogo";
-import { signOut } from "@/lib/auth/actions";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
   /\/$/,
@@ -174,25 +173,23 @@ export function AppSidebar({
             <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
               Conta
             </p>
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
-              >
-                <LogoutIcon />
-                <span className="min-w-0">
-                  <span className="block truncate">Sair</span>
-                  {userEmail ? (
-                    <span
-                      className="block truncate text-xs font-normal text-[var(--gray-400)]"
-                      title={userEmail}
-                    >
-                      {userEmail}
-                    </span>
-                  ) : null}
-                </span>
-              </button>
-            </form>
+            <a
+              href="/sair"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
+            >
+              <LogoutIcon />
+              <span className="min-w-0">
+                <span className="block truncate">Sair</span>
+                {userEmail ? (
+                  <span
+                    className="block truncate text-xs font-normal text-[var(--gray-400)]"
+                    title={userEmail}
+                  >
+                    {userEmail}
+                  </span>
+                ) : null}
+              </span>
+            </a>
           </div>
         </div>
       </nav>

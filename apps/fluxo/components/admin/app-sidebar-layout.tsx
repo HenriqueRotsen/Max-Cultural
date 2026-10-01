@@ -18,7 +18,6 @@ import {
   LayoutDashboard,
   X,
 } from "lucide-react";
-import { logoutAction } from "@/app/actions/auth";
 import { BrandLogo } from "@/components/brand-logo";
 import { PageBackLink } from "@/components/page-back-link";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -254,17 +253,13 @@ function SidebarPanel({
           <UserRound className="size-3.5" />
           Minha conta
         </a>
-        <form action={logoutAction}>
-          <Button
-            type="submit"
-            variant="outline"
-            size="sm"
-            className="w-full justify-start gap-2"
-          >
-            <LogOut className="size-3.5" />
-            Sair
-          </Button>
-        </form>
+        <a
+          href="/sair"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-start gap-2")}
+        >
+          <LogOut className="size-3.5" />
+          Sair
+        </a>
       </div>
     </aside>
   );
