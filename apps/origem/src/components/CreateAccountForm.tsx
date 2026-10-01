@@ -1,13 +1,37 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { createAccount, lookupAccountByCgccpf } from "@/lib/actions";
+import { createAccount } from "@/lib/actions";
 import { FieldLabel } from "@/components/FieldHelp";
-import { formatCgccpf, formatCgccpfInput, isValidCnpj, isValidCpf } from "@/lib/format";
+import {
+  formatCgccpf,
+  formatCgccpfInput,
+  isValidCnpj,
+  isValidCpf,
+} from "@/lib/format";
 import { HELP } from "@/lib/help";
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
+}
+
+type LookupResult =
+  | {
+      found: true;
+      source: string;
+      cgccpf: string;
+      name: string;
+      personType: "PJ" | "PF" | "MEI";
+    }
+  | { found: false; error?: string };
+
+async function lookupAccount(digits: string): Promise<LookupResult> {
+  const res = await fetch(`/api/lookup/account?q=${encodeURIComponent(digits)}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  const data = (await res.json()) as LookupResult;
+  return data;
 }
 
 export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolean }) {
@@ -29,7 +53,7 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
     startTransition(async () => {
       setStatus(readyCnpj ? "Consultando CNPJ…" : "Buscando no SALIC…");
       try {
-        const result = await lookupAccountByCgccpf(digits);
+        const result = await lookupAccount(digits);
         if (!result.found) {
           setStatus(result.error || "Não encontrado");
           return;
@@ -39,19 +63,13 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
         setName(result.name);
         setPersonType(result.personType);
 
-        if (result.source === "brasilapi") {
+        if (result.source === "brasilapi" || result.source === "cnpjws") {
           setStatus("Dados preenchidos pela consulta de CNPJ. Revise antes de salvar.");
         } else {
           setStatus("Nome preenchido pelo SALIC.");
         }
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        // Erro de protocolo RSC (#441) — deixa preencher o nome manualmente
-        if (/Minified React error #441|digest/i.test(msg)) {
-          setStatus("Consulta automática indisponível. Informe o nome manualmente.");
-        } else {
-          setStatus(msg || "Falha na consulta automática");
-        }
+      } catch {
+        setStatus("Consulta automática indisponível. Informe o nome manualmente.");
       }
     });
   }
@@ -138,7 +156,9 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
           <>
             <div className="md:col-span-2 pt-1">
               <h3 className="text-sm font-semibold text-[var(--navy)]">Acesso SALIC</h3>
-              <p className="mt-0.5 text-xs text-[var(--gray-500)]">Opcional — para sync pela área logada.</p>
+              <p className="mt-0.5 text-xs text-[var(--gray-500)]">
+                Opcional — para sync pela área logada.
+              </p>
             </div>
             <div className="field">
               <FieldLabel htmlFor="salicUsername" help={HELP.salicUser}>

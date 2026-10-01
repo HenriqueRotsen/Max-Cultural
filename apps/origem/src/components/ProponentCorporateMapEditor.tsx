@@ -6,7 +6,6 @@ import {
   deleteCorporatePeriod,
   deleteCorporatePeriodMember,
   importAccountCorporateMap,
-  lookupAccountByCgccpf,
   setAccountInstitutionalMap,
   upsertCorporatePeriod,
   upsertCorporatePeriodMember,
@@ -179,8 +178,11 @@ function MemberForm({
     if (digits.length !== 14) return;
     setLookingUp(true);
     try {
-      const result = await lookupAccountByCgccpf(digits);
-      if (result.found) setName(result.name);
+      const res = await fetch(`/api/lookup/account?q=${encodeURIComponent(digits)}`, {
+        cache: "no-store",
+      });
+      const result = (await res.json()) as { found?: boolean; name?: string };
+      if (result.found && result.name) setName(result.name);
     } catch {
       // nome continua manual
     } finally {
