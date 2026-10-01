@@ -2,7 +2,7 @@ import municipiosCoords from "@/data/municipios-coords.json";
 import { cityKey, lookupUfByCidade } from "@/lib/municipio-uf";
 import { normalizeAddressLine, normalizeUf } from "@/lib/normalize";
 
-const COORDS = municipiosCoords as Record<string, [number, number]>;
+const COORDS = municipiosCoords as unknown as Record<string, [number, number]>;
 
 function pair(
   latLng: [number, number] | undefined,

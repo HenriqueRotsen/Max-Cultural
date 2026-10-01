@@ -1,6 +1,6 @@
 import municipiosCoords from "@/data/municipios-coords.json";
 
-const COORDS = municipiosCoords as Record<string, [number, number]>;
+const COORDS = municipiosCoords as unknown as Record<string, [number, number]>;
 
 function cityKey(name: string): string {
   const raw = String(name ?? "")
