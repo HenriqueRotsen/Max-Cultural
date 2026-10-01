@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { createAccount, lookupAccountByCgccpf } from "@/lib/actions";
 import { FieldLabel } from "@/components/FieldHelp";
-import { formatCgccpf } from "@/lib/format";
+import { formatCgccpf, formatCgccpfInput, isValidCnpj, isValidCpf } from "@/lib/format";
 import { HELP } from "@/lib/help";
 
 function onlyDigits(value: string) {
@@ -16,16 +16,18 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
   const [personType, setPersonType] = useState<"PJ" | "PF" | "MEI">("PJ");
   const [status, setStatus] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [lastLookup, setLastLookup] = useState("");
+  const lastLookupRef = useRef("");
 
   function lookupDocument(value: string) {
     const digits = onlyDigits(value);
-    if (digits.length !== 11 && digits.length !== 14) return;
-    if (digits === lastLookup) return;
+    const readyCnpj = digits.length === 14 && isValidCnpj(digits);
+    const readyCpf = digits.length === 11 && isValidCpf(digits);
+    if (!readyCnpj && !readyCpf) return;
+    if (digits === lastLookupRef.current) return;
 
-    setLastLookup(digits);
+    lastLookupRef.current = digits;
     startTransition(async () => {
-      setStatus(digits.length === 14 ? "Consultando CNPJ…" : "Buscando no SALIC…");
+      setStatus(readyCnpj ? "Consultando CNPJ…" : "Buscando no SALIC…");
       try {
         const result = await lookupAccountByCgccpf(digits);
         if (!result.found) {
@@ -67,19 +69,18 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
             id="cgccpf"
             name="cgccpf"
             required
+            inputMode="numeric"
+            autoComplete="off"
             value={cgccpf}
             placeholder="00.000.000/0001-00"
             onChange={(e) => {
-              const raw = e.target.value;
-              const digits = onlyDigits(raw).slice(0, 14);
-              const formatted =
-                digits.length === 11 || digits.length === 14 ? formatCgccpf(digits) : raw;
-              setCgccpf(formatted);
+              const digits = onlyDigits(e.target.value).slice(0, 14);
+              setCgccpf(formatCgccpfInput(digits));
               setStatus(null);
               if (digits.length === 11 || digits.length === 14) {
                 lookupDocument(digits);
               } else {
-                setLastLookup("");
+                lastLookupRef.current = "";
               }
             }}
             onBlur={(e) => {

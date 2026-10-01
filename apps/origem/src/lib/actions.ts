@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { RelatedPartyRelation } from "@/generated/prisma/enums";
 import { encryptCredential, normalizeCgccpf } from "@/lib/crypto";
-import { cgccpfValidationError, formatCgccpf, isValidCgccpf } from "@/lib/format";
+import { cgccpfValidationError, formatCgccpf, isValidCgccpf, isValidCnpj, isValidCpf } from "@/lib/format";
 
 const accountSchema = z.object({
   name: z.string().min(2, "Informe o nome"),
@@ -62,22 +62,35 @@ export async function createAccount(formData: FormData) {
   }
   const parsed = result.data;
 
-  await prisma.salicAccount.create({
-    data: {
-      name: parsed.name,
-      cgccpf: normalizeCgccpf(parsed.cgccpf),
-      salicUsernameEnc: entitlements.syncEnabled
-        ? encryptCredential(parsed.salicUsername)
-        : null,
-      salicPasswordEnc: entitlements.syncEnabled
-        ? encryptCredential(parsed.salicPassword)
-        : null,
-      extraPronacs: parsed.extraPronacs || null,
-      personType: parsed.personType || "PJ",
-      active: true,
-      workspaceId: entitlements.workspaceId,
-    },
-  });
+  try {
+    await prisma.salicAccount.create({
+      data: {
+        name: parsed.name,
+        cgccpf: normalizeCgccpf(parsed.cgccpf),
+        salicUsernameEnc: entitlements.syncEnabled
+          ? encryptCredential(parsed.salicUsername)
+          : null,
+        salicPasswordEnc: entitlements.syncEnabled
+          ? encryptCredential(parsed.salicPassword)
+          : null,
+        extraPronacs: parsed.extraPronacs || null,
+        personType: parsed.personType || "PJ",
+        active: true,
+        workspaceId: entitlements.workspaceId,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      redirect(
+        "/contas?tab=nova&error=" +
+          encodeURIComponent("Já existe um proponente com este CNPJ/CPF."),
+      );
+    }
+    throw error;
+  }
 
   revalidatePath("/contas");
   revalidatePath("/painel");
@@ -99,26 +112,38 @@ export async function updateAccount(id: string, formData: FormData) {
   }
   const parsed = result.data;
 
-  await prisma.salicAccount.update({
-    where: { id },
-    data: {
-      name: parsed.name,
-      cgccpf: normalizeCgccpf(parsed.cgccpf),
-      extraPronacs: parsed.extraPronacs || null,
-      personType: parsed.personType || "PJ",
-      active: formData.get("active") === "on" || formData.get("active") === "true",
-      ...(entitlements.syncEnabled
-        ? {
-            salicUsernameEnc: encryptCredential(parsed.salicUsername),
-            ...(clearPassword
-              ? { salicPasswordEnc: null }
-              : parsed.salicPassword
-                ? { salicPasswordEnc: encryptCredential(parsed.salicPassword) }
-                : {}),
-          }
-        : {}),
-    },
-  });
+  try {
+    await prisma.salicAccount.update({
+      where: { id },
+      data: {
+        name: parsed.name,
+        cgccpf: normalizeCgccpf(parsed.cgccpf),
+        extraPronacs: parsed.extraPronacs || null,
+        personType: parsed.personType || "PJ",
+        active: formData.get("active") === "on" || formData.get("active") === "true",
+        ...(entitlements.syncEnabled
+          ? {
+              salicUsernameEnc: encryptCredential(parsed.salicUsername),
+              ...(clearPassword
+                ? { salicPasswordEnc: null }
+                : parsed.salicPassword
+                  ? { salicPasswordEnc: encryptCredential(parsed.salicPassword) }
+                  : {}),
+            }
+          : {}),
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      redirect(
+        `/contas?tab=suas-contas&error=${encodeURIComponent("Já existe um proponente com este CNPJ/CPF.")}#account-${id}`,
+      );
+    }
+    throw error;
+  }
 
   revalidatePath("/contas");
   revalidatePath("/painel");
@@ -462,61 +487,83 @@ export async function lookupCep(cepRaw: string) {
 /**
  * CNPJ: BrasilAPI (nome / tipo).
  * CPF: só tenta nome no SALIC.
+ * Nunca lança — falhas viram `{ found: false }` (evita React #441 em produção).
  */
 export async function lookupAccountByCgccpf(cgccpfRaw: string) {
-  const cgccpf = normalizeCgccpf(cgccpfRaw);
-  if (cgccpf.length !== 11 && cgccpf.length !== 14) {
-    return { found: false as const, error: "Informe um CNPJ (14) ou CPF (11) válido" };
-  }
-
-  if (cgccpf.length === 14) {
-    try {
-      const { fetchCnpjCompany } = await import("@/lib/lookup/cnpj");
-      const company = await fetchCnpjCompany(cgccpf);
-      if (company) {
-        return {
-          found: true as const,
-          source: "brasilapi" as const,
-          cgccpf: company.cnpj,
-          name: company.name,
-          personType: company.personType,
-        };
-      }
-    } catch (error) {
-      // Continua no SALIC; se ambos falharem, devolve o erro da BrasilAPI no final
-      const salic = await lookupProponenteByCgccpf(cgccpf);
-      if (salic.found) {
-        return {
-          found: true as const,
-          source: "salic" as const,
-          cgccpf: salic.cgccpf,
-          name: salic.nome,
-          personType: "PJ" as const,
-        };
-      }
-      const message = error instanceof Error ? error.message : "Consulta CNPJ indisponível";
-      return { found: false as const, error: message };
+  try {
+    const cgccpf = normalizeCgccpf(cgccpfRaw);
+    if (cgccpf.length !== 11 && cgccpf.length !== 14) {
+      return {
+        found: false as const,
+        error: "Informe um CNPJ (14) ou CPF (11) válido",
+      };
     }
-  }
 
-  const salic = await lookupProponenteByCgccpf(cgccpf);
-  if (!salic.found) {
+    // CPF incompleto de um CNPJ em digitação: não consulta
+    if (cgccpf.length === 11 && !isValidCpf(cgccpf)) {
+      return { found: false as const, error: "CPF inválido" };
+    }
+    if (cgccpf.length === 14 && !isValidCnpj(cgccpf)) {
+      return { found: false as const, error: "CNPJ inválido" };
+    }
+
+    if (cgccpf.length === 14) {
+      try {
+        const { fetchCnpjCompany } = await import("@/lib/lookup/cnpj");
+        const company = await fetchCnpjCompany(cgccpf);
+        if (company) {
+          return {
+            found: true as const,
+            source: "brasilapi" as const,
+            cgccpf: company.cnpj,
+            name: company.name,
+            personType: company.personType,
+          };
+        }
+      } catch (error) {
+        const { unstable_rethrow } = await import("next/navigation");
+        unstable_rethrow(error);
+        // Continua no SALIC; se ambos falharem, devolve o erro da BrasilAPI
+        const salic = await lookupProponenteByCgccpf(cgccpf);
+        if (salic.found) {
+          return {
+            found: true as const,
+            source: "salic" as const,
+            cgccpf: salic.cgccpf,
+            name: salic.nome,
+            personType: "PJ" as const,
+          };
+        }
+        const message =
+          error instanceof Error ? error.message : "Consulta CNPJ indisponível";
+        return { found: false as const, error: message };
+      }
+    }
+
+    const salic = await lookupProponenteByCgccpf(cgccpf);
+    if (!salic.found) {
+      return {
+        found: false as const,
+        error:
+          cgccpf.length === 14
+            ? salic.error || "CNPJ não encontrado"
+            : "CPF não encontrado. Informe o nome manualmente.",
+      };
+    }
+
     return {
-      found: false as const,
-      error:
-        cgccpf.length === 14
-          ? salic.error || "CNPJ não encontrado"
-          : "CPF não encontrado. Informe o nome manualmente.",
+      found: true as const,
+      source: "salic" as const,
+      cgccpf: salic.cgccpf,
+      name: salic.nome,
+      personType: (cgccpf.length === 14 ? "PJ" : "PF") as "PJ" | "PF",
     };
+  } catch (error) {
+    const { unstable_rethrow } = await import("next/navigation");
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : String(error);
+    return { found: false as const, error: message };
   }
-
-  return {
-    found: true as const,
-    source: "salic" as const,
-    cgccpf: salic.cgccpf,
-    name: salic.nome,
-    personType: (cgccpf.length === 14 ? "PJ" : "PF") as "PJ" | "PF",
-  };
 }
 
 /** Compara CPF/CNPJ aceitando máscara da API SALIC (`***110973**`). */

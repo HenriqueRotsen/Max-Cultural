@@ -75,12 +75,14 @@ export async function fetchCnpjCompany(cnpjRaw: string): Promise<CnpjCompanyResu
   const cnpj = cnpjRaw.replace(/\D/g, "");
   if (cnpj.length !== 14) return null;
 
+  // Sem next.revalidate: em Server Actions o cache do fetch pode lançar
+  // erros internos do Next que, se engolidos, viram React #441 em produção.
   const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
     headers: {
       Accept: "application/json",
       "User-Agent": "MaxOrigemAuditor/1.0",
     },
-    next: { revalidate: 86400 },
+    cache: "no-store",
   });
   if (res.status === 404) return null;
   if (!res.ok) {
