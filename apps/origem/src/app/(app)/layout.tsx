@@ -38,7 +38,7 @@ async function TopBar({
             AND: [
               notificationVisibleWhere(),
               ...(userId
-                ? [{ OR: [{ userId }, { userId: null }] as const }]
+                ? [{ OR: [{ userId }, { userId: null }] }]
                 : []),
             ],
           },

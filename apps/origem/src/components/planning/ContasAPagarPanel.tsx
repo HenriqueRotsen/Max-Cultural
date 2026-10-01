@@ -27,7 +27,9 @@ function SortHeader({
   label: string;
   column: "due" | "amount" | "project" | "supplier" | "rubric" | "origin";
   sort: ContasAPagarSort;
-  onSort: (column: typeof column) => void;
+  onSort: (
+    column: "due" | "amount" | "project" | "supplier" | "rubric" | "origin",
+  ) => void;
   align?: "left" | "right";
 }) {
   const dir = contasAPagarSortDirection(sort, column);

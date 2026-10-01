@@ -29,7 +29,11 @@ export async function ensureFiscalDocumentNumber(fiscal: {
   if (rawText) {
     const fromText = extractFiscalNumbersFromText(rawText, kind);
     if (fromText.fiscalNumber) {
-      await persistFiscalNumbers(fiscal.id, current, fromText);
+      await persistFiscalNumbers(fiscal.id, current, {
+        fiscalNumber: fromText.fiscalNumber,
+        nfseNumber: fromText.nfseNumber,
+        rpsNumber: fromText.rpsNumber,
+      });
       return fromText.fiscalNumber;
     }
   }
