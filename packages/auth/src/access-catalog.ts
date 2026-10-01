@@ -238,7 +238,9 @@ export function isAccessPermissionId(id: string): id is AccessPermissionId {
 }
 
 export function childrenOf(parentId: string): AccessCatalogEntry[] {
-  return ACCESS_CATALOG.filter((e) => e.parentId === parentId);
+  return (ACCESS_CATALOG as readonly AccessCatalogEntry[]).filter(
+    (e) => e.parentId === parentId,
+  );
 }
 
 export function productSections(): Array<{

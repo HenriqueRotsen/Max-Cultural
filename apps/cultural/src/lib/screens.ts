@@ -9,10 +9,10 @@ export {
   type AccessPermissionId as ScreenId,
 } from "@max/auth";
 
-import { ACCESS_CATALOG } from "@max/auth";
+import { ACCESS_CATALOG, type AccessCatalogEntry } from "@max/auth";
 
 /** Lista plana para seeds/UI legada (todos os IDs do catálogo). */
-export const SCREENS = ACCESS_CATALOG.map((e) => ({
+export const SCREENS = (ACCESS_CATALOG as readonly AccessCatalogEntry[]).map((e) => ({
   id: e.id,
   label: e.label,
   group: e.group,
