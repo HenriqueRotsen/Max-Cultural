@@ -4,19 +4,26 @@ function envFlag(name: string) {
 }
 
 /**
- * Auth ligada só com Supabase real.
- * `SALINK_DEV_OPEN=1` força app aberto (local), mesmo com vars preenchidas.
+ * App aberto sem login (só local/debug).
+ * Preferir `ORIGEM_DEV_OPEN`. Aceita legado `SALINK_DEV_OPEN`.
+ * Login e 2FA do produto ficam no MAX Cultural (`AUTH_2FA_DISABLED` no hub).
  */
 export function isDevOpenAuth() {
-  return envFlag("SALINK_DEV_OPEN");
+  return envFlag("ORIGEM_DEV_OPEN") || envFlag("SALINK_DEV_OPEN");
 }
 
 /**
  * Demo público: sem login, amostra ~10% dos dados, CTA na landing.
- * Aceita `SALINK_DEMO` ou `NEXT_PUBLIC_SALINK_DEMO`.
+ * Preferir `ORIGEM_DEMO` / `NEXT_PUBLIC_ORIGEM_DEMO`.
+ * Aceita legado `SALINK_DEMO` / `NEXT_PUBLIC_SALINK_DEMO`.
  */
 export function isDemoMode() {
-  return envFlag("SALINK_DEMO") || envFlag("NEXT_PUBLIC_SALINK_DEMO");
+  return (
+    envFlag("ORIGEM_DEMO") ||
+    envFlag("NEXT_PUBLIC_ORIGEM_DEMO") ||
+    envFlag("SALINK_DEMO") ||
+    envFlag("NEXT_PUBLIC_SALINK_DEMO")
+  );
 }
 
 function looksLikePlaceholder(url: string, anon: string) {
@@ -29,7 +36,7 @@ function looksLikePlaceholder(url: string, anon: string) {
   );
 }
 
-/** Se false: layout/proxy não exigem login (workspace bootstrap Pro / demo). */
+/** Se false: layout/proxy não exigem login (dev aberto / demo). */
 export function isAuthEnabled() {
   if (isDemoMode()) return false;
   if (isDevOpenAuth()) return false;
@@ -39,7 +46,7 @@ export function isAuthEnabled() {
   return true;
 }
 
-/** Login só no MAX Cultural, salvo demo público ou SALINK_DEV_OPEN. */
+/** Login no hub MAX Cultural, salvo demo público ou ORIGEM_DEV_OPEN. */
 export function needsLogin() {
   if (isDemoMode() || isDevOpenAuth()) return false;
   return true;

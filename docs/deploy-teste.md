@@ -85,8 +85,8 @@ Para cada projeto:
 | Var | Nota |
 |-----|------|
 | `DATABASE_URL` / `DIRECT_URL` | `schema=origem` |
-| `SALINK_DEV_OPEN` | `0` |
-| `SALINK_DEMO` | `0` |
+| `ORIGEM_DEV_OPEN` | `0` (login via Cultural; 2FA = `AUTH_2FA_DISABLED` no hub) |
+| `ORIGEM_DEMO` | `0` |
 | `CREDENTIALS_SECRET` | obrigatório |
 | `SYNC_MODE` | `chunked` |
 | `SYNC_CONCURRENCY` | `2` |

@@ -21,11 +21,11 @@ npm run dev
 
 Abra http://localhost:3000
 
-Sem variáveis Supabase (ou com `SALINK_DEV_OPEN=1`), o app fica aberto em local — entre em `/painel` sem login.
+Sem variáveis de hub (ou com `ORIGEM_DEV_OPEN=1`), o app fica aberto em local — entre em `/painel` sem login.
 
-Com **`SALINK_DEMO=1`**: landing mostra **Experimentar demo**, app sem login, amostra de ~10% dos projetos/pagamentos; sync e cadastros ficam bloqueados.
+Com **`ORIGEM_DEMO=1`**: landing mostra **Experimentar demo**, app sem login, amostra de ~10% dos projetos/pagamentos; sync e cadastros ficam bloqueados.
 
-Com Auth real (`SALINK_DEV_OPEN=0`, `SALINK_DEMO=0` + keys do Supabase):
+Com Auth real (`ORIGEM_DEV_OPEN=0`, `ORIGEM_DEMO=0` + SSO do Cultural):
 
 1. Coloque seu e-mail em `ADMIN_EMAILS`
 2. Crie o usuário no Supabase (ou em **Usuários**) e entre em `/login`
@@ -83,8 +83,8 @@ O gargalo é a API SALIC. Otimizações seguras (sem perder dados):
 
 | Var | Uso |
 |-----|-----|
-| `SALINK_DEV_OPEN` | `1` = app sem login (só local). Em produção use `0` |
-| `SALINK_DEMO` | `1` = demo pública (~10% dados, CTA na landing, sem login) |
+| `ORIGEM_DEV_OPEN` | `1` = app sem login (só local). Em produção use `0`. Login/2FA no Cultural |
+| `ORIGEM_DEMO` | `1` = demo pública (~10% dados, CTA na landing, sem login) |
 | `DATABASE_URL` | Postgres / Supabase |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon (client + SSR) |
