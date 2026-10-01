@@ -51,7 +51,7 @@ Ver `.env.example` na raiz e em cada app.
 
 **Cultural:** `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_COOKIE_DOMAIN`, `CREDENTIALS_SECRET` (cifrar TOTP), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_2FA_DISABLED=false`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ORIGEM_URL`, `NEXT_PUBLIC_FLUXO_URL`.
 
-**Origem:** `DATABASE_URL` + `DIRECT_URL` (dados SALIC), `CREDENTIALS_SECRET`, `SYNC_*`, `ORIGEM_DEV_OPEN=0`. Depois do SSO: `AUTH_SECRET` e `NEXT_PUBLIC_CULTURAL_URL`. Login/2FA no Cultural (`AUTH_2FA_DISABLED`).
+**Origem:** `DATABASE_URL` + `DIRECT_URL` (dados SALIC), `CREDENTIALS_SECRET`, `SYNC_*`. SSO: `AUTH_SECRET` e `NEXT_PUBLIC_CULTURAL_URL`. Login/2FA só no Cultural (`AUTH_2FA_DISABLED`).
 
 **Fluxo:** `DATABASE_URL` do schema Siga; depois do SSO, as mesmas keys públicas de sessão.
 
@@ -59,7 +59,7 @@ Service role e connection strings nunca no client.
 
 ## Segurança
 
-CI: ESLint, `npm audit`, Gitleaks, CodeQL, Semgrep. Não commitar `.env`. HSTS/CSP headers nos apps. Sem `ORIGEM_DEV_OPEN` em produção.
+CI: ESLint, `npm audit`, Gitleaks, CodeQL, Semgrep. Não commitar `.env`. HSTS/CSP headers nos apps.
 
 ## Local
 

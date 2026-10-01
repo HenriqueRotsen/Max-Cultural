@@ -21,11 +21,11 @@ npm run dev
 
 Abra http://localhost:3000
 
-Sem variáveis de hub (ou com `ORIGEM_DEV_OPEN=1`), o app fica aberto em local — entre em `/painel` sem login.
+Sem `AUTH_SECRET` + `NEXT_PUBLIC_CULTURAL_URL`, o layout pode falhar o SSO — configure o hub.
 
-Com **`ORIGEM_DEMO=1`**: landing mostra **Experimentar demo**, app sem login, amostra de ~10% dos projetos/pagamentos; sync e cadastros ficam bloqueados.
+Login e 2FA ficam **só no MAX Cultural** (`AUTH_2FA_DISABLED` no hub).
 
-Com Auth real (`ORIGEM_DEV_OPEN=0`, `ORIGEM_DEMO=0` + SSO do Cultural):
+Com SSO do Cultural:
 
 1. Coloque seu e-mail em `ADMIN_EMAILS`
 2. Crie o usuário no Supabase (ou em **Usuários**) e entre em `/login`
@@ -83,8 +83,8 @@ O gargalo é a API SALIC. Otimizações seguras (sem perder dados):
 
 | Var | Uso |
 |-----|-----|
-| `ORIGEM_DEV_OPEN` | `1` = app sem login (só local). Em produção use `0`. Login/2FA no Cultural |
-| `ORIGEM_DEMO` | `1` = demo pública (~10% dados, CTA na landing, sem login) |
+| `AUTH_SECRET` | Mesmo do Cultural (cookie SSO) |
+| `NEXT_PUBLIC_CULTURAL_URL` | URL do hub (login) |
 | `DATABASE_URL` | Postgres / Supabase |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon (client + SSR) |

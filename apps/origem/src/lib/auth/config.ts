@@ -1,22 +1,19 @@
+/**
+ * Auth do MAX Origem: login e 2FA ficam no hub MAX Cultural.
+ * Este app só consome o cookie SSO (`AUTH_SECRET` + `NEXT_PUBLIC_CULTURAL_URL`).
+ */
+
 function envFlag(name: string) {
   const v = (process.env[name] || "").trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes";
 }
 
-/**
- * App aberto sem login (só local/debug).
- * Preferir `ORIGEM_DEV_OPEN`. Aceita legado `SALINK_DEV_OPEN`.
- * Login e 2FA do produto ficam no MAX Cultural (`AUTH_2FA_DISABLED` no hub).
- */
+/** @deprecated Mantido só por compat; não usar em produção. */
 export function isDevOpenAuth() {
-  return envFlag("ORIGEM_DEV_OPEN") || envFlag("SALINK_DEV_OPEN");
+  return false;
 }
 
-/**
- * Demo público: sem login, amostra ~10% dos dados, CTA na landing.
- * Preferir `ORIGEM_DEMO` / `NEXT_PUBLIC_ORIGEM_DEMO`.
- * Aceita legado `SALINK_DEMO` / `NEXT_PUBLIC_SALINK_DEMO`.
- */
+/** @deprecated Mantido só por compat; não usar em produção. */
 export function isDemoMode() {
   return (
     envFlag("ORIGEM_DEMO") ||
@@ -26,28 +23,16 @@ export function isDemoMode() {
   );
 }
 
-function looksLikePlaceholder(url: string, anon: string) {
-  return (
-    !url ||
-    !anon ||
-    url.includes("YOUR_PROJECT") ||
-    anon === "your-anon-key" ||
-    anon.startsWith("your-")
-  );
-}
-
-/** Se false: layout/proxy não exigem login (dev aberto / demo). */
+/** Com hub SSO configurado, auth está ligada. */
 export function isAuthEnabled() {
   if (isDemoMode()) return false;
-  if (isDevOpenAuth()) return false;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  if (looksLikePlaceholder(url, anon)) return false;
-  return true;
+  const secret = (process.env.AUTH_SECRET || "").trim();
+  const hub = (process.env.NEXT_PUBLIC_CULTURAL_URL || "").trim();
+  return Boolean(secret && hub);
 }
 
-/** Login no hub MAX Cultural, salvo demo público ou ORIGEM_DEV_OPEN. */
+/** Sempre exige login no Cultural (exceto demo legado, se alguém ainda setar). */
 export function needsLogin() {
-  if (isDemoMode() || isDevOpenAuth()) return false;
+  if (isDemoMode()) return false;
   return true;
 }
