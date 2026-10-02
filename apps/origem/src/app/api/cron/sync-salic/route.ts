@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
-import { enqueueAccountSyncs, executeSyncRunSafe } from "@/lib/sync/run";
-import { runSyncQueue } from "@/lib/sync/planning-phase";
+import { enqueueAccountSyncs } from "@/lib/sync/run";
+import { buildSyncQueue, runSyncQueue } from "@/lib/sync/queue";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -25,11 +25,7 @@ export async function GET(request: Request) {
 
   try {
     const jobs = await enqueueAccountSyncs({ forceCrawler: true });
-    const dispatch = () =>
-      runSyncQueue(
-        jobs.map((j) => ({ syncRunId: j.run.id, options: j.options })),
-        (job) => executeSyncRunSafe(job.syncRunId, job.options),
-      );
+    const dispatch = () => runSyncQueue(buildSyncQueue(jobs), { handOffFirst: true });
     if (process.env.VERCEL) after(dispatch);
     else void dispatch();
 

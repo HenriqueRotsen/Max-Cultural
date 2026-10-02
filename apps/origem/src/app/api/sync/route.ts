@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
-import { enqueueAccountSyncs, executeSyncRunSafe } from "@/lib/sync/run";
-import { runSyncQueue } from "@/lib/sync/planning-phase";
+import { enqueueAccountSyncs } from "@/lib/sync/run";
+import { buildSyncQueue, runSyncQueue } from "@/lib/sync/queue";
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -30,11 +30,7 @@ export async function POST(request: Request) {
     });
 
     // Em serverless o `after` mantém o trabalho vivo pós-resposta.
-    const dispatch = () =>
-      runSyncQueue(
-        jobs.map((j) => ({ syncRunId: j.run.id, options: j.options })),
-        (job) => executeSyncRunSafe(job.syncRunId, job.options),
-      );
+    const dispatch = () => runSyncQueue(buildSyncQueue(jobs), { handOffFirst: true });
     if (process.env.VERCEL) after(dispatch);
     else void dispatch();
 

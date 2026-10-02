@@ -397,14 +397,7 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
       errorMessage: hadError && !hadSuccess ? allLogs[allLogs.length - 1] : null,
       workState: null,
     });
-    if (hadSuccess) {
-      await mirrorCatalogForAccounts(accounts);
-      const { startPlanningPhase } = await import("@/lib/sync/planning-phase");
-      await startPlanningPhase(
-        syncRunId,
-        accounts.map((a) => ({ workspaceId: a.workspaceId, accountId: a.id })),
-      );
-    }
+    // Catálogo e planejamento rodam como etapas seguintes da fila (lib/sync/queue).
   } catch (error) {
     if (error instanceof SyncCancelledError) {
       const current = await prisma.syncRun.findUnique({
