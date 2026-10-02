@@ -24,12 +24,16 @@ export const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 export const PENDING_2FA_MAX_AGE = 60 * 10;
 
 function cookieDomain(): string | undefined {
-  const domain = (process.env.AUTH_COOKIE_DOMAIN || "")
+  const fromEnv = (process.env.AUTH_COOKIE_DOMAIN || "")
     .trim()
     .replace(/^["']|["']$/g, "")
-    // Leading dot is ignored by browsers; keep canonical host for Next.js.
     .replace(/^\./, "");
-  return domain || undefined;
+  if (fromEnv) return fromEnv;
+  // Produção sem env: domínio compartilhado Cultural/Origem/Fluxo.
+  if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+    return "maxcultural.com.br";
+  }
+  return undefined;
 }
 
 export function sessionCookieOptions(maxAge: number) {
@@ -37,7 +41,8 @@ export function sessionCookieOptions(maxAge: number) {
   return {
     httpOnly: true as const,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure:
+      process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL),
     path: "/",
     maxAge,
     ...(domain ? { domain } : {}),
@@ -50,6 +55,17 @@ export function cookieDeleteOptions() {
     path: "/",
     ...(domain ? { domain } : {}),
   };
+}
+
+/** Limpa host-only e Domain cookie (evita SSO “fantasma” após logout). */
+export function clearAuthCookieOptions(): Array<{
+  path: string;
+  maxAge: number;
+  domain?: string;
+}> {
+  const domain = cookieDomain();
+  const base = { path: "/", maxAge: 0 };
+  return domain ? [base, { ...base, domain }] : [base];
 }
 
 function getSecret() {

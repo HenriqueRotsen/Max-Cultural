@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { AUTH_COOKIE, PENDING_2FA_COOKIE, cookieDeleteOptions } from "@max/auth";
+import {
+  AUTH_COOKIE,
+  PENDING_2FA_COOKIE,
+  clearAuthCookieOptions,
+} from "@max/auth";
 import { isAuthEnabled } from "@/lib/auth/config";
 import { origemHubLogoutUrl } from "@/lib/auth/hub";
 import { createClient } from "@/lib/supabase/server";
@@ -13,15 +16,6 @@ export const dynamic = "force-dynamic";
  * Route Handler evita falha de Server Action no redirect cross-origin (#441).
  */
 export async function GET() {
-  try {
-    const jar = await cookies();
-    const opts = cookieDeleteOptions();
-    jar.delete({ name: AUTH_COOKIE, ...opts });
-    jar.delete({ name: PENDING_2FA_COOKIE, ...opts });
-  } catch {
-    // ignore
-  }
-
   if (isAuthEnabled()) {
     try {
       const supabase = await createClient();
@@ -31,5 +25,10 @@ export async function GET() {
     }
   }
 
-  return NextResponse.redirect(origemHubLogoutUrl());
+  const res = NextResponse.redirect(origemHubLogoutUrl());
+  for (const opts of clearAuthCookieOptions()) {
+    res.cookies.set(AUTH_COOKIE, "", opts);
+    res.cookies.set(PENDING_2FA_COOKIE, "", opts);
+  }
+  return res;
 }

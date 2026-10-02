@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { clearSessionCookie, getSessionUser } from "@/lib/auth";
+import {
+  AUTH_COOKIE,
+  PENDING_2FA_COOKIE,
+  clearAuthCookieOptions,
+} from "@max/auth";
+import { getSessionUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
@@ -11,12 +16,6 @@ export async function GET(request: NextRequest) {
     // Sessão inválida/expirada — segue limpando o cookie
   }
 
-  try {
-    await clearSessionCookie();
-  } catch {
-    // ignore
-  }
-
   if (userId) {
     try {
       await writeAuditLog({ actorUserId: userId, action: "auth.logout" });
@@ -25,5 +24,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL("/login", request.url));
+  const res = NextResponse.redirect(new URL("/login", request.url));
+  for (const opts of clearAuthCookieOptions()) {
+    res.cookies.set(AUTH_COOKIE, "", opts);
+    res.cookies.set(PENDING_2FA_COOKIE, "", opts);
+  }
+  return res;
 }

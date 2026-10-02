@@ -12,6 +12,7 @@ import {
   parseSessionToken,
   sessionCookieOptions,
   cookieDeleteOptions,
+  clearAuthCookieOptions,
   ACCESS_BY_ID,
   ACCESS_PERMISSION_IDS,
   grantedIdsFromRoleRows,
@@ -59,9 +60,10 @@ export async function setPending2faCookie(userId: string) {
 
 export async function clearSessionCookie() {
   const jar = await cookies();
-  const opts = cookieDeleteOptions();
-  jar.delete({ name: AUTH_COOKIE, ...opts });
-  jar.delete({ name: PENDING_2FA_COOKIE, ...opts });
+  for (const opts of clearAuthCookieOptions()) {
+    jar.set(AUTH_COOKIE, "", opts);
+    jar.set(PENDING_2FA_COOKIE, "", opts);
+  }
 }
 
 async function loadSessionUser(token: string | undefined | null): Promise<SessionUser | null> {

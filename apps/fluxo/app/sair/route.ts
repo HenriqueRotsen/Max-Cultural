@@ -1,26 +1,20 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { AUTH_COOKIE, PENDING_2FA_COOKIE, cookieDeleteOptions } from "@max/auth";
-import { clearSessionCookie } from "@/lib/auth";
+import {
+  AUTH_COOKIE,
+  PENDING_2FA_COOKIE,
+  clearAuthCookieOptions,
+} from "@max/auth";
 import { fluxoHubLogoutUrl } from "@/lib/hub";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Logout via GET — evita Server Action + redirect cross-origin. */
+/** Logout via GET — limpa cookie SSO no Domain compartilhado. */
 export async function GET() {
-  try {
-    await clearSessionCookie();
-  } catch {
-    // ignore
+  const res = NextResponse.redirect(fluxoHubLogoutUrl());
+  for (const opts of clearAuthCookieOptions()) {
+    res.cookies.set(AUTH_COOKIE, "", opts);
+    res.cookies.set(PENDING_2FA_COOKIE, "", opts);
   }
-  try {
-    const jar = await cookies();
-    const opts = cookieDeleteOptions();
-    jar.delete({ name: AUTH_COOKIE, ...opts });
-    jar.delete({ name: PENDING_2FA_COOKIE, ...opts });
-  } catch {
-    // ignore
-  }
-  return NextResponse.redirect(fluxoHubLogoutUrl());
+  return res;
 }
