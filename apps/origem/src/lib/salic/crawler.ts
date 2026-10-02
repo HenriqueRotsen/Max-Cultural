@@ -20,6 +20,24 @@ const STATE_DIR = process.env.VERCEL
   ? path.join(tmpdir(), "salic-sessions")
   : path.join(process.cwd(), ".salic-sessions");
 
+/** Abaixo do pool do pg (10), sobrando conexões para o resto da requisição. */
+const DB_CONCURRENCY = 6;
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+) {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const item = items[next++]!;
+      await fn(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
 export type SalicUiProponente = {
   idAgenteProponente: number;
   CPF: string;
@@ -466,6 +484,7 @@ export async function syncAccountViaCrawler(params: {
       const seenPaymentIds = new Set<string>();
       const seenExternalIds = new Set<string>();
 
+      const produtos = new Map<string, ReturnType<typeof mapUiPagamentoToProduto>>();
       for (const row of rows) {
         if (row.idComprovantePagamento == null) {
           await push(
@@ -474,24 +493,47 @@ export async function syncAccountViaCrawler(params: {
           continue;
         }
         const externalId = String(row.idComprovantePagamento);
-        if (seenExternalIds.has(externalId)) continue;
+        if (produtos.has(externalId)) continue;
+        produtos.set(externalId, mapUiPagamentoToProduto(row, String(listed.Pronac)));
+      }
 
-        const produto = mapUiPagamentoToProduto(row, String(listed.Pronac));
-        const supplier = await upsertSupplier({
-          cgccpf: normalizeCgccpf(produto.supplierCgccpf || produto.cgccpf || "0"),
-          name: produto.supplierName || produto.nome_fornecedor || "Fornecedor",
-        });
+      // Um upsert por fornecedor (projetos grandes repetem o mesmo CNPJ centenas de vezes).
+      const supplierNames = new Map<string, string>();
+      for (const produto of produtos.values()) {
+        supplierNames.set(
+          normalizeCgccpf(produto.supplierCgccpf || produto.cgccpf || "0"),
+          produto.supplierName || produto.nome_fornecedor || "Fornecedor",
+        );
+      }
+      const supplierIds = new Map<string, string>();
+      await mapWithConcurrency([...supplierNames], DB_CONCURRENCY, async ([cgccpf, name]) => {
+        const supplier = await upsertSupplier({ cgccpf, name });
+        supplierIds.set(cgccpf, supplier.id);
+      });
 
+      await mapWithConcurrency([...produtos], DB_CONCURRENCY, async ([externalId, produto]) => {
+        const cgccpf = normalizeCgccpf(produto.supplierCgccpf || produto.cgccpf || "0");
         const payment = await upsertPaymentFromProduto({
           projectId: project.id,
-          supplierId: supplier.id,
+          supplierId: supplierIds.get(cgccpf)!,
           produto,
           source: "crawler",
+          skipCrossSourceCleanup: true,
         });
         seenPaymentIds.add(payment.id);
         seenExternalIds.add(externalId);
         paymentsUpserted += 1;
+      });
+
+      if (seenExternalIds.size > 0) {
+        await prisma.payment.deleteMany({
+          where: {
+            externalId: { in: [...seenExternalIds] },
+            source: { not: "crawler" },
+          },
+        });
       }
+      await push(`PRONAC ${listed.Pronac}: ${produtos.size} comprovantes gravados`);
 
       const removed = await reconcileProjectPayments(
         project.id,
