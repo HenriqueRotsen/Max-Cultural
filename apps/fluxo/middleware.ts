@@ -3,7 +3,9 @@ import type { NextRequest } from "next/server";
 import {
   AUTH_COOKIE,
   culturalLoginUrl,
+  firstValidSessionToken,
   parseSessionToken as parseHubSession,
+  sessionTokenCandidates,
 } from "@max/auth";
 import { AUTH_COOKIE as LOCAL_COOKIE, parseSessionToken } from "@/lib/auth-token";
 
@@ -44,7 +46,8 @@ export async function middleware(request: NextRequest) {
   );
   let hubSession = null;
   try {
-    hubSession = await parseHubSession(request.cookies.get(AUTH_COOKIE)?.value);
+    const token = await firstValidSessionToken(request.headers.get("cookie"));
+    hubSession = token ? await parseHubSession(token) : null;
   } catch {
     hubSession = null;
   }
@@ -62,7 +65,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(culturalLoginUrl(request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (hubSession && sessionTokenCandidates(request.headers.get("cookie")).length > 1) {
+    response.cookies.set(AUTH_COOKIE, "", { path: "/", maxAge: 0 });
+  }
+  return response;
 }
 
 export const config = {

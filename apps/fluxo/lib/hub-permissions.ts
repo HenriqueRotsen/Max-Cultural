@@ -1,11 +1,12 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import http from "node:http";
 import https from "node:https";
 import {
   AUTH_COOKIE,
   culturalHubUrl,
   HUB_TO_FLUXO_PERMISSIONS,
+  firstValidSessionToken,
   parseSessionToken,
 } from "@max/auth";
 import type { PermissionCode } from "@/lib/permission-catalog";
@@ -92,7 +93,9 @@ export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
 
   try {
     const jar = await cookies();
-    const token = jar.get(AUTH_COOKIE)?.value;
+    const token =
+      (await firstValidSessionToken((await headers()).get("cookie"))) ||
+      jar.get(AUTH_COOKIE)?.value;
     const parsed = token ? await parseSessionToken(token) : null;
     if (!token || !parsed) return empty;
 

@@ -1,14 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  AUTH_COOKIE,
   PENDING_2FA_COOKIE,
-  MAX_AGE_SECONDS,
   PENDING_2FA_MAX_AGE,
-  clearAuthCookieOptions,
   createPending2faToken,
   createSessionToken,
   safeContinueUrl,
   sessionCookieOptions,
+  writeSessionCookie,
 } from "@max/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/db";
@@ -40,11 +38,17 @@ function loginErrorRedirect(request: NextRequest, next: string, error: string) {
   return NextResponse.redirect(url, 303);
 }
 
-function attachSession(res: NextResponse, token: string) {
-  res.cookies.set(AUTH_COOKIE, token, sessionCookieOptions(MAX_AGE_SECONDS));
-  for (const opts of clearAuthCookieOptions()) {
-    res.cookies.set(PENDING_2FA_COOKIE, "", opts);
-  }
+function htmlRedirect(dest: string, token: string) {
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Entrando…</title><meta http-equiv="refresh" content="0;url=${dest.replace(/"/g, "")}"></head><body><script>location.replace(${JSON.stringify(dest)})</script></body></html>`;
+  const res = new NextResponse(html, {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+  writeSessionCookie(res, token);
+  return res;
 }
 
 function attachPending2fa(res: NextResponse, token: string) {
@@ -92,8 +96,7 @@ export async function POST(request: NextRequest) {
       sessionVersion: user.sessionVersion,
       email: user.email,
     });
-    const res = redirectTo(request, "/onboarding/senha");
-    attachSession(res, token);
+    const res = htmlRedirect("/onboarding/senha", token);
     await writeAuditLog({
       actorUserId: user.id,
       action: "auth.login_partial",
@@ -125,8 +128,7 @@ export async function POST(request: NextRequest) {
       sessionVersion: user.sessionVersion,
       email: user.email,
     });
-    const res = redirectTo(request, "/onboarding/2fa");
-    attachSession(res, token);
+    const res = htmlRedirect("/onboarding/2fa", token);
     await writeAuditLog({
       actorUserId: user.id,
       action: "auth.login_partial",
@@ -145,8 +147,7 @@ export async function POST(request: NextRequest) {
     sessionVersion: user.sessionVersion,
     email: user.email,
   });
-  const res = redirectTo(request, next);
-  attachSession(res, token);
+  const res = htmlRedirect(next, token);
   await writeAuditLog({ actorUserId: user.id, action: "auth.login_ok", ip });
   return res;
 }

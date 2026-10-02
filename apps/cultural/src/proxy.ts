@@ -4,6 +4,7 @@ import {
   PENDING_2FA_COOKIE,
   parsePending2faToken,
   parseSessionToken,
+  firstValidSessionToken,
   safeContinueUrl,
 } from "@max/auth";
 
@@ -39,7 +40,8 @@ export async function proxy(request: NextRequest) {
 
   let session = null;
   try {
-    session = await parseSessionToken(request.cookies.get(AUTH_COOKIE)?.value);
+    const token = await firstValidSessionToken(request.headers.get("cookie"));
+    session = await parseSessionToken(token);
   } catch {
     session = null;
   }

@@ -3,9 +3,10 @@ import {
   culturalHubUrl,
   culturalLoginUrl,
   culturalLogoutUrl,
+  firstValidSessionToken,
   parseSessionToken,
 } from "@max/auth";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 export { AUTH_COOKIE, culturalLoginUrl, culturalLogoutUrl };
 
@@ -43,8 +44,12 @@ export function origemHubAccountUrl() {
 export async function getHubSessionPayload() {
   if (!isHubSsoEnabled()) return null;
   try {
-    const jar = await cookies();
-    return parseSessionToken(jar.get(AUTH_COOKIE)?.value);
+    const header = (await headers()).get("cookie");
+    const token =
+      (await firstValidSessionToken(header)) ||
+      (await cookies()).get(AUTH_COOKIE)?.value ||
+      null;
+    return parseSessionToken(token);
   } catch {
     return null;
   }

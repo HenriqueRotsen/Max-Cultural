@@ -146,6 +146,17 @@ export async function parseSessionToken(
   token: string | undefined | null,
 ): Promise<SessionPayload | null> {
   if (!token) return null;
+  if (token.includes("%3A") || token.includes("%3a")) {
+    try {
+      const decoded = decodeURIComponent(token);
+      if (decoded !== token) {
+        const parsed = await parseSessionToken(decoded);
+        if (parsed) return parsed;
+      }
+    } catch {
+      // segue com o valor cru
+    }
+  }
   const lastDot = token.lastIndexOf(".");
   if (lastDot <= 0) return null;
   const payload = token.slice(0, lastDot);
@@ -190,6 +201,63 @@ export async function verifySessionToken(
   token: string | undefined | null,
 ): Promise<boolean> {
   return (await parseSessionToken(token)) !== null;
+}
+
+/** Todos os `max_session` do header (host-only e Domain podem coexistir). */
+export function sessionTokenCandidates(
+  cookieHeader: string | null | undefined,
+): string[] {
+  if (!cookieHeader) return [];
+  const out: string[] = [];
+  for (const part of cookieHeader.split(";")) {
+    const trimmed = part.trim();
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    if (trimmed.slice(0, eq) !== AUTH_COOKIE) continue;
+    const raw = trimmed.slice(eq + 1);
+    if (!raw) continue;
+    try {
+      const decoded = decodeURIComponent(raw);
+      if (decoded && decoded !== raw) out.push(decoded);
+    } catch {
+      // valor cru
+    }
+    out.push(raw);
+  }
+  return out;
+}
+
+/** Aceita qualquer cópia válida do cookie, mesmo se outra (sombra) vier primeiro. */
+export async function firstValidSessionToken(
+  cookieHeader: string | null | undefined,
+): Promise<string | null> {
+  for (const token of sessionTokenCandidates(cookieHeader)) {
+    try {
+      if (await parseSessionToken(token)) return token;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function writeSessionCookie(
+  res: { headers: { append(name: string, value: string): void } },
+  token: string,
+) {
+  const opts = sessionCookieOptions(MAX_AGE_SECONDS);
+  const base = [
+    `${AUTH_COOKIE}=${token}`,
+    `Path=${opts.path}`,
+    `Max-Age=${opts.maxAge}`,
+    "HttpOnly",
+    "SameSite=Lax",
+  ];
+  if (opts.secure) base.push("Secure");
+  if (opts.domain) {
+    res.headers.append("set-cookie", [...base, `Domain=${opts.domain}`].join("; "));
+  }
+  res.headers.append("set-cookie", base.join("; "));
 }
 
 export async function createPending2faToken(userId: string): Promise<string> {

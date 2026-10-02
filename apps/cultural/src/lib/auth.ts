@@ -8,6 +8,7 @@ import {
   PENDING_2FA_MAX_AGE,
   createPending2faToken,
   createSessionToken,
+  firstValidSessionToken,
   parsePending2faToken,
   parseSessionToken,
   sessionCookieOptions,
@@ -80,7 +81,8 @@ async function loadSessionUser(token: string | undefined | null): Promise<Sessio
 
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const jar = await cookies();
-  const fromCookie = jar.get(AUTH_COOKIE)?.value;
+  const headerToken = await firstValidSessionToken((await headers()).get("cookie"));
+  const fromCookie = headerToken || jar.get(AUTH_COOKIE)?.value;
   if (fromCookie) {
     const user = await loadSessionUser(fromCookie);
     if (user) return user;

@@ -1,8 +1,8 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import http from "node:http";
 import https from "node:https";
-import { AUTH_COOKIE, culturalHubUrl, parseSessionToken } from "@max/auth";
+import { AUTH_COOKIE, culturalHubUrl, firstValidSessionToken, parseSessionToken } from "@max/auth";
 
 export type HubPermissionsPayload = {
   ids: Set<string>;
@@ -115,7 +115,8 @@ function parsePermissionsPayload(raw: string): HubPermissionsPayload {
 export const getHubPermissions = cache(async (): Promise<HubPermissionsPayload> => {
   try {
     const jar = await cookies();
-    const token = jar.get(AUTH_COOKIE)?.value;
+    const headerToken = await firstValidSessionToken((await headers()).get("cookie"));
+    const token = headerToken || jar.get(AUTH_COOKIE)?.value;
     if (!token) {
       return { ids: new Set(), entries: [], fetchFailed: true };
     }

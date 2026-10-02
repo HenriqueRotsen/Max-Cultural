@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE, culturalLoginUrl, parseSessionToken } from "@max/auth";
+import { AUTH_COOKIE, culturalLoginUrl, firstValidSessionToken, sessionTokenCandidates } from "@max/auth";
 import { isHubSsoEnabled } from "@/lib/auth/hub";
 import { updateSession } from "@/lib/supabase/middleware";
 
@@ -57,9 +57,7 @@ export async function proxy(request: NextRequest) {
   let hubOk = false;
   if (isHubSsoEnabled()) {
     try {
-      hubOk = Boolean(
-        await parseSessionToken(request.cookies.get(AUTH_COOKIE)?.value),
-      );
+      hubOk = Boolean(await firstValidSessionToken(request.headers.get("cookie")));
     } catch {
       hubOk = false;
     }
@@ -71,6 +69,10 @@ export async function proxy(request: NextRequest) {
 
   if (isAuthOnlyPath(pathname) && (user || hubOk)) {
     return NextResponse.redirect(new URL("/painel", request.url));
+  }
+
+  if (hubOk && sessionTokenCandidates(request.headers.get("cookie")).length > 1) {
+    response.cookies.set(AUTH_COOKIE, "", { path: "/", maxAge: 0 });
   }
 
   return response;

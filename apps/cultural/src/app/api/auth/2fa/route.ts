@@ -1,13 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  AUTH_COOKIE,
   PENDING_2FA_COOKIE,
-  MAX_AGE_SECONDS,
-  clearAuthCookieOptions,
   createSessionToken,
   parsePending2faToken,
   safeContinueUrl,
-  sessionCookieOptions,
+  writeSessionCookie,
 } from "@max/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/db";
@@ -20,13 +17,6 @@ function clientIp(request: NextRequest) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 }
 
-function redirectTo(request: NextRequest, target: string) {
-  if (target.startsWith("http://") || target.startsWith("https://")) {
-    return NextResponse.redirect(target, 303);
-  }
-  return NextResponse.redirect(new URL(target, request.url), 303);
-}
-
 function twoFaErrorRedirect(request: NextRequest, next: string, error: string) {
   const url = new URL("/login/2fa", request.url);
   url.searchParams.set("error", error);
@@ -34,9 +24,21 @@ function twoFaErrorRedirect(request: NextRequest, next: string, error: string) {
   return NextResponse.redirect(url, 303);
 }
 
-/**
- * Verificação 2FA via POST clássico — grava max_session no Set-Cookie da navegação.
- */
+function htmlRedirect(dest: string, token: string) {
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Entrando…</title><meta http-equiv="refresh" content="0;url=${dest.replace(/"/g, "")}"></head><body><script>location.replace(${JSON.stringify(dest)})</script></body></html>`;
+  const res = new NextResponse(html, {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+  writeSessionCookie(res, token);
+  res.cookies.set(PENDING_2FA_COOKIE, "", { path: "/", maxAge: 0 });
+  return res;
+}
+
+/** Verificação 2FA via POST clássico — grava max_session antes do redirect. */
 export async function POST(request: NextRequest) {
   const form = await request.formData();
   const code = String(form.get("code") ?? "");
@@ -77,16 +79,11 @@ export async function POST(request: NextRequest) {
     sessionVersion: user.sessionVersion,
     email: user.email,
   });
-  const res = redirectTo(request, next);
-  res.cookies.set(AUTH_COOKIE, token, sessionCookieOptions(MAX_AGE_SECONDS));
-  for (const opts of clearAuthCookieOptions()) {
-    res.cookies.set(PENDING_2FA_COOKIE, "", opts);
-  }
   await writeAuditLog({
     actorUserId: user.id,
     action: "auth.login_ok",
     meta: { method: "totp" },
     ip,
   });
-  return res;
+  return htmlRedirect(next, token);
 }

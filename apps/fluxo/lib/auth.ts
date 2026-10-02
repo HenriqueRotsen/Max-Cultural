@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { User } from "@prisma/client";
 import {
   AUTH_COOKIE,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth-token";
 import {
   AUTH_COOKIE as HUB_COOKIE,
+  firstValidSessionToken,
   parseSessionToken as parseHubSession,
 } from "@max/auth";
 import { prisma } from "@/lib/prisma";
@@ -99,7 +100,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!hubUrl || !process.env.AUTH_SECRET) return null;
   let hub = null;
   try {
-    hub = await parseHubSession(jar.get(HUB_COOKIE)?.value);
+    const headerToken = await firstValidSessionToken((await headers()).get("cookie"));
+    hub = await parseHubSession(headerToken || jar.get(HUB_COOKIE)?.value);
   } catch {
     return null;
   }
