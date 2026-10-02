@@ -1,4 +1,3 @@
-import { chromium } from "playwright";
 
 function formatPdfTimestamp(date = new Date()) {
   const parts = new Intl.DateTimeFormat("pt-BR", {
@@ -35,6 +34,7 @@ export function reportFileStamp(date = new Date()) {
 }
 
 export async function htmlToPdf(html: string): Promise<Buffer> {
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();

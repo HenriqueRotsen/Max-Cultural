@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Page } from "playwright";
+import type { Browser, Page } from "playwright";
 import { mkdir, writeFile, readFile } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/db";
@@ -160,6 +160,7 @@ export async function withAccountBrowser(
   password: string,
   fn: (page: Page, browser: Browser) => Promise<void>,
 ) {
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   try {
     const storage = await loadStorageState(accountId);
