@@ -1,8 +1,8 @@
 import { cache } from "react";
-import { cookies, headers } from "next/headers";
 import http from "node:http";
 import https from "node:https";
-import { AUTH_COOKIE, culturalHubUrl, firstValidSessionToken, parseSessionToken } from "@max/auth";
+import { checkHubSessionAlive, culturalHubUrl, parseSessionToken } from "@max/auth";
+import { getHubSessionToken } from "@/lib/auth/hub";
 
 export type HubPermissionsPayload = {
   ids: Set<string>;
@@ -10,6 +10,8 @@ export type HubPermissionsPayload = {
   entries: Array<{ screen: string; canView: boolean; canEdit: boolean }>;
   /** true quando a API do hub falhou por rede/5xx — distinto de 401 (sessão inválida). */
   fetchFailed?: boolean;
+  /** Sessão revogada no hub (sessionVersion mudou) ou ausente. */
+  revoked?: boolean;
 };
 
 function hubBaseForServer(): string {
@@ -107,39 +109,43 @@ function parsePermissionsPayload(raw: string): HubPermissionsPayload {
   return { ids, entries, fetchFailed: false };
 }
 
+const LEGACY_TTL_MS = 2 * 60 * 1000;
+const legacyCache = new Map<string, { payload: HubPermissionsPayload; at: number }>();
+
+const REVOKED: HubPermissionsPayload = { ids: new Set(), entries: [], fetchFailed: false, revoked: true };
+
 /**
- * Permissões do hub:
- * 1) token `u2` antigo com grants embutidos → usa cookie (sem round-trip)
- * 2) senão GET /api/session/permissions (valida sessionVersion no Cultural)
+ * Permissões do hub, carregadas no login e gravadas no cookie SSO (`u3`).
+ * A única ida ao hub é a checagem de revogação, em cache (ver checkHubSessionAlive).
+ * Tokens antigos sem grants consultam /api/session/permissions (com cache).
  */
 export const getHubPermissions = cache(async (): Promise<HubPermissionsPayload> => {
   try {
-    const jar = await cookies();
-    const headerToken = await firstValidSessionToken((await headers()).get("cookie"));
-    const token = headerToken || jar.get(AUTH_COOKIE)?.value;
-    if (!token) {
-      return { ids: new Set(), entries: [], fetchFailed: true };
-    }
-
+    const token = await getHubSessionToken();
+    if (!token) return REVOKED;
     const parsed = await parseSessionToken(token);
-    if (!parsed) {
-      return { ids: new Set(), entries: [], fetchFailed: true };
-    }
+    if (!parsed) return REVOKED;
 
-    // Tokens antigos com grants: confia no cookie (SSO) sem bloquear em /alive.
-    if (parsed.permissions && parsed.permissions.length > 0) {
+    if (parsed.permissions) {
+      const status = await checkHubSessionAlive(token);
+      if (status === "revoked") return REVOKED;
       return payloadFromIds(parsed.permissions);
     }
 
-    const { status, body } = await hubGet("/api/session/permissions", token, 8000);
-    // 401 = sessão revogada/inválida — não é soft-open.
-    if (status === 401) {
-      return { ids: new Set(), entries: [], fetchFailed: false };
-    }
+    const hit = legacyCache.get(token);
+    if (hit && Date.now() - hit.at < LEGACY_TTL_MS) return hit.payload;
+
+    const { status, body } = await hubGet("/api/session/permissions", token, 4000);
+    if (status === 401) return REVOKED;
     if (status < 200 || status >= 300) {
       return { ids: new Set(), entries: [], fetchFailed: true };
     }
-    return parsePermissionsPayload(body);
+    const payload = parsePermissionsPayload(body);
+    if (!payload.fetchFailed) {
+      if (legacyCache.size > 2000) legacyCache.clear();
+      legacyCache.set(token, { payload, at: Date.now() });
+    }
+    return payload;
   } catch {
     return { ids: new Set(), entries: [], fetchFailed: true };
   }

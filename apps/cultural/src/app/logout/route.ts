@@ -3,11 +3,18 @@ import {
   AUTH_COOKIE,
   PENDING_2FA_COOKIE,
   clearAuthCookieOptions,
+  isPrefetchRequest,
 } from "@max/auth";
 import { getSessionUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
+  if (isPrefetchRequest(request)) {
+    return new NextResponse(null, { status: 204, headers: { "cache-control": "no-store" } });
+  }
+
   let userId: string | null = null;
   try {
     const user = await getSessionUser();
@@ -25,6 +32,7 @@ export async function GET(request: NextRequest) {
   }
 
   const res = NextResponse.redirect(new URL("/login", request.url));
+  res.headers.set("cache-control", "no-store");
   for (const opts of clearAuthCookieOptions()) {
     res.cookies.set(AUTH_COOKIE, "", opts);
     res.cookies.set(PENDING_2FA_COOKIE, "", opts);

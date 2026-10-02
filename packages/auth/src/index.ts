@@ -112,7 +112,7 @@ export type SessionPayload = {
   sessionVersion: number;
   issuedAt: number;
   email?: string;
-  /** Grants embutidos (tokens `u2` antigos). Tokens novos usam a API do hub. */
+  /** Grants emitidos no login (`u3`). Ausente em tokens antigos. */
   permissions?: string[];
 };
 
@@ -121,11 +121,18 @@ export type Pending2faPayload = {
   issuedAt: number;
 };
 
-function encodeEmail(email: string): string {
-  const bytes = new TextEncoder().encode(email);
+function b64urlEncode(text: string): string {
+  const bytes = new TextEncoder().encode(text);
   let bin = "";
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function b64urlDecode(value: string): string {
+  const pad = value + "=".repeat((4 - (value.length % 4)) % 4);
+  const bin = atob(pad.replace(/-/g, "+").replace(/_/g, "/"));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 function decodeEmail(value: string | undefined): string | undefined {
@@ -139,34 +146,29 @@ function decodeEmail(value: string | undefined): string | undefined {
   }
   if (value.includes("@")) return value;
   try {
-    const pad = value + "=".repeat((4 - (value.length % 4)) % 4);
-    const bin = atob(pad.replace(/-/g, "+").replace(/_/g, "/"));
-    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
+    return b64urlDecode(value);
   } catch {
     return value;
   }
 }
 
 /**
- * Cookie SSO compartilhado. Formato estável `u:` (com e-mail) —
- * Origem/Fluxo resolvem grants via /api/session/permissions.
- * Ainda lê tokens `u2` emitidos entre deploys.
+ * Cookie SSO compartilhado: `u3:userId:version:issuedAt:email:grants`.
+ * E-mail e grants em base64url — o valor nunca contém "%", senão o parser
+ * de cookies do Next decodifica e a assinatura deixa de bater nos satélites.
+ * Os grants viajam no cookie para Origem/Fluxo não consultarem o hub a cada página.
  */
 export async function createSessionToken(input: {
   userId: string;
   sessionVersion: number;
   email?: string;
-  /** Ignorado na emissão — mantido só p/ compat de assinatura. */
   permissions?: string[];
 }): Promise<string> {
   const issuedAt = Date.now();
-  // base64url: o cookie não contém "%" — senão o parser do Next decodifica
-  // o valor e a assinatura deixa de bater no Origem/Fluxo (loop de login).
-  const email = input.email ? encodeEmail(input.email) : "";
-  const payload = email
-    ? `u:${input.userId}:${input.sessionVersion}:${issuedAt}:${email}`
-    : `u:${input.userId}:${input.sessionVersion}:${issuedAt}`;
+  const email = input.email ? b64urlEncode(input.email) : "";
+  const grants = [...new Set((input.permissions ?? []).map((p) => p.trim()).filter(Boolean))];
+  const perms = b64urlEncode(grants.join(","));
+  const payload = `u3:${input.userId}:${input.sessionVersion}:${issuedAt}:${email}:${perms}`;
   const signature = await sign(payload);
   return `${payload}.${signature}`;
 }
@@ -216,8 +218,7 @@ export async function parseSessionToken(
 
   const parts = payload.split(":");
 
-  // Tokens `u2` emitidos no deploy anterior (ainda válidos até expirar / re-login).
-  if (parts[0] === "u2" && parts.length >= 5) {
+  if (parts[0] === "u3" && parts.length === 6) {
     const userId = parts[1]!;
     const sessionVersion = Number(parts[2]);
     const issuedAt = Number(parts[3]);
@@ -227,11 +228,27 @@ export async function parseSessionToken(
     const ageMs = Date.now() - issuedAt;
     if (ageMs < 0 || ageMs > MAX_AGE_SECONDS * 1000) return null;
     const email = decodeEmail(parts[4]);
-    const permissionsRaw = parts[5] ? decodeURIComponent(parts[5]) : "";
-    const permissions = permissionsRaw
-      ? permissionsRaw.split(",").map((p) => p.trim()).filter(Boolean)
-      : undefined;
+    let permissions: string[] = [];
+    try {
+      const raw = parts[5] ? b64urlDecode(parts[5]) : "";
+      permissions = raw ? raw.split(",").filter(Boolean) : [];
+    } catch {
+      return null;
+    }
     return { userId, sessionVersion, issuedAt, email, permissions };
+  }
+
+  // Formatos anteriores (`u2`, `u`): sessão válida, grants buscados no hub.
+  if (parts[0] === "u2" && parts.length >= 5) {
+    const userId = parts[1]!;
+    const sessionVersion = Number(parts[2]);
+    const issuedAt = Number(parts[3]);
+    if (!userId || !Number.isFinite(sessionVersion) || !Number.isFinite(issuedAt)) {
+      return null;
+    }
+    const ageMs = Date.now() - issuedAt;
+    if (ageMs < 0 || ageMs > MAX_AGE_SECONDS * 1000) return null;
+    return { userId, sessionVersion, issuedAt, email: decodeEmail(parts[4]) };
   }
 
   if (parts[0] !== "u" || (parts.length !== 4 && parts.length !== 5)) return null;
@@ -251,6 +268,72 @@ export async function verifySessionToken(
   token: string | undefined | null,
 ): Promise<boolean> {
   return (await parseSessionToken(token)) !== null;
+}
+
+export type HubSessionStatus = "alive" | "revoked" | "unknown";
+
+const ALIVE_TTL_MS = 2 * 60 * 1000;
+const aliveCache = new Map<string, { status: HubSessionStatus; checkedAt: number }>();
+const aliveInflight = new Map<string, Promise<HubSessionStatus>>();
+
+async function fetchHubSessionAlive(token: string): Promise<HubSessionStatus> {
+  let status: HubSessionStatus = "unknown";
+  try {
+    const base = culturalHubUrl().replace("://localhost", "://127.0.0.1");
+    const res = await fetch(`${base}/api/session/alive`, {
+      headers: { accept: "application/json", "x-max-session": token },
+      cache: "no-store",
+      signal: AbortSignal.timeout(2500),
+    });
+    if (res.status === 401) status = "revoked";
+    else if (res.ok) status = "alive";
+  } catch {
+    status = "unknown";
+  }
+  if (status !== "unknown") {
+    if (aliveCache.size > 5000) aliveCache.clear();
+    aliveCache.set(token, { status, checkedAt: Date.now() });
+  }
+  return status;
+}
+
+function refreshHubSessionAlive(token: string): Promise<HubSessionStatus> {
+  let p = aliveInflight.get(token);
+  if (!p) {
+    p = fetchHubSessionAlive(token).finally(() => aliveInflight.delete(token));
+    aliveInflight.set(token, p);
+  }
+  return p;
+}
+
+/**
+ * Confirma no hub se a sessão não foi revogada (sessionVersion).
+ * Só espera a rede no primeiro acesso do token nesta instância; depois responde
+ * do cache e revalida em segundo plano a cada 2 min.
+ * Hub fora do ar → "unknown" (o satélite segue com os grants do cookie).
+ */
+export async function checkHubSessionAlive(token: string): Promise<HubSessionStatus> {
+  const hit = aliveCache.get(token);
+  if (!hit) return refreshHubSessionAlive(token);
+  if (hit.status === "alive" && Date.now() - hit.checkedAt > ALIVE_TTL_MS) {
+    void refreshHubSessionAlive(token).catch(() => {});
+  }
+  return hit.status;
+}
+
+/** Prefetch/RSC do Next ou do browser — rotas de logout não devem agir nesses casos. */
+export function isPrefetchRequest(request: { headers: Headers; url: string }): boolean {
+  const h = request.headers;
+  if (h.get("next-router-prefetch")) return true;
+  if (h.get("rsc")) return true;
+  const purpose = `${h.get("purpose") || ""} ${h.get("sec-purpose") || ""}`.toLowerCase();
+  if (purpose.includes("prefetch") || purpose.includes("prerender")) return true;
+  try {
+    if (new URL(request.url).searchParams.has("_rsc")) return true;
+  } catch {
+    // ignore
+  }
+  return false;
 }
 
 /** Todos os `max_session` do header (host-only e Domain podem coexistir). */

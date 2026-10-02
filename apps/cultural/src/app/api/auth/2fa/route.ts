@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   PENDING_2FA_COOKIE,
-  createSessionToken,
   parsePending2faToken,
   safeContinueUrl,
   writeSessionCookie,
 } from "@max/auth";
 import { writeAuditLog } from "@/lib/audit";
+import { createSessionTokenForUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { decryptTotpSecret, verifyTotpCode } from "@/lib/totp";
 
@@ -69,21 +69,18 @@ export async function POST(request: NextRequest) {
     return twoFaErrorRedirect(request, next, "Código inválido.");
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-
-  const token = await createSessionToken({
-    userId: user.id,
-    sessionVersion: user.sessionVersion,
-    email: user.email,
-  });
-  await writeAuditLog({
-    actorUserId: user.id,
-    action: "auth.login_ok",
-    meta: { method: "totp" },
-    ip,
-  });
+  const [token] = await Promise.all([
+    createSessionTokenForUser(user.id),
+    prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
+    writeAuditLog({
+      actorUserId: user.id,
+      action: "auth.login_ok",
+      meta: { method: "totp" },
+      ip,
+    }).catch(() => {}),
+  ]);
+  if (!token) {
+    return NextResponse.redirect(new URL("/login", request.url), 303);
+  }
   return htmlRedirect(next, token);
 }

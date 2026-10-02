@@ -3,7 +3,6 @@ import {
   PENDING_2FA_COOKIE,
   PENDING_2FA_MAX_AGE,
   createPending2faToken,
-  createSessionToken,
   safeContinueUrl,
   sessionCookieOptions,
   writeSessionCookie,
@@ -12,6 +11,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import {
+  createSessionTokenForUser,
   needs2faChallenge,
   needs2faSetup,
   needsPasswordChange,
@@ -24,13 +24,6 @@ function clientIp(request: NextRequest) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 }
 
-function redirectTo(request: NextRequest, target: string) {
-  if (target.startsWith("http://") || target.startsWith("https://")) {
-    return NextResponse.redirect(target, 303);
-  }
-  return NextResponse.redirect(new URL(target, request.url), 303);
-}
-
 function loginErrorRedirect(request: NextRequest, next: string, error: string) {
   const url = new URL("/login", request.url);
   url.searchParams.set("error", error);
@@ -38,6 +31,7 @@ function loginErrorRedirect(request: NextRequest, next: string, error: string) {
   return NextResponse.redirect(url, 303);
 }
 
+/** 200 + Set-Cookie + navegação no cliente: o browser grava o cookie antes de sair da página. */
 function htmlRedirect(dest: string, token: string) {
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Entrando…</title><meta http-equiv="refresh" content="0;url=${dest.replace(/"/g, "")}"></head><body><script>location.replace(${JSON.stringify(dest)})</script></body></html>`;
   const res = new NextResponse(html, {
@@ -51,17 +45,9 @@ function htmlRedirect(dest: string, token: string) {
   return res;
 }
 
-function attachPending2fa(res: NextResponse, token: string) {
-  res.cookies.set(
-    PENDING_2FA_COOKIE,
-    token,
-    sessionCookieOptions(PENDING_2FA_MAX_AGE),
-  );
-}
-
 /**
- * Login via POST clássico (não Server Action): o browser grava Set-Cookie
- * na resposta de navegação top-level — necessário para o SSO cross-subdomain.
+ * Login via POST clássico (não Server Action): o cookie SSO, já com os grants
+ * do usuário, é gravado na resposta da navegação.
  */
 export async function POST(request: NextRequest) {
   const form = await request.formData();
@@ -76,78 +62,62 @@ export async function POST(request: NextRequest) {
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || user.deactivatedAt) {
-    await writeAuditLog({ action: "auth.login_failed", meta: { email }, ip });
+    void writeAuditLog({ action: "auth.login_failed", meta: { email }, ip }).catch(() => {});
     return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
   }
 
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) {
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_failed",
-      ip,
-    });
+  if (!(await verifyPassword(password, user.passwordHash))) {
+    void writeAuditLog({ actorUserId: user.id, action: "auth.login_failed", ip }).catch(() => {});
     return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
-  }
-
-  if (needsPasswordChange(user)) {
-    const token = await createSessionToken({
-      userId: user.id,
-      sessionVersion: user.sessionVersion,
-      email: user.email,
-    });
-    const res = htmlRedirect("/onboarding/senha", token);
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_partial",
-      meta: { step: "password_change" },
-      ip,
-    });
-    return res;
   }
 
   if (needs2faChallenge(user)) {
-    const pending = await createPending2faToken(user.id);
-    const res = redirectTo(
-      request,
-      `/login/2fa?next=${encodeURIComponent(next)}`,
+    const res = NextResponse.redirect(
+      new URL(`/login/2fa?next=${encodeURIComponent(next)}`, request.url),
+      303,
     );
-    attachPending2fa(res, pending);
-    await writeAuditLog({
+    res.cookies.set(
+      PENDING_2FA_COOKIE,
+      await createPending2faToken(user.id),
+      sessionCookieOptions(PENDING_2FA_MAX_AGE),
+    );
+    void writeAuditLog({
       actorUserId: user.id,
       action: "auth.login_partial",
       meta: { step: "2fa_challenge" },
       ip,
-    });
+    }).catch(() => {});
     return res;
   }
 
+  const token = await createSessionTokenForUser(user.id);
+  if (!token) {
+    return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
+  }
+
+  if (needsPasswordChange(user)) {
+    void writeAuditLog({
+      actorUserId: user.id,
+      action: "auth.login_partial",
+      meta: { step: "password_change" },
+      ip,
+    }).catch(() => {});
+    return htmlRedirect("/onboarding/senha", token);
+  }
+
   if (needs2faSetup(user)) {
-    const token = await createSessionToken({
-      userId: user.id,
-      sessionVersion: user.sessionVersion,
-      email: user.email,
-    });
-    const res = htmlRedirect("/onboarding/2fa", token);
-    await writeAuditLog({
+    void writeAuditLog({
       actorUserId: user.id,
       action: "auth.login_partial",
       meta: { step: "2fa_setup" },
       ip,
-    });
-    return res;
+    }).catch(() => {});
+    return htmlRedirect("/onboarding/2fa", token);
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-  const token = await createSessionToken({
-    userId: user.id,
-    sessionVersion: user.sessionVersion,
-    email: user.email,
-  });
-  const res = htmlRedirect(next, token);
-  await writeAuditLog({ actorUserId: user.id, action: "auth.login_ok", ip });
-  return res;
+  await Promise.all([
+    prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
+    writeAuditLog({ actorUserId: user.id, action: "auth.login_ok", ip }).catch(() => {}),
+  ]);
+  return htmlRedirect(next, token);
 }

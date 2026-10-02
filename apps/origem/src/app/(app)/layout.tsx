@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
 import { NotificationBell } from "@/components/planning/NotificationBell";
 import { isAuthEnabled } from "@/lib/auth/config";
-import { origemHubLoginUrl } from "@/lib/auth/hub";
+import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
 import {
   getHubPermissions,
   hubScreenForPath,
@@ -64,15 +64,18 @@ async function TopBar({
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSessionUser();
+  const [session, hubPerms] = await Promise.all([getSessionUser(), getHubPermissions()]);
   if (!session) {
     redirect(origemHubLoginUrl("/painel"));
+  }
+  // Sessão revogada no hub: /logout do Cultural limpa o cookie (ir a /login faria loop).
+  if (hubPerms.revoked) {
+    redirect(origemHubLogoutUrl());
   }
   if (session.profile.mustChangePassword && isAuthEnabled()) {
     redirect("/alterar-senha");
   }
 
-  const hubPerms = await getHubPermissions();
   const canEnterOrigem =
     hubPerms.ids.has("origem.app") ||
     hubPerms.ids.has("*") ||

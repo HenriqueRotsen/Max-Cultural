@@ -85,28 +85,30 @@ export async function clearPending2faCookie() {
 /** Memoizado por request (RSC) — evita 2–3 queries de usuário no mesmo render. */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const jar = await cookies();
-  const parsed = await parseSessionToken(jar.get(AUTH_COOKIE)?.value);
-  if (parsed) {
-    const user = await prisma.user.findUnique({
-      where: { id: parsed.userId },
-      include: userInclude,
-    });
-    if (user && !user.deactivatedAt && user.sessionVersion === parsed.sessionVersion) {
-      return user;
+
+  // Login único no MAX Cultural: o cookie SSO do hub manda.
+  const hubUrl = (process.env.NEXT_PUBLIC_CULTURAL_URL || "").trim();
+  if (hubUrl && process.env.AUTH_SECRET) {
+    let hub = null;
+    try {
+      const headerToken = await firstValidSessionToken((await headers()).get("cookie"));
+      hub = await parseHubSession(headerToken || jar.get(HUB_COOKIE)?.value);
+    } catch {
+      hub = null;
     }
+    if (hub?.email) return resolveUserFromHubSession(hub);
   }
 
-  const hubUrl = (process.env.NEXT_PUBLIC_CULTURAL_URL || "").trim();
-  if (!hubUrl || !process.env.AUTH_SECRET) return null;
-  let hub = null;
-  try {
-    const headerToken = await firstValidSessionToken((await headers()).get("cookie"));
-    hub = await parseHubSession(headerToken || jar.get(HUB_COOKIE)?.value);
-  } catch {
-    return null;
+  const parsed = await parseSessionToken(jar.get(AUTH_COOKIE)?.value);
+  if (!parsed) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: parsed.userId },
+    include: userInclude,
+  });
+  if (user && !user.deactivatedAt && user.sessionVersion === parsed.sessionVersion) {
+    return user;
   }
-  if (!hub?.email) return null;
-  return resolveUserFromHubSession(hub);
+  return null;
 });
 
 /** Resolve (ou provisiona) usuário Fluxo a partir da sessão compartilhada do hub. */

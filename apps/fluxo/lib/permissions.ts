@@ -14,6 +14,14 @@ export type AuthUser = User & {
 /** Memoizado por request — AdminShell + page + action compartilham o mesmo Set. */
 export const getEffectivePermissions = cache(
   async (userId: string): Promise<Set<PermissionCode>> => {
+    // Com sessão do hub, os grants do login (cookie SSO) são a fonte de verdade.
+    // Hub indisponível (fetchFailed) → cai no RBAC local.
+    const hub = await getHubFluxoAccess();
+    if (hub.hasHubSession && !hub.fetchFailed) {
+      if (!hub.allowedProduct) return new Set();
+      return new Set(hub.codes);
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -42,18 +50,6 @@ export const getEffectivePermissions = cache(
 
     // Perfil próprio sempre disponível
     set.add("perfil:write");
-
-    // Com sessão do hub: interseção com capabilities do Cultural.
-    // Se o hub estiver indisponível (fetchFailed), não esvazia o RBAC local.
-    const hub = await getHubFluxoAccess();
-    if (hub.hasHubSession && !hub.fetchFailed) {
-      if (!hub.allowedProduct) return new Set();
-      for (const code of [...set]) {
-        if (code === "perfil:write") continue;
-        if (!hub.codes.has(code)) set.delete(code);
-      }
-    }
-
     return set;
   },
 );

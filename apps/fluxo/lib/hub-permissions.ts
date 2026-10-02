@@ -4,6 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import {
   AUTH_COOKIE,
+  checkHubSessionAlive,
   culturalHubUrl,
   HUB_TO_FLUXO_PERMISSIONS,
   firstValidSessionToken,
@@ -19,6 +20,8 @@ export type HubFluxoAccess = {
   codes: Set<PermissionCode>;
   /** Rede/5xx no hub — distinto de 401 (sessão inválida). */
   fetchFailed?: boolean;
+  /** Sessão revogada no hub (sessionVersion mudou). */
+  revoked?: boolean;
 };
 
 function hubGet(
@@ -80,9 +83,21 @@ function codesFromHubIds(ids: Set<string>, fetchFailed = false): HubFluxoAccess 
   return { hasHubSession: true, allowedProduct: true, codes, fetchFailed };
 }
 
+const LEGACY_TTL_MS = 2 * 60 * 1000;
+const legacyCache = new Map<string, { access: HubFluxoAccess; at: number }>();
+
+const REVOKED: HubFluxoAccess = {
+  hasHubSession: true,
+  allowedProduct: false,
+  codes: new Set(),
+  fetchFailed: false,
+  revoked: true,
+};
+
 /**
- * Grants do hub para o Fluxo.
- * Tokens `u2` antigos usam cookie; senão GET /api/session/permissions.
+ * Grants do hub para o Fluxo, carregados no login e gravados no cookie SSO (`u3`).
+ * A única ida ao hub é a checagem de revogação, em cache (ver checkHubSessionAlive).
+ * Tokens antigos sem grants consultam /api/session/permissions (com cache).
  */
 export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
   const empty: HubFluxoAccess = {
@@ -99,14 +114,17 @@ export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
     const parsed = token ? await parseSessionToken(token) : null;
     if (!token || !parsed) return empty;
 
-    if (parsed.permissions && parsed.permissions.length > 0) {
+    if (parsed.permissions) {
+      const status = await checkHubSessionAlive(token);
+      if (status === "revoked") return REVOKED;
       return codesFromHubIds(new Set(parsed.permissions));
     }
 
-    const { status, body } = await hubGet("/api/session/permissions", token, 8000);
-    if (status === 401) {
-      return { hasHubSession: true, allowedProduct: false, codes: new Set(), fetchFailed: false };
-    }
+    const hit = legacyCache.get(token);
+    if (hit && Date.now() - hit.at < LEGACY_TTL_MS) return hit.access;
+
+    const { status, body } = await hubGet("/api/session/permissions", token, 4000);
+    if (status === 401) return REVOKED;
     if (status < 200 || status >= 300) {
       // Hub indisponível: não trancar SSO — libera produto básico.
       return {
@@ -138,7 +156,10 @@ export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {
       }
     }
 
-    return codesFromHubIds(ids);
+    const access = codesFromHubIds(ids);
+    if (legacyCache.size > 2000) legacyCache.clear();
+    legacyCache.set(token, { access, at: Date.now() });
+    return access;
   } catch {
     return {
       hasHubSession: true,

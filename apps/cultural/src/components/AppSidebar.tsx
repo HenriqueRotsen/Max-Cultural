@@ -130,9 +130,10 @@ export function AppSidebar({
         >
           Minha conta
         </Link>
-        <Link href="/logout" className="btn btn-ghost w-full justify-start px-0">
+        {/* <a> e não <Link>: o prefetch do Next chamaria /logout e encerraria a sessão. */}
+        <a href="/logout" className="btn btn-ghost w-full justify-start px-0">
           Sair
-        </Link>
+        </a>
       </div>
     </aside>
   );

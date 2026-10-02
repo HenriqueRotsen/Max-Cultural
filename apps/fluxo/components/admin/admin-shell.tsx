@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { culturalHubUrl } from "@max/auth";
+import { culturalHubUrl, culturalLogoutUrl } from "@max/auth";
 import { AppSidebarLayout } from "@/components/admin/app-sidebar-layout";
 import { requireDashboardUser } from "@/lib/dashboard-gate";
 import { redirectToHubLogin } from "@/lib/hub";
@@ -24,8 +24,11 @@ export async function AdminShell({
     );
   }
 
-  const user = await requireDashboardUser();
-  const hub = await getHubFluxoAccess();
+  const [user, hub] = await Promise.all([requireDashboardUser(), getHubFluxoAccess()]);
+  // Sessão revogada no hub: /logout do Cultural limpa o cookie (ir a /login faria loop).
+  if (hub.revoked) {
+    redirect(culturalLogoutUrl());
+  }
   if (hub.hasHubSession && !hub.allowedProduct && !hub.fetchFailed) {
     redirect(
       `${culturalHubUrl()}/?error=` +

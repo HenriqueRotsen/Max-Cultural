@@ -161,7 +161,7 @@ export async function completePasswordChangeAction(
   });
 
   if (needs2faSetup(updated)) {
-    await setSessionCookie({ ...updated, email: user.email });
+    await setSessionCookie(updated);
     return { ok: true, redirectTo: "/onboarding/2fa" };
   }
   if (needs2faChallenge(updated)) {
@@ -170,7 +170,7 @@ export async function completePasswordChangeAction(
     return { ok: true, redirectTo: "/login/2fa" };
   }
 
-  await setSessionCookie({ ...updated, email: user.email });
+  await setSessionCookie(updated);
   return { ok: true, redirectTo: "/" };
 }
 

@@ -65,7 +65,7 @@ export async function changeOwnPasswordAction(
       sessionVersion: { increment: 1 },
     },
   });
-  await setSessionCookie({ ...updated, email: user.email });
+  await setSessionCookie(updated);
   await writeAuditLog({
     actorUserId: user.id,
     action: "auth.password_changed",

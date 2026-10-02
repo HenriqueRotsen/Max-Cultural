@@ -1,28 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { culturalLoginUrl, firstValidSessionToken } from "@max/auth";
 import { isHubSsoEnabled } from "@/lib/auth/hub";
-import { updateSession } from "@/lib/supabase/middleware";
 
 function isPublicPath(pathname: string) {
-  if (
+  return (
     pathname === "/" ||
     pathname === "/precos" ||
     pathname === "/login" ||
     pathname === "/recuperar-senha" ||
     pathname === "/redefinir-senha" ||
     pathname === "/alterar-senha" ||
-    pathname === "/auth/callback"
-  ) {
-    return true;
-  }
-  return false;
+    pathname === "/auth/callback" ||
+    pathname === "/sair"
+  );
 }
 
-/** Páginas de entrada: se já autenticado, manda para o app (exceto fluxo de reset). */
+/** Páginas de entrada: se já autenticado, manda para o app. */
 function isAuthOnlyPath(pathname: string) {
   return pathname === "/login" || pathname === "/recuperar-senha";
 }
 
+/**
+ * Gate do Origem: só confere a assinatura do cookie SSO do hub (sem rede).
+ * Login, 2FA e permissões vêm do MAX Cultural.
+ */
 export async function proxy(request: NextRequest) {
   if (process.env.NODE_ENV === "production") {
     const proto =
@@ -38,19 +39,10 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
-  const requestWithPath = new NextRequest(request.url, {
-    method: request.method,
-    headers: requestHeaders,
-  });
-  // Preserve cookies on the cloned request.
-  request.cookies.getAll().forEach((c) => {
-    requestWithPath.cookies.set(c.name, c.value);
-  });
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
 
-  const { response, user } = await updateSession(requestWithPath);
-
-  // APIs do hub: nunca redirecionar para login (retornam 401 JSON).
-  if (pathname.startsWith("/api/hub")) {
+  // APIs com autenticação própria (token do hub / CRON_SECRET).
+  if (pathname.startsWith("/api/hub") || pathname.startsWith("/api/cron")) {
     return response;
   }
 
@@ -63,11 +55,15 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (!isPublicPath(pathname) && !user && !hubOk) {
+  if (pathname.startsWith("/api/")) {
+    return hubOk ? response : NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  if (!isPublicPath(pathname) && !hubOk) {
     return NextResponse.redirect(culturalLoginUrl(request.url));
   }
 
-  if (isAuthOnlyPath(pathname) && (user || hubOk)) {
+  if (isAuthOnlyPath(pathname) && hubOk) {
     return NextResponse.redirect(new URL("/painel", request.url));
   }
 

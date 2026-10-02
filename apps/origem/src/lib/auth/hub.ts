@@ -7,6 +7,7 @@ import {
   parseSessionToken,
 } from "@max/auth";
 import { cookies, headers } from "next/headers";
+import { cache } from "react";
 
 export { AUTH_COOKIE, culturalLoginUrl, culturalLogoutUrl };
 
@@ -41,7 +42,8 @@ export function origemHubAccountUrl() {
   return `${culturalHubUrl()}/conta`;
 }
 
-export async function getHubSessionPayload() {
+/** Token SSO válido da requisição (assinatura conferida). */
+export const getHubSessionToken = cache(async (): Promise<string | null> => {
   if (!isHubSsoEnabled()) return null;
   try {
     const header = (await headers()).get("cookie");
@@ -49,8 +51,13 @@ export async function getHubSessionPayload() {
       (await firstValidSessionToken(header)) ||
       (await cookies()).get(AUTH_COOKIE)?.value ||
       null;
-    return parseSessionToken(token);
+    return (await parseSessionToken(token)) ? token : null;
   } catch {
     return null;
   }
-}
+});
+
+export const getHubSessionPayload = cache(async () => {
+  const token = await getHubSessionToken();
+  return token ? parseSessionToken(token) : null;
+});

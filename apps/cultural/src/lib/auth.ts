@@ -32,21 +32,26 @@ export type SessionUser = User & {
   role: { id: string; name: string; permissions: { screen: string; canView: boolean; canEdit: boolean }[] };
 };
 
-export async function setSessionCookie(user: {
-  id: string;
-  sessionVersion: number;
-  email: string;
-}) {
+/** Token SSO com os grants do usuário, calculados uma vez no login. */
+export async function createSessionTokenForUser(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: userInclude,
+  });
+  if (!user || user.deactivatedAt) return null;
+  return createSessionToken({
+    userId: user.id,
+    sessionVersion: user.sessionVersion,
+    email: user.email,
+    permissions: listGrantedPermissionIds(user),
+  });
+}
+
+export async function setSessionCookie(user: { id: string }) {
+  const token = await createSessionTokenForUser(user.id);
+  if (!token) return;
   const jar = await cookies();
-  jar.set(
-    AUTH_COOKIE,
-    await createSessionToken({
-      userId: user.id,
-      sessionVersion: user.sessionVersion,
-      email: user.email,
-    }),
-    sessionCookieOptions(MAX_AGE_SECONDS),
-  );
+  jar.set(AUTH_COOKIE, token, sessionCookieOptions(MAX_AGE_SECONDS));
   jar.delete({ name: PENDING_2FA_COOKIE, ...cookieDeleteOptions() });
 }
 

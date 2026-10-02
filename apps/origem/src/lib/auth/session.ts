@@ -7,7 +7,6 @@ import {
   entitlementsFromWorkspace,
   type PlanEntitlements,
 } from "@/lib/auth/entitlements";
-import { createClient } from "@/lib/supabase/server";
 import { createWorkspace, ensureBootstrapWorkspace } from "@/lib/auth/workspace";
 import type { AppUser, AppUserRole, Workspace } from "@/generated/prisma/client";
 
@@ -73,7 +72,6 @@ export async function ensureAppUser(params: {
 async function ensureHubAppUser(params: { id: string; email: string }) {
   const email = params.email.toLowerCase();
   const name = email.split("@")[0] || "MAX Cultural";
-  const workspace = await ensureBootstrapWorkspace();
 
   const byEmail = await prisma.appUser.findUnique({
     where: { email },
@@ -91,6 +89,7 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
   }
 
   try {
+    const workspace = await ensureBootstrapWorkspace();
     return await prisma.appUser.upsert({
       where: { id: params.id },
       create: {
@@ -120,51 +119,23 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
   }
 }
 
+/** Login único no MAX Cultural: a sessão do Origem é o cookie SSO do hub. */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  // SSO do hub tem prioridade: login único no Cultural.
   const hub = await getHubSessionPayload();
-  if (hub?.email) {
-    try {
-      const profile = await ensureHubAppUser({
-        id: hub.userId,
-        email: hub.email,
-      });
-      if (profile?.active) {
-        return {
-          id: profile.id,
-          email: profile.email,
-          profile,
-          workspace: profile.workspace,
-          entitlements: entitlementsFromWorkspace(profile.workspace),
-        };
-      }
-    } catch {
-      // Continua para Supabase local se o provisionamento do hub falhar.
-    }
+  if (!hub?.email) return null;
+  try {
+    const profile = await ensureHubAppUser({ id: hub.userId, email: hub.email });
+    if (!profile?.active) return null;
+    return {
+      id: profile.id,
+      email: profile.email,
+      profile,
+      workspace: profile.workspace,
+      entitlements: entitlementsFromWorkspace(profile.workspace),
+    };
+  } catch {
+    return null;
   }
-
-  if (isAuthEnabled()) {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
-    if (user?.email) {
-      const profile = await ensureAppUser({
-        id: user.id,
-        email: user.email,
-        name: (user.user_metadata?.name as string | undefined) || null,
-      });
-      if (!profile.active) return null;
-      return {
-        id: user.id,
-        email: user.email,
-        profile,
-        workspace: profile.workspace,
-        entitlements: entitlementsFromWorkspace(profile.workspace),
-      };
-    }
-  }
-
-  return null;
 });
 
 /** Contexto do workspace atual (Auth ou hub SSO). */
