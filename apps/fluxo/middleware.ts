@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import {
-  AUTH_COOKIE,
   culturalLoginUrl,
   firstValidSessionToken,
   parseSessionToken as parseHubSession,
-  sessionTokenCandidates,
 } from "@max/auth";
 import { AUTH_COOKIE as LOCAL_COOKIE, parseSessionToken } from "@/lib/auth-token";
 
@@ -23,7 +21,6 @@ function isLegacyAuthPath(pathname: string): boolean {
   if (pathname === "/dashboard/recuperar" || pathname.startsWith("/dashboard/recuperar/")) {
     return true;
   }
-  if (pathname.startsWith("/dashboard/onboarding")) return true;
   return false;
 }
 
@@ -65,11 +62,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(culturalLoginUrl(request.url));
   }
 
-  const response = NextResponse.next();
-  if (hubSession && sessionTokenCandidates(request.headers.get("cookie")).length > 1) {
-    response.cookies.set(AUTH_COOKIE, "", { path: "/", maxAge: 0 });
-  }
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

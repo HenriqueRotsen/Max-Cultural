@@ -121,6 +121,33 @@ export type Pending2faPayload = {
   issuedAt: number;
 };
 
+function encodeEmail(email: string): string {
+  const bytes = new TextEncoder().encode(email);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function decodeEmail(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value.includes("%")) {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+  if (value.includes("@")) return value;
+  try {
+    const pad = value + "=".repeat((4 - (value.length % 4)) % 4);
+    const bin = atob(pad.replace(/-/g, "+").replace(/_/g, "/"));
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return value;
+  }
+}
+
 /**
  * Cookie SSO compartilhado. Formato estável `u:` (com e-mail) —
  * Origem/Fluxo resolvem grants via /api/session/permissions.
@@ -134,12 +161,35 @@ export async function createSessionToken(input: {
   permissions?: string[];
 }): Promise<string> {
   const issuedAt = Date.now();
-  const email = input.email ? encodeURIComponent(input.email) : "";
+  // base64url: o cookie não contém "%" — senão o parser do Next decodifica
+  // o valor e a assinatura deixa de bater no Origem/Fluxo (loop de login).
+  const email = input.email ? encodeEmail(input.email) : "";
   const payload = email
     ? `u:${input.userId}:${input.sessionVersion}:${issuedAt}:${email}`
     : `u:${input.userId}:${input.sessionVersion}:${issuedAt}`;
   const signature = await sign(payload);
   return `${payload}.${signature}`;
+}
+
+async function payloadMatchingSignature(
+  payload: string,
+  signature: string,
+): Promise<string | null> {
+  if (timingSafeEqualString(await sign(payload), signature)) return payload;
+  // cookies().get() decodifica %40 → @ e invalida a assinatura do token antigo.
+  const parts = payload.split(":");
+  if (parts.length >= 5 && parts[4]?.includes("@")) {
+    const repaired = [
+      parts[0],
+      parts[1],
+      parts[2],
+      parts[3],
+      encodeURIComponent(parts[4]!),
+      ...parts.slice(5),
+    ].join(":");
+    if (timingSafeEqualString(await sign(repaired), signature)) return repaired;
+  }
+  return null;
 }
 
 export async function parseSessionToken(
@@ -159,10 +209,10 @@ export async function parseSessionToken(
   }
   const lastDot = token.lastIndexOf(".");
   if (lastDot <= 0) return null;
-  const payload = token.slice(0, lastDot);
+  const rawPayload = token.slice(0, lastDot);
   const signature = token.slice(lastDot + 1);
-  const expected = await sign(payload);
-  if (!timingSafeEqualString(signature, expected)) return null;
+  const payload = await payloadMatchingSignature(rawPayload, signature);
+  if (!payload) return null;
 
   const parts = payload.split(":");
 
@@ -176,7 +226,7 @@ export async function parseSessionToken(
     }
     const ageMs = Date.now() - issuedAt;
     if (ageMs < 0 || ageMs > MAX_AGE_SECONDS * 1000) return null;
-    const email = parts[4] ? decodeURIComponent(parts[4]) : undefined;
+    const email = decodeEmail(parts[4]);
     const permissionsRaw = parts[5] ? decodeURIComponent(parts[5]) : "";
     const permissions = permissionsRaw
       ? permissionsRaw.split(",").map((p) => p.trim()).filter(Boolean)
@@ -193,7 +243,7 @@ export async function parseSessionToken(
   }
   const ageMs = Date.now() - issuedAt;
   if (ageMs < 0 || ageMs > MAX_AGE_SECONDS * 1000) return null;
-  const email = parts[4] ? decodeURIComponent(parts[4]) : undefined;
+  const email = decodeEmail(parts[4]);
   return { userId, sessionVersion, issuedAt, email };
 }
 
@@ -254,9 +304,7 @@ export function writeSessionCookie(
     "SameSite=Lax",
   ];
   if (opts.secure) base.push("Secure");
-  if (opts.domain) {
-    res.headers.append("set-cookie", [...base, `Domain=${opts.domain}`].join("; "));
-  }
+  if (opts.domain) base.push(`Domain=${opts.domain}`);
   res.headers.append("set-cookie", base.join("; "));
 }
 

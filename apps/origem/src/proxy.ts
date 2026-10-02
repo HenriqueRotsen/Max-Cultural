@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE, culturalLoginUrl, firstValidSessionToken, sessionTokenCandidates } from "@max/auth";
+import { culturalLoginUrl, firstValidSessionToken } from "@max/auth";
 import { isHubSsoEnabled } from "@/lib/auth/hub";
 import { updateSession } from "@/lib/supabase/middleware";
 
@@ -69,10 +69,6 @@ export async function proxy(request: NextRequest) {
 
   if (isAuthOnlyPath(pathname) && (user || hubOk)) {
     return NextResponse.redirect(new URL("/painel", request.url));
-  }
-
-  if (hubOk && sessionTokenCandidates(request.headers.get("cookie")).length > 1) {
-    response.cookies.set(AUTH_COOKIE, "", { path: "/", maxAge: 0 });
   }
 
   return response;
