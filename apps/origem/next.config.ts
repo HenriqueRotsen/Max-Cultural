@@ -17,11 +17,21 @@ const nextConfig: NextConfig = {
   allowedDevOrigins,
   serverExternalPackages: [
     "playwright",
+    "playwright-core",
+    "@sparticuz/chromium",
     "@prisma/client",
     "@prisma/adapter-pg",
     "pg",
     "pdf-parse",
   ],
+  // Arquivos não-JS que o tracing não detecta: binário do Chromium serverless
+  // e metadados do playwright-core (browsers.json etc.).
+  outputFileTracingIncludes: {
+    "/**": [
+      "../../node_modules/@sparticuz/chromium/bin/**",
+      "../../node_modules/playwright-core/**",
+    ],
+  },
   async headers() {
     return [
       {

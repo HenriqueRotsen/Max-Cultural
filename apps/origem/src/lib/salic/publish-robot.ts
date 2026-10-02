@@ -1,4 +1,4 @@
-import type { Page } from "playwright";
+import type { Page } from "playwright-core";
 import path from "path";
 import { prisma } from "@/lib/db";
 import { decryptCredential, normalizeCgccpf } from "@/lib/crypto";

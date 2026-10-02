@@ -1,4 +1,4 @@
-import type { Browser, Page } from "playwright";
+import type { Browser, Page } from "playwright-core";
 import { mkdir, writeFile, readFile } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/db";
@@ -160,8 +160,8 @@ export async function withAccountBrowser(
   password: string,
   fn: (page: Page, browser: Browser) => Promise<void>,
 ) {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
+  const { launchChromium } = await import("@/lib/browser");
+  const browser = await launchChromium();
   try {
     const storage = await loadStorageState(accountId);
     const context = await browser.newContext({

@@ -847,8 +847,8 @@ export async function startSync(formData: FormData) {
 
   const syncRun = await enqueueSync(options);
 
-  after(() => {
-    void executeSyncRun(syncRun.id, options).catch(async (error) => {
+  after(() =>
+    executeSyncRun(syncRun.id, options).catch(async (error) => {
       const message = error instanceof Error ? error.message : String(error);
       await prisma.syncRun.update({
         where: { id: syncRun.id },
@@ -859,8 +859,8 @@ export async function startSync(formData: FormData) {
           progressMessage: "Falhou",
         },
       });
-    });
-  });
+    }),
+  );
 
   revalidatePath("/sync");
   return { syncRunId: syncRun.id, mode: "full" };

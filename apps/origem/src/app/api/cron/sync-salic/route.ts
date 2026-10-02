@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const syncRun = await enqueueSync(options);
 
     const runJob = () =>
-      void executeSyncRun(syncRun.id, options).catch(async (error) => {
+      executeSyncRun(syncRun.id, options).catch(async (error) => {
         if (error instanceof SyncCancelledError) return;
         const current = await prisma.syncRun.findUnique({
           where: { id: syncRun.id },
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     if (process.env.VERCEL) {
       after(runJob);
     } else {
-      runJob();
+      void runJob();
     }
 
     return NextResponse.json({

@@ -12,7 +12,7 @@ import {
   withAccountBrowser,
   type SalicUiProject,
 } from "@/lib/salic/crawler";
-import type { Page } from "playwright";
+import type { Page } from "playwright-core";
 
 export class CaptacaoImportError extends Error {
   constructor(message: string) {

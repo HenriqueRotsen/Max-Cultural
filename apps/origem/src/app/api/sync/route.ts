@@ -37,8 +37,9 @@ export async function POST(request: Request) {
       include: { salicAccount: { select: { name: true, cgccpf: true } } },
     });
 
+    // Retorna a promise: `after` só mantém a função viva enquanto ela estiver pendente.
     const runJob = () =>
-      void executeSyncRun(syncRun.id, options).catch(async (error) => {
+      executeSyncRun(syncRun.id, options).catch(async (error) => {
         if (error instanceof Error && error.name === "SyncCancelledError") return;
         const current = await prisma.syncRun.findUnique({
           where: { id: syncRun.id },
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
     if (process.env.VERCEL) {
       after(runJob);
     } else {
-      runJob();
+      void runJob();
     }
 
     return NextResponse.json({

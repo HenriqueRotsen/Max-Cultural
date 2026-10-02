@@ -34,8 +34,8 @@ export function reportFileStamp(date = new Date()) {
 }
 
 export async function htmlToPdf(html: string): Promise<Buffer> {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
+  const { launchChromium } = await import("@/lib/browser");
+  const browser = await launchChromium();
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle", timeout: 90_000 });
