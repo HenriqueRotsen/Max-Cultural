@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { relationGeneratesBond } from "@/lib/compliance/defaults";
 import { corporateMapCopy } from "@/lib/corporate/copy";
@@ -43,7 +43,20 @@ function parseAccountForm(formData: FormData, syncEnabled: boolean) {
 }
 
 export async function createAccount(formData: FormData) {
+  try {
+    await createAccountInner(formData);
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[createAccount]", error);
+    const message = error instanceof Error ? error.message : String(error);
+    redirect(
+      "/contas?tab=nova&error=" +
+        encodeURIComponent(`Não foi possível salvar o proponente: ${message}`.slice(0, 400)),
+    );
+  }
+}
 
+async function createAccountInner(formData: FormData) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { assertCanCreateAccount } = await import("@/lib/auth/workspace");
   const { entitlements } = await getWorkspaceContext();
