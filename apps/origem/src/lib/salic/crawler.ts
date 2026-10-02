@@ -1,5 +1,6 @@
 import type { Browser, Page } from "playwright-core";
 import { mkdir, writeFile, readFile } from "fs/promises";
+import { tmpdir } from "os";
 import path from "path";
 import { prisma } from "@/lib/db";
 import { decryptCredential, normalizeCgccpf } from "@/lib/crypto";
@@ -14,7 +15,10 @@ import type { SalicProduto } from "@/lib/salic/api";
 import { classifyLifecycleFromSituacao } from "@/lib/planning/lifecycle";
 
 const SALIC_BASE = "https://salic.cultura.gov.br";
-const STATE_DIR = path.join(process.cwd(), ".salic-sessions");
+// Em serverless só /tmp aceita escrita.
+const STATE_DIR = process.env.VERCEL
+  ? path.join(tmpdir(), "salic-sessions")
+  : path.join(process.cwd(), ".salic-sessions");
 
 export type SalicUiProponente = {
   idAgenteProponente: number;
