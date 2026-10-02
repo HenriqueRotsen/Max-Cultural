@@ -2,7 +2,6 @@
  * Extração de NF / RPA: XML NF-e, texto DANFSe/RPA/heurística, Ollama opcional.
  */
 
-import { PDFParse } from "pdf-parse";
 import { extractPaymentDetails, type NfPaymentDetails } from "@/lib/nf/payment-details";
 import { extractFiscalNumbersFromText, fiscalNumberFields } from "@/lib/nf/fiscal-number";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
@@ -741,7 +740,9 @@ function softenPdfText(text: string): string {
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // pdf-parse precisa estar em serverExternalPackages (Next) — igual ao Suply.
+  // Import sob demanda: pdfjs-dist pode quebrar ao carregar na Vercel (canvas nativo),
+  // e no topo do módulo isso derrubava todas as Server Actions que importam este arquivo.
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
