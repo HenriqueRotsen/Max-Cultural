@@ -52,7 +52,7 @@ export default async function HomePage() {
         actions={
           <>
             {entitlements.syncEnabled && (
-              <Link href="/sync" className="btn">
+              <Link href="/contas?tab=atualizacao" className="btn">
                 Atualizar dados
               </Link>
             )}
@@ -105,7 +105,7 @@ export default async function HomePage() {
                 text: "Concentração, maiores fornecedores e projetos em destaque.",
               },
               {
-                href: "/sync",
+                href: "/contas?tab=atualizacao",
                 title: "Atualizar",
                 text: "Busca projetos e pagamentos no SALIC para o MAX Origem.",
               },

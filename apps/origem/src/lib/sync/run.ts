@@ -292,6 +292,10 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
     });
     if (hadSuccess) {
       await mirrorCatalogForAccounts(accounts);
+      const { startPlanningPhase } = await import("@/lib/sync/planning-phase");
+      await startPlanningPhase(syncRunId, [
+        ...new Set(accounts.map((a) => a.workspaceId).filter(Boolean)),
+      ]);
     }
   } catch (error) {
     if (error instanceof SyncCancelledError) {

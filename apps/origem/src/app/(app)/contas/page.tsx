@@ -9,6 +9,7 @@ import { AccountEditor } from "@/components/AccountEditor";
 import { CreateAccountForm } from "@/components/CreateAccountForm";
 import { FieldHelp } from "@/components/FieldHelp";
 import { PageHeader } from "@/components/ui";
+import { SyncSection } from "@/components/SyncSection";
 import { HELP } from "@/lib/help";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
   const atLimit = accounts.length >= entitlements.maxAccounts;
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
   const tab =
-    tabParam === "nova" || tabParam === "suas-contas"
+    tabParam === "nova" || tabParam === "suas-contas" || tabParam === "atualizacao"
       ? tabParam
       : accounts.length > 0
         ? "suas-contas"
@@ -77,6 +78,12 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
             Novo proponente
           </Link>
         )}
+        <Link
+          href="/contas?tab=atualizacao"
+          aria-current={tab === "atualizacao" ? "page" : undefined}
+        >
+          Atualização SALIC
+        </Link>
       </nav>
 
       {error && (
@@ -110,7 +117,12 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
         </div>
       )}
 
-      {tab === "nova" ? (
+      {tab === "atualizacao" ? (
+        <SyncSection
+          workspaceId={entitlements.workspaceId}
+          syncEnabled={entitlements.syncEnabled}
+        />
+      ) : tab === "nova" ? (
         atLimit ? (
           <div className="card p-5 text-sm text-[var(--gray-600)]">
             {accountLimitMessage(entitlements.maxAccounts)}
