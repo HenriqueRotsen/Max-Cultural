@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { after } from "next/server";
-import { enqueueSync, executeSyncRun } from "@/lib/sync/run";
+import { NextResponse, after } from "next/server";
+import { enqueueAccountSyncs, executeSyncRunSafe } from "@/lib/sync/run";
+import { runSyncQueue } from "@/lib/sync/planning-phase";
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -15,7 +15,6 @@ export async function POST(request: Request) {
 
     const body = (await request.json().catch(() => ({}))) as {
       accountId?: string;
-      forceCrawler?: boolean;
       pronacs?: string[];
     };
 
@@ -23,60 +22,32 @@ export async function POST(request: Request) {
       await assertAccountInWorkspace(body.accountId, entitlements.workspaceId);
     }
 
-    const options = {
+    const jobs = await enqueueAccountSyncs({
       salicAccountId: body.accountId || undefined,
       forceCrawler: true,
       pronacs: body.pronacs,
       workspaceId: entitlements.workspaceId,
-    };
+    });
 
-    const syncRun = await enqueueSync(options);
+    // Em serverless o `after` mantém o trabalho vivo pós-resposta.
+    const dispatch = () =>
+      runSyncQueue(
+        jobs.map((j) => ({ syncRunId: j.run.id, options: j.options })),
+        (job) => executeSyncRunSafe(job.syncRunId, job.options),
+      );
+    if (process.env.VERCEL) after(dispatch);
+    else void dispatch();
 
+    const first = jobs[0]!.run;
     const runWithAccount = await prisma.syncRun.findUnique({
-      where: { id: syncRun.id },
+      where: { id: first.id },
       include: { salicAccount: { select: { name: true, cgccpf: true } } },
     });
 
-    // Retorna a promise: `after` só mantém a função viva enquanto ela estiver pendente.
-    const runJob = () =>
-      executeSyncRun(syncRun.id, options).catch(async (error) => {
-        if (error instanceof Error && error.name === "SyncCancelledError") return;
-        const current = await prisma.syncRun.findUnique({
-          where: { id: syncRun.id },
-          select: { progressMessage: true, errorMessage: true, status: true },
-        });
-        if (
-          current?.progressMessage === "Cancelada" ||
-          current?.errorMessage === "Cancelada pelo usuário"
-        ) {
-          return;
-        }
-        if (current?.status !== "pending" && current?.status !== "running") {
-          return;
-        }
-        const message = error instanceof Error ? error.message : String(error);
-        await prisma.syncRun.update({
-          where: { id: syncRun.id },
-          data: {
-            status: "error",
-            finishedAt: new Date(),
-            errorMessage: message,
-            progressMessage: "Falhou",
-          },
-        });
-      });
-
-    // Em serverless o `after` mantém o trabalho vivo pós-resposta.
-    // Em local/`ngrok`, disparar na hora evita sync "travado" em pending.
-    if (process.env.VERCEL) {
-      after(runJob);
-    } else {
-      void runJob();
-    }
-
     return NextResponse.json({
-      syncRunId: syncRun.id,
-      status: syncRun.status,
+      syncRunId: first.id,
+      syncRunIds: jobs.map((j) => j.run.id),
+      status: first.status,
       run: runWithAccount,
     });
   } catch (error) {

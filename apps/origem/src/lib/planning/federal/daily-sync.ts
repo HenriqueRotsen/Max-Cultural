@@ -9,7 +9,10 @@ import { syncFluxoProjeto } from "@/lib/planning/server-utils";
  * Leva os projetos da auditoria (já sincronizados do SALIC) para o planejamento:
  * cria os que faltam, espelha em andamento/encerrado e provisiona o contexto no Fluxo.
  */
-export async function onboardPlanningFromAuditoria(workspaceId: string): Promise<{
+export async function onboardPlanningFromAuditoria(
+  workspaceId: string,
+  accountId?: string,
+): Promise<{
   created: number;
   updated: number;
 }> {
@@ -20,7 +23,7 @@ export async function onboardPlanningFromAuditoria(workspaceId: string): Promise
   }
 
   const auditProjects = await prisma.project.findMany({
-    where: { salicAccount: { workspaceId } },
+    where: { salicAccount: { workspaceId }, ...(accountId ? { salicAccountId: accountId } : {}) },
     include: {
       planningProject: { select: { id: true } },
       salicAccount: { select: { id: true, name: true } },
@@ -82,21 +85,22 @@ export async function onboardPlanningFromAuditoria(workspaceId: string): Promise
  */
 export async function syncPlanningForWorkspace(
   workspaceId: string,
+  accountId?: string,
   log: (message: string) => Promise<void> = async () => {},
 ) {
-  const onboard = await onboardPlanningFromAuditoria(workspaceId);
+  const onboard = await onboardPlanningFromAuditoria(workspaceId, accountId);
   await log(
     `Planejamento: ${onboard.created} projeto(s) novo(s), ${onboard.updated} atualizado(s) · contextos no Fluxo conferidos`,
   );
 
-  const sheets = await linkHomologatedSheetsForOpenProjects(workspaceId);
+  const sheets = await linkHomologatedSheetsForOpenProjects(workspaceId, accountId);
   await log(
     `Planejamento: ${sheets.linked} planilha(s) homologada(s) vinculada(s)` +
       (sheets.skipped ? ` · ${sheets.skipped} ignorada(s)` : "") +
       (sheets.errors.length ? ` · ${sheets.errors.slice(0, 3).join(" · ")}` : ""),
   );
 
-  const captacao = await syncCaptacaoForWorkspace(workspaceId);
+  const captacao = await syncCaptacaoForWorkspace(workspaceId, accountId);
   await log(
     `Planejamento: captação atualizada em ${captacao.synced} projeto(s)` +
       (captacao.errors.length ? ` · ${captacao.errors.slice(0, 3).join(" · ")}` : ""),

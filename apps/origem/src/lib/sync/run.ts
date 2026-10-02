@@ -97,6 +97,113 @@ async function assertSyncStillActive(syncRunId: string) {
   }
 }
 
+/** Uma execução não passa do limite da função (300 s); acima disso ela morreu. */
+const STALE_RUN_MS = 8 * 60 * 1000;
+
+async function closeStaleRuns() {
+  await prisma.syncRun.updateMany({
+    where: {
+      OR: [
+        { status: "running", startedAt: { lt: new Date(Date.now() - STALE_RUN_MS) } },
+        // Na fila aguardando as contas anteriores: folga maior.
+        { status: "pending", createdAt: { lt: new Date(Date.now() - 4 * STALE_RUN_MS) } },
+      ],
+    },
+    data: {
+      status: "error",
+      finishedAt: new Date(),
+      progressMessage: "Falhou",
+      errorMessage: "Interrompida por tempo limite do servidor.",
+    },
+  });
+}
+
+/**
+ * Enfileira uma execução por proponente — cada uma roda em invocação própria,
+ * com o limite de tempo inteiro para a conta.
+ */
+export async function enqueueAccountSyncs(options: SyncOptions = {}) {
+  await closeStaleRuns();
+  const pronacs = (options.pronacs || []).filter(Boolean);
+
+  if (options.workspaceId) {
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: options.workspaceId },
+    });
+    if (!workspace || workspace.plan !== "PRO") {
+      throw new Error("A atualização com o SALIC não está disponível neste workspace.");
+    }
+  }
+
+  const accounts = await accountsForSync(options);
+  if (accounts.length === 0) throw new Error("Nenhuma conta ativa para sincronizar");
+  if (pronacs.length > 0 && accounts.length !== 1) {
+    throw new Error("Para sync por PRONAC, selecione uma conta específica");
+  }
+
+  const busy = await prisma.syncRun.findMany({
+    where: {
+      status: { in: ["pending", "running"] },
+      OR: [{ salicAccountId: { in: accounts.map((a) => a.id) } }, { salicAccountId: null }],
+    },
+    select: { salicAccountId: true },
+  });
+  if (busy.some((r) => r.salicAccountId === null)) {
+    throw new Error("Já existe uma sincronização em andamento. Aguarde terminar.");
+  }
+  const busyIds = new Set(busy.map((r) => r.salicAccountId));
+  const free = accounts.filter((a) => !busyIds.has(a.id));
+  if (free.length === 0) {
+    throw new Error("Já existe uma sincronização em andamento. Aguarde terminar.");
+  }
+
+  return Promise.all(
+    free.map(async (account) => ({
+      run: await prisma.syncRun.create({
+        data: {
+          status: "pending",
+          forceCrawler: true,
+          startedAt: new Date(),
+          salicAccountId: account.id,
+          progressMessage: "Na fila…",
+          progressCurrent: 0,
+          progressTotal: 0,
+          log: `Fila: ${account.name}${pronacs.length ? ` PRONAC=${pronacs.join(",")}` : ""}`,
+        },
+      }),
+      options: {
+        salicAccountId: account.id,
+        forceCrawler: true,
+        pronacs: pronacs.length ? pronacs : undefined,
+        workspaceId: account.workspaceId,
+      } satisfies SyncOptions,
+    })),
+  );
+}
+
+/** executeSyncRun que nunca deixa a execução presa em "running" por erro inesperado. */
+export async function executeSyncRunSafe(syncRunId: string, options: SyncOptions) {
+  try {
+    await executeSyncRun(syncRunId, options);
+  } catch (error) {
+    if (error instanceof SyncCancelledError) return;
+    const current = await prisma.syncRun.findUnique({
+      where: { id: syncRunId },
+      select: { status: true },
+    });
+    if (current?.status !== "pending" && current?.status !== "running") return;
+    await prisma.syncRun.update({
+      where: { id: syncRunId },
+      data: {
+        status: "error",
+        finishedAt: new Date(),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        progressMessage: "Falhou",
+      },
+    });
+  }
+}
+
 export async function enqueueSync(options: SyncOptions = {}) {
   const forceCrawler = true;
   const pronacs = (options.pronacs || []).filter(Boolean);
@@ -293,9 +400,10 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
     if (hadSuccess) {
       await mirrorCatalogForAccounts(accounts);
       const { startPlanningPhase } = await import("@/lib/sync/planning-phase");
-      await startPlanningPhase(syncRunId, [
-        ...new Set(accounts.map((a) => a.workspaceId).filter(Boolean)),
-      ]);
+      await startPlanningPhase(
+        syncRunId,
+        accounts.map((a) => ({ workspaceId: a.workspaceId, accountId: a.id })),
+      );
     }
   } catch (error) {
     if (error instanceof SyncCancelledError) {
