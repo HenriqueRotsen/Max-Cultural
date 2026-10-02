@@ -36,9 +36,11 @@ export async function refreshProjectFinancials(params: {
   projectId: string;
   pronac: string;
   fromProjeto?: SalicProjeto | null;
+  apiOptions?: { timeoutMs?: number; maxAttempts?: number };
 }) {
   const projeto =
-    params.fromProjeto ?? (await getProjetoByPronac(params.pronac).catch(() => null));
+    params.fromProjeto ??
+    (await getProjetoByPronac(params.pronac, params.apiOptions).catch(() => null));
   const { valorCaptado, valorAprovado } = financialsFromProjeto(projeto);
   if (valorCaptado == null && valorAprovado == null) {
     return { valorCaptado: null, valorAprovado: null };

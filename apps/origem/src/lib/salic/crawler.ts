@@ -355,6 +355,7 @@ export async function syncAccountViaCrawler(params: {
   let paymentsUpserted = 0;
   let paymentsDeleted = 0;
   let projectsDeleted = 0;
+  let publicApiDown = false;
 
   await withAccountBrowser(account.id, username, password, async (page) => {
     await push("Login OK — buscando proponentes do usuário");
@@ -469,10 +470,19 @@ export async function syncAccountViaCrawler(params: {
         );
       }
 
-      await refreshProjectFinancials({
-        projectId: project.id,
-        pronac: String(listed.Pronac),
-      });
+      // API pública do SALIC é lenta/instável (sobretudo vista da Vercel): consulta
+      // curta e, se falhar uma vez, não insiste nos demais projetos desta execução.
+      if (!publicApiDown) {
+        const fin = await refreshProjectFinancials({
+          projectId: project.id,
+          pronac: String(listed.Pronac),
+          apiOptions: { timeoutMs: 8_000, maxAttempts: 1 },
+        });
+        if (fin.valorCaptado == null && fin.valorAprovado == null) {
+          publicApiDown = true;
+          await push("API pública do SALIC sem resposta — valores captados ficam para a próxima atualização");
+        }
+      }
 
       if (!project.complianceRulesetId) {
         const { scheduleProjectRulesetChoice } = await import("@/lib/compliance/choose-ruleset");
