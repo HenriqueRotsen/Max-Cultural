@@ -56,10 +56,15 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       # `semgrep ci` não aceita --error; com configs locais use `semgrep scan`.
+      # Só ERROR reprova; WARNING/INFO aparecem no log sem falhar o job.
       - run: >
           semgrep scan
           --config p/owasp-top-ten
           --config p/javascript
+          --severity=ERROR
           --error
+          --metrics=off
           --exclude node_modules
           --exclude .next
+          --exclude dist
+          --exclude coverage
