@@ -27,14 +27,8 @@ const nextConfig: NextConfig = {
               "https://challenges.cloudflare.com",
             ],
             frameSrc: ["https://challenges.cloudflare.com"],
-            // Tiles do mapa (Leaflet). OSM.org bloqueia hotlink; usamos Carto.
-            imgSrc: [
-              "https://*.basemaps.cartocdn.com",
-              "https://a.basemaps.cartocdn.com",
-              "https://b.basemaps.cartocdn.com",
-              "https://c.basemaps.cartocdn.com",
-              "https://d.basemaps.cartocdn.com",
-            ],
+            // Tiles Leaflet (OSM.de — gratuito, sem API key).
+            imgSrc: ["https://tile.openstreetmap.de"],
           },
         }),
       },
