@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { auditActionLabel, auditScreenLabel } from "@/lib/audit-labels";
 import {
   LOGS_PAGE_SIZE_OPTIONS,
+  formatLogDateTime,
   logsQueryToSearchParams,
   type LogRowDTO,
   type LogsQuery,
@@ -155,7 +156,7 @@ function LogDetailDialog({
         <div className="space-y-5 overflow-y-auto px-5 py-4">
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailField label="Quando">
-              {new Date(log.createdAt).toLocaleString("pt-BR")}
+              {formatLogDateTime(log.createdAt)}
             </DetailField>
             <DetailField label="IP">{log.ip || "—"}</DetailField>
             <DetailField label="Ação">
@@ -467,7 +468,7 @@ export function LogsExplorer({ logs, total, query, filterOptions }: Props) {
                 logs.map((log) => (
                   <tr key={log.id}>
                     <td className="whitespace-nowrap tabular-nums">
-                      {new Date(log.createdAt).toLocaleString("pt-BR")}
+                      {formatLogDateTime(log.createdAt)}
                     </td>
                     <td>
                       <div className="font-medium text-[var(--navy)]">

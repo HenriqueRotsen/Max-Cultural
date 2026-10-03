@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import {
   buildAuditLogOrderBy,
   buildAuditLogWhere,
+  formatLogDateTime,
   parseLogsQuery,
 } from "@/lib/logs-query";
 
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
     "meta",
   ];
   const rows = logs.map((log) => [
-    log.createdAt.toISOString(),
+    formatLogDateTime(log.createdAt),
     log.actor?.name ?? "",
     log.actor?.email ?? "",
     log.action,

@@ -253,3 +253,18 @@ export type LogRowDTO = {
   actorEmail: string | null;
   actorUserId: string | null;
 };
+
+/** Horário dos logs no fuso do Brasil (UTC−3 / America/Sao_Paulo). */
+export function formatLogDateTime(value: string | Date): string {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
