@@ -11,6 +11,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "iam.user_created": "Usuário criado",
   "iam.user_activated": "Usuário reativado",
   "iam.user_deactivated": "Usuário desativado",
+  "iam.user_permissions_updated": "Acessos do usuário ajustados",
+  "iam.user_role_changed": "Papel do usuário alterado",
   "iam.role_created": "Papel criado",
   "iam.role_updated": "Papel atualizado",
   "iam.2fa_reset": "2FA redefinido pelo admin",
