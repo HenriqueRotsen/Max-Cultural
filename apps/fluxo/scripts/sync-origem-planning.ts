@@ -31,7 +31,15 @@ async function loadOrigemProjects(): Promise<OrigemRow[]> {
       "Defina ORIGEM_DATABASE_URL ou configure DATABASE_URL em apps/origem/.env.local",
     );
   }
-  const client = new pg.Client({ connectionString: ORIGEM_DATABASE_URL });
+  const schema =
+    new URL(ORIGEM_DATABASE_URL).searchParams.get("schema") ?? "origem";
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
+    throw new Error(`Invalid Origem schema: ${schema}`);
+  }
+  const client = new pg.Client({
+    connectionString: ORIGEM_DATABASE_URL,
+    options: `-c search_path=${schema},public`,
+  });
   await client.connect();
   try {
     const { rows } = await client.query<OrigemRow>(`

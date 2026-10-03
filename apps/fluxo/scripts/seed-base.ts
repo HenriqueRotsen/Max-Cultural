@@ -137,10 +137,15 @@ async function main() {
   }
   console.log(`Linhas válidas: ${rows.length}`);
 
-  const pool = new Pool({ connectionString });
   const schema =
     new URL(connectionString).searchParams.get("schema") ?? undefined;
   console.log(`Postgres schema: ${schema ?? "public"}`);
+  const pool = new Pool({
+    connectionString,
+    ...(schema && /^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)
+      ? { options: `-c search_path=${schema},public` }
+      : {}),
+  });
   const prisma = new PrismaClient({
     adapter: new PrismaPg(pool, schema ? { schema } : undefined),
   });

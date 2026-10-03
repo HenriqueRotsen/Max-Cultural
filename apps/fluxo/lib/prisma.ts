@@ -31,8 +31,15 @@ function resolveDatabaseUrl() {
 }
 
 function createPrismaClient(connectionString: string) {
-  const pool = new Pool({ connectionString });
   const schema = new URL(connectionString).searchParams.get("schema") ?? undefined;
+  if (schema && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
+    throw new Error(`Invalid Postgres schema name: ${schema}`);
+  }
+  // $queryRaw / scripts precisam do search_path; o adapter só qualifica SQL gerado.
+  const pool = new Pool({
+    connectionString,
+    ...(schema ? { options: `-c search_path=${schema},public` } : {}),
+  });
   const adapter = new PrismaPg(pool, schema ? { schema } : undefined);
   return {
     client: new PrismaClient({
