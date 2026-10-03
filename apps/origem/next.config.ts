@@ -39,7 +39,14 @@ const nextConfig: NextConfig = {
         headers: buildSecurityHeaders({
           frameOptions: "SAMEORIGIN",
           cspExtras: {
-            imgSrc: ["https://*.tile.openstreetmap.org"],
+            // Tiles do mapa (Leaflet). OSM.org bloqueia hotlink; usamos Carto.
+            imgSrc: [
+              "https://*.basemaps.cartocdn.com",
+              "https://a.basemaps.cartocdn.com",
+              "https://b.basemaps.cartocdn.com",
+              "https://c.basemaps.cartocdn.com",
+              "https://d.basemaps.cartocdn.com",
+            ],
           },
         }),
       },
