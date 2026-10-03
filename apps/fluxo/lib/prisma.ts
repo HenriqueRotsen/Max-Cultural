@@ -89,5 +89,16 @@ function resolveClient(): PrismaClient {
   return client;
 }
 
-/** Singleton sem Proxy externo (Proxy quebra delegates no Turbopack). */
-export const prisma: PrismaClient = resolveClient();
+/**
+ * Lazy: não exige DATABASE_URL no `next build` (preview Dependabot / collect
+ * page data). Conecta só no primeiro acesso em runtime.
+ */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    // Evita que o Proxy seja tratado como thenable pelo await.
+    if (prop === "then") return undefined;
+    const client = resolveClient();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
