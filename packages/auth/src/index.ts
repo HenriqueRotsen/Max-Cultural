@@ -11,6 +11,7 @@ export {
   productSections,
   grantedIdsFromRoleRows,
   normalizeGrantedIds,
+  applyPermissionOverrides,
   type AccessKind,
   type AccessProductGroup,
   type AccessCatalogEntry,

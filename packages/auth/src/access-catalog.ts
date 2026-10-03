@@ -315,3 +315,17 @@ export function normalizeGrantedIds(ids: Iterable<string>): string[] {
   }
   return ACCESS_PERMISSION_IDS.filter((id) => set.has(id));
 }
+
+/** Aplica overrides por usuário sobre o conjunto do papel (GRANT adiciona, DENY remove). */
+export function applyPermissionOverrides(
+  base: Iterable<string>,
+  overrides: Array<{ screen: string; effect: "GRANT" | "DENY" }>,
+): Set<string> {
+  const granted = new Set(base);
+  for (const o of overrides) {
+    if (!ACCESS_BY_ID[o.screen]) continue;
+    if (o.effect === "GRANT") granted.add(o.screen);
+    if (o.effect === "DENY") granted.delete(o.screen);
+  }
+  return granted;
+}

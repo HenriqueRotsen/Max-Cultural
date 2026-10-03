@@ -7,7 +7,6 @@ import { prismaToRow } from "@/lib/schema";
 import type { SigaCulturalRow } from "@/lib/schema";
 import { requirePermission } from "@/lib/auth";
 import { andScope, resolveDataScope } from "@/lib/data-scope";
-import { writeAuditLog } from "@/lib/audit";
 
 export type PessoaInscricaoResumo = {
   id: string;
@@ -266,14 +265,6 @@ export async function getPessoaByCpfAction(
     }
     return { ok: false, error: "Nenhuma inscrição encontrada para este CPF." };
   }
-
-  await writeAuditLog({
-    actorUserId: user.id,
-    action: "consulta.cpf",
-    entityType: "Cpf",
-    entityId: cpf,
-    meta: { inscricoes: records.length },
-  });
 
   const rows = records.map(prismaToRow);
   const profile = pickProfile(rows);

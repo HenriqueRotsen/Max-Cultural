@@ -323,8 +323,11 @@ export function SyncPanel({
           />
         </div>
         <div className="md:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] px-4 py-3 text-sm text-[var(--gray-600)]">
-          A atualização usa sempre a <strong>área logada do SALIC</strong> (usuário e
-          senha do proponente). É necessário cadastrar as credenciais na conta.
+          <strong>Atualização automática todo dia às 8h.</strong> Busca no SALIC os projetos e
+          pagamentos (auditoria), leva os projetos para o planejamento com o status em
+          andamento/encerrado, cria os contextos no Fluxo e atualiza planilha e captação. Use o
+          botão abaixo para atualizar agora. Usa a <strong>área logada do SALIC</strong>: cadastre
+          usuário e senha no proponente.
         </div>
         <div className="md:col-span-2 flex flex-wrap items-center gap-3">
           <button

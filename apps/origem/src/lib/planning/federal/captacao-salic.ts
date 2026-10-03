@@ -217,7 +217,10 @@ export async function applyCaptacaoToPlanningProject(params: {
  * Atualiza captação de todos os projetos federais de um workspace
  * (uma sessão Playwright por proponente).
  */
-export async function syncCaptacaoForWorkspace(workspaceId: string): Promise<{
+export async function syncCaptacaoForWorkspace(
+  workspaceId: string,
+  accountId?: string,
+): Promise<{
   synced: number;
   skipped: number;
   errors: string[];
@@ -225,6 +228,7 @@ export async function syncCaptacaoForWorkspace(workspaceId: string): Promise<{
   const projects = await prisma.planningProject.findMany({
     where: {
       workspaceId,
+      ...(accountId ? { accountId } : {}),
       jurisdiction: "FEDERAL",
     },
     include: {
