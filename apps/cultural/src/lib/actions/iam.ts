@@ -220,6 +220,60 @@ export async function saveRolePermissionsAction(formData: FormData) {
   redirect(`/papeis/${roleId}?saved=1`);
 }
 
+/** Salva overrides granulares (GRANT/DENY) por usuário; papel continua como padrão. */
+export async function saveUserPermissionsAction(formData: FormData) {
+  const actor = await getSessionUser();
+  if (!actor || !can(actor, "cultural.usuarios", "edit")) {
+    redirect("/usuarios?error=" + encodeURIComponent("Sem permissão."));
+  }
+  const userId = String(formData.get("userId") ?? "");
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, isSuperAdmin: true },
+  });
+  if (!target) {
+    redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
+  }
+  if (target.isSuperAdmin) {
+    redirect(
+      `/usuarios/${userId}?error=` +
+        encodeURIComponent("Superadmin tem acesso total — overrides não se aplicam."),
+    );
+  }
+
+  const rows: Array<{ userId: string; screen: string; effect: "GRANT" | "DENY" }> =
+    [];
+  for (const id of ACCESS_PERMISSION_IDS) {
+    const raw = String(formData.get(`override:${id}`) ?? "").trim();
+    if (raw === "GRANT" || raw === "DENY") {
+      rows.push({ userId, screen: id, effect: raw });
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.userPermission.deleteMany({ where: { userId } });
+    if (rows.length) {
+      await tx.userPermission.createMany({ data: rows });
+    }
+    await tx.user.update({
+      where: { id: userId },
+      data: { sessionVersion: { increment: 1 } },
+    });
+  });
+
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "iam.user_permissions_updated",
+    screen: "cultural.usuarios",
+    entityType: "user",
+    entityId: userId,
+    meta: { overrides: rows.length },
+  });
+  revalidatePath("/usuarios");
+  revalidatePath(`/usuarios/${userId}`);
+  redirect(`/usuarios/${userId}?saved=1`);
+}
+
 /** Troca o papel do usuário e invalida a sessão atual dele. */
 export async function updateUserRoleAction(formData: FormData) {
   const actor = await getSessionUser();

@@ -214,11 +214,16 @@ export async function listProjetosByCgccpf(cgccpf: string) {
 }
 
 /** Metadados financeiros de um PRONAC na API pública (valor captado / aprovado). */
-export async function getProjetoByPronac(pronac: string): Promise<SalicProjeto | null> {
-  const page = await salicFetch<SalicListResponse<SalicProjeto>>("/projetos", {
-    PRONAC: pronac,
-    limit: 1,
-  });
+export async function getProjetoByPronac(
+  pronac: string,
+  options?: { timeoutMs?: number; maxAttempts?: number },
+): Promise<SalicProjeto | null> {
+  const page = await salicFetch<SalicListResponse<SalicProjeto>>(
+    "/projetos",
+    { PRONAC: pronac, limit: 1 },
+    1,
+    options,
+  );
   return page._embedded?.projetos?.[0] ?? null;
 }
 

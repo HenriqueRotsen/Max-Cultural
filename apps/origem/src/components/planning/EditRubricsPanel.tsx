@@ -243,7 +243,7 @@ export function EditRubricsPanel({
                           type="range"
                           min={min}
                           max={max}
-                          step={0.01}
+                          step={1}
                           value={Math.min(max, Math.max(min, value))}
                           className="min-w-[12rem] flex-1"
                           onChange={(e) =>
@@ -256,7 +256,7 @@ export function EditRubricsPanel({
                             type="number"
                             min={min}
                             max={max}
-                            step={0.01}
+                            step={1}
                             value={value}
                             className="w-full tabular-nums"
                             onChange={(e) =>

@@ -25,7 +25,16 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not set");
   }
   const schema = schemaFromDatabaseUrl(connectionString);
-  const pool = new Pool({ connectionString });
+  if (schema && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
+    throw new Error(`Invalid Postgres schema name: ${schema}`);
+  }
+  // O adapter só qualifica SQL gerado pelo Prisma. $queryRaw / $executeRaw
+  // precisam do search_path — sem isso, tabelas do schema (ex.: origem.catalog_*)
+  // falham com "relation does not exist" e quebram /fornecedores.
+  const pool = new Pool({
+    connectionString,
+    ...(schema ? { options: `-c search_path=${schema},public` } : {}),
+  });
   const adapter = new PrismaPg(pool, schema ? { schema } : undefined);
   return new PrismaClient({ adapter });
 }

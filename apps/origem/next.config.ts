@@ -39,7 +39,8 @@ const nextConfig: NextConfig = {
         headers: buildSecurityHeaders({
           frameOptions: "SAMEORIGIN",
           cspExtras: {
-            imgSrc: ["https://*.tile.openstreetmap.org"],
+            // Tiles Leaflet (OSM.de — gratuito, sem API key).
+            imgSrc: ["https://tile.openstreetmap.de"],
           },
         }),
       },

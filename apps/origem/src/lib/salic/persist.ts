@@ -36,9 +36,11 @@ export async function refreshProjectFinancials(params: {
   projectId: string;
   pronac: string;
   fromProjeto?: SalicProjeto | null;
+  apiOptions?: { timeoutMs?: number; maxAttempts?: number };
 }) {
   const projeto =
-    params.fromProjeto ?? (await getProjetoByPronac(params.pronac).catch(() => null));
+    params.fromProjeto ??
+    (await getProjetoByPronac(params.pronac, params.apiOptions).catch(() => null));
   const { valorCaptado, valorAprovado } = financialsFromProjeto(projeto);
   if (valorCaptado == null && valorAprovado == null) {
     return { valorCaptado: null, valorAprovado: null };
@@ -83,6 +85,8 @@ async function upsertPaymentFromProduto(params: {
   supplierId: string;
   produto: SalicProduto;
   source: "api" | "crawler";
+  /** Quem chama limpa duplicatas de outra origem em lote. */
+  skipCrossSourceCleanup?: boolean;
 }) {
   const { projectId, supplierId, produto, source } = params;
   const externalId =
@@ -123,7 +127,7 @@ async function upsertPaymentFromProduto(params: {
       });
 
   // Uma fonte de verdade: remove o mesmo comprovante gravado por outra origem (api vs crawler).
-  if (externalId) {
+  if (externalId && !params.skipCrossSourceCleanup) {
     await prisma.payment.deleteMany({
       where: {
         externalId,

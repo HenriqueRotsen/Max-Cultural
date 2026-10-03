@@ -5,11 +5,7 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { canPublishToSalic, canReadequacao } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
-import {
-  classifyLifecycleFromSituacao,
-  isFederalPlanning,
-} from "@/lib/planning/lifecycle";
-import { listPlanningRulesets } from "@/lib/planning/rulesets";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import {
   resolveFluxoContexto,
   type FluxoContextResolve,
@@ -297,73 +293,13 @@ export async function importAuditoriaProjectsToPlanning(): Promise<ActionState> 
   await requireUser();
   const { entitlements } = await getWorkspaceContext();
 
-  const rulesets = await listPlanningRulesets();
-  const rulesetVersion = rulesets[0]?.version;
-  if (!rulesetVersion) {
-    return { error: "Nenhuma norma de conformidade ativa para vincular aos projetos." };
-  }
-
-  const auditProjects = await prisma.project.findMany({
-    where: { salicAccount: { workspaceId: entitlements.workspaceId } },
-    include: {
-      planningProject: { select: { id: true } },
-      salicAccount: { select: { id: true, name: true } },
-    },
-    orderBy: { pronac: "asc" },
-  });
-
   let created = 0;
   let updated = 0;
-
-  for (const p of auditProjects) {
-    const lifecycle =
-      p.lifecycleStatus === "ENCERRADO"
-        ? "ENCERRADO"
-        : classifyLifecycleFromSituacao(p.situacao);
-
-    if (p.planningProject) {
-      await prisma.planningProject.update({
-        where: { id: p.planningProject.id },
-        data: {
-          lifecycleStatus: lifecycle,
-          name: p.name || undefined,
-        },
-      });
-      if (p.lifecycleStatus !== lifecycle) {
-        await prisma.project.update({
-          where: { id: p.id },
-          data: { lifecycleStatus: lifecycle },
-        });
-      }
-      updated += 1;
-      await syncFluxoProjeto({
-        pronac: p.pronac,
-        nome: p.name || p.pronac,
-        proponente: p.salicAccount.name,
-        bulk: true,
-      });
-      continue;
-    }
-
-    await prisma.planningProject.create({
-      data: {
-        workspaceId: entitlements.workspaceId,
-        accountId: p.salicAccountId,
-        jurisdiction: "FEDERAL",
-        rulesetVersion,
-        externalCode: p.pronac,
-        name: p.name,
-        projectId: p.id,
-        lifecycleStatus: lifecycle,
-      },
-    });
-    created += 1;
-    await syncFluxoProjeto({
-      pronac: p.pronac,
-      nome: p.name || p.pronac,
-      proponente: p.salicAccount.name,
-      bulk: true,
-    });
+  try {
+    const { onboardPlanningFromAuditoria } = await import("@/lib/planning/federal/daily-sync");
+    ({ created, updated } = await onboardPlanningFromAuditoria(entitlements.workspaceId));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Falha ao importar projetos" };
   }
 
   const sheets = await linkHomologatedSheetsForOpenProjects(entitlements.workspaceId);

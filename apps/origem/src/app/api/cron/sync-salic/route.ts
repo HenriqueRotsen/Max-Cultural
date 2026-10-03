@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
-import { after } from "next/server";
-import { enqueueSync, executeSyncRun, SyncCancelledError } from "@/lib/sync/run";
-import { prisma } from "@/lib/db";
+import { NextResponse, after } from "next/server";
+import { enqueueAccountSyncs } from "@/lib/sync/run";
+import { buildSyncQueue, runSyncQueue } from "@/lib/sync/queue";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -15,7 +14,8 @@ function assertCronAuth(request: Request): boolean {
 }
 
 /**
- * Cron diário (08:00 BRT = 11:00 UTC): sincroniza contas Pro com o SALIC.
+ * Cron diário (08:00 BRT = 11:00 UTC): sincroniza os proponentes Pro com o SALIC
+ * (uma invocação por conta) e, ao fim de cada uma, atualiza planejamento e Fluxo.
  * Auth: Authorization: Bearer $CRON_SECRET
  */
 export async function GET(request: Request) {
@@ -24,48 +24,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const options = { forceCrawler: true as const };
-    const syncRun = await enqueueSync(options);
+    const jobs = await enqueueAccountSyncs({ forceCrawler: true });
+    const dispatch = () => runSyncQueue(buildSyncQueue(jobs), { handOffFirst: true });
+    if (process.env.VERCEL) after(dispatch);
+    else void dispatch();
 
-    const runJob = () =>
-      executeSyncRun(syncRun.id, options).catch(async (error) => {
-        if (error instanceof SyncCancelledError) return;
-        const current = await prisma.syncRun.findUnique({
-          where: { id: syncRun.id },
-          select: { progressMessage: true, errorMessage: true, status: true },
-        });
-        if (
-          current?.progressMessage === "Cancelada" ||
-          current?.errorMessage === "Cancelada pelo usuário"
-        ) {
-          return;
-        }
-        if (current?.status !== "pending" && current?.status !== "running") {
-          return;
-        }
-        const message = error instanceof Error ? error.message : String(error);
-        await prisma.syncRun.update({
-          where: { id: syncRun.id },
-          data: {
-            status: "error",
-            finishedAt: new Date(),
-            errorMessage: message,
-            progressMessage: "Falhou",
-          },
-        });
-      });
-
-    if (process.env.VERCEL) {
-      after(runJob);
-    } else {
-      void runJob();
-    }
-
-    return NextResponse.json({
-      ok: true,
-      syncRunId: syncRun.id,
-      status: syncRun.status,
-    });
+    return NextResponse.json({ ok: true, syncRunIds: jobs.map((j) => j.run.id) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });

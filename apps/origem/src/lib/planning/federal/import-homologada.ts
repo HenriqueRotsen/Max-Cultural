@@ -277,7 +277,10 @@ export async function fetchSalicProjectPreview(params: {
  * Para projetos federais em andamento sem planilha, busca a homologada na área logada
  * (uma sessão por proponente) e vincula no Planejamento.
  */
-export async function linkHomologatedSheetsForOpenProjects(workspaceId: string): Promise<{
+export async function linkHomologatedSheetsForOpenProjects(
+  workspaceId: string,
+  accountId?: string,
+): Promise<{
   linked: number;
   skipped: number;
   errors: string[];
@@ -285,6 +288,7 @@ export async function linkHomologatedSheetsForOpenProjects(workspaceId: string):
   const open = await prisma.planningProject.findMany({
     where: {
       workspaceId,
+      ...(accountId ? { accountId } : {}),
       lifecycleStatus: "EM_ANDAMENTO",
       jurisdiction: "FEDERAL",
       sheet: null,

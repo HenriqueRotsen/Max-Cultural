@@ -14,7 +14,6 @@ const auditoriaLinks = [
   { href: "/panorama", label: "Insights", icon: ChartIcon },
   { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon },
   { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon },
-  { href: "/sync", label: "Atualizar", icon: SyncIcon },
   { href: "/observados", label: "Observados", icon: UsersIcon },
 ];
 
@@ -101,10 +100,7 @@ export function AppSidebar({
     allowedScreens.includes("*") ||
     allowedScreens.includes(screen);
 
-  const auditoria = auditoriaLinks.filter((l) => {
-    if (!syncEnabled && l.href === "/sync") return false;
-    return allow("origem.auditoria");
-  });
+  const auditoria = auditoriaLinks.filter(() => allow("origem.auditoria"));
   const proponentes = !allow("origem.proponentes") ? [] : proponentesLinks;
   const fornecedores = allow("origem.fornecedores") ? fornecedoresLinks : [];
   const planejamento = allow("origem.planejamento") ? planejamentoLinks : [];
@@ -374,21 +370,6 @@ function BuildingIcon({ active }: { active?: boolean }) {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M4 20V7l8-3 8 3v13" stroke={stroke(active)} strokeWidth="1.7" strokeLinejoin="round" />
       <path d="M9 20v-5h6v5" stroke={stroke(active, true)} strokeWidth="1.7" />
-    </svg>
-  );
-}
-
-function SyncIcon({ active }: { active?: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M20 12a8 8 0 0 1-13.5 5.8M4 12A8 8 0 0 1 17.5 6.2"
-        stroke={stroke(active)}
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-      <path d="M17 3.5v4h4" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M7 20.5v-4H3" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }

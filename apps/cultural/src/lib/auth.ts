@@ -16,6 +16,7 @@ import {
   clearAuthCookieOptions,
   ACCESS_BY_ID,
   ACCESS_PERMISSION_IDS,
+  applyPermissionOverrides,
   grantedIdsFromRoleRows,
   normalizeGrantedIds,
 } from "@max/auth";
@@ -26,11 +27,23 @@ export { AUTH_COOKIE, PENDING_2FA_COOKIE };
 
 const userInclude = {
   role: { include: { permissions: true } },
+  permissions: true,
 } as const;
 
 export type SessionUser = User & {
-  role: { id: string; name: string; permissions: { screen: string; canView: boolean; canEdit: boolean }[] };
+  role: {
+    id: string;
+    name: string;
+    permissions: { screen: string; canView: boolean; canEdit: boolean }[];
+  };
+  permissions: { screen: string; effect: "GRANT" | "DENY" }[];
 };
+
+function effectiveGrantedSet(user: SessionUser): Set<string> {
+  const fromRole = grantedIdsFromRoleRows(user.role.permissions);
+  const withOverrides = applyPermissionOverrides(fromRole, user.permissions);
+  return new Set(normalizeGrantedIds(withOverrides));
+}
 
 /** Token SSO com os grants do usuário, calculados uma vez no login. */
 export async function createSessionTokenForUser(userId: string): Promise<string | null> {
@@ -133,8 +146,7 @@ export function needs2faChallenge(user: { totpEnabled: boolean }) {
 
 export function hasPermission(user: SessionUser, permissionId: string) {
   if (user.isSuperAdmin) return true;
-  const granted = grantedIdsFromRoleRows(user.role.permissions);
-  return granted.has(permissionId);
+  return effectiveGrantedSet(user).has(permissionId);
 }
 
 export function can(user: SessionUser, screen: string, action: "view" | "edit") {
@@ -142,7 +154,8 @@ export function can(user: SessionUser, screen: string, action: "view" | "edit") 
   if (action === "view") return hasPermission(user, screen);
   const editCap = `${screen}.edit`;
   if (ACCESS_BY_ID[editCap]) return hasPermission(user, editCap);
-  // Legado: canEdit na própria linha da tela / capability.
+  // Legado: canEdit na própria linha da tela / capability, respeitando DENY do usuário.
+  if (!hasPermission(user, screen)) return false;
   const perm = user.role.permissions.find((p) => p.screen === screen);
   return Boolean(perm?.canEdit);
 }
@@ -158,5 +171,5 @@ export function canViewProjetos(user: SessionUser) {
 
 export function listGrantedPermissionIds(user: SessionUser): string[] {
   if (user.isSuperAdmin) return [...ACCESS_PERMISSION_IDS];
-  return normalizeGrantedIds(grantedIdsFromRoleRows(user.role.permissions));
+  return [...effectiveGrantedSet(user)];
 }

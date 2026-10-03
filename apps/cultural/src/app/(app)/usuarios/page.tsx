@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can, getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -33,7 +34,10 @@ export default async function UsuariosPage({
   const [users, roles] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
-      include: { role: true },
+      include: {
+        role: true,
+        _count: { select: { permissions: true } },
+      },
     }),
     prisma.role.findMany({ orderBy: { name: "asc" } }),
   ]);
@@ -47,7 +51,8 @@ export default async function UsuariosPage({
         <h1 className="mt-1 text-2xl font-semibold text-[var(--navy)]">Usuários</h1>
         <p className="mt-1 text-sm text-[var(--gray-500)]">
           A primeira senha é temporária: no primeiro login o usuário troca a senha e
-          configura o autenticador (2FA).
+          configura o autenticador (2FA). O papel define o padrão; em cada pessoa você
+          pode ajustar acessos com Conceder/Negar.
         </p>
       </div>
 
@@ -121,6 +126,7 @@ export default async function UsuariosPage({
               <th>Nome</th>
               <th>E-mail</th>
               <th>Papel</th>
+              <th>Acessos</th>
               <th>2FA</th>
               <th>Status</th>
               {canEdit ? <th /> : null}
@@ -157,6 +163,18 @@ export default async function UsuariosPage({
                   ) : (
                     u.role.name
                   )}
+                </td>
+                <td>
+                  <Link
+                    href={`/usuarios/${u.id}`}
+                    className="font-medium text-[var(--navy)] underline-offset-2 hover:underline"
+                  >
+                    {u.isSuperAdmin
+                      ? "Total"
+                      : u._count.permissions > 0
+                        ? `Ajustar (${u._count.permissions})`
+                        : "Herdar papel"}
+                  </Link>
                 </td>
                 <td>
                   {u.totpEnabled

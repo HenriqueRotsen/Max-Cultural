@@ -7,6 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PermissionEffect {
+  GRANT
+  DENY
+}
+
 model User {
   id                 String    @id @default(cuid())
   email              String    @unique
@@ -24,12 +29,25 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  permissions    UserPermission[]
   auditLogs      AuditLog[]
   passwordResets PasswordResetToken[]
   invitesSent    InviteToken[]        @relation("InviteCreatedBy")
 
   @@index([roleId])
   @@map("users")
+}
+
+/** Override granular: papel define o padrão; GRANT/DENY ajusta por pessoa. */
+model UserPermission {
+  userId String
+  screen String
+  effect PermissionEffect
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, screen])
+  @@index([userId])
+  @@map("user_permissions")
 }
 
 model Role {
