@@ -75,6 +75,22 @@ export function LegalDossierHistory({ accountId }: { accountId: string }) {
     }
   }
 
+  async function resume(jobId: string) {
+    setDownloadingId(jobId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/dossiers/${jobId}/tick`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Falha ao continuar o dossiê");
+        return;
+      }
+      await load();
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   if (error && jobs.length === 0) {
     return <p className="mt-3 text-xs text-[var(--gray-500)]">{error}</p>;
   }
@@ -117,18 +133,30 @@ export function LegalDossierHistory({ accountId }: { accountId: string }) {
                   <p className="mt-0.5 text-xs text-red-700">{j.errorMessage}</p>
                 ) : null}
               </div>
-              {j.status === "success" && (j.zipPath || j.zips.length > 0) ? (
-                <button
-                  type="button"
-                  className="btn btn-ghost shrink-0 text-xs"
-                  disabled={downloadingId === j.id}
-                  onClick={() => void download(j)}
-                >
-                  {downloadingId === j.id
-                    ? "Preparando…"
-                    : `Baixar dossiê${totalBytes ? ` (${formatBytes(totalBytes)})` : ""}`}
-                </button>
-              ) : null}
+              <div className="flex shrink-0 flex-wrap gap-1">
+                {j.status === "running" || j.status === "pending" ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost text-xs"
+                    disabled={downloadingId === j.id}
+                    onClick={() => void resume(j.id)}
+                  >
+                    {downloadingId === j.id ? "Retomando…" : "Continuar"}
+                  </button>
+                ) : null}
+                {j.status === "success" && (j.zipPath || j.zips.length > 0) ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost text-xs"
+                    disabled={downloadingId === j.id}
+                    onClick={() => void download(j)}
+                  >
+                    {downloadingId === j.id
+                      ? "Preparando…"
+                      : `Baixar dossiê${totalBytes ? ` (${formatBytes(totalBytes)})` : ""}`}
+                  </button>
+                ) : null}
+              </div>
             </li>
           );
         })}

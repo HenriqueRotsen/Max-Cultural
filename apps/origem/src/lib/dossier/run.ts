@@ -116,6 +116,14 @@ function isLocked(work: DossierWorkState | null): boolean {
   return Number.isFinite(t) && t > Date.now();
 }
 
+/** Remove lease expirado do workState (permite o tick retomar). */
+function clearExpiredLock(work: DossierWorkState): DossierWorkState {
+  if (!work.lockUntil) return work;
+  if (isLocked(work)) return work;
+  const { lockUntil: _drop, ...rest } = work;
+  return rest;
+}
+
 function parseZips(manifest: unknown): DossierZipEntry[] {
   if (!manifest || typeof manifest !== "object") return [];
   const zips = (manifest as { zips?: unknown }).zips;
@@ -218,9 +226,16 @@ export async function runDossierJob(jobId: string): Promise<void> {
 
   try {
     let work = parseWorkState(job.workState);
+    if (work) work = clearExpiredLock(work);
     if (isLocked(work)) {
       // Outra invocação (handOff/tick) já está gerando este PRONAC.
       return;
+    }
+    // Persiste limpeza do lease expirado
+    if (work && job.workState && (job.workState as { lockUntil?: string }).lockUntil && !work.lockUntil) {
+      await setProgress(jobId, job.progressPct, job.progressMsg || "Aguardando continuação…", {
+        workState: work,
+      });
     }
 
     if (!work) {

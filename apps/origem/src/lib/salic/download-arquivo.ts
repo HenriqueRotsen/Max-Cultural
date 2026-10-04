@@ -6,6 +6,10 @@ import { prisma } from "@/lib/db";
 
 const SALIC_BASE = "https://salic.cultura.gov.br";
 
+/** Orçamento total do RPA por PRONAC (Vercel). */
+const RPA_BUDGET_MS = 50_000;
+const DEFAULT_MAX_FILES = 20;
+
 export type SalicDownloadedFile = {
   fileId: string;
   filename: string;
@@ -22,7 +26,6 @@ function looksBinary(buf: Buffer, contentType: string): boolean {
   if (buf.length < 32) return false;
   if (isPdf(buf)) return true;
   if (/octet-stream|pdf|image|zip/i.test(contentType)) return true;
-  // rejeita HTML de erro SALIC
   const head = buf.subarray(0, 64).toString("utf8").toLowerCase();
   if (head.includes("<!doctype") || head.includes("<html") || head.includes("erro interno")) {
     return false;
@@ -39,36 +42,43 @@ export async function fetchArquivoById(
   const id = String(fileId || "").replace(/\D/g, "");
   if (!id) return null;
 
-  const candidates = [
-    `/file/getfile?id=${id}`,
-    `/file/getfile/id/${id}`,
-    `/file/index/getfile/id/${id}`,
-    `/upload/download-pdf?arquivo=${id}`,
-  ];
+  // Uma URL principal + 1 fallback — evita N× timeouts por arquivo.
+  const candidates = [`/file/getfile?id=${id}`, `/file/getfile/id/${id}`];
 
   for (const path of candidates) {
     try {
       const result = await page.evaluate(async (p) => {
-        const res = await fetch(p, {
-          credentials: "include",
-          headers: {
-            Accept: "*/*",
-            Referer: `${location.origin}/prestacao-contas/pagamento/`,
-          },
-        });
-        const buf = await res.arrayBuffer();
-        const bytes = Array.from(new Uint8Array(buf));
-        return {
-          ok: res.ok,
-          status: res.status,
-          ct: res.headers.get("content-type") || "",
-          cd: res.headers.get("content-disposition") || "",
-          bytes,
-        };
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 12_000);
+        try {
+          const res = await fetch(p, {
+            credentials: "include",
+            signal: ctrl.signal,
+            headers: {
+              Accept: "*/*",
+              Referer: `${location.origin}/prestacao-contas/pagamento/`,
+            },
+          });
+          const buf = await res.arrayBuffer();
+          const bytes = Array.from(new Uint8Array(buf));
+          return {
+            ok: res.ok,
+            status: res.status,
+            ct: res.headers.get("content-type") || "",
+            cd: res.headers.get("content-disposition") || "",
+            bytes,
+          };
+        } finally {
+          clearTimeout(timer);
+        }
       }, path);
 
       const buffer = Buffer.from(result.bytes);
-      if (!result.ok || !looksBinary(buffer, result.ct)) continue;
+      if (!result.ok || !looksBinary(buffer, result.ct)) {
+        // 500 "Erro interno" do SALIC: não adianta tentar o mesmo id em mais paths longos
+        if (result.status >= 500) return null;
+        continue;
+      }
 
       let filename =
         filenameHint?.trim() ||
@@ -105,21 +115,22 @@ export type PronacSalicFilesResult = {
 
 /**
  * Baixa comprovantes (idArquivo) do PRONAC via sessão SALIC.
- * Falhas (ex.: SALIC 500) entram em failedFileIds — não aborta o dossiê.
+ * Com orçamento de tempo — não pode segurar o job inteiro.
  */
 export async function downloadPronacSalicFiles(params: {
   accountId: string;
-  /** idPronac interno SALIC (numérico) quando conhecido */
   salicProjectId?: string | null;
   pronac: string;
   files: Array<{ fileId: string; fileName?: string | null }>;
-  /** Limite por PRONAC (Vercel). */
   maxFiles?: number;
+  budgetMs?: number;
 }): Promise<PronacSalicFilesResult> {
   const notes: string[] = [];
   const payments: SalicDownloadedFile[] = [];
   const failedFileIds: string[] = [];
-  const maxFiles = params.maxFiles ?? 80;
+  const maxFiles = params.maxFiles ?? DEFAULT_MAX_FILES;
+  const budgetMs = params.budgetMs ?? RPA_BUDGET_MS;
+  const deadline = Date.now() + budgetMs;
 
   const unique = new Map<string, string | null | undefined>();
   for (const f of params.files) {
@@ -127,6 +138,10 @@ export async function downloadPronacSalicFiles(params: {
     if (id) unique.set(id, f.fileName);
   }
   const list = [...unique.entries()].slice(0, maxFiles);
+  const skipped = unique.size - list.length;
+  if (skipped > 0) {
+    notes.push(`RPA limitado a ${maxFiles} arquivo(s); ${skipped} ficaram de fora neste PRONAC.`);
+  }
   if (!list.length) {
     return { payments, failedFileIds, notes: ["Nenhum idArquivo para baixar."] };
   }
@@ -162,15 +177,39 @@ export async function downloadPronacSalicFiles(params: {
         await page
           .goto(`${SALIC_BASE}/prestacao-contas/pagamento/index/idpronac/${warmId}`, {
             waitUntil: "domcontentloaded",
-            timeout: 60_000,
+            timeout: 45_000,
           })
           .catch(() => undefined);
       }
 
-      for (const [fileId, fileName] of list) {
+      let consecutiveHardFails = 0;
+      for (let i = 0; i < list.length; i++) {
+        if (Date.now() > deadline) {
+          const rest = list.slice(i).map(([id]) => id);
+          failedFileIds.push(...rest);
+          notes.push(
+            `RPA interrompido por tempo (${payments.length} baixado(s), ${rest.length} pendente(s)).`,
+          );
+          break;
+        }
+        const [fileId, fileName] = list[i]!;
         const file = await fetchArquivoById(page, fileId, fileName);
-        if (file) payments.push(file);
-        else failedFileIds.push(fileId);
+        if (file) {
+          payments.push(file);
+          consecutiveHardFails = 0;
+        } else {
+          failedFileIds.push(fileId);
+          consecutiveHardFails += 1;
+          // Se o SALIC está fora (500 em sequência), para cedo.
+          if (consecutiveHardFails >= 5 && payments.length === 0) {
+            const rest = list.slice(i + 1).map(([id]) => id);
+            failedFileIds.push(...rest);
+            notes.push(
+              "SALIC /file/getfile indisponível — RPA abortado cedo para não travar o dossiê.",
+            );
+            break;
+          }
+        }
       }
     });
   } catch (err) {
@@ -178,13 +217,15 @@ export async function downloadPronacSalicFiles(params: {
       `RPA SALIC falhou: ${err instanceof Error ? err.message : String(err)}`,
     );
     for (const [id] of list) {
-      if (!payments.some((p) => p.fileId === id)) failedFileIds.push(id);
+      if (!payments.some((p) => p.fileId === id) && !failedFileIds.includes(id)) {
+        failedFileIds.push(id);
+      }
     }
   }
 
   if (failedFileIds.length) {
     notes.push(
-      `${failedFileIds.length} arquivo(s) não baixados do SALIC (endpoint /file/getfile pode estar indisponível).`,
+      `${failedFileIds.length} arquivo(s) não baixados do SALIC neste PRONAC.`,
     );
   }
   if (payments.length) {

@@ -417,7 +417,8 @@ export async function buildPronacDossier(params: {
         salicProjectId: numericIdPronac,
         pronac: project.pronac,
         files: needSalic,
-        maxFiles: 100,
+        maxFiles: 20,
+        budgetMs: 50_000,
       });
       for (const note of rpa.notes) limitations.push(`05_salic_rpa: ${note}`);
       for (const file of rpa.payments) {

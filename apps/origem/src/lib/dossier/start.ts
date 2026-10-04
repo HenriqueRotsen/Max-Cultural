@@ -11,7 +11,7 @@ export type StartLegalDossierResult =
   | { ok: true; jobId: string }
   | { ok: false; error: string };
 
-const STALE_MS = 20 * 60 * 1000;
+const STALE_MS = 8 * 60 * 1000;
 
 /**
  * Inicia dossiê legal por proponente.
