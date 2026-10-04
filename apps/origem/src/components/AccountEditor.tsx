@@ -9,6 +9,8 @@ import {
 } from "@/lib/actions";
 import { FieldHelp, FieldLabel } from "@/components/FieldHelp";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { LegalDossierButton } from "@/components/LegalDossierButton";
+import { LegalDossierHistory } from "@/components/LegalDossierHistory";
 import { formatCgccpf } from "@/lib/format";
 import { HELP } from "@/lib/help";
 
@@ -55,6 +57,16 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
               {mapLabel}
             </Link>
           ) : null}
+          <LegalDossierButton
+            accountId={account.id}
+            label="Gerar Dossiê de Auditoria (Backup)"
+            variant="ghost"
+            disabledReason={
+              account.projectCount < 1
+                ? "Nenhum PRONAC sincronizado neste proponente."
+                : null
+            }
+          />
           {syncEnabled && (
             <span className={`badge ${account.hasPassword ? "badge-success" : "badge-muted"}`}>
               {account.hasPassword ? "Senha salva" : "Sem senha"}
@@ -226,6 +238,8 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
             </ConfirmSubmitButton>
           </form>
         </div>
+
+        <LegalDossierHistory accountId={account.id} />
       </div>
     </div>
   );
