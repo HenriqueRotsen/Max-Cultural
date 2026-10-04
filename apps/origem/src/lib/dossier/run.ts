@@ -68,6 +68,12 @@ async function handOffDossier(jobId: string): Promise<boolean> {
   }
 }
 
+/** Na Vercel, prefere o cron (maxDuration 300); senão executa no processo atual. */
+export async function dispatchDossierJob(jobId: string): Promise<void> {
+  if (await handOffDossier(jobId)) return;
+  await runDossierJob(jobId);
+}
+
 async function setProgress(
   jobId: string,
   pct: number,

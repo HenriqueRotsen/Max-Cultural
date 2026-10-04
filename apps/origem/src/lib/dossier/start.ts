@@ -5,11 +5,13 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { assertAccountInWorkspace } from "@/lib/auth/workspace";
 import { accountStoragePrefix } from "@/lib/dossier/paths";
-import { runDossierJob } from "@/lib/dossier/run";
+import { dispatchDossierJob } from "@/lib/dossier/run";
 
 export type StartLegalDossierResult =
   | { ok: true; jobId: string }
   | { ok: false; error: string };
+
+const STALE_MS = 20 * 60 * 1000;
 
 /**
  * Inicia dossiê legal por proponente.
@@ -38,6 +40,22 @@ export async function startLegalDossierAction(input: {
     }
   }
 
+  // Libera mutex se o job anterior ficou órfão (função morta / timeout).
+  const staleBefore = new Date(Date.now() - STALE_MS);
+  await prisma.legalDossierJob.updateMany({
+    where: {
+      workspaceId,
+      status: { in: ["pending", "running"] },
+      updatedAt: { lt: staleBefore },
+    },
+    data: {
+      status: "error",
+      errorMessage: "Dossiê expirado sem conclusão — tente novamente.",
+      progressMsg: "Falhou",
+      finishedAt: new Date(),
+    },
+  });
+
   const busy = await prisma.legalDossierJob.findFirst({
     where: {
       workspaceId,
@@ -65,7 +83,7 @@ export async function startLegalDossierAction(input: {
   });
 
   after(() =>
-    runDossierJob(job.id).catch(async (error) => {
+    dispatchDossierJob(job.id).catch(async (error) => {
       const message = error instanceof Error ? error.message : String(error);
       await prisma.legalDossierJob.update({
         where: { id: job.id },

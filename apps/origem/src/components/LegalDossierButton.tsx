@@ -44,18 +44,20 @@ export function LegalDossierButton({
   const [job, setJob] = useState<JobStatus | null>(null);
 
   const refresh = useCallback(async (jobId: string) => {
+    if (!jobId || jobId === "pending") return null;
     const res = await fetch(`/api/dossiers/${jobId}`);
     const data = (await res.json().catch(() => ({}))) as JobStatus & { error?: string };
     if (!res.ok) {
       setError(data.error || "Falha ao consultar progresso");
       return null;
     }
+    setError(null);
     setJob(data);
     return data;
   }, []);
 
   useEffect(() => {
-    if (!open || !job?.id) return;
+    if (!open || !job?.id || job.id === "pending") return;
     if (job.status === "success" || job.status === "error" || job.status === "replaced") {
       return;
     }
@@ -74,8 +76,9 @@ export function LegalDossierButton({
     setError(null);
     setStarting(true);
     setOpen(true);
+    // Placeholder local — id "pending" não é polled (evita 404 falso).
     setJob({
-      id: "local",
+      id: "pending",
       status: "pending",
       progressPct: 0,
       progressMsg: "Enviando pedido…",
@@ -103,7 +106,7 @@ export function LegalDossierButton({
   }
 
   async function downloadZip(zipPath?: string) {
-    if (!job?.id || job.id === "local") return;
+    if (!job?.id || job.id === "pending") return;
     const qs = zipPath ? `?zipPath=${encodeURIComponent(zipPath)}` : "";
     const res = await fetch(`/api/dossiers/${job.id}/download${qs}`);
     const data = (await res.json().catch(() => ({}))) as {
