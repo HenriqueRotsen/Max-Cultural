@@ -6,9 +6,12 @@ import { buildPronacDossier } from "@/lib/dossier/build";
 import { createZipFromFiles } from "@/lib/dossier/zip";
 import {
   deletePronacDossier,
+  downloadStorageBytes,
   uploadPronacDossier,
+  uploadZipBytes,
 } from "@/lib/dossier/storage";
 import {
+  accountAggregateZipPath,
   accountStoragePrefix,
   pronacStoragePrefix,
   pronacZipStoragePath,
@@ -339,7 +342,30 @@ export async function runDossierJob(jobId: string): Promise<void> {
       data: { status: "replaced" },
     });
 
-    const finalZip = zips.length === 1 ? zips[0]!.zipPath : null;
+    let finalZip = zips.length === 1 ? zips[0]!.zipPath : null;
+    let aggregateBytes: number | null = zips.length === 1 ? zips[0]!.zipStoredBytes : null;
+
+    if (zips.length > 1) {
+      await setProgress(jobId, 96, "Empacotando dossiê completo…", { workState: work });
+      const aggregatePath = accountAggregateZipPath(job.workspaceId, job.accountId);
+      const tmpDir = path.join("/tmp", `dossier-agg-${jobId}`);
+      const tmpZip = path.join(tmpDir, "dossie-completo.zip");
+      const files: Array<{ relativePath: string; buffer: Buffer }> = [];
+      for (const z of zips) {
+        const buf = await downloadStorageBytes(z.zipPath);
+        files.push({
+          relativePath: path.basename(z.zipPath),
+          buffer: buf,
+        });
+      }
+      const { byteSize } = await createZipFromFiles({ outPath: tmpZip, files });
+      const aggBuf = await readFile(tmpZip);
+      await uploadZipBytes(aggregatePath, aggBuf);
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+      finalZip = aggregatePath;
+      aggregateBytes = byteSize;
+    }
+
     await prisma.legalDossierJob.update({
       where: { id: jobId },
       data: {
@@ -348,7 +374,7 @@ export async function runDossierJob(jobId: string): Promise<void> {
         progressMsg:
           zips.length === 1
             ? `Dossiê pronto (${formatBytes(zips[0]!.zipStoredBytes)})`
-            : `Dossiê pronto · ${zips.length} ZIPs`,
+            : `Dossiê pronto · ${zips.length} PRONACs (${formatBytes(aggregateBytes || 0)})`,
         zipPath: finalZip,
         finishedAt: new Date(),
         workState: work,
@@ -358,6 +384,8 @@ export async function runDossierJob(jobId: string): Promise<void> {
           workspaceId: job.workspaceId,
           projectId: job.projectId,
           storagePrefix: accountStoragePrefix(job.workspaceId, job.accountId),
+          aggregateZipPath: finalZip,
+          aggregateBytes,
           zips,
           generatedAt: new Date().toISOString(),
         },

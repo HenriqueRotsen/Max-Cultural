@@ -23,6 +23,7 @@ import {
   type ManifestEntry,
 } from "@/lib/dossier/compress";
 import { DOSSIER_FOLDERS } from "@/lib/dossier/paths";
+import { downloadPronacSalicFiles } from "@/lib/salic/download-arquivo";
 
 function csvEscape(v: unknown): string {
   const s = v == null ? "" : String(v);
@@ -280,7 +281,7 @@ export async function buildPronacDossier(params: {
 <p><strong>Ciclo de vida (Max):</strong> ${escapeHtml(lifecycle)}</p>
 <h2>Diligências registradas</h2>
 <table><thead><tr><th>Data</th><th>Título</th><th>Detalhe</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-<p style="margin-top:24px;font-size:11px;color:#6b7280">Gerado pelo Max Origem · v1 (somente dados locais). Anexos do SALIC via RPA ficam para fase 2.</p>
+<p style="margin-top:24px;font-size:11px;color:#6b7280">Gerado pelo Max Origem. Anexos de diligência do SALIC entram em 03_…/anexos/ quando o RPA conseguir baixá-los.</p>
 </body></html>`;
 
     try {
@@ -298,10 +299,6 @@ export async function buildPronacDossier(params: {
         `03_situacao_diligencias: falha no PDF (${err instanceof Error ? err.message : String(err)})`,
       );
     }
-
-    limitations.push(
-      "03_situacao_diligencias: anexos/protocolos do SALIC não baixados nesta versão (fase 2 — RPA).",
-    );
   }
 
   // —— 04 Readequação ——
@@ -369,38 +366,83 @@ export async function buildPronacDossier(params: {
     }
 
     const docs = planning?.documents || [];
-    if (!docs.length) {
-      limitations.push(
-        "05_pagamentos_comprovantes: nenhum PlanningDocument (NF/comprovante) no planejamento.",
+    const localPacked = new Set<string>();
+    let localOk = 0;
+    let localMissing = 0;
+
+    for (const doc of docs) {
+      const paths = [doc.storagePath, doc.salicMergedStoragePath].filter(
+        (p): p is string => Boolean(p),
       );
-    } else {
-      for (const doc of docs) {
+      for (const storagePath of paths) {
         try {
-          const bytes = await readPlanningDocumentBytes(doc.storagePath);
+          const bytes = await readPlanningDocumentBytes(storagePath);
           const safeName = doc.filename.replace(/[^\w.\-]+/g, "_").slice(0, 120);
+          const suffix = storagePath === doc.salicMergedStoragePath ? "merged" : "doc";
           await writeArtifact(
             workDir,
             compressDir,
-            `${DOSSIER_FOLDERS[4]}/docs/${doc.id.slice(0, 8)}_${safeName}`,
+            `${DOSSIER_FOLDERS[4]}/docs/${doc.id.slice(0, 8)}_${suffix}_${safeName}`,
             bytes,
             doc.mimeType || "application/octet-stream",
             artifacts,
           );
+          localOk += 1;
+          if (doc.salicComprovanteId) localPacked.add(String(doc.salicComprovanteId));
         } catch {
-          limitations.push(
-            `05_pagamentos_comprovantes: arquivo indisponível (${doc.filename}) — path local não encontrado na Vercel.`,
-          );
+          localMissing += 1;
         }
       }
+    }
+    if (!docs.length) {
+      limitations.push(
+        "05_pagamentos_comprovantes: nenhum PlanningDocument (NF/comprovante) no planejamento.",
+      );
+    } else if (localMissing > 0) {
+      limitations.push(
+        `05_pagamentos_comprovantes: ${localMissing} path(s) local(is) indisponível(is) (comum na Vercel).`,
+      );
+    }
+
+    // Fase 2 — RPA: baixa idArquivo do SALIC para pagamentos sem arquivo local.
+    const needSalic = project.payments
+      .filter((p) => p.fileId && (!p.externalId || !localPacked.has(String(p.externalId))))
+      .map((p) => ({ fileId: String(p.fileId), fileName: p.fileName }));
+
+    if (needSalic.length) {
+      const token = project.salicProjectId || "";
+      const numericIdPronac = /^\d+$/.test(token) ? token : null;
+      const rpa = await downloadPronacSalicFiles({
+        accountId: params.accountId,
+        salicProjectId: numericIdPronac,
+        pronac: project.pronac,
+        files: needSalic,
+        maxFiles: 100,
+      });
+      for (const note of rpa.notes) limitations.push(`05_salic_rpa: ${note}`);
+      for (const file of rpa.payments) {
+        await writeArtifact(
+          workDir,
+          compressDir,
+          `${DOSSIER_FOLDERS[4]}/salic/${file.fileId}_${file.filename}`,
+          file.buffer,
+          file.mimeType,
+          artifacts,
+        );
+      }
+    } else if (localOk === 0) {
+      limitations.push(
+        "05_pagamentos_comprovantes: sem arquivos locais nem idArquivo para RPA.",
+      );
     }
   }
 
   const readme = [
-    "LIMITAÇÕES DO DOSSIÊ v1 (Max Origem)",
-    "====================================",
+    "LIMITAÇÕES DO DOSSIÊ (Max Origem)",
+    "================================",
     "",
-    "Este pacote usa apenas dados já presentes no banco e em uploads locais.",
-    "Não inclui download automático de anexos/protocolos do SALIC (fase 2 — RPA).",
+    "Pacote montado com dados locais + tentativa de download RPA no SALIC (idArquivo).",
+    "Se o endpoint /file/getfile do SALIC estiver fora (erro 500), os anexos remotos ficam pendentes.",
     "",
     ...limitations.map((l) => `- ${l}`),
     "",

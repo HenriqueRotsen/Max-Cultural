@@ -125,3 +125,17 @@ export async function createSignedDownloadUrl(
   }
   return data.signedUrl;
 }
+
+export async function downloadStorageBytes(storagePath: string): Promise<Buffer> {
+  const supabase = admin();
+  const { data, error } = await supabase.storage.from(DOSSIERS_BUCKET).download(storagePath);
+  if (error || !data) {
+    throw new Error(error?.message || `Falha ao baixar ${storagePath}`);
+  }
+  const ab = await data.arrayBuffer();
+  return Buffer.from(ab);
+}
+
+export async function uploadZipBytes(storagePath: string, zipBuffer: Buffer): Promise<void> {
+  await uploadBytes(storagePath, zipBuffer, "application/zip");
+}

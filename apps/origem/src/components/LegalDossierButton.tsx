@@ -225,38 +225,22 @@ export function LegalDossierButton({
 
                 {job.status === "success" ? (
                   <div className="space-y-2">
-                    {job.zips.length <= 1 ? (
-                      <button
-                        type="button"
-                        className="btn w-full"
-                        onClick={() => void downloadZip(job.zips[0]?.zipPath)}
-                      >
-                        Baixar ZIP
-                        {job.zips[0]
-                          ? ` (${formatBytes(job.zips[0].zipStoredBytes)})`
-                          : ""}
-                      </button>
-                    ) : (
-                      <ul className="space-y-2">
-                        {job.zips.map((z) => (
-                          <li key={z.zipPath}>
-                            <button
-                              type="button"
-                              className="btn btn-ghost w-full justify-between text-left"
-                              onClick={() => void downloadZip(z.zipPath)}
-                            >
-                              <span>
-                                PRONAC {z.pronac}
-                                {z.projectName ? ` · ${z.projectName}` : ""}
-                              </span>
-                              <span className="text-xs text-[var(--gray-500)]">
-                                {formatBytes(z.zipStoredBytes)}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    <button
+                      type="button"
+                      className="btn w-full"
+                      onClick={() => void downloadZip()}
+                    >
+                      Baixar dossiê
+                      {(() => {
+                        const total = job.zips.reduce(
+                          (s, z) => s + (z.zipStoredBytes || 0),
+                          0,
+                        );
+                        const n = job.zips.length;
+                        if (!total && !n) return "";
+                        return ` (${n > 1 ? `${n} PRONACs · ` : ""}${formatBytes(total)})`;
+                      })()}
+                    </button>
                   </div>
                 ) : null}
               </div>

@@ -42,6 +42,11 @@ export function pronacZipStoragePath(
   return `${accountStoragePrefix(workspaceId, accountId)}/${slug}.zip`;
 }
 
+/** ZIP único com todos os PRONACs do job (para um botão de download). */
+export function accountAggregateZipPath(workspaceId: string, accountId: string): string {
+  return `${accountStoragePrefix(workspaceId, accountId)}/dossie-completo.zip`;
+}
+
 export const DOSSIER_FOLDERS = [
   "01_espelho_pronac",
   "02_planilha_homologada",

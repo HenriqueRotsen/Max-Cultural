@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { createSignedDownloadUrl } from "@/lib/dossier/storage";
+import {
+  createSignedDownloadUrl,
+  downloadStorageBytes,
+  uploadZipBytes,
+} from "@/lib/dossier/storage";
+import { accountAggregateZipPath } from "@/lib/dossier/paths";
+import { createZipFromFiles } from "@/lib/dossier/zip";
+import { mkdir, readFile, rm } from "fs/promises";
+import path from "path";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type Params = Promise<{ jobId: string }>;
 
 /**
- * URL assinada do ZIP.
- * Query `zipPath` opcional (multi-PRONAC); senão usa job.zipPath ou o único zip do manifesto.
+ * URL assinada do ZIP do dossiê.
+ * Multi-PRONAC: devolve o ZIP agregado (gera sob demanda se ainda não existir).
  */
 export async function GET(request: Request, context: { params: Params }) {
   try {
@@ -32,26 +41,67 @@ export async function GET(request: Request, context: { params: Params }) {
     }
 
     const manifest = job.manifestJson as {
-      zips?: Array<{ zipPath: string; pronac: string }>;
+      zips?: Array<{ zipPath: string; pronac: string; zipStoredBytes?: number }>;
+      aggregateZipPath?: string | null;
     } | null;
+    const zips = manifest?.zips || [];
     const allowed = new Set(
-      (manifest?.zips || []).map((z) => z.zipPath).concat(job.zipPath ? [job.zipPath] : []),
+      zips
+        .map((z) => z.zipPath)
+        .concat(job.zipPath ? [job.zipPath] : [])
+        .concat(manifest?.aggregateZipPath ? [manifest.aggregateZipPath] : []),
     );
 
-    let zipPath = requestedPath || job.zipPath || undefined;
-    if (!zipPath && manifest?.zips?.length === 1) {
-      zipPath = manifest.zips[0]!.zipPath;
+    // Pedido explícito de um ZIP de PRONAC (uso avançado).
+    if (requestedPath) {
+      if (!allowed.has(requestedPath) || !requestedPath.startsWith(job.storagePrefix)) {
+        return NextResponse.json({ error: "ZIP inválido para este job" }, { status: 400 });
+      }
+      const signedUrl = await createSignedDownloadUrl(requestedPath, 3600);
+      return NextResponse.json({ url: signedUrl, zipPath: requestedPath });
     }
-    if (!zipPath) {
-      return NextResponse.json(
-        {
-          error: "Informe zipPath (há vários ZIPs neste job)",
-          zips: manifest?.zips ?? [],
+
+    let zipPath =
+      job.zipPath ||
+      manifest?.aggregateZipPath ||
+      (zips.length === 1 ? zips[0]!.zipPath : undefined);
+
+    // Multi-PRONAC sem agregado: monta sob demanda e grava.
+    if (!zipPath && zips.length > 1) {
+      const aggregatePath = accountAggregateZipPath(job.workspaceId, job.accountId);
+      const tmpDir = path.join("/tmp", `dossier-dl-${jobId}`);
+      await mkdir(tmpDir, { recursive: true });
+      const tmpZip = path.join(tmpDir, "dossie-completo.zip");
+      const files = [];
+      for (const z of zips) {
+        files.push({
+          relativePath: path.basename(z.zipPath),
+          buffer: await downloadStorageBytes(z.zipPath),
+        });
+      }
+      const { byteSize } = await createZipFromFiles({ outPath: tmpZip, files });
+      const buf = await readFile(tmpZip);
+      await uploadZipBytes(aggregatePath, buf);
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+
+      zipPath = aggregatePath;
+      await prisma.legalDossierJob.update({
+        where: { id: job.id },
+        data: {
+          zipPath,
+          manifestJson: {
+            ...(manifest || {}),
+            aggregateZipPath: zipPath,
+            aggregateBytes: byteSize,
+          },
         },
-        { status: 400 },
-      );
+      });
     }
-    if (!allowed.has(zipPath) || !zipPath.startsWith(job.storagePrefix)) {
+
+    if (!zipPath) {
+      return NextResponse.json({ error: "Nenhum ZIP disponível neste job" }, { status: 400 });
+    }
+    if (!zipPath.startsWith(job.storagePrefix)) {
       return NextResponse.json({ error: "ZIP inválido para este job" }, { status: 400 });
     }
 

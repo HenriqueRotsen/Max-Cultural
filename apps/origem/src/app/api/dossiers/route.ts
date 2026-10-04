@@ -48,6 +48,8 @@ export async function GET(request: Request) {
       jobs: jobs.map((j) => {
         const manifest = j.manifestJson as {
           zips?: Array<{ pronac: string; zipPath: string; zipStoredBytes: number }>;
+          aggregateBytes?: number | null;
+          aggregateZipPath?: string | null;
         } | null;
         return {
           id: j.id,
@@ -56,11 +58,14 @@ export async function GET(request: Request) {
           status: j.status,
           progressPct: j.progressPct,
           progressMsg: j.progressMsg,
-          zipPath: j.zipPath,
+          zipPath: j.zipPath || manifest?.aggregateZipPath || null,
           errorMessage: j.errorMessage,
           createdAt: j.createdAt.toISOString(),
           finishedAt: j.finishedAt?.toISOString() ?? null,
           zips: manifest?.zips ?? [],
+          aggregateBytes:
+            manifest?.aggregateBytes ??
+            (manifest?.zips || []).reduce((s, z) => s + (z.zipStoredBytes || 0), 0),
         };
       }),
     });
