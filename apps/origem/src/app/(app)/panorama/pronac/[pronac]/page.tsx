@@ -18,7 +18,6 @@ import { PronacDetailTables } from "@/components/PronacDetailTables";
 import { ObservadoBondsPanel } from "@/components/ObservadoBondsPanel";
 import { ProjectCompliancePanel } from "@/components/ProjectCompliancePanel";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
-import { LegalDossierButton } from "@/components/LegalDossierButton";
 import { HELP } from "@/lib/help";
 import { normalizeCgccpf } from "@/lib/format";
 
@@ -151,14 +150,6 @@ export default async function PronacDetailPage({
               href={`/api/reports/pronac/${detail.pronac}${reportQs}`}
               label="Gerar relatório PDF"
             />
-            {primaryAccountId && detail.projectId ? (
-              <LegalDossierButton
-                accountId={primaryAccountId}
-                projectId={detail.projectId}
-                label="Gerar Dossiê de Auditoria (Backup)"
-                variant="ghost"
-              />
-            ) : null}
             <form className="flex flex-wrap items-end gap-2">
               {accountId && <input type="hidden" name="accountId" value={accountId} />}
               {from && <input type="hidden" name="from" value={from} />}

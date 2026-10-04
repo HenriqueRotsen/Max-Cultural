@@ -104,7 +104,6 @@ model Workspace {
   planningReadequacaoDrafts PlanningReadequacaoDraft[]
   appNotifications          AppNotification[]
   notificationSettings      NotificationSettings[]
-  legalDossierJobs          LegalDossierJob[]
 
   @@index([plan])
 }
@@ -172,7 +171,6 @@ model SalicAccount {
   corporatePeriods   CorporatePeriod[]
   observadoBonds     ObservadoBond[]
   planningProjects   PlanningProject[]
-  legalDossierJobs   LegalDossierJob[]
 
   @@unique([workspaceId, cgccpf])
   @@index([active])
@@ -968,50 +966,6 @@ model NotificationSettings {
   @@unique([workspaceId, userId])
   @@index([workspaceId])
   @@map("notification_settings")
-}
-
-enum LegalDossierJobStatus {
-  pending
-  running
-  success
-  error
-  /** Substituído por um novo job do mesmo escopo (conta + projectId). */
-  replaced
-}
-
-/**
- * Job de exportação do Dossiê Legal / Backup de Auditoria por proponente.
- * Mutex: no máximo 1 pending|running por workspace.
- */
-model LegalDossierJob {
-  id             String                 @id @default(cuid())
-  workspaceId    String
-  accountId      String
-  /** Null = todos os projetos da conta; senão um PRONAC (Project.id). */
-  projectId      String?
-  status         LegalDossierJobStatus  @default(pending)
-  progressPct    Int                    @default(0)
-  progressMsg    String?
-  /** Prefixo estável: dossiers/{workspaceId}/{accountId}/ */
-  storagePrefix  String
-  /** ZIP único (quando projectId) ou null (multi — ver manifestJson.zips). */
-  zipPath        String?
-  manifestJson   Json?
-  errorMessage   String?
-  /** Fila interna: { projectIds: string[], cursor: number } */
-  workState      Json?
-  startedAt      DateTime?
-  finishedAt     DateTime?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-
-  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  account   SalicAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId, status])
-  @@index([accountId, createdAt])
-  @@index([status])
-  @@map("legal_dossier_jobs")
 }
 
 /** Trilha de atividade (quem fez o quê) — distinto da Auditoria SALIC. */

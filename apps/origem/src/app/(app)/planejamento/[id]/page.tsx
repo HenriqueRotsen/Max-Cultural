@@ -160,8 +160,6 @@ export default async function PlanningProjectPage({
 
       <PlanningProjectActions
         projectId={project.id}
-        accountId={project.accountId}
-        auditProjectId={project.project?.id ?? project.projectId ?? null}
         reservationsCount={project.commitments.length}
         allowEditRubricas={allowEditRubricas && Boolean(project.sheet)}
         allowReadequacao={allowReadequacao && Boolean(project.sheet)}

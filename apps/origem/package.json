@@ -16,6 +16,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",
     "sync": "tsx scripts/sync.ts",
+    "dossier:export": "tsx scripts/export-legal-dossiers.ts",
     "db:seed": "tsx scripts/seed.ts",
     "credentials:encrypt": "tsx scripts/encrypt-credentials.ts",
     "postinstall": "prisma generate"

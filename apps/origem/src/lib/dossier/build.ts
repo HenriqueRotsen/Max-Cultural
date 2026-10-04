@@ -68,12 +68,19 @@ export type BuildPronacResult = {
   workDir: string;
 };
 
-/** Monta pastas 01–05 em /tmp para um PRONAC (Project). */
+/** Monta pastas 01–05 (em /tmp ou em `outputDir` local). */
 export async function buildPronacDossier(params: {
   workspaceId: string;
   accountId: string;
   projectId: string;
   jobId: string;
+  /** Se informado, grava direto neste diretório (uso local/CLI). */
+  outputDir?: string;
+  rpa?: {
+    enabled?: boolean;
+    maxFiles?: number;
+    budgetMs?: number;
+  };
 }): Promise<BuildPronacResult> {
   const project = await prisma.project.findFirst({
     where: {
@@ -102,7 +109,9 @@ export async function buildPronacDossier(params: {
   });
   if (!project) throw new Error("Projeto não encontrado para o dossiê");
 
-  const workDir = path.join("/tmp", `dossier-${params.jobId}`, project.pronac);
+  const workDir =
+    params.outputDir ||
+    path.join("/tmp", `dossier-${params.jobId}`, project.pronac);
   const compressDir = path.join(workDir, "_compress");
   await mkdir(workDir, { recursive: true });
   for (const folder of DOSSIER_FOLDERS) {
@@ -409,7 +418,8 @@ export async function buildPronacDossier(params: {
       .filter((p) => p.fileId && (!p.externalId || !localPacked.has(String(p.externalId))))
       .map((p) => ({ fileId: String(p.fileId), fileName: p.fileName }));
 
-    if (needSalic.length) {
+    const rpaEnabled = params.rpa?.enabled !== false;
+    if (needSalic.length && rpaEnabled) {
       const token = project.salicProjectId || "";
       const numericIdPronac = /^\d+$/.test(token) ? token : null;
       const rpa = await downloadPronacSalicFiles({
@@ -417,8 +427,8 @@ export async function buildPronacDossier(params: {
         salicProjectId: numericIdPronac,
         pronac: project.pronac,
         files: needSalic,
-        maxFiles: 20,
-        budgetMs: 50_000,
+        maxFiles: params.rpa?.maxFiles ?? 20,
+        budgetMs: params.rpa?.budgetMs ?? 50_000,
       });
       for (const note of rpa.notes) limitations.push(`05_salic_rpa: ${note}`);
       for (const file of rpa.payments) {
@@ -433,7 +443,9 @@ export async function buildPronacDossier(params: {
       }
     } else if (localOk === 0) {
       limitations.push(
-        "05_pagamentos_comprovantes: sem arquivos locais nem idArquivo para RPA.",
+        needSalic.length && !rpaEnabled
+          ? "05_pagamentos_comprovantes: RPA desligado e sem arquivos locais."
+          : "05_pagamentos_comprovantes: sem arquivos locais nem idArquivo para RPA.",
       );
     }
   }
