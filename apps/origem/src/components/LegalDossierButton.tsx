@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { startLegalDossierAction } from "@/lib/dossier/start";
 
 type JobStatus = {
@@ -16,12 +16,17 @@ type JobStatus = {
     zipStoredBytes: number;
     projectName: string | null;
   }>;
+  workState?: { cursor: number; total: number; hasMore: boolean } | null;
 };
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isTerminal(status: string) {
+  return status === "success" || status === "error" || status === "replaced";
 }
 
 export function LegalDossierButton({
@@ -42,6 +47,7 @@ export function LegalDossierButton({
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
+  const tickingRef = useRef(false);
 
   const refresh = useCallback(async (jobId: string) => {
     if (!jobId || jobId === "pending") return null;
@@ -58,14 +64,37 @@ export function LegalDossierButton({
 
   useEffect(() => {
     if (!open || !job?.id || job.id === "pending") return;
-    if (job.status === "success" || job.status === "error" || job.status === "replaced") {
-      return;
-    }
+    if (isTerminal(job.status)) return;
+
     const timer = setInterval(() => {
       void refresh(job.id);
     }, 1500);
-    return () => clearInterval(timer);
-  }, [open, job?.id, job?.status, refresh]);
+
+    const needsTick =
+      job.status === "pending" ||
+      (job.status === "running" &&
+        (job.workState?.hasMore === true || job.workState == null));
+
+    let cancelled = false;
+    if (needsTick && !tickingRef.current) {
+      tickingRef.current = true;
+      void (async () => {
+        try {
+          await fetch(`/api/dossiers/${job.id}/tick`, { method: "POST" });
+        } catch {
+          // ignore — o poll continua
+        } finally {
+          tickingRef.current = false;
+          if (!cancelled) await refresh(job.id);
+        }
+      })();
+    }
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [open, job?.id, job?.status, job?.progressPct, job?.workState?.hasMore, job?.workState?.cursor, refresh]);
 
   async function start() {
     if (disabledReason) {
@@ -76,7 +105,6 @@ export function LegalDossierButton({
     setError(null);
     setStarting(true);
     setOpen(true);
-    // Placeholder local — id "pending" não é polled (evita 404 falso).
     setJob({
       id: "pending",
       status: "pending",
@@ -85,6 +113,7 @@ export function LegalDossierButton({
       errorMessage: null,
       zipPath: null,
       zips: [],
+      workState: null,
     });
     try {
       const result = await startLegalDossierAction({
@@ -183,7 +212,12 @@ export function LegalDossierButton({
                     style={{ width: `${Math.max(2, job.progressPct)}%` }}
                   />
                 </div>
-                <p className="text-xs text-[var(--gray-500)]">{job.progressPct}%</p>
+                <p className="text-xs text-[var(--gray-500)]">
+                  {job.progressPct}%
+                  {job.workState?.total
+                    ? ` · ${Math.min(job.workState.cursor, job.workState.total)}/${job.workState.total} PRONAC(s)`
+                    : ""}
+                </p>
 
                 {job.status === "error" && job.errorMessage ? (
                   <p className="text-sm text-red-700">{job.errorMessage}</p>

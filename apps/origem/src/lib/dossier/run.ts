@@ -17,6 +17,8 @@ import {
 export type DossierWorkState = {
   projectIds: string[];
   cursor: number;
+  /** Lease para evitar dois workers no mesmo PRONAC (tick + handOff). */
+  lockUntil?: string;
 };
 
 export type DossierZipEntry = {
@@ -101,7 +103,14 @@ function parseWorkState(raw: unknown): DossierWorkState | null {
   return {
     projectIds: o.projectIds.filter((x): x is string => typeof x === "string"),
     cursor: o.cursor,
+    ...(typeof o.lockUntil === "string" ? { lockUntil: o.lockUntil } : {}),
   };
+}
+
+function isLocked(work: DossierWorkState | null): boolean {
+  if (!work?.lockUntil) return false;
+  const t = Date.parse(work.lockUntil);
+  return Number.isFinite(t) && t > Date.now();
 }
 
 function parseZips(manifest: unknown): DossierZipEntry[] {
@@ -206,6 +215,11 @@ export async function runDossierJob(jobId: string): Promise<void> {
 
   try {
     let work = parseWorkState(job.workState);
+    if (isLocked(work)) {
+      // Outra invocação (handOff/tick) já está gerando este PRONAC.
+      return;
+    }
+
     if (!work) {
       const projects = job.projectId
         ? await prisma.project.findMany({
@@ -238,15 +252,30 @@ export async function runDossierJob(jobId: string): Promise<void> {
 
     const zips = parseZips(job.manifestJson);
     const total = work.projectIds.length;
+    /** Na Vercel: 1 PRONAC por invocação (evita timeout após o 1º). */
+    const onePronacPerInvoke = Boolean(process.env.VERCEL);
 
     while (work.cursor < total) {
+      // Re-check lease (tick concorrente).
+      const latest = await prisma.legalDossierJob.findUnique({
+        where: { id: jobId },
+        select: { workState: true, status: true },
+      });
+      if (!latest || latest.status === "success" || latest.status === "error" || latest.status === "replaced") {
+        return;
+      }
+      const latestWork = parseWorkState(latest.workState);
+      if (latestWork) work = latestWork;
+      if (isLocked(work) || work.cursor >= total) return;
+
       const projectId = work.projectIds[work.cursor]!;
       const pctBase = 5 + (work.cursor / total) * 90;
+      const lockUntil = new Date(Date.now() + 4 * 60 * 1000).toISOString();
       await setProgress(
         jobId,
         pctBase,
         `Gerando PRONAC ${work.cursor + 1}/${total}…`,
-        { workState: work },
+        { workState: { ...work, lockUntil } },
       );
 
       const entry = await processOnePronac({
@@ -257,29 +286,45 @@ export async function runDossierJob(jobId: string): Promise<void> {
       });
       zips.push(entry);
 
-      work = { ...work, cursor: work.cursor + 1 };
+      work = { projectIds: work.projectIds, cursor: work.cursor + 1 };
       const singleZip = total === 1 ? entry.zipPath : null;
+      const manifestJson = {
+        version: 1,
+        accountId: job.accountId,
+        workspaceId: job.workspaceId,
+        projectId: job.projectId,
+        zips,
+        generatedAt: new Date().toISOString(),
+      };
+
+      if (work.cursor < total) {
+        await setProgress(
+          jobId,
+          5 + (work.cursor / total) * 90,
+          `Concluído PRONAC ${work.cursor}/${total} · próxima fatia…`,
+          { workState: work, zipPath: singleZip, manifestJson },
+        );
+        if (await handOffDossier(jobId)) return;
+        if (onePronacPerInvoke) {
+          // handOff falhou (URL/secret) — deixa running; o tick da UI continua.
+          await setProgress(
+            jobId,
+            5 + (work.cursor / total) * 90,
+            `Concluído PRONAC ${work.cursor}/${total} · aguardando continuação…`,
+            { workState: work, zipPath: singleZip, manifestJson },
+          );
+          return;
+        }
+        // Dev local: segue o próximo PRONAC no mesmo processo.
+        continue;
+      }
+
       await setProgress(
         jobId,
         5 + (work.cursor / total) * 90,
         `Concluído PRONAC ${work.cursor}/${total}`,
-        {
-          workState: work,
-          zipPath: singleZip,
-          manifestJson: {
-            version: 1,
-            accountId: job.accountId,
-            workspaceId: job.workspaceId,
-            projectId: job.projectId,
-            zips,
-            generatedAt: new Date().toISOString(),
-          },
-        },
+        { workState: work, zipPath: singleZip, manifestJson },
       );
-
-      if (work.cursor < total && (await handOffDossier(jobId))) {
-        return;
-      }
     }
 
     // Marca jobs anteriores do mesmo escopo como replaced

@@ -28,6 +28,12 @@ export async function GET(_request: Request, context: { params: Params }) {
         projectName: string | null;
       }>;
     } | null;
+    const workState = job.workState as {
+      projectIds?: string[];
+      cursor?: number;
+    } | null;
+    const total = Array.isArray(workState?.projectIds) ? workState.projectIds.length : 0;
+    const cursor = typeof workState?.cursor === "number" ? workState.cursor : 0;
 
     return NextResponse.json({
       id: job.id,
@@ -44,6 +50,9 @@ export async function GET(_request: Request, context: { params: Params }) {
       createdAt: job.createdAt.toISOString(),
       account: job.account,
       zips: manifest?.zips ?? [],
+      workState: workState
+        ? { cursor, total, hasMore: cursor < total }
+        : null,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
