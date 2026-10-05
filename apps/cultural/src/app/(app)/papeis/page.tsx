@@ -46,6 +46,13 @@ export default async function PapeisPage({
         </p>
       ) : null}
 
+      {!canEdit ? (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--gray-600)]">
+          Modo consulta: para criar, renomear ou excluir papéis, peça a permissão{" "}
+          <strong className="text-[var(--navy)]">Gerenciar papéis e acessos</strong>.
+        </p>
+      ) : null}
+
       {canEdit ? (
         <form action={createRoleAction} className="card flex flex-wrap items-end gap-3 p-5">
           <div className="field">

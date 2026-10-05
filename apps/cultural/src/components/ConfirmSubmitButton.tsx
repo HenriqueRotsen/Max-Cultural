@@ -19,6 +19,7 @@ export function ConfirmSubmitButton({
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -32,6 +33,14 @@ export function ConfirmSubmitButton({
 
   return (
     <>
+      <button
+        ref={submitRef}
+        type="submit"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        disabled={disabled}
+      />
       <button
         ref={btnRef}
         type="button"
@@ -58,9 +67,8 @@ export function ConfirmSubmitButton({
                 type="button"
                 className="btn"
                 onClick={() => {
-                  const form = btnRef.current?.closest("form");
                   setOpen(false);
-                  form?.requestSubmit();
+                  submitRef.current?.click();
                 }}
               >
                 {confirmLabel}

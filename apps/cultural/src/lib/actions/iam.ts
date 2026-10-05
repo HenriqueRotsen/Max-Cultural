@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { can, getSessionUser } from "@/lib/auth";
+import { can, getSessionUser, setSessionCookie } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { generateProvisionalPassword, hashPassword } from "@/lib/password";
@@ -191,22 +191,29 @@ export async function saveRolePermissionsAction(formData: FormData) {
   );
   const granted = normalizeGrantedIds(raw);
 
-  await prisma.$transaction([
-    prisma.rolePermission.deleteMany({ where: { roleId } }),
-    prisma.rolePermission.createMany({
-      data: granted.map((screen) => ({
-        roleId,
-        screen,
-        canView: true,
-        canEdit: screen.endsWith(".edit") || ACCESS_BY_ID[screen]?.kind === "capability",
-      })),
-    }),
-    // Encerra sessões de todos os usuários deste papel (Cultural + satélites).
-    prisma.user.updateMany({
+  const permissionRows = granted.map((screen) => ({
+    roleId,
+    screen,
+    canView: true,
+    canEdit: screen.endsWith(".edit") || ACCESS_BY_ID[screen]?.kind === "capability",
+  }));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rolePermission.deleteMany({ where: { roleId } });
+    if (permissionRows.length) {
+      await tx.rolePermission.createMany({ data: permissionRows });
+    }
+    await tx.user.updateMany({
       where: { roleId },
       data: { sessionVersion: { increment: 1 } },
-    }),
-  ]);
+    });
+  });
+
+  // Quem editou o próprio papel perde o cookie antigo — renova para não cair no login.
+  if (actor.roleId === roleId) {
+    await setSessionCookie({ id: actor.id });
+  }
+
   await writeAuditLog({
     actorUserId: actor.id,
     action: "iam.role_updated",

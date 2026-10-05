@@ -67,6 +67,13 @@ export default async function PapelAcessosPage({
       </div>
 
       {error ? <p className="auth-alert">{error}</p> : null}
+      {!canEdit ? (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--gray-600)]">
+          Você pode consultar este papel, mas não alterá-lo. É necessária a permissão{" "}
+          <strong className="text-[var(--navy)]">Gerenciar papéis e acessos</strong>{" "}
+          (ou perfil administrador).
+        </p>
+      ) : null}
       {renamed ? (
         <p className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]">
           Nome e descrição atualizados.
