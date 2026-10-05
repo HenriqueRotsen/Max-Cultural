@@ -57,6 +57,20 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/login" && session) {
     const next = safeContinueUrl(request.nextUrl.searchParams.get("next"), "/");
     if (next.startsWith("http://") || next.startsWith("https://")) {
+      const grants = new Set(session.permissions ?? []);
+      const origemBase = (process.env.NEXT_PUBLIC_ORIGEM_URL || "").replace(/\/$/, "");
+      const fluxoBase = (process.env.NEXT_PUBLIC_FLUXO_URL || "").replace(/\/$/, "");
+      // Já logado sem produto: não devolve ao satélite (evita ERR_TOO_MANY_REDIRECTS).
+      if (origemBase && next.startsWith(origemBase) && !grants.has("origem.app")) {
+        const home = new URL("/", request.url);
+        home.searchParams.set("error", "Sem acesso ao MAX Origem.");
+        return NextResponse.redirect(home);
+      }
+      if (fluxoBase && next.startsWith(fluxoBase) && !grants.has("fluxo.app")) {
+        const home = new URL("/", request.url);
+        home.searchParams.set("error", "Sem acesso ao MAX Fluxo.");
+        return NextResponse.redirect(home);
+      }
       return NextResponse.redirect(next);
     }
     return NextResponse.redirect(new URL(next, request.url));

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { culturalHubUrl, culturalLogoutUrl } from "@max/auth";
+import { culturalLogoutUrl } from "@max/auth";
 import { AppSidebarLayout } from "@/components/admin/app-sidebar-layout";
 import { requireDashboardUser } from "@/lib/dashboard-gate";
-import { redirectToHubLogin } from "@/lib/hub";
+import { redirectToHubDenied } from "@/lib/hub";
 import { getHubFluxoAccess } from "@/lib/hub-permissions";
 import { getEffectivePermissions } from "@/lib/permissions";
 
@@ -30,14 +30,13 @@ export async function AdminShell({
     redirect(culturalLogoutUrl());
   }
   if (hub.hasHubSession && !hub.allowedProduct && !hub.fetchFailed) {
-    redirect(
-      `${culturalHubUrl()}/?error=` +
-        encodeURIComponent("Sem acesso ao MAX Fluxo."),
-    );
+    redirectToHubDenied("Sem acesso ao MAX Fluxo.");
   }
   const permissions = await getEffectivePermissions(user.id);
   if (!permissions.has("dashboard:access")) {
-    redirectToHubLogin("/dashboard");
+    // Sem permissão local/hub: volta ao hub com aviso — NÃO /login?next=dashboard
+    // (proxy do Cultural reenvia logados ao next → ERR_TOO_MANY_REDIRECTS).
+    redirectToHubDenied("Sem acesso ao MAX Fluxo.");
   }
 
   return (

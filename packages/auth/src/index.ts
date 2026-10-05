@@ -441,6 +441,13 @@ export function culturalAccountUrl() {
   return `${culturalHubUrl()}/conta`;
 }
 
+/** Hub com aviso (sem `next` para o produto — evita loop login↔satélite). */
+export function culturalDeniedUrl(message: string) {
+  const url = new URL("/", `${culturalHubUrl()}/`);
+  url.searchParams.set("error", message);
+  return url.toString();
+}
+
 /** Destino pós-login do hub (path relativo ou URL absoluta de Origem/Fluxo/Cultural). */
 export function safeContinueUrl(raw: string | null | undefined, fallback = "/"): string {
   if (!raw) return fallback;

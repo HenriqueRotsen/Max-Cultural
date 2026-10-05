@@ -6,7 +6,7 @@ import {
   needsPasswordChange,
   type SessionUser,
 } from "@/lib/auth";
-import { redirectToHubLogin } from "@/lib/hub";
+import { redirectToHubDenied, redirectToHubLogin } from "@/lib/hub";
 import { getEffectivePermissions } from "@/lib/permissions";
 import type { PermissionCode } from "@/lib/permission-catalog";
 
@@ -25,7 +25,7 @@ export async function requireDashboardPermission(
   const user = await requireDashboardUser();
   const perms = await getEffectivePermissions(user.id);
   if (!perms.has("dashboard:access")) {
-    redirectToHubLogin("/dashboard");
+    redirectToHubDenied("Sem acesso ao MAX Fluxo.");
   }
   if (!perms.has(code)) {
     redirect("/dashboard");

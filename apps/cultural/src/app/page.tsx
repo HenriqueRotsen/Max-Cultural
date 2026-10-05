@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { AccessDeniedDialog } from "@/components/AccessDeniedDialog";
 import { AppSidebar } from "@/components/AppSidebar";
 import { can, getSessionUser, needs2faSetup, needsPasswordChange } from "@/lib/auth";
 
@@ -16,6 +18,9 @@ export default async function HomePage() {
 
     return (
       <div className="shell">
+        <Suspense fallback={null}>
+          <AccessDeniedDialog />
+        </Suspense>
         <AppSidebar
           userEmail={user.email}
           canUsers={can(user, "cultural.usuarios", "view")}

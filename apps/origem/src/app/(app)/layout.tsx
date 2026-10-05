@@ -16,7 +16,7 @@ import {
 } from "@/lib/planning/notification-settings";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import { notificationVisibleWhere } from "@/lib/planning/reminder-dates";
-import { culturalHubUrl } from "@max/auth";
+import { culturalDeniedUrl } from "@max/auth";
 
 async function TopBar({
   workspaceId,
@@ -82,7 +82,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // SSO válido + API do hub indisponível: não trancar a entrada no produto.
     (Boolean(hubPerms.fetchFailed) && Boolean(await getHubSessionPayload()));
   if (!canEnterOrigem) {
-    redirect(`${culturalHubUrl()}/?error=` + encodeURIComponent("Sem acesso ao MAX Origem."));
+    redirect(culturalDeniedUrl("Sem acesso ao MAX Origem."));
   }
 
   // Para o menu: se o fetch falhou mas o SSO está ok, libera telas básicas.
