@@ -77,9 +77,9 @@ async function exportAccount(params: {
         ? { enabled: false }
         : {
             enabled: true,
-            // Local: sem teto agressivo da Vercel
-            maxFiles: 500,
-            budgetMs: 45 * 60 * 1000,
+            // Local: baixar o máximo possível (há PRONACs com 2k+ anexos)
+            maxFiles: 10_000,
+            budgetMs: 6 * 60 * 60 * 1000,
           },
     });
 

@@ -413,22 +413,25 @@ export async function buildPronacDossier(params: {
       );
     }
 
-    // Fase 2 — RPA: baixa idArquivo do SALIC para pagamentos sem arquivo local.
+    // Fase 2 — RPA: baixa idArquivo do SALIC (pagamentos + comprovação física/acessibilidade).
     const needSalic = project.payments
       .filter((p) => p.fileId && (!p.externalId || !localPacked.has(String(p.externalId))))
       .map((p) => ({ fileId: String(p.fileId), fileName: p.fileName }));
 
     const rpaEnabled = params.rpa?.enabled !== false;
-    if (needSalic.length && rpaEnabled) {
+    if (rpaEnabled) {
       const token = project.salicProjectId || "";
       const numericIdPronac = /^\d+$/.test(token) ? token : null;
+      const hashIdPronac = token && !/^\d+$/.test(token) ? token : null;
       const rpa = await downloadPronacSalicFiles({
         accountId: params.accountId,
         salicProjectId: numericIdPronac,
+        salicProjectHash: hashIdPronac,
         pronac: project.pronac,
         files: needSalic,
         maxFiles: params.rpa?.maxFiles ?? 20,
         budgetMs: params.rpa?.budgetMs ?? 50_000,
+        includeExecucao: true,
       });
       for (const note of rpa.notes) limitations.push(`05_salic_rpa: ${note}`);
       for (const file of rpa.payments) {
@@ -436,6 +439,16 @@ export async function buildPronacDossier(params: {
           workDir,
           compressDir,
           `${DOSSIER_FOLDERS[4]}/salic/${file.fileId}_${file.filename}`,
+          file.buffer,
+          file.mimeType,
+          artifacts,
+        );
+      }
+      for (const file of rpa.projectDocs) {
+        await writeArtifact(
+          workDir,
+          compressDir,
+          `${DOSSIER_FOLDERS[4]}/execucao_fisica/${file.fileId}_${file.filename}`,
           file.buffer,
           file.mimeType,
           artifacts,
@@ -454,8 +467,8 @@ export async function buildPronacDossier(params: {
     "LIMITAÇÕES DO DOSSIÊ (Max Origem)",
     "================================",
     "",
-    "Pacote montado com dados locais + tentativa de download RPA no SALIC (idArquivo).",
-    "Se o endpoint /file/getfile do SALIC estiver fora (erro 500), os anexos remotos ficam pendentes.",
+    "Pacote montado com dados locais + download RPA no SALIC via /upload/abrir (NFs, RPAs,",
+    "recibos e anexos de comprovação física/acessibilidade quando disponíveis).",
     "",
     ...limitations.map((l) => `- ${l}`),
     "",

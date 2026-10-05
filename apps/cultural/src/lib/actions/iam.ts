@@ -337,3 +337,101 @@ export async function createRoleAction(formData: FormData) {
   revalidatePath("/papeis");
   redirect(`/papeis/${role.id}`);
 }
+
+export async function updateRoleAction(formData: FormData) {
+  const actor = await getSessionUser();
+  if (!actor || !can(actor, "cultural.papeis", "edit")) {
+    redirect("/papeis?error=" + encodeURIComponent("Sem permissão."));
+  }
+  const roleId = String(formData.get("roleId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  if (!roleId || !name) {
+    redirect("/papeis?error=" + encodeURIComponent("Informe o nome do papel."));
+  }
+
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role) {
+    redirect("/papeis?error=" + encodeURIComponent("Papel não encontrado."));
+  }
+
+  try {
+    await prisma.role.update({
+      where: { id: roleId },
+      data: { name, description },
+    });
+  } catch (err) {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code: string }).code)
+        : "";
+    if (code === "P2002") {
+      redirect(
+        `/papeis/${roleId}?error=` +
+          encodeURIComponent("Já existe outro papel com este nome."),
+      );
+    }
+    throw err;
+  }
+
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "iam.role_updated",
+    screen: "cultural.papeis",
+    entityType: "role",
+    entityId: roleId,
+    meta: { previousName: role.name, name },
+  });
+  revalidatePath("/papeis");
+  revalidatePath(`/papeis/${roleId}`);
+  redirect(`/papeis/${roleId}?renamed=1`);
+}
+
+export async function deleteRoleAction(formData: FormData) {
+  const actor = await getSessionUser();
+  if (!actor || !can(actor, "cultural.papeis", "edit")) {
+    redirect("/papeis?error=" + encodeURIComponent("Sem permissão."));
+  }
+  const roleId = String(formData.get("roleId") ?? "");
+  if (!roleId) {
+    redirect("/papeis?error=" + encodeURIComponent("Papel inválido."));
+  }
+
+  const role = await prisma.role.findUnique({
+    where: { id: roleId },
+    include: { _count: { select: { users: true } } },
+  });
+  if (!role) {
+    redirect("/papeis?error=" + encodeURIComponent("Papel não encontrado."));
+  }
+  if (role.isSystem) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent("Papéis do sistema não podem ser excluídos."),
+    );
+  }
+  if (role._count.users > 0) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent(
+          "Não é possível excluir: há usuários vinculados a este papel.",
+        ),
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.inviteToken.deleteMany({ where: { roleId } }),
+    prisma.role.delete({ where: { id: roleId } }),
+  ]);
+
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "iam.role_deleted",
+    screen: "cultural.papeis",
+    entityType: "role",
+    entityId: roleId,
+    meta: { name: role.name },
+  });
+  revalidatePath("/papeis");
+  redirect("/papeis?deleted=1");
+}
