@@ -85,15 +85,63 @@ export async function clearSessionCookie() {
   }
 }
 
+const SESSION_TTL_MS = 45_000;
+const sessionUserCache = new Map<string, { user: SessionUser; at: number }>();
+
+function cacheSessionUser(key: string, user: SessionUser) {
+  if (sessionUserCache.size > 2000) sessionUserCache.clear();
+  sessionUserCache.set(key, { user, at: Date.now() });
+}
+
+/** Monta SessionUser a partir do perfil + grants já efetivos no cookie SSO (`u3`). */
+function sessionFromCookieGrants(
+  user: User & { role: { id: string; name: string } },
+  grants: string[],
+): SessionUser {
+  return {
+    ...user,
+    role: {
+      id: user.role.id,
+      name: user.role.name,
+      permissions: grants.map((screen) => ({
+        screen,
+        canView: true,
+        // Edit via capability `.edit` no cookie; sem isso, só view (legado no DB).
+        canEdit: screen.endsWith(".edit") || grants.includes(`${screen}.edit`),
+      })),
+    },
+    // Overrides já foram aplicados em createSessionTokenForUser.
+    permissions: [],
+  };
+}
+
 async function loadSessionUser(token: string | undefined | null): Promise<SessionUser | null> {
   const parsed = await parseSessionToken(token);
   if (!parsed) return null;
+  const cacheKey = `${parsed.userId}:${parsed.sessionVersion}`;
+  const hit = sessionUserCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < SESSION_TTL_MS) return hit.user;
+
+  // Token com grants: valida só sessionVersion/ativo (query leve) e usa o cookie.
+  if (parsed.permissions) {
+    const slim = await prisma.user.findUnique({
+      where: { id: parsed.userId },
+      include: { role: { select: { id: true, name: true } } },
+    });
+    if (!slim || slim.deactivatedAt) return null;
+    if (slim.sessionVersion !== parsed.sessionVersion) return null;
+    const user = sessionFromCookieGrants(slim, parsed.permissions);
+    cacheSessionUser(cacheKey, user);
+    return user;
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: parsed.userId },
     include: userInclude,
   });
   if (!user || user.deactivatedAt) return null;
   if (user.sessionVersion !== parsed.sessionVersion) return null;
+  cacheSessionUser(cacheKey, user);
   return user;
 }
 

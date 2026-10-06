@@ -96,7 +96,7 @@ const REVOKED: HubFluxoAccess = {
 
 /**
  * Grants do hub para o Fluxo, carregados no login e gravados no cookie SSO (`u3`).
- * A única ida ao hub é a checagem de revogação, em cache (ver checkHubSessionAlive).
+ * A única ida ao hub é a checagem de revogação (não bloqueia nav; ver checkHubSessionAlive).
  * Tokens antigos sem grants consultam /api/session/permissions (com cache).
  */
 export const getHubFluxoAccess = cache(async (): Promise<HubFluxoAccess> => {

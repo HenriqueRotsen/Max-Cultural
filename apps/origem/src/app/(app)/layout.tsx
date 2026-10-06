@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -63,6 +64,16 @@ async function TopBar({
   );
 }
 
+function TopBarFallback() {
+  return (
+    <div
+      className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2"
+      style={{ minHeight: 44 }}
+      aria-hidden
+    />
+  );
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [session, hubPerms] = await Promise.all([getSessionUser(), getHubPermissions()]);
   if (!session) {
@@ -119,10 +130,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         allowedScreens={allowedScreens}
       />
       <div className="shell-main">
-        <TopBar
-          workspaceId={session.workspace.id}
-          userId={session.id}
-        />
+        <Suspense fallback={<TopBarFallback />}>
+          <TopBar
+            workspaceId={session.workspace.id}
+            userId={session.id}
+          />
+        </Suspense>
         <div className="content">{children}</div>
       </div>
     </div>

@@ -309,13 +309,17 @@ function refreshHubSessionAlive(token: string): Promise<HubSessionStatus> {
 
 /**
  * Confirma no hub se a sessão não foi revogada (sessionVersion).
- * Só espera a rede no primeiro acesso do token nesta instância; depois responde
- * do cache e revalida em segundo plano a cada 2 min.
- * Hub fora do ar → "unknown" (o satélite segue com os grants do cookie).
+ * Nunca bloqueia a navegação na rede: sem cache → "unknown" e revalida em
+ * background; com cache vivo → responde na hora e revalida a cada 2 min.
+ * Só "revoked" (já cacheado) força logout. Hub fora do ar → "unknown"
+ * (o satélite segue com os grants do cookie).
  */
 export async function checkHubSessionAlive(token: string): Promise<HubSessionStatus> {
   const hit = aliveCache.get(token);
-  if (!hit) return refreshHubSessionAlive(token);
+  if (!hit) {
+    void refreshHubSessionAlive(token).catch(() => {});
+    return "unknown";
+  }
   if (hit.status === "alive" && Date.now() - hit.checkedAt > ALIVE_TTL_MS) {
     void refreshHubSessionAlive(token).catch(() => {});
   }
