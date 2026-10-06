@@ -16,6 +16,10 @@ import {
   IconPower,
 } from "@/components/IconConfirmButton";
 import { RoleSelect } from "@/components/RoleSelect";
+import {
+  isProtectedSuperAdminEmail,
+  SUPERADMIN_ROLE_NAME,
+} from "@/lib/protected-superadmin";
 import { recaptchaSiteKey } from "@/lib/recaptcha";
 
 export const metadata = { title: "Usuários" };
@@ -85,7 +89,9 @@ export default async function UsuariosPage({
       {canEdit ? (
         <CreateUserForm
           siteKey={recaptchaSiteKey()}
-          roles={roles.map((r) => ({ id: r.id, name: r.name }))}
+          roles={roles
+            .filter((r) => r.name !== SUPERADMIN_ROLE_NAME)
+            .map((r) => ({ id: r.id, name: r.name }))}
         />
       ) : null}
 
@@ -102,7 +108,12 @@ export default async function UsuariosPage({
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {users.map((u) => {
+              const protectedAdmin = isProtectedSuperAdminEmail(u.email);
+              const assignableRoles = roles
+                .filter((r) => r.name !== SUPERADMIN_ROLE_NAME)
+                .map((r) => ({ id: r.id, name: r.name }));
+              return (
               <tr key={u.id}>
                 <td className="align-middle font-medium text-[var(--navy)]">{u.name}</td>
                 <td className="align-middle text-[var(--gray-600)]">{u.email}</td>
@@ -112,10 +123,12 @@ export default async function UsuariosPage({
                       userId={u.id}
                       roleId={u.roleId}
                       userName={u.name}
-                      roles={roles.map((r) => ({ id: r.id, name: r.name }))}
+                      roles={assignableRoles}
+                      locked={protectedAdmin}
+                      lockedLabel={SUPERADMIN_ROLE_NAME}
                     />
                   ) : (
-                    u.role.name
+                    protectedAdmin ? SUPERADMIN_ROLE_NAME : u.role.name
                   )}
                 </td>
                 <td className="align-middle">
@@ -123,7 +136,7 @@ export default async function UsuariosPage({
                     href={`/usuarios/${u.id}`}
                     className="badge inline-flex border border-[var(--border)] bg-[var(--gray-50)] text-[var(--navy)] hover:bg-[var(--navy-soft)]"
                   >
-                    {u.isSuperAdmin
+                    {u.isSuperAdmin || protectedAdmin
                       ? "Total"
                       : u._count.permissions > 0
                         ? `Ajustes · ${u._count.permissions}`
@@ -150,20 +163,29 @@ export default async function UsuariosPage({
                 {canEdit ? (
                   <td className="align-middle">
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
-                      <form action={toggleUserAction.bind(null, u.id)}>
-                        <IconConfirmButton
-                          label={u.deactivatedAt ? "Reativar" : "Desativar"}
-                          title={u.deactivatedAt ? "Reativar usuário" : "Desativar usuário"}
-                          message={
-                            u.deactivatedAt
-                              ? "Reativar este usuário?"
-                              : "Desativar este usuário?"
-                          }
+                      {!protectedAdmin ? (
+                        <form action={toggleUserAction.bind(null, u.id)}>
+                          <IconConfirmButton
+                            label={u.deactivatedAt ? "Reativar" : "Desativar"}
+                            title={u.deactivatedAt ? "Reativar usuário" : "Desativar usuário"}
+                            message={
+                              u.deactivatedAt
+                                ? "Reativar este usuário?"
+                                : "Desativar este usuário?"
+                            }
+                          >
+                            <IconPower />
+                          </IconConfirmButton>
+                        </form>
+                      ) : (
+                        <span
+                          className="inline-flex h-9 items-center rounded-lg border border-[var(--border)] bg-[var(--gray-50)] px-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-500)]"
+                          title="Conta Superadmin protegida"
                         >
-                          <IconPower />
-                        </IconConfirmButton>
-                      </form>
-                      {u.id !== user.id ? (
+                          Protegido
+                        </span>
+                      )}
+                      {u.id !== user.id && !protectedAdmin ? (
                         <>
                           <form action={adminResetPasswordAction.bind(null, u.id)}>
                             <IconConfirmButton
@@ -191,7 +213,8 @@ export default async function UsuariosPage({
                   </td>
                 ) : null}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </section>

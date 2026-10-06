@@ -13,6 +13,11 @@ import {
   normalizeGrantedIds,
 } from "@max/auth";
 import { sendInviteEmail, sendTemporaryPasswordEmail } from "@/lib/email";
+import {
+  isProtectedSuperAdminEmail,
+  protectedSuperAdminDeniedMessage,
+  SUPERADMIN_ROLE_NAME,
+} from "@/lib/protected-superadmin";
 import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 const USER_FLASH = "max_user_flash";
@@ -53,6 +58,23 @@ export async function createUserAction(formData: FormData) {
   const roleId = String(formData.get("roleId") ?? "");
   if (!email || !name || !roleId) {
     redirect("/usuarios?error=" + encodeURIComponent("Preencha nome, e-mail e papel."));
+  }
+  if (isProtectedSuperAdminEmail(email)) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("Este e-mail é reservado à conta Superadmin protegida."),
+    );
+  }
+
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role) {
+    redirect("/usuarios?error=" + encodeURIComponent("Papel inválido."));
+  }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("O papel Superadmin é exclusivo da conta protegida."),
+    );
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -112,6 +134,9 @@ export async function adminResetPasswordAction(userId: string) {
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
+  }
+  if (isProtectedSuperAdminEmail(target.email)) {
+    redirect("/usuarios?error=" + encodeURIComponent(protectedSuperAdminDeniedMessage()));
   }
 
   const provisional = generateProvisionalPassword();
@@ -178,6 +203,9 @@ export async function toggleUserAction(userId: string) {
   if (!user) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
   }
+  if (isProtectedSuperAdminEmail(user.email)) {
+    redirect("/usuarios?error=" + encodeURIComponent(protectedSuperAdminDeniedMessage()));
+  }
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -204,6 +232,12 @@ export async function saveRolePermissionsAction(formData: FormData) {
   const role = await prisma.role.findUnique({ where: { id: roleId } });
   if (!role) {
     redirect("/papeis?error=" + encodeURIComponent("Papel inválido."));
+  }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent("As permissões do Superadmin são protegidas."),
+    );
   }
 
   const raw = ACCESS_PERMISSION_IDS.filter(
@@ -256,12 +290,12 @@ export async function saveUserPermissionsAction(formData: FormData) {
   const userId = String(formData.get("userId") ?? "");
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, isSuperAdmin: true },
+    select: { id: true, name: true, email: true, isSuperAdmin: true },
   });
   if (!target) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
   }
-  if (target.isSuperAdmin) {
+  if (target.isSuperAdmin || isProtectedSuperAdminEmail(target.email)) {
     redirect(
       `/usuarios/${userId}?error=` +
         encodeURIComponent("Superadmin tem acesso total — overrides não se aplicam."),
@@ -319,6 +353,15 @@ export async function updateUserRoleAction(formData: FormData) {
   if (!target || !role) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário ou papel inválido."));
   }
+  if (isProtectedSuperAdminEmail(target.email)) {
+    redirect("/usuarios?error=" + encodeURIComponent(protectedSuperAdminDeniedMessage()));
+  }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("O papel Superadmin é exclusivo da conta protegida."),
+    );
+  }
   if (target.roleId === roleId) {
     redirect("/usuarios");
   }
@@ -351,6 +394,12 @@ export async function createRoleAction(formData: FormData) {
   if (!name) {
     redirect("/papeis?error=" + encodeURIComponent("Informe o nome do papel."));
   }
+  if (name.toLowerCase() === SUPERADMIN_ROLE_NAME.toLowerCase()) {
+    redirect(
+      "/papeis?error=" +
+        encodeURIComponent("O nome Superadmin é reservado ao sistema."),
+    );
+  }
   const role = await prisma.role.create({
     data: { name, description: String(formData.get("description") ?? "").trim() },
   });
@@ -380,6 +429,12 @@ export async function updateRoleAction(formData: FormData) {
   const role = await prisma.role.findUnique({ where: { id: roleId } });
   if (!role) {
     redirect("/papeis?error=" + encodeURIComponent("Papel não encontrado."));
+  }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent("O papel Superadmin é protegido e não pode ser alterado."),
+    );
   }
 
   try {

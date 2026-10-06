@@ -27,6 +27,10 @@ import {
   sendTemporaryPasswordEmail,
 } from "@/lib/email";
 import { safeContinueUrl } from "@max/auth";
+import {
+  isProtectedSuperAdminEmail,
+  protectedSuperAdminDeniedMessage,
+} from "@/lib/protected-superadmin";
 import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 export type AuthActionState = {
@@ -237,6 +241,13 @@ export async function adminReset2faAction(userId: string) {
       "/usuarios?error=" +
         encodeURIComponent("Para encerrar a própria sessão, use Sair."),
     );
+  }
+  const existing = await prisma.user.findUnique({ where: { id: userId } });
+  if (!existing) {
+    redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
+  }
+  if (isProtectedSuperAdminEmail(existing.email)) {
+    redirect("/usuarios?error=" + encodeURIComponent(protectedSuperAdminDeniedMessage()));
   }
   const target = await prisma.user.update({
     where: { id: userId },

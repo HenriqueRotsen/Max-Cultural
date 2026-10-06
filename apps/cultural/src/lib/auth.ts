@@ -21,6 +21,11 @@ import {
   normalizeGrantedIds,
 } from "@max/auth";
 import { prisma } from "@/lib/db";
+import { ensureProtectedSuperAdmin } from "@/lib/ensure-protected-superadmin";
+import {
+  isProtectedSuperAdminEmail,
+  SUPERADMIN_ROLE_NAME,
+} from "@/lib/protected-superadmin";
 import { is2faDisabled } from "@/lib/totp";
 
 export { AUTH_COOKIE, PENDING_2FA_COOKIE };
@@ -47,11 +52,28 @@ function effectiveGrantedSet(user: SessionUser): Set<string> {
 
 /** Token SSO com os grants do usuário, calculados uma vez no login. */
 export async function createSessionTokenForUser(userId: string): Promise<string | null> {
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: userId },
     include: userInclude,
   });
-  if (!user || user.deactivatedAt) return null;
+  if (!user) return null;
+
+  // Repara drift: conta raiz sempre Superadmin ativa.
+  if (
+    isProtectedSuperAdminEmail(user.email) &&
+    (!user.isSuperAdmin ||
+      user.deactivatedAt ||
+      user.role.name !== SUPERADMIN_ROLE_NAME)
+  ) {
+    await ensureProtectedSuperAdmin();
+    user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: userInclude,
+    });
+    if (!user) return null;
+  }
+
+  if (user.deactivatedAt) return null;
   return createSessionToken({
     userId: user.id,
     sessionVersion: user.sessionVersion,

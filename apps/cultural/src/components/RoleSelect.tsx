@@ -8,13 +8,29 @@ export function RoleSelect({
   roleId,
   roles,
   userName,
+  locked = false,
+  lockedLabel,
 }: {
   userId: string;
   roleId: string;
   roles: { id: string; name: string }[];
   userName: string;
+  /** Conta protegida: papel não pode ser alterado. */
+  locked?: boolean;
+  lockedLabel?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+
+  if (locked) {
+    return (
+      <span
+        className="inline-flex min-w-[8.5rem] items-center rounded-lg border border-[var(--border)] bg-[var(--gray-50)] px-2.5 py-1.5 text-sm font-medium text-[var(--navy)]"
+        title="Papel Superadmin protegido — não pode ser alterado"
+      >
+        {lockedLabel || "Superadmin"}
+      </span>
+    );
+  }
 
   return (
     <form ref={formRef} action={updateUserRoleAction} className="m-0">
