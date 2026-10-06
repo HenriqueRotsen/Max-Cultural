@@ -396,6 +396,21 @@ export function writeSessionCookie(
   res.headers.append("set-cookie", base.join("; "));
 }
 
+/**
+ * Limpa cookie via Set-Cookie no header (não usar res.cookies.set depois de
+ * writeSessionCookie — no Next isso pode dropar o max_session recém-gravado).
+ */
+export function clearCookieHeader(
+  res: { headers: { append(name: string, value: string): void } },
+  name: string,
+) {
+  for (const opts of clearAuthCookieOptions()) {
+    const parts = [`${name}=`, `Path=${opts.path}`, "Max-Age=0", "HttpOnly", "SameSite=Lax"];
+    if (opts.domain) parts.push(`Domain=${opts.domain}`);
+    res.headers.append("set-cookie", parts.join("; "));
+  }
+}
+
 export async function createPending2faToken(userId: string): Promise<string> {
   const issuedAt = Date.now();
   const payload = `p2fa:${userId}:${issuedAt}`;

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   PENDING_2FA_COOKIE,
+  clearCookieHeader,
   parsePending2faToken,
   safeContinueUrl,
   writeSessionCookie,
@@ -34,7 +35,8 @@ function htmlRedirect(dest: string, token: string) {
     },
   });
   writeSessionCookie(res, token);
-  res.cookies.set(PENDING_2FA_COOKIE, "", { path: "/", maxAge: 0 });
+  // Só via header append — res.cookies.set() após writeSessionCookie apagava o max_session.
+  clearCookieHeader(res, PENDING_2FA_COOKIE);
   return res;
 }
 
