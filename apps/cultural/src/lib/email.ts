@@ -1,4 +1,9 @@
 import { Resend } from "resend";
+import {
+  escapeHtml,
+  highlightBox,
+  renderBrandedEmail,
+} from "@/lib/email-layout";
 
 function fromAddress() {
   return process.env.EMAIL_FROM || "MAX Cultural <noreply@maxcultural.com.br>";
@@ -14,7 +19,7 @@ export async function sendEmail(input: {
   html: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (simulate()) {
-    console.info("[email:simulate]", input.to, input.subject, input.html);
+    console.info("[email:simulate]", input.to, input.subject);
     return { ok: true };
   }
   try {
@@ -41,11 +46,17 @@ export async function sendInviteEmail(input: {
   return sendEmail({
     to: input.to,
     subject: "Convite — MAX Cultural",
-    html: `<p>Olá ${escapeHtml(input.name)},</p>
-<p>Você foi convidado para o MAX Cultural.</p>
-<p>Senha temporária: <strong>${escapeHtml(input.provisionalPassword)}</strong></p>
-<p>No primeiro acesso você deverá trocar a senha. Em seguida enviaremos um código de verificação para este e-mail.</p>
-<p><a href="${escapeAttr(input.link)}">Entrar</a></p>`,
+    html: renderBrandedEmail({
+      preheader: "Sua senha temporária para acessar o MAX Cultural",
+      title: "Você foi convidado",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0 0 12px">Sua conta no MAX Cultural está pronta. Use a senha temporária abaixo no primeiro acesso:</p>
+        ${highlightBox(escapeHtml(input.provisionalPassword))}
+        <p style="margin:0">No login você trocará a senha e receberá um código de verificação neste e-mail.</p>
+      `,
+      cta: { href: input.link, label: "Entrar no MAX Cultural" },
+    }),
   });
 }
 
@@ -59,11 +70,17 @@ export async function sendTemporaryPasswordEmail(input: {
   return sendEmail({
     to: input.to,
     subject: "Nova senha temporária — MAX Cultural",
-    html: `<p>Olá ${escapeHtml(input.name)},</p>
-<p>Geramos uma nova senha temporária para a sua conta:</p>
-<p style="font-size:18px;letter-spacing:1px"><strong>${escapeHtml(input.provisionalPassword)}</strong></p>
-<p>No próximo acesso você deverá trocar a senha. Se você não pediu isso, fale com o administrador.</p>
-<p><a href="${escapeAttr(input.link)}">Entrar</a></p>`,
+    html: renderBrandedEmail({
+      preheader: "Nova senha temporária da sua conta",
+      title: "Nova senha temporária",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0 0 12px">Geramos uma nova senha temporária para a sua conta:</p>
+        ${highlightBox(escapeHtml(input.provisionalPassword))}
+        <p style="margin:0">No próximo acesso você deverá criar uma senha nova. Se não pediu isso, fale com o administrador.</p>
+      `,
+      cta: { href: input.link, label: "Entrar" },
+    }),
   });
 }
 
@@ -75,10 +92,16 @@ export async function sendLoginOtpEmail(input: {
   return sendEmail({
     to: input.to,
     subject: "Código de verificação — MAX Cultural",
-    html: `<p>Olá ${escapeHtml(input.name)},</p>
-<p>Seu código de verificação:</p>
-<p style="font-size:24px;letter-spacing:4px"><strong>${escapeHtml(input.code)}</strong></p>
-<p>Válido por 10 minutos. Se você não está fazendo login, ignore este e-mail.</p>`,
+    html: renderBrandedEmail({
+      preheader: `Código ${input.code} — válido por 10 minutos`,
+      title: "Código de verificação",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0 0 12px">Use o código abaixo para concluir o login:</p>
+        ${highlightBox(`<span style="letter-spacing:0.28em">${escapeHtml(input.code)}</span>`)}
+        <p style="margin:0">Válido por 10 minutos. Se você não está fazendo login, ignore este e-mail.</p>
+      `,
+    }),
   });
 }
 
@@ -86,19 +109,13 @@ export async function send2faNoticeEmail(input: { to: string; name: string }) {
   return sendEmail({
     to: input.to,
     subject: "Sessões encerradas — MAX Cultural",
-    html: `<p>Olá ${escapeHtml(input.name)},</p>
-<p>Um administrador encerrou as sessões da sua conta. No próximo acesso você usará senha e o código enviado a este e-mail.</p>`,
+    html: renderBrandedEmail({
+      preheader: "Suas sessões foram encerradas por um administrador",
+      title: "Sessões encerradas",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0">Um administrador encerrou as sessões da sua conta. No próximo acesso use sua senha e o código enviado a este e-mail.</p>
+      `,
+    }),
   });
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function escapeAttr(s: string) {
-  return escapeHtml(s).replace(/'/g, "&#39;");
 }

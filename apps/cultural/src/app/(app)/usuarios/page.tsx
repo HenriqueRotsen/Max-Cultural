@@ -7,10 +7,16 @@ import {
   createUserAction,
   peekUserFlash,
   toggleUserAction,
-  updateUserRoleAction,
 } from "@/lib/actions/iam";
 import { adminReset2faAction } from "@/lib/actions/auth";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import {
+  IconConfirmButton,
+  IconKey,
+  IconLogout,
+  IconPower,
+} from "@/components/IconConfirmButton";
+import { RoleSelect } from "@/components/RoleSelect";
 
 export const metadata = { title: "Usuários" };
 export const dynamic = "force-dynamic";
@@ -49,16 +55,9 @@ export default async function UsuariosPage({
           Acesso
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-[var(--navy)]">Usuários</h1>
-        <p className="mt-1 text-sm text-[var(--gray-500)]">
-          A primeira senha é temporária (enviada por e-mail). No login o usuário troca a
-          senha e confirma um código enviado ao e-mail cadastrado. O papel define o
-          padrão; em cada pessoa você pode ajustar acessos com Conceder/Negar.
-        </p>
       </div>
 
-      {error ? (
-        <p className="auth-alert">{error}</p>
-      ) : null}
+      {error ? <p className="auth-alert">{error}</p> : null}
       {flash ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
           {flash.kind === "password_reset"
@@ -69,7 +68,7 @@ export default async function UsuariosPage({
         </p>
       ) : created || passwordReset ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
-          A senha temporária já foi exibida; se precisar, use &quot;Redefinir senha&quot;.
+          A senha temporária já foi exibida; se precisar, use o ícone de redefinir senha.
         </p>
       ) : null}
       {reset2fa ? (
@@ -86,10 +85,6 @@ export default async function UsuariosPage({
       {canEdit ? (
         <form action={createUserAction} className="card space-y-3 p-5">
           <h2 className="font-semibold text-[var(--navy)]">Novo usuário</h2>
-          <p className="text-sm text-[var(--gray-500)]">
-            Gera e envia por e-mail uma senha temporária. No primeiro acesso o usuário
-            troca a senha e confirma o código enviado ao e-mail.
-          </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="field">
               <label htmlFor="name">Nome</label>
@@ -112,7 +107,7 @@ export default async function UsuariosPage({
           </div>
           <ConfirmSubmitButton
             className="btn"
-            message="Criar este usuário e enviar o convite?"
+            message="Criar este usuário e enviar o convite por e-mail?"
             confirmLabel="Criar"
           >
             Criar
@@ -120,107 +115,105 @@ export default async function UsuariosPage({
         </form>
       ) : null}
 
-      <section className="card overflow-hidden">
-        <table className="data w-full text-sm">
+      <section className="card overflow-x-auto">
+        <table className="data w-full min-w-[720px] text-sm">
           <thead>
             <tr>
               <th>Nome</th>
               <th>E-mail</th>
               <th>Papel</th>
               <th>Acessos</th>
-              <th>Verificação</th>
               <th>Status</th>
-              {canEdit ? <th /> : null}
+              {canEdit ? <th className="text-right">Ações</th> : null}
             </tr>
           </thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
-                <td>{u.name}</td>
-                <td>{u.email}</td>
-                <td>
+                <td className="align-middle font-medium text-[var(--navy)]">{u.name}</td>
+                <td className="align-middle text-[var(--gray-600)]">{u.email}</td>
+                <td className="align-middle">
                   {canEdit ? (
-                    <form action={updateUserRoleAction} className="inline-flex items-center gap-1">
-                      <input type="hidden" name="userId" value={u.id} />
-                      <select
-                        name="roleId"
-                        defaultValue={u.roleId}
-                        className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-sm"
-                        aria-label={`Papel de ${u.name}`}
-                      >
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                      <ConfirmSubmitButton
-                        className="btn btn-ghost"
-                        message="Trocar o papel deste usuário? A sessão atual será encerrada."
-                      >
-                        Salvar
-                      </ConfirmSubmitButton>
-                    </form>
+                    <RoleSelect
+                      userId={u.id}
+                      roleId={u.roleId}
+                      userName={u.name}
+                      roles={roles.map((r) => ({ id: r.id, name: r.name }))}
+                    />
                   ) : (
                     u.role.name
                   )}
                 </td>
-                <td>
+                <td className="align-middle">
                   <Link
                     href={`/usuarios/${u.id}`}
-                    className="font-medium text-[var(--navy)] underline-offset-2 hover:underline"
+                    className="badge inline-flex border border-[var(--border)] bg-[var(--gray-50)] text-[var(--navy)] hover:bg-[var(--navy-soft)]"
                   >
                     {u.isSuperAdmin
                       ? "Total"
                       : u._count.permissions > 0
-                        ? `Ajustar (${u._count.permissions})`
-                        : "Herdar papel"}
+                        ? `Ajustes · ${u._count.permissions}`
+                        : "Herdar"}
                   </Link>
                 </td>
-                <td>
-                  {u.mustChangePassword ? "Após senha" : "Código por e-mail"}
+                <td className="align-middle">
+                  <span
+                    className={
+                      u.deactivatedAt
+                        ? "badge badge-danger"
+                        : u.mustChangePassword
+                          ? "badge badge-warn"
+                          : "badge badge-success"
+                    }
+                  >
+                    {u.deactivatedAt
+                      ? "Inativo"
+                      : u.mustChangePassword
+                        ? "Senha temp."
+                        : "Ativo"}
+                  </span>
                 </td>
-                <td>{u.deactivatedAt ? "Inativo" : "Ativo"}</td>
                 {canEdit ? (
-                  <td className="space-x-2 whitespace-nowrap">
-                    <form action={toggleUserAction.bind(null, u.id)} className="inline">
-                      <ConfirmSubmitButton
-                        className="btn btn-ghost"
-                        message={
-                          u.deactivatedAt
-                            ? "Reativar este usuário?"
-                            : "Desativar este usuário?"
-                        }
-                      >
-                        {u.deactivatedAt ? "Reativar" : "Desativar"}
-                      </ConfirmSubmitButton>
-                    </form>
-                    {u.id !== user.id ? (
-                      <>
-                        <form
-                          action={adminResetPasswordAction.bind(null, u.id)}
-                          className="inline"
+                  <td className="align-middle">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <form action={toggleUserAction.bind(null, u.id)}>
+                        <IconConfirmButton
+                          label={u.deactivatedAt ? "Reativar" : "Desativar"}
+                          title={u.deactivatedAt ? "Reativar usuário" : "Desativar usuário"}
+                          message={
+                            u.deactivatedAt
+                              ? "Reativar este usuário?"
+                              : "Desativar este usuário?"
+                          }
                         >
-                          <ConfirmSubmitButton
-                            className="btn btn-ghost"
-                            message="Gerar nova senha temporária? A sessão atual do usuário será invalidada e ele deverá trocar a senha no próximo login."
-                          >
-                            Redefinir senha
-                          </ConfirmSubmitButton>
-                        </form>
-                        <form
-                          action={adminReset2faAction.bind(null, u.id)}
-                          className="inline"
-                        >
-                          <ConfirmSubmitButton
-                            className="btn btn-ghost"
-                            message="Encerrar todas as sessões deste usuário? No próximo acesso ele usará senha e o código enviado por e-mail."
-                          >
-                            Encerrar sessões
-                          </ConfirmSubmitButton>
-                        </form>
-                      </>
-                    ) : null}
+                          <IconPower />
+                        </IconConfirmButton>
+                      </form>
+                      {u.id !== user.id ? (
+                        <>
+                          <form action={adminResetPasswordAction.bind(null, u.id)}>
+                            <IconConfirmButton
+                              label="Redefinir senha"
+                              title="Redefinir senha"
+                              message="Gerar nova senha temporária e enviar por e-mail? A sessão atual será encerrada."
+                              confirmLabel="Gerar"
+                            >
+                              <IconKey />
+                            </IconConfirmButton>
+                          </form>
+                          <form action={adminReset2faAction.bind(null, u.id)}>
+                            <IconConfirmButton
+                              label="Encerrar sessões"
+                              title="Encerrar sessões"
+                              message="Encerrar todas as sessões deste usuário?"
+                              confirmLabel="Encerrar"
+                            >
+                              <IconLogout />
+                            </IconConfirmButton>
+                          </form>
+                        </>
+                      ) : null}
+                    </div>
                   </td>
                 ) : null}
               </tr>
