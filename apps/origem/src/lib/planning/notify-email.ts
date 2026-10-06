@@ -1,12 +1,9 @@
 import { Resend } from "resend";
-
-function appBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_ORIGEM_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3001"
-  ).replace(/\/$/, "");
-}
+import {
+  appBaseUrl,
+  escapeHtml,
+  renderBrandedEmail,
+} from "@/lib/email-layout";
 
 /** Envia e-mail de aviso (Resend). Retorna false se não configurado ou falhou. */
 export async function sendNotificationEmail(params: {
@@ -29,6 +26,13 @@ export async function sendNotificationEmail(params: {
       ? `${appBaseUrl()}${params.href}`
       : params.href || `${appBaseUrl()}/notificacoes`;
 
+  const html = renderBrandedEmail({
+    preheader: params.body.slice(0, 120),
+    title: params.title,
+    bodyHtml: `<p style="margin:0">${escapeHtml(params.body)}</p>`,
+    cta: { href: link, label: "Abrir no MAX Origem" },
+  });
+
   try {
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
@@ -38,12 +42,7 @@ export async function sendNotificationEmail(params: {
       to: [to],
       subject: params.title,
       text: [params.body, "", `Abrir no MAX Origem: ${link}`].join("\n"),
-      html: `
-        <p style="font-family:sans-serif;font-size:15px;color:#1a1a1a">${escapeHtml(params.body)}</p>
-        <p style="font-family:sans-serif;margin-top:16px">
-          <a href="${escapeAttr(link)}" style="color:#5b52c9;font-weight:600">Abrir no MAX Origem</a>
-        </p>
-      `,
+      html,
     });
     if (error) {
       console.error("[notify-email]", error);
@@ -54,16 +53,4 @@ export async function sendNotificationEmail(params: {
     console.error("[notify-email]", e);
     return false;
   }
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function escapeAttr(s: string) {
-  return escapeHtml(s).replace(/'/g, "&#39;");
 }

@@ -1,11 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import {
-  getSessionUser,
-  needs2faSetup,
-  needsPasswordChange,
-  type SessionUser,
-} from "@/lib/auth";
+import { getSessionUser, type SessionUser } from "@/lib/auth";
 import { redirectToHubDenied, redirectToHubLogin } from "@/lib/hub";
 import { getEffectivePermissions } from "@/lib/permissions";
 import type { PermissionCode } from "@/lib/permission-catalog";
@@ -14,8 +9,6 @@ import type { PermissionCode } from "@/lib/permission-catalog";
 export const requireDashboardUser = cache(async (): Promise<SessionUser> => {
   const user = await getSessionUser();
   if (!user) redirectToHubLogin("/dashboard");
-  if (needsPasswordChange(user)) redirect("/dashboard/onboarding/senha");
-  if (needs2faSetup(user)) redirect("/dashboard/onboarding/2fa");
   return user;
 });
 

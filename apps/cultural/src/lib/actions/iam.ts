@@ -13,6 +13,7 @@ import {
   normalizeGrantedIds,
 } from "@max/auth";
 import { sendInviteEmail, sendTemporaryPasswordEmail } from "@/lib/email";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 const USER_FLASH = "max_user_flash";
 
@@ -38,6 +39,15 @@ export async function createUserAction(formData: FormData) {
   if (!actor || !can(actor, "cultural.usuarios", "edit")) {
     redirect("/usuarios?error=" + encodeURIComponent("Sem permissão."));
   }
+
+  const captcha = await verifyRecaptchaToken(
+    String(formData.get("recaptchaToken") ?? ""),
+    "signup",
+  );
+  if (!captcha.ok) {
+    redirect("/usuarios?error=" + encodeURIComponent(captcha.error));
+  }
+
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const roleId = String(formData.get("roleId") ?? "");

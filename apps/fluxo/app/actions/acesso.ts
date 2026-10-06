@@ -6,7 +6,7 @@ import { requireAuth, requirePermission, bumpSessionVersion } from "@/lib/auth";
 import { getEffectivePermissions } from "@/lib/permissions";
 import { ADMIN_ROLE_NAME, type PermissionCode } from "@/lib/permission-catalog";
 import { writeAuditLog } from "@/lib/audit";
-import { createUserWithProvisionalPassword } from "@/app/actions/auth";
+import { createLocalFluxoUser } from "@/app/actions/auth";
 import {
   compactScopeEntries,
   type DataScopeKind,
@@ -19,7 +19,6 @@ export type AccessActionResult =
   | {
       ok: true;
       message?: string;
-      provisionalPassword?: string;
       userId?: string;
       roleId?: string;
     }
@@ -344,7 +343,7 @@ export async function createUserAction(input: {
   );
   if (!normalized.ok) return normalized;
 
-  const { user, provisional } = await createUserWithProvisionalPassword({
+  const { user } = await createLocalFluxoUser({
     email,
     name: input.name,
     roleId: input.roleId,
@@ -375,8 +374,8 @@ export async function createUserAction(input: {
   revalidatePath("/dashboard/acesso/usuarios");
   return {
     ok: true,
-    message: "Usuário criado.",
-    provisionalPassword: provisional,
+    message:
+      "Usuário criado. O acesso é pelo MAX Cultural com este e-mail (e permissão ao Fluxo).",
     userId: user.id,
   };
 }

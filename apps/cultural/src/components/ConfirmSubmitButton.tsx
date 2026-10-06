@@ -7,6 +7,7 @@ export function ConfirmSubmitButton({
   children,
   className,
   title = "Confirmar",
+  tooltip,
   confirmLabel = "Confirmar",
   disabled,
 }: {
@@ -14,6 +15,8 @@ export function ConfirmSubmitButton({
   children: React.ReactNode;
   className?: string;
   title?: string;
+  /** Texto nativo ao passar o mouse (atributo title do botão). */
+  tooltip?: string;
   confirmLabel?: string;
   disabled?: boolean;
 }) {
@@ -45,6 +48,8 @@ export function ConfirmSubmitButton({
         ref={btnRef}
         type="button"
         className={className}
+        title={tooltip || title}
+        aria-label={tooltip || title}
         disabled={disabled}
         onClick={() => setOpen(true)}
       >

@@ -1,7 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { isAuthEnabled } from "@/lib/auth/config";
 import { getHubSessionPayload, origemHubLoginUrl } from "@/lib/auth/hub";
 import {
   entitlementsFromWorkspace,
@@ -174,7 +173,6 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext> {
 export async function requireUser(options?: { roles?: AppUserRole[] }) {
   const session = await getSessionUser();
   if (!session) redirect(origemHubLoginUrl("/painel"));
-  if (session.profile.mustChangePassword && isAuthEnabled()) redirect("/alterar-senha");
   if (options?.roles && !options.roles.includes(session.profile.role)) {
     redirect("/painel");
   }

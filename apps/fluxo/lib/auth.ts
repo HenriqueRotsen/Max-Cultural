@@ -24,7 +24,6 @@ import {
   getEffectivePermissions,
   type AuthUser,
 } from "@/lib/permissions";
-import { is2faDisabled } from "@/lib/totp";
 
 export {
   AUTH_COOKIE,
@@ -214,18 +213,17 @@ export async function requirePermission(
   return user;
 }
 
-export function needsPasswordChange(user: { mustChangePassword: boolean }) {
-  return user.mustChangePassword;
+/** Auth local removido — senha/2FA só no MAX Cultural. */
+export function needsPasswordChange(_user?: { mustChangePassword?: boolean }) {
+  return false;
 }
 
-export function needs2faSetup(user: { totpEnabled: boolean }) {
-  if (is2faDisabled()) return false;
-  return !user.totpEnabled;
+export function needs2faSetup(_user?: { totpEnabled?: boolean }) {
+  return false;
 }
 
-export function needs2faChallenge(user: { totpEnabled: boolean }) {
-  if (is2faDisabled()) return false;
-  return user.totpEnabled;
+export function needs2faChallenge(_user?: { totpEnabled?: boolean }) {
+  return false;
 }
 
 export async function bumpSessionVersion(userId: string) {

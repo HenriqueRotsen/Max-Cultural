@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
 import { NotificationBell } from "@/components/planning/NotificationBell";
-import { isAuthEnabled } from "@/lib/auth/config";
 import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
 import {
   getHubPermissions,
@@ -82,9 +81,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Sessão revogada no hub: /logout do Cultural limpa o cookie (ir a /login faria loop).
   if (hubPerms.revoked) {
     redirect(origemHubLogoutUrl());
-  }
-  if (session.profile.mustChangePassword && isAuthEnabled()) {
-    redirect("/alterar-senha");
   }
 
   const canEnterOrigem =

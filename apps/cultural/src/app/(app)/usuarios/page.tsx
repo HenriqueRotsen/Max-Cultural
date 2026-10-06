@@ -4,19 +4,19 @@ import { can, getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   adminResetPasswordAction,
-  createUserAction,
   peekUserFlash,
   toggleUserAction,
 } from "@/lib/actions/iam";
 import { adminReset2faAction } from "@/lib/actions/auth";
-import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { CreateUserForm } from "@/components/CreateUserForm";
 import {
   IconConfirmButton,
-  IconKey,
+  IconKeyReset,
   IconLogout,
   IconPower,
 } from "@/components/IconConfirmButton";
 import { RoleSelect } from "@/components/RoleSelect";
+import { recaptchaSiteKey } from "@/lib/recaptcha";
 
 export const metadata = { title: "Usuários" };
 export const dynamic = "force-dynamic";
@@ -83,36 +83,10 @@ export default async function UsuariosPage({
       ) : null}
 
       {canEdit ? (
-        <form action={createUserAction} className="card space-y-3 p-5">
-          <h2 className="font-semibold text-[var(--navy)]">Novo usuário</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="field">
-              <label htmlFor="name">Nome</label>
-              <input id="name" name="name" required />
-            </div>
-            <div className="field">
-              <label htmlFor="email">E-mail</label>
-              <input id="email" name="email" type="email" required />
-            </div>
-            <div className="field">
-              <label htmlFor="roleId">Papel</label>
-              <select id="roleId" name="roleId" required defaultValue={roles[0]?.id}>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <ConfirmSubmitButton
-            className="btn"
-            message="Criar este usuário e enviar o convite por e-mail?"
-            confirmLabel="Criar"
-          >
-            Criar
-          </ConfirmSubmitButton>
-        </form>
+        <CreateUserForm
+          siteKey={recaptchaSiteKey()}
+          roles={roles.map((r) => ({ id: r.id, name: r.name }))}
+        />
       ) : null}
 
       <section className="card overflow-x-auto">
@@ -198,7 +172,7 @@ export default async function UsuariosPage({
                               message="Gerar nova senha temporária e enviar por e-mail? A sessão atual será encerrada."
                               confirmLabel="Gerar"
                             >
-                              <IconKey />
+                              <IconKeyReset />
                             </IconConfirmButton>
                           </form>
                           <form action={adminReset2faAction.bind(null, u.id)}>

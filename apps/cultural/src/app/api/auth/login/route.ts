@@ -16,6 +16,7 @@ import {
   needsPasswordChange,
 } from "@/lib/auth";
 import { issueLoginEmailOtp } from "@/lib/email-otp";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +56,15 @@ export async function POST(request: NextRequest) {
   const password = String(form.get("password") ?? "");
   const next = safeContinueUrl(String(form.get("next") ?? "/"), "/");
   const ip = clientIp(request);
+
+  const captcha = await verifyRecaptchaToken(
+    String(form.get("recaptchaToken") ?? ""),
+    "login",
+    ip,
+  );
+  if (!captcha.ok) {
+    return loginErrorRedirect(request, next, captcha.error);
+  }
 
   if (!email || !password) {
     return loginErrorRedirect(request, next, "Informe e-mail e senha.");

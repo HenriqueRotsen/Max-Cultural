@@ -20,6 +20,7 @@ export function IconConfirmButton({
       className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--navy)] transition hover:bg-[var(--navy-soft)]"
       message={message}
       title={title ?? label}
+      tooltip={label}
       confirmLabel={confirmLabel}
     >
       <span className="sr-only">{label}</span>
@@ -28,11 +29,35 @@ export function IconConfirmButton({
   );
 }
 
-export function IconKey() {
+/** Chave + setas de reset (redefinir senha). */
+export function IconKeyReset() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+      {/* Cabeça da chave */}
+      <circle
+        cx="8"
+        cy="10"
+        r="3.25"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      {/* Haste + dentes */}
       <path
-        d="M15 7a4 4 0 1 1-4 4m4-4a4 4 0 0 0-4 4m4-4 6.5 6.5M17 15l2 2m-6.5-2.5L8 10m0 0H5.5L3 12.5 5.5 15H8l2.5-2.5"
+        d="M11 10h8.5M16.5 10v2.25M19 10v3"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Arco de reset */}
+      <path
+        d="M5.2 16.2a5.2 5.2 0 0 0 8.3 1.1"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <path
+        d="M13.8 15.2v2.6h-2.6"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"

@@ -27,6 +27,7 @@ import {
   sendTemporaryPasswordEmail,
 } from "@/lib/email";
 import { safeContinueUrl } from "@max/auth";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 export type AuthActionState = {
   error?: string;
@@ -179,6 +180,13 @@ export async function requestPasswordResetAction(
   _prev: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
+  const captcha = await verifyRecaptchaToken(
+    String(formData.get("recaptchaToken") ?? ""),
+    "password_reset",
+    await clientIp(),
+  );
+  if (!captcha.ok) return { error: captcha.error };
+
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const generic = {
     ok: true as const,
