@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -29,6 +28,10 @@ function loadRecaptchaScript(siteKey: string): Promise<void> {
   const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
   if (existing) {
     return new Promise((resolve, reject) => {
+      if (window.grecaptcha) {
+        window.grecaptcha.ready(() => resolve());
+        return;
+      }
       existing.addEventListener("load", () => {
         window.grecaptcha?.ready(() => resolve());
       });
@@ -55,33 +58,6 @@ export async function executeRecaptcha(
   return window.grecaptcha.execute(siteKey, { action });
 }
 
-/** Badge/disclaimer exigido pelo Google quando o badge fica discreto. */
-export function RecaptchaLegalNote() {
-  return (
-    <p className="mt-3 text-[11px] leading-relaxed text-[var(--gray-400)]">
-      Protegido por reCAPTCHA. Aplicam-se a{" "}
-      <a
-        href="https://policies.google.com/privacy"
-        target="_blank"
-        rel="noreferrer"
-        className="underline underline-offset-2"
-      >
-        Privacidade
-      </a>{" "}
-      e os{" "}
-      <a
-        href="https://policies.google.com/terms"
-        target="_blank"
-        rel="noreferrer"
-        className="underline underline-offset-2"
-      >
-        Termos
-      </a>{" "}
-      do Google.
-    </p>
-  );
-}
-
 type FormProps = {
   action: RecaptchaAction;
   siteKey: string;
@@ -106,9 +82,8 @@ export function RecaptchaForm({
   method = "post",
   onError,
 }: FormProps) {
-  const formRef = useRef<HTMLFormElement>(null);
   const tokenRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const locking = useRef(false);
   const armed = Boolean(siteKey);
 
   useEffect(() => {
@@ -120,44 +95,54 @@ export function RecaptchaForm({
     async (e: FormEvent<HTMLFormElement>) => {
       if (!armed) return;
       const form = e.currentTarget;
-      // Já temos token fresco → deixa seguir (submit nativo / server action).
+
+      // Token já preenchido nesta rodada → deixa o browser/server action seguir.
       if (form.dataset.recaptchaReady === "1") {
         form.dataset.recaptchaReady = "0";
         return;
       }
+
       e.preventDefault();
-      if (busy) return;
-      setBusy(true);
+      if (locking.current) return;
+      locking.current = true;
       try {
         const token = await executeRecaptcha(siteKey, action);
-        if (tokenRef.current) tokenRef.current.value = token;
+        const input = tokenRef.current;
+        if (input) input.value = token;
         form.dataset.recaptchaReady = "1";
-        // requestSubmit respeita server actions; form.submit() nativo as ignora.
+
+        const isStringAction = typeof formAction === "string" && formAction.length > 0;
+        if (isStringAction) {
+          // POST clássico (login): evita interferência do React no FormData.
+          HTMLFormElement.prototype.submit.call(form);
+          return;
+        }
         form.requestSubmit();
       } catch {
         onError?.("Não foi possível carregar a verificação anti-bot.");
       } finally {
-        setBusy(false);
+        locking.current = false;
       }
     },
-    [action, armed, busy, onError, siteKey],
+    [action, armed, formAction, onError, siteKey],
   );
 
   return (
     <form
-      ref={formRef}
       className={className}
       action={formAction}
       method={method}
       onSubmit={onSubmit}
     >
-      <input ref={tokenRef} type="hidden" name="recaptchaToken" value="" />
+      {/* defaultValue: não controlar o token (value="" apagava no re-render). */}
+      <input
+        ref={tokenRef}
+        type="hidden"
+        name="recaptchaToken"
+        defaultValue=""
+        autoComplete="off"
+      />
       {children}
-      {armed ? (
-        <p className="sr-only" aria-live="polite">
-          {busy ? "Validando…" : ""}
-        </p>
-      ) : null}
     </form>
   );
 }
