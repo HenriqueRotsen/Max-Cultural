@@ -1,11 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  AUTH_COOKIE,
   PENDING_2FA_COOKIE,
   parsePending2faToken,
   parseSessionToken,
   firstValidSessionToken,
-  safeContinueUrl,
 } from "@max/auth";
 
 const PUBLIC = new Set([
@@ -54,16 +52,18 @@ export async function proxy(request: NextRequest) {
     pending = null;
   }
 
-  if (pathname === "/login" && session) {
-    const next = safeContinueUrl(request.nextUrl.searchParams.get("next"), "/");
-    if (next.startsWith("http://") || next.startsWith("https://")) {
-      return NextResponse.redirect(next);
-    }
-    return NextResponse.redirect(new URL(next, request.url));
+  /**
+   * NÃO redirecionar /login só porque o cookie HMAC ainda é válido.
+   * Após troca de papel (sessionVersion++), o cookie fica “fantasma”: o proxy
+   * achava logado e mandava para /; o layout via DB rejeitava e voltava ao
+   * /login → ERR_TOO_MANY_REDIRECTS. A página /login valida no banco.
+   */
+  if (pathname === "/login") {
+    return NextResponse.next();
   }
 
   if (pathname === "/login/2fa") {
-    if (session) return NextResponse.redirect(new URL("/", request.url));
+    // Sessão HMAC sem validar version: a página 2FA/login tratam o caso real.
     if (!pending) return NextResponse.redirect(new URL("/login", request.url));
     return NextResponse.next();
   }

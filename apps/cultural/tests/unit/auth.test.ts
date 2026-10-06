@@ -48,6 +48,7 @@ function user(partial: {
       name: "ops",
       permissions: partial.permissions ?? [],
     },
+    permissions: [],
   } as SessionUser;
 }
 
@@ -97,10 +98,11 @@ describe("auth ACL helpers", () => {
     ).toBe(true);
   });
 
-  it("flags de onboarding", () => {
+  it("flags de onboarding / 2FA por e-mail", () => {
     expect(needsPasswordChange({ mustChangePassword: true })).toBe(true);
+    expect(needs2faSetup()).toBe(false);
+    expect(needs2faChallenge()).toBe(true);
     process.env.AUTH_2FA_DISABLED = "true";
-    expect(needs2faSetup({ totpEnabled: false })).toBe(false);
-    expect(needs2faChallenge({ totpEnabled: true })).toBe(false);
+    expect(needs2faChallenge()).toBe(false);
   });
 });

@@ -15,6 +15,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "iam.user_role_changed": "Papel do usuário alterado",
   "iam.role_created": "Papel criado",
   "iam.role_updated": "Papel atualizado",
+  "iam.role_deleted": "Papel excluído",
   "iam.2fa_reset": "2FA redefinido pelo admin",
   "planning.nf_deleted": "NF excluída",
   "planning.nf_delete_denied": "Exclusão de NF negada",

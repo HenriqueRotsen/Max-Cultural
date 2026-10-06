@@ -26,6 +26,7 @@ describe("sendEmail (integração)", () => {
       to: "a@b.com",
       name: "Ana",
       link: "http://localhost:3000/login",
+      provisionalPassword: "TempPass1!",
     });
     expect(result).toEqual({ ok: true });
   });

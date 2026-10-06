@@ -4,13 +4,23 @@ import { can, getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   adminResetPasswordAction,
-  createUserAction,
   peekUserFlash,
   toggleUserAction,
-  updateUserRoleAction,
 } from "@/lib/actions/iam";
 import { adminReset2faAction } from "@/lib/actions/auth";
-import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { CreateUserForm } from "@/components/CreateUserForm";
+import {
+  IconConfirmButton,
+  IconKeyReset,
+  IconLogout,
+  IconPower,
+} from "@/components/IconConfirmButton";
+import { RoleSelect } from "@/components/RoleSelect";
+import {
+  isProtectedSuperAdminEmail,
+  SUPERADMIN_ROLE_NAME,
+} from "@/lib/protected-superadmin";
+import { recaptchaSiteKey } from "@/lib/recaptcha";
 
 export const metadata = { title: "Usuários" };
 export const dynamic = "force-dynamic";
@@ -30,7 +40,7 @@ export default async function UsuariosPage({
   const roleUpdated = sp.roleUpdated === "1" || sp.roleUpdated === "true";
   const error = typeof sp.error === "string" ? sp.error : null;
   const flash =
-    created || passwordReset ? await peekUserFlash() : null;
+    created || passwordReset || error ? await peekUserFlash() : null;
   const [users, roles] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
@@ -49,16 +59,9 @@ export default async function UsuariosPage({
           Acesso
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-[var(--navy)]">Usuários</h1>
-        <p className="mt-1 text-sm text-[var(--gray-500)]">
-          A primeira senha é temporária: no primeiro login o usuário troca a senha e
-          configura o autenticador (2FA). O papel define o padrão; em cada pessoa você
-          pode ajustar acessos com Conceder/Negar.
-        </p>
       </div>
 
-      {error ? (
-        <p className="auth-alert">{error}</p>
-      ) : null}
+      {error ? <p className="auth-alert">{error}</p> : null}
       {flash ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
           {flash.kind === "password_reset"
@@ -69,12 +72,12 @@ export default async function UsuariosPage({
         </p>
       ) : created || passwordReset ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
-          A senha temporária já foi exibida; se precisar, use &quot;Redefinir senha&quot;.
+          A senha temporária já foi exibida; se precisar, use o ícone de redefinir senha.
         </p>
       ) : null}
       {reset2fa ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
-          2FA resetado. No próximo login o usuário configura o autenticador de novo.
+          Sessões encerradas. No próximo login o usuário usará senha e o código por e-mail.
         </p>
       ) : null}
       {roleUpdated ? (
@@ -84,150 +87,139 @@ export default async function UsuariosPage({
       ) : null}
 
       {canEdit ? (
-        <form action={createUserAction} className="card space-y-3 p-5">
-          <h2 className="font-semibold text-[var(--navy)]">Novo usuário</h2>
-          <p className="text-sm text-[var(--gray-500)]">
-            Gera uma senha temporária. O usuário será obrigado a trocá-la e ativar o 2FA.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="field">
-              <label htmlFor="name">Nome</label>
-              <input id="name" name="name" required />
-            </div>
-            <div className="field">
-              <label htmlFor="email">E-mail</label>
-              <input id="email" name="email" type="email" required />
-            </div>
-            <div className="field">
-              <label htmlFor="roleId">Papel</label>
-              <select id="roleId" name="roleId" required defaultValue={roles[0]?.id}>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <ConfirmSubmitButton
-            className="btn"
-            message="Criar este usuário e enviar o convite?"
-            confirmLabel="Criar"
-          >
-            Criar
-          </ConfirmSubmitButton>
-        </form>
+        <CreateUserForm
+          siteKey={recaptchaSiteKey()}
+          roles={roles
+            .filter((r) => r.name !== SUPERADMIN_ROLE_NAME)
+            .map((r) => ({ id: r.id, name: r.name }))}
+        />
       ) : null}
 
-      <section className="card overflow-hidden">
-        <table className="data w-full text-sm">
+      <section className="card overflow-x-auto">
+        <table className="data w-full min-w-[720px] text-sm">
           <thead>
             <tr>
               <th>Nome</th>
               <th>E-mail</th>
               <th>Papel</th>
               <th>Acessos</th>
-              <th>2FA</th>
               <th>Status</th>
-              {canEdit ? <th /> : null}
+              {canEdit ? <th className="text-right">Ações</th> : null}
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {users.map((u) => {
+              const protectedAdmin = isProtectedSuperAdminEmail(u.email);
+              const assignableRoles = roles
+                .filter((r) => r.name !== SUPERADMIN_ROLE_NAME)
+                .map((r) => ({ id: r.id, name: r.name }));
+              return (
               <tr key={u.id}>
-                <td>{u.name}</td>
-                <td>{u.email}</td>
-                <td>
-                  {canEdit ? (
-                    <form action={updateUserRoleAction} className="inline-flex items-center gap-1">
-                      <input type="hidden" name="userId" value={u.id} />
-                      <select
-                        name="roleId"
-                        defaultValue={u.roleId}
-                        className="rounded-md border border-[var(--border)] bg-white px-2 py-1 text-sm"
-                        aria-label={`Papel de ${u.name}`}
-                      >
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                      <ConfirmSubmitButton
-                        className="btn btn-ghost"
-                        message="Trocar o papel deste usuário? A sessão atual será encerrada."
-                      >
-                        Salvar
-                      </ConfirmSubmitButton>
-                    </form>
+                <td className="align-middle font-medium text-[var(--navy)]">{u.name}</td>
+                <td className="align-middle text-[var(--gray-600)]">{u.email}</td>
+                <td className="align-middle">
+                  {protectedAdmin ? (
+                    <span
+                      className="inline-flex min-w-[8.5rem] items-center rounded-lg border border-[var(--border)] bg-[var(--gray-50)] px-2.5 py-1.5 text-sm font-medium text-[var(--navy)]"
+                      title="Papel Superadmin protegido — não pode ser alterado"
+                    >
+                      {SUPERADMIN_ROLE_NAME}
+                    </span>
+                  ) : canEdit ? (
+                    <RoleSelect
+                      userId={u.id}
+                      roleId={u.roleId}
+                      userName={u.name}
+                      roles={assignableRoles}
+                    />
                   ) : (
                     u.role.name
                   )}
                 </td>
-                <td>
+                <td className="align-middle">
                   <Link
                     href={`/usuarios/${u.id}`}
-                    className="font-medium text-[var(--navy)] underline-offset-2 hover:underline"
+                    className="badge inline-flex border border-[var(--border)] bg-[var(--gray-50)] text-[var(--navy)] hover:bg-[var(--navy-soft)]"
                   >
-                    {u.isSuperAdmin
+                    {u.isSuperAdmin || protectedAdmin
                       ? "Total"
                       : u._count.permissions > 0
-                        ? `Ajustar (${u._count.permissions})`
-                        : "Herdar papel"}
+                        ? `Ajustes · ${u._count.permissions}`
+                        : "Herdar"}
                   </Link>
                 </td>
-                <td>
-                  {u.totpEnabled
-                    ? "Ativo"
-                    : u.mustChangePassword
-                      ? "Após senha"
-                      : "Pendente"}
+                <td className="align-middle">
+                  <span
+                    className={
+                      u.deactivatedAt
+                        ? "badge badge-danger"
+                        : u.mustChangePassword
+                          ? "badge badge-warn"
+                          : "badge badge-success"
+                    }
+                  >
+                    {u.deactivatedAt
+                      ? "Inativo"
+                      : u.mustChangePassword
+                        ? "Senha temp."
+                        : "Ativo"}
+                  </span>
                 </td>
-                <td>{u.deactivatedAt ? "Inativo" : "Ativo"}</td>
                 {canEdit ? (
-                  <td className="space-x-2 whitespace-nowrap">
-                    <form action={toggleUserAction.bind(null, u.id)} className="inline">
-                      <ConfirmSubmitButton
-                        className="btn btn-ghost"
-                        message={
-                          u.deactivatedAt
-                            ? "Reativar este usuário?"
-                            : "Desativar este usuário?"
-                        }
-                      >
-                        {u.deactivatedAt ? "Reativar" : "Desativar"}
-                      </ConfirmSubmitButton>
-                    </form>
-                    {u.id !== user.id ? (
-                      <>
-                        <form
-                          action={adminResetPasswordAction.bind(null, u.id)}
-                          className="inline"
-                        >
-                          <ConfirmSubmitButton
-                            className="btn btn-ghost"
-                            message="Gerar nova senha temporária? A sessão atual do usuário será invalidada e ele deverá trocar a senha no próximo login."
+                  <td className="align-middle">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {!protectedAdmin ? (
+                        <form action={toggleUserAction.bind(null, u.id)}>
+                          <IconConfirmButton
+                            label={u.deactivatedAt ? "Reativar" : "Desativar"}
+                            title={u.deactivatedAt ? "Reativar usuário" : "Desativar usuário"}
+                            message={
+                              u.deactivatedAt
+                                ? "Reativar este usuário?"
+                                : "Desativar este usuário?"
+                            }
                           >
-                            Redefinir senha
-                          </ConfirmSubmitButton>
+                            <IconPower />
+                          </IconConfirmButton>
                         </form>
-                        <form
-                          action={adminReset2faAction.bind(null, u.id)}
-                          className="inline"
+                      ) : (
+                        <span
+                          className="inline-flex h-9 items-center rounded-lg border border-[var(--border)] bg-[var(--gray-50)] px-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-500)]"
+                          title="Conta Superadmin protegida"
                         >
-                          <ConfirmSubmitButton
-                            className="btn btn-ghost"
-                            message="Resetar o 2FA? O segredo não é enviado por e-mail. O usuário configura de novo no próximo login."
-                          >
-                            Resetar 2FA
-                          </ConfirmSubmitButton>
-                        </form>
-                      </>
-                    ) : null}
+                          Protegido
+                        </span>
+                      )}
+                      {u.id !== user.id && !protectedAdmin ? (
+                        <>
+                          <form action={adminResetPasswordAction.bind(null, u.id)}>
+                            <IconConfirmButton
+                              label="Redefinir senha"
+                              title="Redefinir senha"
+                              message="Gerar nova senha temporária e enviar por e-mail? A sessão atual será encerrada."
+                              confirmLabel="Gerar"
+                            >
+                              <IconKeyReset />
+                            </IconConfirmButton>
+                          </form>
+                          <form action={adminReset2faAction.bind(null, u.id)}>
+                            <IconConfirmButton
+                              label="Encerrar sessões"
+                              title="Encerrar sessões"
+                              message="Encerrar todas as sessões deste usuário?"
+                              confirmLabel="Encerrar"
+                            >
+                              <IconLogout />
+                            </IconConfirmButton>
+                          </form>
+                        </>
+                      ) : null}
+                    </div>
                   </td>
                 ) : null}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </section>

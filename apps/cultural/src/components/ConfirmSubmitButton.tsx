@@ -7,6 +7,7 @@ export function ConfirmSubmitButton({
   children,
   className,
   title = "Confirmar",
+  tooltip,
   confirmLabel = "Confirmar",
   disabled,
 }: {
@@ -14,11 +15,14 @@ export function ConfirmSubmitButton({
   children: React.ReactNode;
   className?: string;
   title?: string;
+  /** Texto nativo ao passar o mouse (atributo title do botão). */
+  tooltip?: string;
   confirmLabel?: string;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -33,9 +37,19 @@ export function ConfirmSubmitButton({
   return (
     <>
       <button
+        ref={submitRef}
+        type="submit"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        disabled={disabled}
+      />
+      <button
         ref={btnRef}
         type="button"
         className={className}
+        title={tooltip || title}
+        aria-label={tooltip || title}
         disabled={disabled}
         onClick={() => setOpen(true)}
       >
@@ -47,10 +61,12 @@ export function ConfirmSubmitButton({
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-lg">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-lg">
             <h2 className="text-base font-semibold text-[var(--navy)]">{title}</h2>
-            <p className="mt-2 text-sm text-[var(--gray-600)]">{message}</p>
-            <div className="mt-5 flex justify-end gap-2">
+            <p className="mt-2 max-h-40 overflow-y-auto text-sm leading-relaxed break-words text-[var(--gray-600)]">
+              {message}
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
                 Voltar
               </button>
@@ -58,9 +74,8 @@ export function ConfirmSubmitButton({
                 type="button"
                 className="btn"
                 onClick={() => {
-                  const form = btnRef.current?.closest("form");
                   setOpen(false);
-                  form?.requestSubmit();
+                  submitRef.current?.click();
                 }}
               >
                 {confirmLabel}

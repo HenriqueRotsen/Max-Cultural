@@ -13,9 +13,10 @@ import { verifyPassword } from "@/lib/password";
 import {
   createSessionTokenForUser,
   needs2faChallenge,
-  needs2faSetup,
   needsPasswordChange,
 } from "@/lib/auth";
+import { issueLoginEmailOtp } from "@/lib/email-otp";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,15 @@ export async function POST(request: NextRequest) {
   const next = safeContinueUrl(String(form.get("next") ?? "/"), "/");
   const ip = clientIp(request);
 
+  const captcha = await verifyRecaptchaToken(
+    String(form.get("recaptchaToken") ?? ""),
+    "login",
+    ip,
+  );
+  if (!captcha.ok) {
+    return loginErrorRedirect(request, next, captcha.error);
+  }
+
   if (!email || !password) {
     return loginErrorRedirect(request, next, "Informe e-mail e senha.");
   }
@@ -71,7 +81,31 @@ export async function POST(request: NextRequest) {
     return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
   }
 
+  // Senha temporária: libera sessão parcial só para trocar a senha.
+  if (needsPasswordChange(user)) {
+    const token = await createSessionTokenForUser(user.id);
+    if (!token) {
+      return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
+    }
+    void writeAuditLog({
+      actorUserId: user.id,
+      action: "auth.login_partial",
+      meta: { step: "password_change" },
+      ip,
+    }).catch(() => {});
+    return htmlRedirect("/onboarding/senha", token);
+  }
+
+  // 2FA obrigatório: código por e-mail cadastrado.
   if (needs2faChallenge(user)) {
+    const sent = await issueLoginEmailOtp(user);
+    if (!sent.ok) {
+      return loginErrorRedirect(
+        request,
+        next,
+        "Não foi possível enviar o código por e-mail. Tente de novo em instantes.",
+      );
+    }
     const res = NextResponse.redirect(
       new URL(`/login/2fa?next=${encodeURIComponent(next)}`, request.url),
       303,
@@ -84,7 +118,7 @@ export async function POST(request: NextRequest) {
     void writeAuditLog({
       actorUserId: user.id,
       action: "auth.login_partial",
-      meta: { step: "2fa_challenge" },
+      meta: { step: "2fa_email" },
       ip,
     }).catch(() => {});
     return res;
@@ -93,26 +127,6 @@ export async function POST(request: NextRequest) {
   const token = await createSessionTokenForUser(user.id);
   if (!token) {
     return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
-  }
-
-  if (needsPasswordChange(user)) {
-    void writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_partial",
-      meta: { step: "password_change" },
-      ip,
-    }).catch(() => {});
-    return htmlRedirect("/onboarding/senha", token);
-  }
-
-  if (needs2faSetup(user)) {
-    void writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_partial",
-      meta: { step: "2fa_setup" },
-      ip,
-    }).catch(() => {});
-    return htmlRedirect("/onboarding/2fa", token);
   }
 
   await Promise.all([

@@ -58,7 +58,7 @@ import {
   parseCellInput,
   validatePreviewRows,
 } from "@/lib/validate";
-import { normalizeSimComDetalhe } from "@/lib/normalize";
+import { dedupeNormalizedInscricaoRows, normalizeSimComDetalhe } from "@/lib/normalize";
 import {
   DataSheet,
   SheetTable,
@@ -495,7 +495,27 @@ export function ImportWizard() {
         );
       }
 
-      setPreviewRows(collected.length ? collected : [emptySigaCulturalRow(context)]);
+      // Datas cruas (com hora) para escolher a resposta mais recente
+      const dateSourceKeys = Object.entries(activeMapping)
+        .filter(([, target]) => target === "Data_inscricao")
+        .map(([source]) => source);
+      const rawDates = rawRows.map((raw) => {
+        for (const key of dateSourceKeys) {
+          const v = raw[key];
+          if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+        }
+        return undefined;
+      });
+
+      const deduped = dedupeNormalizedInscricaoRows(collected, rawDates);
+      const removed = collected.length - deduped.length;
+      if (removed > 0) {
+        toast.message(
+          `${removed} resposta(s) duplicada(s) removida(s) — mantida a mais recente.`,
+        );
+      }
+
+      setPreviewRows(deduped.length ? deduped : [emptySigaCulturalRow(context)]);
       setAiValueColumns(new Set(Object.values(activeMapping)));
       return true;
     } catch (error) {

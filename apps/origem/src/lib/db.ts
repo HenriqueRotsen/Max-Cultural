@@ -8,7 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 35;
+const PRISMA_SCHEMA_VERSION = 37;
 
 function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;

@@ -68,3 +68,9 @@ export function randomToken(bytes = 32): string {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
+
+export function randomOtpCode(digits = 6): string {
+  const max = 10 ** digits;
+  const n = crypto.getRandomValues(new Uint32Array(1))[0]! % max;
+  return String(n).padStart(digits, "0");
+}

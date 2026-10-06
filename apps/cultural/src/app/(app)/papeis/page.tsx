@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can, getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { createRoleAction } from "@/lib/actions/iam";
+import { createRoleAction, deleteRoleAction } from "@/lib/actions/iam";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export const metadata = { title: "Papéis" };
@@ -18,6 +18,7 @@ export default async function PapeisPage({
   const canEdit = can(user, "cultural.papeis", "edit");
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
+  const deleted = sp.deleted === "1";
   const roles = await prisma.role.findMany({
     orderBy: { name: "asc" },
     include: {
@@ -39,6 +40,18 @@ export default async function PapeisPage({
       </div>
 
       {error ? <p className="auth-alert">{error}</p> : null}
+      {deleted ? (
+        <p className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]">
+          Papel excluído.
+        </p>
+      ) : null}
+
+      {!canEdit ? (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--gray-600)]">
+          Modo consulta: para criar, renomear ou excluir papéis, peça a permissão{" "}
+          <strong className="text-[var(--navy)]">Gerenciar papéis e acessos</strong>.
+        </p>
+      ) : null}
 
       {canEdit ? (
         <form action={createRoleAction} className="card flex flex-wrap items-end gap-3 p-5">
@@ -77,13 +90,32 @@ export default async function PapeisPage({
                     {role.description ? (
                       <p className="text-xs text-[var(--gray-500)]">{role.description}</p>
                     ) : null}
+                    {role.isSystem ? (
+                      <p className="text-[10px] uppercase tracking-wide text-[var(--gray-400)]">
+                        Sistema
+                      </p>
+                    ) : null}
                   </td>
                   <td>{role._count.users}</td>
                   <td>{role._count.permissions}</td>
                   <td className="text-right">
-                    <Link href={`/papeis/${role.id}`} className="btn btn-ghost">
-                      Definir acessos
-                    </Link>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Link href={`/papeis/${role.id}`} className="btn btn-ghost">
+                        {canEdit ? "Editar" : "Ver acessos"}
+                      </Link>
+                      {canEdit && !role.isSystem && role._count.users === 0 ? (
+                        <form action={deleteRoleAction} className="inline">
+                          <input type="hidden" name="roleId" value={role.id} />
+                          <ConfirmSubmitButton
+                            className="btn btn-ghost text-xs text-[#b42318]"
+                            message={`Excluir o papel “${role.name}”?`}
+                            confirmLabel="Excluir"
+                          >
+                            Excluir
+                          </ConfirmSubmitButton>
+                        </form>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

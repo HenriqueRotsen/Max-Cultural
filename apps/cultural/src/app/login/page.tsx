@@ -1,22 +1,66 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import {
+  AUTH_COOKIE,
+  PENDING_2FA_COOKIE,
+  clearAuthCookieOptions,
+  safeContinueUrl,
+} from "@max/auth";
 import { MaxCulturalLogoLink } from "@/components/BrandLogo";
 import { LoginForm } from "@/components/LoginForm";
+import { getSessionUser } from "@/lib/auth";
+import { recaptchaSiteKey } from "@/lib/recaptcha";
 
 export const metadata = { title: "Entrar" };
+export const dynamic = "force-dynamic";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const nextRaw = typeof sp.next === "string" ? sp.next : "/";
+  const next = safeContinueUrl(nextRaw, "/");
+
+  const user = await getSessionUser();
+  if (user) {
+    // Já logado de verdade (sessionVersion ok) — evita tela de login.
+    if (next.startsWith("http://") || next.startsWith("https://")) {
+      redirect(next);
+    }
+    redirect(next.startsWith("/") ? next : "/");
+  }
+
+  // Cookie fantasma de sessão (papel/permissões alterados).
+  // Não apaga max_pending_2fa aqui — isso quebraria o fluxo do código por e-mail
+  // se o usuário voltar ao /login no meio do 2FA.
+  const jar = await cookies();
+  if (jar.get(AUTH_COOKIE)?.value) {
+    for (const opts of clearAuthCookieOptions()) {
+      jar.set(AUTH_COOKIE, "", opts);
+    }
+  }
+
+  const siteKey = recaptchaSiteKey();
   return (
     <div className="auth-shell">
       <div className="auth-card">
         <MaxCulturalLogoLink href="/" />
         <h1 className="auth-title">Entrar no MAX Cultural</h1>
-        <p className="auth-lead">Senha e, em seguida, o código do autenticador.</p>
+        <p className="auth-lead">
+          Informe e-mail e senha. Em seguida enviaremos um código para o seu e-mail.
+        </p>
         <Suspense fallback={<p className="text-sm text-[var(--gray-500)]">Carregando…</p>}>
-          <LoginForm />
+          <LoginForm siteKey={siteKey} />
         </Suspense>
         <p className="mt-4 text-sm text-[var(--gray-500)]">
-          <Link href="/login/recuperar" className="font-semibold text-[var(--navy)] underline-offset-2 hover:underline">
+          <Link
+            href="/login/recuperar"
+            className="font-semibold text-[var(--navy)] underline-offset-2 hover:underline"
+          >
             Esqueci minha senha
           </Link>
         </p>

@@ -1,4 +1,4 @@
-import { culturalHubUrl, culturalLoginUrl, culturalLogoutUrl } from "@max/auth";
+import { culturalHubUrl, culturalLoginUrl, culturalLogoutUrl, culturalDeniedUrl } from "@max/auth";
 import { redirect } from "next/navigation";
 
 export function fluxoPublicUrl(path = "/dashboard") {
@@ -32,4 +32,11 @@ export function redirectToHubLogin(path = "/dashboard"): never {
 
 export function redirectToHubHome(): never {
   redirect(fluxoHubHomeUrl());
+}
+
+/** Sem acesso ao produto: volta ao hub com aviso (nunca /login?next=… — causa loop). */
+export function redirectToHubDenied(
+  message = "Sem acesso ao MAX Fluxo.",
+): never {
+  redirect(culturalDeniedUrl(message));
 }

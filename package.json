@@ -19,7 +19,7 @@
     "audit": "node scripts/ci-audit-gate.mjs"
   },
   "overrides": {
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "postcss": "8.5.26",
     "deepmerge-ts": "8.0.2",
     "prisma": {

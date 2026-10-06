@@ -1,4 +1,9 @@
 import { Resend } from "resend";
+import {
+  escapeHtml,
+  highlightBox,
+  renderBrandedEmail,
+} from "@/lib/email-layout";
 
 function fromAddress() {
   return process.env.EMAIL_FROM || "MAX Cultural <noreply@maxcultural.com.br>";
@@ -36,30 +41,81 @@ export async function sendInviteEmail(input: {
   to: string;
   name: string;
   link: string;
-  provisionalPassword?: string;
+  provisionalPassword: string;
 }) {
-  const passwordBlock = input.provisionalPassword
-    ? `<p>Senha temporária: <strong>${input.provisionalPassword}</strong></p><p>No primeiro acesso você deverá trocar a senha${process.env.AUTH_2FA_DISABLED === "true" ? "" : " e configurar o autenticador (2FA)"}.</p>`
-    : `<p>Peça a senha temporária ao administrador que criou sua conta.</p>`;
   return sendEmail({
     to: input.to,
     subject: "Convite — MAX Cultural",
-    html: `<p>Olá ${input.name},</p><p>Você foi convidado para o MAX Cultural.</p>${passwordBlock}<p><a href="${input.link}">Entrar</a></p>`,
+    html: renderBrandedEmail({
+      preheader: "Sua senha temporária para acessar o MAX Cultural",
+      title: "Você foi convidado",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0 0 12px">Sua conta no MAX Cultural está pronta. Use a senha temporária abaixo no primeiro acesso:</p>
+        ${highlightBox(escapeHtml(input.provisionalPassword))}
+        <p style="margin:0">No login você trocará a senha e receberá um código de verificação neste e-mail.</p>
+      `,
+      cta: { href: input.link, label: "Entrar no MAX Cultural" },
+    }),
   });
 }
 
-export async function sendPasswordResetEmail(input: { to: string; name: string; link: string }) {
+/** Redefinição: nova senha temporária (self-service ou admin). */
+export async function sendTemporaryPasswordEmail(input: {
+  to: string;
+  name: string;
+  link: string;
+  provisionalPassword: string;
+}) {
   return sendEmail({
     to: input.to,
-    subject: "Redefinir senha — MAX Cultural",
-    html: `<p>Olá ${input.name},</p><p><a href="${input.link}">Redefinir senha</a></p><p>Se você não pediu isso, ignore este e-mail.</p>`,
+    subject: "Nova senha temporária — MAX Cultural",
+    html: renderBrandedEmail({
+      preheader: "Nova senha temporária da sua conta",
+      title: "Nova senha temporária",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0 0 12px">Geramos uma nova senha temporária para a sua conta:</p>
+        ${highlightBox(escapeHtml(input.provisionalPassword))}
+        <p style="margin:0">No próximo acesso você deverá criar uma senha nova. Se não pediu isso, fale com o administrador.</p>
+      `,
+      cta: { href: input.link, label: "Entrar" },
+    }),
+  });
+}
+
+export async function sendLoginOtpEmail(input: {
+  to: string;
+  name: string;
+  code: string;
+}) {
+  return sendEmail({
+    to: input.to,
+    subject: "Código de verificação — MAX Cultural",
+    html: renderBrandedEmail({
+      preheader: `Código ${input.code} — válido por 10 minutos`,
+      title: "Código de verificação",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0 0 12px">Use o código abaixo para concluir o login:</p>
+        ${highlightBox(`<span style="letter-spacing:0.28em">${escapeHtml(input.code)}</span>`)}
+        <p style="margin:0">Válido por 10 minutos. Se você não está fazendo login, ignore este e-mail.</p>
+      `,
+    }),
   });
 }
 
 export async function send2faNoticeEmail(input: { to: string; name: string }) {
   return sendEmail({
     to: input.to,
-    subject: "Autenticador (2FA) — MAX Cultural",
-    html: `<p>Olá ${input.name},</p><p>O 2FA da sua conta foi alterado por um administrador. Na próxima entrada você configurará o autenticador de novo. O segredo nunca é enviado por e-mail.</p>`,
+    subject: "Sessões encerradas — MAX Cultural",
+    html: renderBrandedEmail({
+      preheader: "Suas sessões foram encerradas por um administrador",
+      title: "Sessões encerradas",
+      bodyHtml: `
+        <p style="margin:0 0 12px">Olá <strong>${escapeHtml(input.name)}</strong>,</p>
+        <p style="margin:0">Um administrador encerrou as sessões da sua conta. No próximo acesso use sua senha e o código enviado a este e-mail.</p>
+      `,
+    }),
   });
 }

@@ -10,6 +10,7 @@ import {
   ACCESS_BY_ID,
   ORIGEM_PRIVILEGED_CAPABILITIES,
 } from "@max/auth";
+import { PROTECTED_SUPERADMIN_EMAIL } from "../src/lib/protected-superadmin";
 
 async function main() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -35,18 +36,33 @@ async function main() {
     },
   });
 
+  const superRole = await prisma.role.upsert({
+    where: { name: "Superadmin" },
+    update: {
+      description: "Conta raiz protegida — acesso total, não alterável",
+      isSystem: true,
+    },
+    create: {
+      name: "Superadmin",
+      description: "Conta raiz protegida — acesso total, não alterável",
+      isSystem: true,
+    },
+  });
+
   const privileged = new Set<string>(ORIGEM_PRIVILEGED_CAPABILITIES);
 
-  await prisma.rolePermission.deleteMany({ where: { roleId: adminRole.id } });
-  await prisma.rolePermission.createMany({
-    data: ACCESS_PERMISSION_IDS.map((screen) => ({
-      roleId: adminRole.id,
-      screen,
-      canView: true,
-      canEdit:
-        ACCESS_BY_ID[screen]?.kind === "capability" || screen.endsWith(".edit"),
-    })),
-  });
+  for (const roleId of [adminRole.id, superRole.id]) {
+    await prisma.rolePermission.deleteMany({ where: { roleId } });
+    await prisma.rolePermission.createMany({
+      data: ACCESS_PERMISSION_IDS.map((screen) => ({
+        roleId,
+        screen,
+        canView: true,
+        canEdit:
+          ACCESS_BY_ID[screen]?.kind === "capability" || screen.endsWith(".edit"),
+      })),
+    });
+  }
 
   const operador = await prisma.role.findUniqueOrThrow({ where: { name: "Operador" } });
   const operadorIds = ACCESS_PERMISSION_IDS.filter((id) => {
@@ -73,7 +89,7 @@ async function main() {
     })),
   });
 
-  const email = (process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@maxcultural.local").toLowerCase();
+  const email = PROTECTED_SUPERADMIN_EMAIL;
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || "TroqueEstaSenha1!";
   const passwordHash = await bcrypt.hash(password, 12);
 
@@ -81,23 +97,23 @@ async function main() {
     where: { email },
     update: {
       passwordHash,
-      roleId: adminRole.id,
+      roleId: superRole.id,
       isSuperAdmin: true,
       mustChangePassword: false,
       deactivatedAt: null,
     },
     create: {
       email,
-      name: "Administrador",
+      name: "Superadmin",
       passwordHash,
-      roleId: adminRole.id,
+      roleId: superRole.id,
       isSuperAdmin: true,
       mustChangePassword: false,
       totpEnabled: false,
     },
   });
 
-  console.log(`Seed ok. Admin: ${email}`);
+  console.log(`Seed ok. Superadmin protegido: ${email}`);
   await prisma.$disconnect();
 }
 

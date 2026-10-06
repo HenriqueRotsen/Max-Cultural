@@ -1,8 +1,8 @@
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
 import { NotificationBell } from "@/components/planning/NotificationBell";
-import { isAuthEnabled } from "@/lib/auth/config";
 import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
 import {
   getHubPermissions,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/planning/notification-settings";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import { notificationVisibleWhere } from "@/lib/planning/reminder-dates";
-import { culturalHubUrl } from "@max/auth";
+import { culturalDeniedUrl } from "@max/auth";
 
 async function TopBar({
   workspaceId,
@@ -63,6 +63,16 @@ async function TopBar({
   );
 }
 
+function TopBarFallback() {
+  return (
+    <div
+      className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2"
+      style={{ minHeight: 44 }}
+      aria-hidden
+    />
+  );
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [session, hubPerms] = await Promise.all([getSessionUser(), getHubPermissions()]);
   if (!session) {
@@ -72,9 +82,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (hubPerms.revoked) {
     redirect(origemHubLogoutUrl());
   }
-  if (session.profile.mustChangePassword && isAuthEnabled()) {
-    redirect("/alterar-senha");
-  }
 
   const canEnterOrigem =
     hubPerms.ids.has("origem.app") ||
@@ -82,7 +89,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // SSO válido + API do hub indisponível: não trancar a entrada no produto.
     (Boolean(hubPerms.fetchFailed) && Boolean(await getHubSessionPayload()));
   if (!canEnterOrigem) {
-    redirect(`${culturalHubUrl()}/?error=` + encodeURIComponent("Sem acesso ao MAX Origem."));
+    redirect(culturalDeniedUrl("Sem acesso ao MAX Origem."));
   }
 
   // Para o menu: se o fetch falhou mas o SSO está ok, libera telas básicas.
@@ -119,10 +126,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         allowedScreens={allowedScreens}
       />
       <div className="shell-main">
-        <TopBar
-          workspaceId={session.workspace.id}
-          userId={session.id}
-        />
+        <Suspense fallback={<TopBarFallback />}>
+          <TopBar
+            workspaceId={session.workspace.id}
+            userId={session.id}
+          />
+        </Suspense>
         <div className="content">{children}</div>
       </div>
     </div>

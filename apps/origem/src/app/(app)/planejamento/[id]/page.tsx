@@ -62,7 +62,7 @@ export default async function PlanningProjectPage({
         },
         orderBy: { createdAt: "desc" },
       },
-      project: { select: { situacao: true, valorCaptado: true } },
+      project: { select: { id: true, situacao: true, valorCaptado: true } },
       readequacaoDrafts: {
         where: { status: "OPEN" },
         orderBy: { createdAt: "desc" },
@@ -158,20 +158,20 @@ export default async function PlanningProjectPage({
         }
       />
 
+      <PlanningProjectActions
+        projectId={project.id}
+        reservationsCount={project.commitments.length}
+        allowEditRubricas={allowEditRubricas && Boolean(project.sheet)}
+        allowReadequacao={allowReadequacao && Boolean(project.sheet)}
+        isFederal={isFederal}
+        openDraftId={openDraft?.id ?? null}
+        expiresAt={openDraft?.expiresAt?.toISOString() ?? null}
+        editableLines={editableLines}
+        totalApproved={project.sheet ? money(project.sheet.totalApproved) : 0}
+      />
+
       {bal && project.sheet ? (
         <>
-          <PlanningProjectActions
-            projectId={project.id}
-            reservationsCount={project.commitments.length}
-            allowEditRubricas={allowEditRubricas}
-            allowReadequacao={allowReadequacao}
-            isFederal={isFederal}
-            openDraftId={openDraft?.id ?? null}
-            expiresAt={openDraft?.expiresAt?.toISOString() ?? null}
-            editableLines={editableLines}
-            totalApproved={money(project.sheet.totalApproved)}
-          />
-
           <PlanningKpiStrip
             items={[
               {

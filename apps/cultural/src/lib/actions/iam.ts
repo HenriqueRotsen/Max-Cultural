@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { can, getSessionUser } from "@/lib/auth";
+import { can, getSessionUser, setSessionCookie } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { generateProvisionalPassword, hashPassword } from "@/lib/password";
@@ -12,7 +12,13 @@ import {
   ACCESS_BY_ID,
   normalizeGrantedIds,
 } from "@max/auth";
-import { sendInviteEmail } from "@/lib/email";
+import { sendInviteEmail, sendTemporaryPasswordEmail } from "@/lib/email";
+import {
+  isProtectedSuperAdminEmail,
+  protectedSuperAdminDeniedMessage,
+  SUPERADMIN_ROLE_NAME,
+} from "@/lib/protected-superadmin";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 const USER_FLASH = "max_user_flash";
 
@@ -38,11 +44,37 @@ export async function createUserAction(formData: FormData) {
   if (!actor || !can(actor, "cultural.usuarios", "edit")) {
     redirect("/usuarios?error=" + encodeURIComponent("Sem permissão."));
   }
+
+  const captcha = await verifyRecaptchaToken(
+    String(formData.get("recaptchaToken") ?? ""),
+    "signup",
+  );
+  if (!captcha.ok) {
+    redirect("/usuarios?error=" + encodeURIComponent(captcha.error));
+  }
+
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const roleId = String(formData.get("roleId") ?? "");
   if (!email || !name || !roleId) {
     redirect("/usuarios?error=" + encodeURIComponent("Preencha nome, e-mail e papel."));
+  }
+  if (isProtectedSuperAdminEmail(email)) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("Este e-mail é reservado à conta Superadmin protegida."),
+    );
+  }
+
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role) {
+    redirect("/usuarios?error=" + encodeURIComponent("Papel inválido."));
+  }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("O papel Superadmin é exclusivo da conta protegida."),
+    );
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -69,16 +101,21 @@ export async function createUserAction(formData: FormData) {
     entityId: email,
   });
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
-  const emailSimulated =
-    process.env.AUTH_EMAIL_SIMULATE === "true" || !process.env.RESEND_API_KEY;
-  await sendInviteEmail({
+  const sent = await sendInviteEmail({
     to: email,
     name,
     link: `${site}/login`,
-    provisionalPassword: emailSimulated ? undefined : provisional,
+    provisionalPassword: provisional,
   });
-
   await setUserFlash({ email, provisional, kind: "created" });
+  if (!sent.ok) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent(
+          `Usuário criado, mas o e-mail falhou: ${sent.error}. Senha temporária abaixo (só nesta tela).`,
+        ),
+    );
+  }
   redirect("/usuarios?created=1");
 }
 
@@ -97,6 +134,9 @@ export async function adminResetPasswordAction(userId: string) {
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
+  }
+  if (isProtectedSuperAdminEmail(target.email)) {
+    redirect("/usuarios?error=" + encodeURIComponent(protectedSuperAdminDeniedMessage()));
   }
 
   const provisional = generateProvisionalPassword();
@@ -117,20 +157,25 @@ export async function adminResetPasswordAction(userId: string) {
   });
 
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
-  const emailSimulated =
-    process.env.AUTH_EMAIL_SIMULATE === "true" || !process.env.RESEND_API_KEY;
-  await sendInviteEmail({
+  const sent = await sendTemporaryPasswordEmail({
     to: target.email,
     name: target.name,
     link: `${site}/login`,
-    provisionalPassword: emailSimulated ? undefined : provisional,
+    provisionalPassword: provisional,
   });
-
   await setUserFlash({
     email: target.email,
     provisional,
     kind: "password_reset",
   });
+  if (!sent.ok) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent(
+          `Senha redefinida, mas o e-mail falhou: ${sent.error}. Senha temporária abaixo (só nesta tela).`,
+        ),
+    );
+  }
   redirect("/usuarios?passwordReset=1");
 }
 
@@ -157,6 +202,9 @@ export async function toggleUserAction(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
+  }
+  if (isProtectedSuperAdminEmail(user.email)) {
+    redirect("/usuarios?error=" + encodeURIComponent(protectedSuperAdminDeniedMessage()));
   }
   await prisma.user.update({
     where: { id: userId },
@@ -185,28 +233,41 @@ export async function saveRolePermissionsAction(formData: FormData) {
   if (!role) {
     redirect("/papeis?error=" + encodeURIComponent("Papel inválido."));
   }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent("As permissões do Superadmin são protegidas."),
+    );
+  }
 
   const raw = ACCESS_PERMISSION_IDS.filter(
     (id) => formData.get(`grant:${id}`) === "on",
   );
   const granted = normalizeGrantedIds(raw);
 
-  await prisma.$transaction([
-    prisma.rolePermission.deleteMany({ where: { roleId } }),
-    prisma.rolePermission.createMany({
-      data: granted.map((screen) => ({
-        roleId,
-        screen,
-        canView: true,
-        canEdit: screen.endsWith(".edit") || ACCESS_BY_ID[screen]?.kind === "capability",
-      })),
-    }),
-    // Encerra sessões de todos os usuários deste papel (Cultural + satélites).
-    prisma.user.updateMany({
+  const permissionRows = granted.map((screen) => ({
+    roleId,
+    screen,
+    canView: true,
+    canEdit: screen.endsWith(".edit") || ACCESS_BY_ID[screen]?.kind === "capability",
+  }));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rolePermission.deleteMany({ where: { roleId } });
+    if (permissionRows.length) {
+      await tx.rolePermission.createMany({ data: permissionRows });
+    }
+    await tx.user.updateMany({
       where: { roleId },
       data: { sessionVersion: { increment: 1 } },
-    }),
-  ]);
+    });
+  });
+
+  // Quem editou o próprio papel perde o cookie antigo — renova para não cair no login.
+  if (actor.roleId === roleId) {
+    await setSessionCookie({ id: actor.id });
+  }
+
   await writeAuditLog({
     actorUserId: actor.id,
     action: "iam.role_updated",
@@ -229,12 +290,12 @@ export async function saveUserPermissionsAction(formData: FormData) {
   const userId = String(formData.get("userId") ?? "");
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, isSuperAdmin: true },
+    select: { id: true, name: true, email: true, isSuperAdmin: true },
   });
   if (!target) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário não encontrado."));
   }
-  if (target.isSuperAdmin) {
+  if (target.isSuperAdmin || isProtectedSuperAdminEmail(target.email)) {
     redirect(
       `/usuarios/${userId}?error=` +
         encodeURIComponent("Superadmin tem acesso total — overrides não se aplicam."),
@@ -292,6 +353,15 @@ export async function updateUserRoleAction(formData: FormData) {
   if (!target || !role) {
     redirect("/usuarios?error=" + encodeURIComponent("Usuário ou papel inválido."));
   }
+  if (isProtectedSuperAdminEmail(target.email)) {
+    redirect("/usuarios?error=" + encodeURIComponent(protectedSuperAdminDeniedMessage()));
+  }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent("O papel Superadmin é exclusivo da conta protegida."),
+    );
+  }
   if (target.roleId === roleId) {
     redirect("/usuarios");
   }
@@ -324,6 +394,12 @@ export async function createRoleAction(formData: FormData) {
   if (!name) {
     redirect("/papeis?error=" + encodeURIComponent("Informe o nome do papel."));
   }
+  if (name.toLowerCase() === SUPERADMIN_ROLE_NAME.toLowerCase()) {
+    redirect(
+      "/papeis?error=" +
+        encodeURIComponent("O nome Superadmin é reservado ao sistema."),
+    );
+  }
   const role = await prisma.role.create({
     data: { name, description: String(formData.get("description") ?? "").trim() },
   });
@@ -336,4 +412,108 @@ export async function createRoleAction(formData: FormData) {
   });
   revalidatePath("/papeis");
   redirect(`/papeis/${role.id}`);
+}
+
+export async function updateRoleAction(formData: FormData) {
+  const actor = await getSessionUser();
+  if (!actor || !can(actor, "cultural.papeis", "edit")) {
+    redirect("/papeis?error=" + encodeURIComponent("Sem permissão."));
+  }
+  const roleId = String(formData.get("roleId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  if (!roleId || !name) {
+    redirect("/papeis?error=" + encodeURIComponent("Informe o nome do papel."));
+  }
+
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role) {
+    redirect("/papeis?error=" + encodeURIComponent("Papel não encontrado."));
+  }
+  if (role.name === SUPERADMIN_ROLE_NAME) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent("O papel Superadmin é protegido e não pode ser alterado."),
+    );
+  }
+
+  try {
+    await prisma.role.update({
+      where: { id: roleId },
+      data: { name, description },
+    });
+  } catch (err) {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code: string }).code)
+        : "";
+    if (code === "P2002") {
+      redirect(
+        `/papeis/${roleId}?error=` +
+          encodeURIComponent("Já existe outro papel com este nome."),
+      );
+    }
+    throw err;
+  }
+
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "iam.role_updated",
+    screen: "cultural.papeis",
+    entityType: "role",
+    entityId: roleId,
+    meta: { previousName: role.name, name },
+  });
+  revalidatePath("/papeis");
+  revalidatePath(`/papeis/${roleId}`);
+  redirect(`/papeis/${roleId}?renamed=1`);
+}
+
+export async function deleteRoleAction(formData: FormData) {
+  const actor = await getSessionUser();
+  if (!actor || !can(actor, "cultural.papeis", "edit")) {
+    redirect("/papeis?error=" + encodeURIComponent("Sem permissão."));
+  }
+  const roleId = String(formData.get("roleId") ?? "");
+  if (!roleId) {
+    redirect("/papeis?error=" + encodeURIComponent("Papel inválido."));
+  }
+
+  const role = await prisma.role.findUnique({
+    where: { id: roleId },
+    include: { _count: { select: { users: true } } },
+  });
+  if (!role) {
+    redirect("/papeis?error=" + encodeURIComponent("Papel não encontrado."));
+  }
+  if (role.isSystem) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent("Papéis do sistema não podem ser excluídos."),
+    );
+  }
+  if (role._count.users > 0) {
+    redirect(
+      `/papeis/${roleId}?error=` +
+        encodeURIComponent(
+          "Não é possível excluir: há usuários vinculados a este papel.",
+        ),
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.inviteToken.deleteMany({ where: { roleId } }),
+    prisma.role.delete({ where: { id: roleId } }),
+  ]);
+
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "iam.role_deleted",
+    screen: "cultural.papeis",
+    entityType: "role",
+    entityId: roleId,
+    meta: { name: role.name },
+  });
+  revalidatePath("/papeis");
+  redirect("/papeis?deleted=1");
 }
