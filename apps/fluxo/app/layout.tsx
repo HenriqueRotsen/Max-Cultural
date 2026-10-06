@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className="min-h-full antialiased" suppressHydrationWarning>
         {children}
         <Toaster richColors position="top-right" />
+        <Analytics />
       </body>
     </html>
   );
