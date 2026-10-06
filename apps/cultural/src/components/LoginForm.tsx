@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PasswordInput } from "@/components/PasswordInput";
 import { RecaptchaForm } from "@/components/RecaptchaV3";
@@ -10,6 +10,11 @@ export function LoginForm({ siteKey = "" }: { siteKey?: string }) {
   const next = params.get("next") || "/";
   const error = params.get("error");
   const [botError, setBotError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const onError = useCallback((message: string) => {
+    setBotError(message || null);
+  }, []);
 
   return (
     <RecaptchaForm
@@ -18,7 +23,8 @@ export function LoginForm({ siteKey = "" }: { siteKey?: string }) {
       formAction="/api/auth/login"
       method="post"
       className="mt-5 space-y-4"
-      onError={setBotError}
+      onError={onError}
+      onBusyChange={setBusy}
     >
       <input type="hidden" name="next" value={next} />
       <div className="field">
@@ -36,8 +42,8 @@ export function LoginForm({ siteKey = "" }: { siteKey?: string }) {
       </div>
       {error ? <p className="auth-alert">{error}</p> : null}
       {botError ? <p className="auth-alert">{botError}</p> : null}
-      <button type="submit" className="btn w-full">
-        Entrar
+      <button type="submit" className="btn w-full" disabled={busy}>
+        {busy ? "Verificando…" : "Entrar"}
       </button>
     </RecaptchaForm>
   );

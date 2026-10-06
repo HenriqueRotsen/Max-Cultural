@@ -2,15 +2,42 @@ const VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
 
 export type RecaptchaAction = "login" | "password_reset" | "signup";
 
+/** Normaliza env: tira aspas/espacos e trata placeholder vazio. */
+function cleanEnv(value: string | undefined | null) {
+  const v = (value || "").trim().replace(/^["']+|["']+$/g, "").trim();
+  if (!v || v === "undefined" || v === "null") return "";
+  return v;
+}
+
+/**
+ * Captcha só liga com flag explícita + as duas keys.
+ * Evita login travado quando a site key/domínio do Google está inválido.
+ */
+export function recaptchaEnabled() {
+  const flag = cleanEnv(
+    process.env.NEXT_PUBLIC_RECAPTCHA_ENABLED || process.env.RECAPTCHA_ENABLED,
+  ).toLowerCase();
+  return flag === "1" || flag === "true" || flag === "yes";
+}
+
 export function recaptchaSiteKey() {
-  return (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "").trim();
+  if (!recaptchaEnabled()) return "";
+  return cleanEnv(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY);
+}
+
+export function recaptchaSecretKey() {
+  return cleanEnv(process.env.RECAPTCHA_SECRET_KEY);
 }
 
 export function recaptchaConfigured() {
-  return Boolean(recaptchaSiteKey() && process.env.RECAPTCHA_SECRET_KEY?.trim());
+  return Boolean(
+    recaptchaEnabled() &&
+      cleanEnv(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) &&
+      recaptchaSecretKey(),
+  );
 }
 
-/** Exige verificação quando as duas keys estão configuradas. */
+/** Exige verificação quando captcha está ligado e as keys existem. */
 export function recaptchaRequired() {
   return recaptchaConfigured();
 }
@@ -31,7 +58,7 @@ export async function verifyRecaptchaToken(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!recaptchaRequired()) return { ok: true };
 
-  const secret = process.env.RECAPTCHA_SECRET_KEY!.trim();
+  const secret = recaptchaSecretKey();
   const response = token?.trim();
   if (!response) {
     return { ok: false, error: "Confirmação anti-bot ausente. Recarregue a página." };
