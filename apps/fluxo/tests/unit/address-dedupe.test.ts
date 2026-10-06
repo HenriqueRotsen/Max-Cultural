@@ -3,6 +3,7 @@ import {
   applyParsedFullAddress,
   isFullAddressHeader,
   parseFullAddress,
+  type ParsedFullAddress,
 } from "@/lib/address-parse";
 import {
   dedupeNormalizedInscricaoRows,
@@ -12,7 +13,7 @@ import {
 import { emptySigaCulturalRow } from "@/lib/schema";
 
 describe("parseFullAddress (generalista)", () => {
-  const cases: Array<[string, Partial<ReturnType<typeof parseFullAddress>>]> = [
+  const cases: Array<[string, Partial<ParsedFullAddress>]> = [
     [
       "Rua Joaquim Galvão, 470, Céu Azul, Lagoa Grande Mg, Cep: 38755-000",
       {
