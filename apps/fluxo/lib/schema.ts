@@ -96,7 +96,9 @@ export type SigaCulturalRow = {
   Territorio: string;
   Inscritos: number;
   Selecionados: number;
+  /** 1 = participou ou certificou (derivado de "Participação") */
   Participantes: number;
+  /** 1 = certificou (derivado de "Participação") */
   Certificado: number;
 };
 

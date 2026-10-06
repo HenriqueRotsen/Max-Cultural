@@ -411,6 +411,81 @@ export function normalizeFlag01(value: unknown): 0 | 1 {
     : 0;
 }
 
+/**
+ * Coluna de planilha "Participação" (3 opções) → flags booleanos.
+ * - Certificou      → Participante=1, Certificado=1
+ * - Participou      → Participante=1, Certificado=0
+ * - Não Participou  → Participante=0, Certificado=0
+ */
+export function parseParticipacaoStatus(
+  value: unknown,
+): { participante: 0 | 1; certificado: 0 | 1 } | null {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const s = raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[_./\\-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Não tratar 0/1/sim/não legados como status triplo
+  if (/^(0|1|sim|nao|n|s|true|false|yes|no)$/.test(s)) return null;
+
+  if (
+    /^(certificou|certificado|com certificado|emitiu certificado)$/.test(s) ||
+    /^certificou\b/.test(s)
+  ) {
+    return { participante: 1, certificado: 1 };
+  }
+
+  if (
+    /^(nao participou|nao participante|nao compareceu|ausente|faltou)$/.test(s) ||
+    /^nao\s+particip/.test(s)
+  ) {
+    return { participante: 0, certificado: 0 };
+  }
+
+  if (
+    /^(participou|participante|presente|compareceu)$/.test(s) ||
+    /^participou\b/.test(s)
+  ) {
+    return { participante: 1, certificado: 0 };
+  }
+
+  return null;
+}
+
+/** Procura valor de "Participação" nos campos mapeados/brutos da linha. */
+export function resolveParticipacaoFlags(merged: Record<string, unknown>): {
+  Participantes: 0 | 1;
+  Certificado: 0 | 1;
+} {
+  const candidates = [
+    merged.Participacao,
+    merged["Participação"],
+    merged.participacao,
+    merged.Participantes,
+    merged.Certificado,
+  ];
+  for (const value of candidates) {
+    const parsed = parseParticipacaoStatus(value);
+    if (parsed) {
+      return {
+        Participantes: parsed.participante,
+        Certificado: parsed.certificado,
+      };
+    }
+  }
+  return {
+    Participantes: normalizeFlag01(merged.Participantes),
+    Certificado: normalizeFlag01(merged.Certificado),
+  };
+}
+
 function isReasonableYear(year: number): boolean {
   const now = new Date().getFullYear();
   return year >= 1900 && year <= now + 1;
@@ -828,8 +903,7 @@ export function normalizeRow(
         ? 1
         : Number(merged.Inscritos) || 1,
     Selecionados: normalizeFlag01(merged.Selecionados),
-    Participantes: normalizeFlag01(merged.Participantes),
-    Certificado: normalizeFlag01(merged.Certificado),
+    ...resolveParticipacaoFlags(merged),
   };
 
   return SigaCulturalRowSchema.parse(candidate) as SigaCulturalRow;

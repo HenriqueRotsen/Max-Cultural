@@ -109,6 +109,11 @@ export const HEADER_SYNONYMS: Record<string, SigaCulturalColumn> = {
   selecionado: "Selecionados",
   participantes: "Participantes",
   participante: "Participantes",
+  // Planilha nova: uma coluna "Participação" (Certificou | Participou | Não Participou)
+  // → normalize resolve em Participantes + Certificado
+  participacao: "Participantes",
+  status_participacao: "Participantes",
+  situacao_participacao: "Participantes",
   certificado: "Certificado",
   // extras comuns em formulários BR
   nome_social: "Apelido",
@@ -164,6 +169,7 @@ export const HEADER_SYNONYMS: Record<string, SigaCulturalColumn> = {
   presente: "Participantes",
   concluiu: "Certificado",
   certificado_emitido: "Certificado",
+  certificou: "Participantes",
 };
 
 /** Colunas preenchidas pelo contexto do lote — não precisam vir da planilha */
@@ -278,7 +284,11 @@ function matchHeaderByIncludes(key: string): SigaCulturalColumn | null {
     [/(^|_)(numero|nro)($|_)/, "Numero"],
     [/(complemento)/, "Complemento"],
     [/selecionad/, "Selecionados"],
+    // "Participação" / "status de participação" antes do genérico participant*
+    [/(^|_)participacao($|_)/, "Participantes"],
     [/participant/, "Participantes"],
+    // Cabeçalho "Certificado" legado — valor triplo também é resolvido no normalize
+    [/(^|_)certificado($|_)/, "Certificado"],
     [/certificad/, "Certificado"],
     [/(como_ficou_sabendo|ficou_sabendo|como_soube|como_conheceu)/, "Ficousabendo"],
   ];
@@ -345,6 +355,19 @@ export function inferTargetFromSamples(
     ).length >= Math.ceil(sample.length * 0.5)
   ) {
     return "Data_nascimento";
+  }
+
+  // "Certificou" | "Participou" | "Não Participou"
+  const participacaoHits = sample.filter((v) => {
+    const s = stripAccents(v)
+      .toLowerCase()
+      .replace(/[_./\\-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return /^(certificou|participou|nao participou|nao participante)$/.test(s);
+  }).length;
+  if (participacaoHits >= Math.ceil(sample.length * 0.5)) {
+    return "Participantes";
   }
 
   return null;

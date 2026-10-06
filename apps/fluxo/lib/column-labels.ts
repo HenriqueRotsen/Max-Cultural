@@ -35,7 +35,7 @@ export const COLUMN_LABELS: Record<SigaCulturalColumn, string> = {
   Territorio: "Território (comunidade)",
   Inscritos: "Inscritos",
   Selecionados: "Selecionados",
-  Participantes: "Participantes",
+  Participantes: "Participante",
   Certificado: "Certificado",
 };
 

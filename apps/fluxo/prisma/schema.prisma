@@ -43,7 +43,11 @@ model Inscricao {
   territorio              String   @default("") @map("Territorio")
   inscritos               Int      @default(1) @map("Inscritos")
   selecionados            Int      @default(0) @map("Selecionados")
+  /// Derivado da coluna de planilha "Participação":
+  /// Certificou → 1 | Participou → 1 | Não Participou → 0
   participantes           Int      @default(0) @map("Participantes")
+  /// Derivado da coluna de planilha "Participação":
+  /// Certificou → 1 | Participou → 0 | Não Participou → 0
   certificado             Int      @default(0) @map("Certificado")
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
