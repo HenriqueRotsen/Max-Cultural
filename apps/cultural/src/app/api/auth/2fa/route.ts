@@ -8,7 +8,7 @@ import {
 import { writeAuditLog } from "@/lib/audit";
 import { createSessionTokenForUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { decryptTotpSecret, verifyTotpCode } from "@/lib/totp";
+import { verifyLoginEmailOtp } from "@/lib/email-otp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +38,7 @@ function htmlRedirect(dest: string, token: string) {
   return res;
 }
 
-/** Verificação 2FA via POST clássico — grava max_session antes do redirect. */
+/** Verificação 2FA por e-mail via POST clássico — grava max_session antes do redirect. */
 export async function POST(request: NextRequest) {
   const form = await request.formData();
   const code = String(form.get("code") ?? "");
@@ -55,18 +55,15 @@ export async function POST(request: NextRequest) {
   if (!user || user.deactivatedAt) {
     return NextResponse.redirect(new URL("/login", request.url), 303);
   }
-  if (!user.totpSecretEnc || !user.totpEnabled) {
-    return twoFaErrorRedirect(request, next, "2FA não configurado.");
-  }
 
-  const secret = await decryptTotpSecret(user.totpSecretEnc);
-  if (!verifyTotpCode(secret, code)) {
+  if (!(await verifyLoginEmailOtp(user.id, code))) {
     await writeAuditLog({
       actorUserId: user.id,
       action: "auth.2fa_failed",
+      meta: { method: "email" },
       ip,
     });
-    return twoFaErrorRedirect(request, next, "Código inválido.");
+    return twoFaErrorRedirect(request, next, "Código inválido ou expirado.");
   }
 
   const [token] = await Promise.all([
@@ -75,7 +72,7 @@ export async function POST(request: NextRequest) {
     writeAuditLog({
       actorUserId: user.id,
       action: "auth.login_ok",
-      meta: { method: "totp" },
+      meta: { method: "email_otp" },
       ip,
     }).catch(() => {}),
   ]);

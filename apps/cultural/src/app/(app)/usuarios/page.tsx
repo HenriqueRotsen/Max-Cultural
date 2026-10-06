@@ -30,7 +30,7 @@ export default async function UsuariosPage({
   const roleUpdated = sp.roleUpdated === "1" || sp.roleUpdated === "true";
   const error = typeof sp.error === "string" ? sp.error : null;
   const flash =
-    created || passwordReset ? await peekUserFlash() : null;
+    created || passwordReset || error ? await peekUserFlash() : null;
   const [users, roles] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
@@ -50,9 +50,9 @@ export default async function UsuariosPage({
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-[var(--navy)]">Usuários</h1>
         <p className="mt-1 text-sm text-[var(--gray-500)]">
-          A primeira senha é temporária: no primeiro login o usuário troca a senha e
-          configura o autenticador (2FA). O papel define o padrão; em cada pessoa você
-          pode ajustar acessos com Conceder/Negar.
+          A primeira senha é temporária (enviada por e-mail). No login o usuário troca a
+          senha e confirma um código enviado ao e-mail cadastrado. O papel define o
+          padrão; em cada pessoa você pode ajustar acessos com Conceder/Negar.
         </p>
       </div>
 
@@ -74,7 +74,7 @@ export default async function UsuariosPage({
       ) : null}
       {reset2fa ? (
         <p className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm">
-          2FA resetado. No próximo login o usuário configura o autenticador de novo.
+          Sessões encerradas. No próximo login o usuário usará senha e o código por e-mail.
         </p>
       ) : null}
       {roleUpdated ? (
@@ -87,7 +87,8 @@ export default async function UsuariosPage({
         <form action={createUserAction} className="card space-y-3 p-5">
           <h2 className="font-semibold text-[var(--navy)]">Novo usuário</h2>
           <p className="text-sm text-[var(--gray-500)]">
-            Gera uma senha temporária. O usuário será obrigado a trocá-la e ativar o 2FA.
+            Gera e envia por e-mail uma senha temporária. No primeiro acesso o usuário
+            troca a senha e confirma o código enviado ao e-mail.
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="field">
@@ -127,7 +128,7 @@ export default async function UsuariosPage({
               <th>E-mail</th>
               <th>Papel</th>
               <th>Acessos</th>
-              <th>2FA</th>
+              <th>Verificação</th>
               <th>Status</th>
               {canEdit ? <th /> : null}
             </tr>
@@ -177,11 +178,7 @@ export default async function UsuariosPage({
                   </Link>
                 </td>
                 <td>
-                  {u.totpEnabled
-                    ? "Ativo"
-                    : u.mustChangePassword
-                      ? "Após senha"
-                      : "Pendente"}
+                  {u.mustChangePassword ? "Após senha" : "Código por e-mail"}
                 </td>
                 <td>{u.deactivatedAt ? "Inativo" : "Ativo"}</td>
                 {canEdit ? (
@@ -217,9 +214,9 @@ export default async function UsuariosPage({
                         >
                           <ConfirmSubmitButton
                             className="btn btn-ghost"
-                            message="Resetar o 2FA? O segredo não é enviado por e-mail. O usuário configura de novo no próximo login."
+                            message="Encerrar todas as sessões deste usuário? No próximo acesso ele usará senha e o código enviado por e-mail."
                           >
-                            Resetar 2FA
+                            Encerrar sessões
                           </ConfirmSubmitButton>
                         </form>
                       </>

@@ -34,7 +34,7 @@ export async function sendNotificationEmail(params: {
     const { error } = await resend.emails.send({
       from:
         process.env.NOTIFY_FROM_EMAIL ||
-        "MAX Origem <onboarding@resend.dev>",
+        "MAX Origem <noreply@maxcultural.com.br>",
       to: [to],
       subject: params.title,
       text: [params.body, "", `Abrir no MAX Origem: ${link}`].join("\n"),

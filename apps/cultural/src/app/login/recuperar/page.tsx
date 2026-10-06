@@ -13,7 +13,10 @@ export default function RecuperarPage() {
       <div className="auth-card">
         <MaxCulturalLogoLink href="/login" />
         <h1 className="auth-title">Recuperar senha</h1>
-        <p className="auth-lead">Enviamos o link se o e-mail existir. Sem key Resend, o envio fica só no log.</p>
+        <p className="auth-lead">
+          Se o e-mail existir, enviaremos uma senha temporária. No próximo acesso você
+          deverá criar uma senha nova.
+        </p>
         <form action={action} className="mt-5 space-y-4">
           <div className="field">
             <label htmlFor="email">E-mail</label>
@@ -22,7 +25,7 @@ export default function RecuperarPage() {
           {state.error ? <p className="auth-alert">{state.error}</p> : null}
           {state.message ? <p className="text-sm text-[var(--navy)]">{state.message}</p> : null}
           <button type="submit" className="btn w-full" disabled={pending}>
-            Enviar
+            Enviar senha temporária
           </button>
         </form>
       </div>

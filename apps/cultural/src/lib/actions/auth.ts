@@ -9,7 +9,6 @@ import {
   getPending2faUser,
   getSessionUser,
   needs2faChallenge,
-  needs2faSetup,
   needsPasswordChange,
   setPending2faCookie,
   setSessionCookie,
@@ -17,21 +16,16 @@ import {
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import {
+  generateProvisionalPassword,
   hashPassword,
-  hashToken,
-  randomToken,
   validateStrongPassword,
   verifyPassword,
 } from "@/lib/password";
+import { issueLoginEmailOtp } from "@/lib/email-otp";
 import {
-  decryptTotpSecret,
-  encryptTotpSecret,
-  generateTotpSecret,
-  is2faDisabled,
-  totpQrDataUrl,
-  verifyTotpCode,
-} from "@/lib/totp";
-import { send2faNoticeEmail, sendPasswordResetEmail } from "@/lib/email";
+  send2faNoticeEmail,
+  sendTemporaryPasswordEmail,
+} from "@/lib/email";
 import { safeContinueUrl } from "@max/auth";
 
 export type AuthActionState = {
@@ -95,25 +89,18 @@ export async function loginAction(
   }
 
   if (needs2faChallenge(user)) {
+    const sent = await issueLoginEmailOtp(user);
+    if (!sent.ok) {
+      return { error: "Não foi possível enviar o código por e-mail. Tente de novo." };
+    }
     await setPending2faCookie(user.id);
     await writeAuditLog({
       actorUserId: user.id,
       action: "auth.login_partial",
-      meta: { step: "2fa_challenge" },
+      meta: { step: "2fa_email" },
       ip,
     });
     return { ok: true, redirectTo: `/login/2fa?next=${encodeURIComponent(next)}` };
-  }
-
-  if (needs2faSetup(user)) {
-    await setSessionCookie(user);
-    await writeAuditLog({
-      actorUserId: user.id,
-      action: "auth.login_partial",
-      meta: { step: "2fa_setup" },
-      ip,
-    });
-    return { ok: true, redirectTo: "/onboarding/2fa" };
   }
 
   await prisma.user.update({
@@ -137,7 +124,7 @@ export async function completePasswordChangeAction(
   const user = await getSessionUser();
   if (!user) return { error: "Não autenticado." };
   if (!user.mustChangePassword) {
-    return { ok: true, redirectTo: needs2faSetup(user) ? "/onboarding/2fa" : "/" };
+    return { ok: true, redirectTo: "/" };
   }
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
@@ -160,11 +147,11 @@ export async function completePasswordChangeAction(
     ip: await clientIp(),
   });
 
-  if (needs2faSetup(updated)) {
-    await setSessionCookie(updated);
-    return { ok: true, redirectTo: "/onboarding/2fa" };
-  }
   if (needs2faChallenge(updated)) {
+    const sent = await issueLoginEmailOtp(updated);
+    if (!sent.ok) {
+      return { error: "Senha atualizada, mas o código por e-mail falhou. Faça login novamente." };
+    }
     await clearSessionCookie();
     await setPending2faCookie(updated.id);
     return { ok: true, redirectTo: "/login/2fa" };
@@ -174,83 +161,18 @@ export async function completePasswordChangeAction(
   return { ok: true, redirectTo: "/" };
 }
 
-export async function startTotpSetupAction(): Promise<
-  | { ok: true; secret: string; qrDataUrl: string }
-  | { ok: false; error: string }
-> {
-  const user = await getSessionUser();
-  if (!user) return { ok: false, error: "Não autenticado." };
-  if (is2faDisabled()) return { ok: false, error: "2FA desativado neste ambiente." };
-  const secret = generateTotpSecret();
-  const enc = await encryptTotpSecret(secret);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { totpSecretEnc: enc, totpEnabled: false },
-  });
-  const qrDataUrl = await totpQrDataUrl(secret, user.email);
-  return { ok: true, secret, qrDataUrl };
-}
-
-export async function confirmTotpSetupAction(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const user = await getSessionUser();
-  if (!user) return { error: "Não autenticado." };
-  if (is2faDisabled()) return { ok: true, redirectTo: "/" };
-  const code = String(formData.get("code") ?? "");
-  const fresh = await prisma.user.findUnique({ where: { id: user.id } });
-  if (!fresh?.totpSecretEnc) {
-    return { error: "Inicie a configuração do autenticador primeiro." };
-  }
-  const secret = await decryptTotpSecret(fresh.totpSecretEnc);
-  if (!verifyTotpCode(secret, code)) {
-    return { error: "Código inválido. Tente novamente." };
-  }
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { totpEnabled: true, lastLoginAt: fresh.lastLoginAt ?? new Date() },
-  });
-  await writeAuditLog({
-    actorUserId: user.id,
-    action: "auth.2fa_enabled",
-    ip: await clientIp(),
-  });
-  return { ok: true, redirectTo: "/" };
-}
-
-export async function verifyTotpLoginAction(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
+/** Reenvia o código de verificação por e-mail (login 2FA). */
+export async function resendLoginEmailOtpAction(): Promise<AuthActionState> {
   const pending = await getPending2faUser();
   if (!pending) return { error: "Sessão expirada. Faça login novamente." };
-  const code = String(formData.get("code") ?? "");
-  const next = safeNext(String(formData.get("next") ?? "/"));
-  if (!pending.totpSecretEnc || !pending.totpEnabled) {
-    return { error: "2FA não configurado." };
-  }
-  const secret = await decryptTotpSecret(pending.totpSecretEnc);
-  if (!verifyTotpCode(secret, code)) {
-    await writeAuditLog({
-      actorUserId: pending.id,
-      action: "auth.2fa_failed",
-      ip: await clientIp(),
-    });
-    return { error: "Código inválido." };
-  }
-  await prisma.user.update({
-    where: { id: pending.id },
-    data: { lastLoginAt: new Date() },
-  });
-  await setSessionCookie(pending);
+  const sent = await issueLoginEmailOtp(pending);
+  if (!sent.ok) return { error: sent.error };
   await writeAuditLog({
     actorUserId: pending.id,
-    action: "auth.login_ok",
-    meta: { method: "totp" },
+    action: "auth.2fa_email_sent",
     ip: await clientIp(),
   });
-  return { ok: true, redirectTo: next };
+  return { ok: true, message: "Novo código enviado para o seu e-mail." };
 }
 
 export async function requestPasswordResetAction(
@@ -258,81 +180,45 @@ export async function requestPasswordResetAction(
   formData: FormData,
 ): Promise<AuthActionState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const generic = {
+    ok: true as const,
+    message: "Se o e-mail existir, enviaremos uma senha temporária.",
+  };
   if (!email) return { error: "Informe o e-mail." };
+
   const user = await prisma.user.findUnique({ where: { email } });
-  if (user && !user.deactivatedAt) {
-    const raw = randomToken();
-    await prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash: await hashToken(raw),
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      },
-    });
-    await sendPasswordResetEmail({
-      to: user.email,
-      name: user.name,
-      link: `${siteUrl()}/login/redefinir?token=${raw}`,
-    });
-  }
-  return { ok: true, message: "Se o e-mail existir, enviaremos o link." };
-}
+  if (!user || user.deactivatedAt) return generic;
 
-export async function resetPasswordWithTokenAction(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const token = String(formData.get("token") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-  const confirm = String(formData.get("confirm") ?? "");
-  if (!token) return { error: "Link inválido ou expirado." };
-  if (password !== confirm) return { error: "As senhas não coincidem." };
-
-  const tokenHash = await hashToken(token);
-  const row = await prisma.passwordResetToken.findFirst({
-    where: {
-      tokenHash,
-      usedAt: null,
-      expiresAt: { gt: new Date() },
+  const provisional = generateProvisionalPassword();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash: await hashPassword(provisional),
+      mustChangePassword: true,
+      sessionVersion: { increment: 1 },
     },
-    include: { user: true },
   });
-  if (!row || row.user.deactivatedAt) {
-    return { error: "Link inválido ou expirado." };
+
+  const sent = await sendTemporaryPasswordEmail({
+    to: user.email,
+    name: user.name,
+    link: `${siteUrl()}/login`,
+    provisionalPassword: provisional,
+  });
+  if (!sent.ok) {
+    console.error("[password-reset] e-mail falhou:", sent.error);
   }
-
-  const strength = validateStrongPassword(password, { email: row.user.email });
-  if (!strength.ok) return { error: strength.error };
-
-  const passwordHash = await hashPassword(password);
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: row.userId },
-      data: {
-        passwordHash,
-        mustChangePassword: false,
-        sessionVersion: { increment: 1 },
-      },
-    }),
-    prisma.passwordResetToken.update({
-      where: { id: row.id },
-      data: { usedAt: new Date() },
-    }),
-  ]);
 
   await writeAuditLog({
-    actorUserId: row.userId,
-    action: "auth.password_reset_completed",
+    actorUserId: user.id,
+    action: "auth.password_reset_requested",
     ip: await clientIp(),
   });
 
-  return {
-    ok: true,
-    message: "Senha atualizada. Faça login com a nova senha.",
-    redirectTo: "/login",
-  };
+  return generic;
 }
 
+/** Encerra sessões do usuário (admin). 2FA continua sendo código por e-mail no próximo login. */
 export async function adminReset2faAction(userId: string) {
   const actor = await getSessionUser();
   if (!actor || !(actor.isSuperAdmin || can(actor, "cultural.usuarios", "edit"))) {
@@ -341,7 +227,7 @@ export async function adminReset2faAction(userId: string) {
   if (userId === actor.id) {
     redirect(
       "/usuarios?error=" +
-        encodeURIComponent("Para o próprio 2FA, use Minha conta ou peça a outro admin."),
+        encodeURIComponent("Para encerrar a própria sessão, use Sair."),
     );
   }
   const target = await prisma.user.update({
@@ -352,9 +238,13 @@ export async function adminReset2faAction(userId: string) {
       sessionVersion: { increment: 1 },
     },
   });
+  await prisma.emailOtp.updateMany({
+    where: { userId, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
   await writeAuditLog({
     actorUserId: actor.id,
-    action: "iam.2fa_reset",
+    action: "iam.sessions_revoked",
     screen: "cultural.usuarios",
     entityType: "user",
     entityId: userId,

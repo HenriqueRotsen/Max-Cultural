@@ -22,11 +22,12 @@ export async function sendEmail(input: SendInput): Promise<{ ok: true } | { ok: 
   }
 
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) {
+  const from =
+    process.env.EMAIL_FROM || "MAX Fluxo <noreply@maxcultural.com.br>";
+  if (!apiKey) {
     return {
       ok: false,
-      error: "RESEND_API_KEY / EMAIL_FROM não configurados (ou use AUTH_EMAIL_SIMULATE=true).",
+      error: "RESEND_API_KEY não configurada (ou use AUTH_EMAIL_SIMULATE=true).",
     };
   }
 

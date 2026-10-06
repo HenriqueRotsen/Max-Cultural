@@ -3,13 +3,12 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { AccessDeniedDialog } from "@/components/AccessDeniedDialog";
 import { AppSidebar } from "@/components/AppSidebar";
-import { can, getSessionUser, needs2faSetup, needsPasswordChange } from "@/lib/auth";
+import { can, getSessionUser, needsPasswordChange } from "@/lib/auth";
 
 export default async function HomePage() {
   const user = await getSessionUser();
   if (user) {
     if (needsPasswordChange(user)) redirect("/onboarding/senha");
-    if (needs2faSetup(user)) redirect("/onboarding/2fa");
 
     const origem = (process.env.NEXT_PUBLIC_ORIGEM_URL || "http://localhost:3001").replace(/\/$/, "");
     const fluxo = (process.env.NEXT_PUBLIC_FLUXO_URL || "http://localhost:3002").replace(/\/$/, "");

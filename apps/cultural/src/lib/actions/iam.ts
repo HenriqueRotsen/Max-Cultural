@@ -12,7 +12,7 @@ import {
   ACCESS_BY_ID,
   normalizeGrantedIds,
 } from "@max/auth";
-import { sendInviteEmail } from "@/lib/email";
+import { sendInviteEmail, sendTemporaryPasswordEmail } from "@/lib/email";
 
 const USER_FLASH = "max_user_flash";
 
@@ -69,16 +69,21 @@ export async function createUserAction(formData: FormData) {
     entityId: email,
   });
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
-  const emailSimulated =
-    process.env.AUTH_EMAIL_SIMULATE === "true" || !process.env.RESEND_API_KEY;
-  await sendInviteEmail({
+  const sent = await sendInviteEmail({
     to: email,
     name,
     link: `${site}/login`,
-    provisionalPassword: emailSimulated ? undefined : provisional,
+    provisionalPassword: provisional,
   });
-
   await setUserFlash({ email, provisional, kind: "created" });
+  if (!sent.ok) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent(
+          `Usuário criado, mas o e-mail falhou: ${sent.error}. Senha temporária abaixo (só nesta tela).`,
+        ),
+    );
+  }
   redirect("/usuarios?created=1");
 }
 
@@ -117,20 +122,25 @@ export async function adminResetPasswordAction(userId: string) {
   });
 
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
-  const emailSimulated =
-    process.env.AUTH_EMAIL_SIMULATE === "true" || !process.env.RESEND_API_KEY;
-  await sendInviteEmail({
+  const sent = await sendTemporaryPasswordEmail({
     to: target.email,
     name: target.name,
     link: `${site}/login`,
-    provisionalPassword: emailSimulated ? undefined : provisional,
+    provisionalPassword: provisional,
   });
-
   await setUserFlash({
     email: target.email,
     provisional,
     kind: "password_reset",
   });
+  if (!sent.ok) {
+    redirect(
+      "/usuarios?error=" +
+        encodeURIComponent(
+          `Senha redefinida, mas o e-mail falhou: ${sent.error}. Senha temporária abaixo (só nesta tela).`,
+        ),
+    );
+  }
   redirect("/usuarios?passwordReset=1");
 }
 

@@ -182,14 +182,18 @@ export function needsPasswordChange(user: { mustChangePassword: boolean }) {
   return user.mustChangePassword;
 }
 
-export function needs2faSetup(user: { totpEnabled: boolean }) {
-  if (is2faDisabled()) return false;
-  return !user.totpEnabled;
+/**
+ * Setup de autenticador (TOTP) não é mais usado — o 2FA é código por e-mail.
+ * Mantido por compatibilidade de imports; sempre false.
+ */
+export function needs2faSetup(_user?: { totpEnabled?: boolean }) {
+  return false;
 }
 
-export function needs2faChallenge(user: { totpEnabled: boolean }) {
+/** 2FA obrigatório no login (código por e-mail), salvo AUTH_2FA_DISABLED. */
+export function needs2faChallenge(_user?: { totpEnabled?: boolean }) {
   if (is2faDisabled()) return false;
-  return user.totpEnabled;
+  return true;
 }
 
 export function hasPermission(user: SessionUser, permissionId: string) {
