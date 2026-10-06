@@ -24,7 +24,6 @@ import {
   getEffectivePermissions,
   type AuthUser,
 } from "@/lib/permissions";
-import { is2faDisabled } from "@/lib/totp";
 
 export {
   AUTH_COOKIE,
@@ -123,24 +122,39 @@ export async function resolveUserFromHubSession(session: {
   });
 }
 
+const HUB_USER_TTL_MS = 45_000;
+const hubUserCache = new Map<string, { user: SessionUser; at: number }>();
+
 async function ensureUserFromHub(input: {
   email: string;
   name: string;
 }): Promise<SessionUser | null> {
+  const cached = hubUserCache.get(input.email);
+  if (
+    cached &&
+    Date.now() - cached.at < HUB_USER_TTL_MS &&
+    !cached.user.deactivatedAt &&
+    !cached.user.mustChangePassword
+  ) {
+    return cached.user;
+  }
+
   const existing = await prisma.user.findUnique({
     where: { email: input.email },
     include: userInclude,
   });
   if (existing) {
     if (existing.deactivatedAt) return null;
-    if (existing.mustChangePassword) {
-      return prisma.user.update({
-        where: { id: existing.id },
-        data: { mustChangePassword: false, lastLoginAt: new Date() },
-        include: userInclude,
-      });
-    }
-    return existing;
+    const user = existing.mustChangePassword
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: { mustChangePassword: false, lastLoginAt: new Date() },
+          include: userInclude,
+        })
+      : existing;
+    if (hubUserCache.size > 2000) hubUserCache.clear();
+    hubUserCache.set(input.email, { user, at: Date.now() });
+    return user;
   }
 
   const operatorRole = await prisma.role.findUnique({
@@ -151,7 +165,7 @@ async function ensureUserFromHub(input: {
     (await prisma.role.findUnique({ where: { name: ADMIN_ROLE_NAME } }));
   if (!role) return null;
 
-  return prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       email: input.email,
       name: input.name,
@@ -164,6 +178,9 @@ async function ensureUserFromHub(input: {
     },
     include: userInclude,
   });
+  if (hubUserCache.size > 2000) hubUserCache.clear();
+  hubUserCache.set(input.email, { user: created, at: Date.now() });
+  return created;
 }
 
 export async function getPending2faUser(): Promise<User | null> {
@@ -196,18 +213,17 @@ export async function requirePermission(
   return user;
 }
 
-export function needsPasswordChange(user: { mustChangePassword: boolean }) {
-  return user.mustChangePassword;
+/** Auth local removido — senha/2FA só no MAX Cultural. */
+export function needsPasswordChange(_user?: { mustChangePassword?: boolean }) {
+  return false;
 }
 
-export function needs2faSetup(user: { totpEnabled: boolean }) {
-  if (is2faDisabled()) return false;
-  return !user.totpEnabled;
+export function needs2faSetup(_user?: { totpEnabled?: boolean }) {
+  return false;
 }
 
-export function needs2faChallenge(user: { totpEnabled: boolean }) {
-  if (is2faDisabled()) return false;
-  return user.totpEnabled;
+export function needs2faChallenge(_user?: { totpEnabled?: boolean }) {
+  return false;
 }
 
 export async function bumpSessionVersion(userId: string) {

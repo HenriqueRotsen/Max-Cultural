@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Check, Copy, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import type { PermissionEffect } from "@prisma/client";
 import {
@@ -64,12 +64,6 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
   const [edit, setEdit] = useState<UserRow | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [pending, startTransition] = useTransition();
-  const [createdCreds, setCreatedCreds] = useState<{
-    name: string;
-    email: string;
-    password: string;
-  } | null>(null);
-  const [copied, setCopied] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -236,17 +230,6 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
     });
   }
 
-  async function copyPassword(password: string) {
-    try {
-      await navigator.clipboard.writeText(password);
-      setCopied(true);
-      toast.success("Senha copiada");
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Não foi possível copiar. Selecione e copie manualmente.");
-    }
-  }
-
   function canGoStep2() {
     if (!form.name.trim()) return false;
     if (!edit && !form.email.trim()) return false;
@@ -330,7 +313,7 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
         roleName: selectedRole?.name ?? "—",
         isSuperAdmin: false,
         dataScopeMode: scopeMode,
-        mustChangePassword: true,
+        mustChangePassword: false,
         totpEnabled: false,
         deactivatedAt: null,
         lastLoginAt: null,
@@ -342,17 +325,7 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
           a.name.localeCompare(b.name, "pt-BR"),
         ),
       );
-      if (r.provisionalPassword) {
-        setCopied(false);
-        setCreatedCreds({
-          name: form.name.trim(),
-          email,
-          password: r.provisionalPassword,
-        });
-        toast.success("Usuário criado");
-      } else {
-        toast.success(r.message ?? "Usuário criado");
-      }
+      toast.success(r.message ?? "Usuário criado");
     });
   }
 
@@ -648,10 +621,10 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
                 ? "Conta privilegiada (superadmin) — não usa papel do sistema; acesso total."
                 : totalSteps === 1
                   ? isAdminRole
-                    ? "Administrador tem todas as permissões e acesso completo aos dados."
-                    : "Dados da conta — acesso completo a todos os dados."
+                    ? "Administrador tem todas as permissões e acesso completo aos dados. Login pelo MAX Cultural."
+                    : "Dados da conta — acesso completo aos dados. Login pelo MAX Cultural (mesmo e-mail)."
                   : step === 1
-                    ? "Etapa 1 de 2 — dados da conta"
+                    ? "Etapa 1 de 2 — dados da conta (login pelo MAX Cultural)"
                     : "Etapa 2 de 2 — defina o acesso por contexto, projeto e oficina"}
             </DialogDescription>
           </DialogHeader>
@@ -860,63 +833,6 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={createdCreds !== null}
-        onOpenChange={(next) => {
-          if (!next) setCreatedCreds(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-md" showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Senha provisória</DialogTitle>
-            <DialogDescription>
-              Copie e envie ao usuário. Ele deverá trocar a senha no primeiro
-              acesso.
-            </DialogDescription>
-          </DialogHeader>
-          {createdCreds ? (
-            <div className="space-y-3">
-              <div className="rounded-lg bg-muted/60 px-3 py-2 text-sm">
-                <p className="font-medium text-foreground">{createdCreds.name}</p>
-                <p className="text-muted-foreground">{createdCreds.email}</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="provisional-password">Senha</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="provisional-password"
-                    readOnly
-                    value={createdCreds.password}
-                    className="font-mono text-base tracking-wide"
-                    onFocus={(e) => e.target.select()}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="shrink-0"
-                    onClick={() => copyPassword(createdCreds.password)}
-                  >
-                    {copied ? (
-                      <Check className="size-4" />
-                    ) : (
-                      <Copy className="size-4" />
-                    )}
-                    {copied ? "Copiado" : "Copiar"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={() => setCreatedCreds(null)}
-            >
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

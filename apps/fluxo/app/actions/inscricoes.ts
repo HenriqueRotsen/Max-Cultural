@@ -26,6 +26,7 @@ import {
   normalizeCep,
   normalizePhone,
   extractProjectYear,
+  dedupeNormalizedInscricaoRows,
 } from "@/lib/normalize";
 import {
   inscricaoOrderBy,
@@ -227,8 +228,10 @@ export async function confirmImportAction(
     );
     if (!ok) throw new Error("Oficina fora do seu escopo de dados.");
   }
-  const normalized = rows.map((row) =>
-    SigaCulturalRowSchema.parse(normalizeRow(row)) as SigaCulturalRow,
+  const normalized = dedupeNormalizedInscricaoRows(
+    rows.map((row) =>
+      SigaCulturalRowSchema.parse(normalizeRow(row)) as SigaCulturalRow,
+    ),
   );
 
   const data = normalized.map((row) =>

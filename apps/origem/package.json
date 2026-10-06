@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -16,6 +16,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",
     "sync": "tsx scripts/sync.ts",
+    "dossier:export": "tsx scripts/export-legal-dossiers.ts",
     "db:seed": "tsx scripts/seed.ts",
     "credentials:encrypt": "tsx scripts/encrypt-credentials.ts",
     "postinstall": "prisma generate"
@@ -29,6 +30,9 @@
     "@sparticuz/chromium": "^153.0.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "archiver": "^8.0.0",
     "dotenv": "^18.0.4",
     "leaflet": "^1.9.4",
     "next": "16.3.8",
@@ -44,6 +48,7 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
+    "@types/archiver": "^8.0.0",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22",
     "@types/pg": "^8.21.0",

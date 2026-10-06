@@ -1,12 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import {
-  getSessionUser,
-  needs2faSetup,
-  needsPasswordChange,
-  type SessionUser,
-} from "@/lib/auth";
-import { redirectToHubLogin } from "@/lib/hub";
+import { getSessionUser, type SessionUser } from "@/lib/auth";
+import { redirectToHubDenied, redirectToHubLogin } from "@/lib/hub";
 import { getEffectivePermissions } from "@/lib/permissions";
 import type { PermissionCode } from "@/lib/permission-catalog";
 
@@ -14,8 +9,6 @@ import type { PermissionCode } from "@/lib/permission-catalog";
 export const requireDashboardUser = cache(async (): Promise<SessionUser> => {
   const user = await getSessionUser();
   if (!user) redirectToHubLogin("/dashboard");
-  if (needsPasswordChange(user)) redirect("/dashboard/onboarding/senha");
-  if (needs2faSetup(user)) redirect("/dashboard/onboarding/2fa");
   return user;
 });
 
@@ -25,7 +18,7 @@ export async function requireDashboardPermission(
   const user = await requireDashboardUser();
   const perms = await getEffectivePermissions(user.id);
   if (!perms.has("dashboard:access")) {
-    redirectToHubLogin("/dashboard");
+    redirectToHubDenied("Sem acesso ao MAX Fluxo.");
   }
   if (!perms.has(code)) {
     redirect("/dashboard");

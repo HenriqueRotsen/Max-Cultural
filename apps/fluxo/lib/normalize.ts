@@ -16,12 +16,15 @@ import {
   projectRowWithMapping,
 } from "@/lib/column-map";
 import { enrichCidadeEstado } from "@/lib/municipio-uf";
+import { applyParsedFullAddress } from "@/lib/address-parse";
 
 export { normalizeHeaderKey, HEADER_SYNONYMS } from "@/lib/column-map";
 export type { SigaCulturalColumn } from "@/lib/schema";
 export {
   isFullAddressHeader,
   looksLikeFullAddress,
+  parseFullAddress,
+  applyParsedFullAddress,
 } from "@/lib/address-parse";
 
 export function stripAccents(value: string): string {
@@ -542,6 +545,66 @@ function parseDigitDate(digits: string): Date | null {
   return null;
 }
 
+/**
+ * Como parseFlexibleDate, mas preserva hora (carimbo Google Forms).
+ * Usado para escolher a resposta mais recente na deduplicação.
+ */
+export function parseFlexibleDateTime(value: unknown): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) {
+    return isValid(value) && isReasonableYear(value.getFullYear()) ? value : null;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value > 1000 && value < 80000) return parseExcelSerial(value);
+    const asDate = new Date(value);
+    return isValid(asDate) && isReasonableYear(asDate.getFullYear())
+      ? asDate
+      : null;
+  }
+
+  const rawOriginal = String(value).trim();
+  if (!rawOriginal) return null;
+
+  const brDateTime = rawOriginal.match(
+    /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2}|\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (brDateTime) {
+    const day = Number(brDateTime[1]);
+    const month = Number(brDateTime[2]);
+    const yearRaw = brDateTime[3]!;
+    const year =
+      yearRaw.length === 2
+        ? expandTwoDigitYear(Number(yearRaw))
+        : Number(yearRaw);
+    const d = new Date(
+      year,
+      month - 1,
+      day,
+      Number(brDateTime[4]),
+      Number(brDateTime[5]),
+      Number(brDateTime[6] ?? 0),
+    );
+    if (isValid(d) && isReasonableYear(d.getFullYear())) return d;
+  }
+
+  const isoDateTime = rawOriginal.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (isoDateTime) {
+    const d = new Date(
+      Number(isoDateTime[1]),
+      Number(isoDateTime[2]) - 1,
+      Number(isoDateTime[3]),
+      Number(isoDateTime[4]),
+      Number(isoDateTime[5]),
+      Number(isoDateTime[6] ?? 0),
+    );
+    if (isValid(d) && isReasonableYear(d.getFullYear())) return d;
+  }
+
+  return parseFlexibleDate(value);
+}
+
 export function parseFlexibleDate(value: unknown): Date | null {
   if (value === null || value === undefined || value === "") return null;
   if (value instanceof Date) {
@@ -706,6 +769,11 @@ export function normalizeRow(
 
   const birth = parseBirthDate(merged.Data_nascimento);
   const insc = parseFlexibleDate(merged.Data_inscricao) ?? new Date();
+
+  // Endereço completo numa única coluna → desmembra antes da normalização de campos
+  const addressSplit = applyParsedFullAddress(merged);
+  Object.assign(merged, addressSplit);
+
   const { Cidade: cidadeSplit, Territorio: territorioSplit } =
     splitCidadeTerritorio({
       Cidade: merged.Cidade,
@@ -771,10 +839,16 @@ export function normalizeRawRows(
   rawRows: Record<string, unknown>[],
   context: BatchContext,
 ): SigaCulturalRow[] {
-  return rawRows.map((raw) => {
-    const mapped = mapRawRowByHeaders(raw, context);
-    return normalizeRow(mapped, context);
-  });
+  return dedupeNormalizedInscricaoRows(
+    rawRows.map((raw) => {
+      const mapped = mapRawRowByHeaders(raw, context);
+      return normalizeRow(mapped, context);
+    }),
+    rawRows.map((raw) => {
+      const mapped = mapRawRowByHeaders(raw, context);
+      return mapped.Data_inscricao;
+    }),
+  );
 }
 
 export function formatRowsWithMapping(
@@ -782,7 +856,78 @@ export function formatRowsWithMapping(
   mapping: Record<string, import("@/lib/schema").SigaCulturalColumn>,
   context: BatchContext,
 ): SigaCulturalRow[] {
+  // Sem dedup aqui: o wizard processa em lotes; dedup no fim (confirm / assemble).
   return rawRows.map((raw) =>
     normalizeRow(projectRowWithMapping(raw, mapping, context), context),
+  );
+}
+
+/** Chave de pessoa na oficina (CPF; senão e-mail). */
+function inscricaoDedupeKey(row: SigaCulturalRow): string | null {
+  const cpf = String(row.CPF ?? "").replace(/\D/g, "");
+  const oficina = String(row.id_oficina ?? "").trim();
+  if (cpf.length === 11) return `cpf:${cpf}|of:${oficina}`;
+  const email = String(row["E-mail"] ?? "")
+    .trim()
+    .toLowerCase();
+  if (email) return `em:${email}|of:${oficina}`;
+  return null;
+}
+
+/**
+ * Mantém só a resposta mais recente por CPF (ou e-mail) na mesma oficina.
+ * Empate: maior índice na planilha.
+ */
+export function dedupeInscricaoRowsByRecency(
+  entries: Array<{ row: SigaCulturalRow; recencyMs: number; index: number }>,
+): SigaCulturalRow[] {
+  const best = new Map<
+    string,
+    { row: SigaCulturalRow; recencyMs: number; index: number }
+  >();
+  const passthrough: SigaCulturalRow[] = [];
+
+  for (const entry of entries) {
+    const key = inscricaoDedupeKey(entry.row);
+    if (!key) {
+      passthrough.push(entry.row);
+      continue;
+    }
+    const prev = best.get(key);
+    if (!prev) {
+      best.set(key, entry);
+      continue;
+    }
+    if (
+      entry.recencyMs > prev.recencyMs ||
+      (entry.recencyMs === prev.recencyMs && entry.index > prev.index)
+    ) {
+      best.set(key, entry);
+    }
+  }
+
+  const deduped = [...best.values()]
+    .sort((a, b) => a.index - b.index)
+    .map((e) => e.row);
+  return [...deduped, ...passthrough];
+}
+
+/**
+ * Dedup a partir de linhas já normalizadas.
+ * `rawDates` opcional: carimbos originais (com hora) alinhados por índice.
+ */
+export function dedupeNormalizedInscricaoRows(
+  rows: SigaCulturalRow[],
+  rawDates?: unknown[],
+): SigaCulturalRow[] {
+  return dedupeInscricaoRowsByRecency(
+    rows.map((row, index) => {
+      const rawDate = rawDates?.[index] ?? row.Data_inscricao;
+      return {
+        row,
+        recencyMs: parseFlexibleDateTime(rawDate)?.getTime() ?? index,
+        index,
+      };
+    }),
   );
 }

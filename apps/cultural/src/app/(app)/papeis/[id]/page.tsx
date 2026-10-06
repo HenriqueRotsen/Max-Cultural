@@ -4,6 +4,7 @@ import { can, getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { grantedIdsFromRoleRows, normalizeGrantedIds } from "@max/auth";
 import { RoleAccessEditor } from "@/components/RoleAccessEditor";
+import { RoleMetaPanel } from "@/components/RoleMetaPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function PapelAcessosPage({
   const { id } = await params;
   const sp = await searchParams;
   const saved = sp.saved === "1";
+  const renamed = sp.renamed === "1";
   const error = typeof sp.error === "string" ? sp.error : null;
 
   const role = await prisma.role.findUnique({
@@ -65,6 +67,18 @@ export default async function PapelAcessosPage({
       </div>
 
       {error ? <p className="auth-alert">{error}</p> : null}
+      {!canEdit ? (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--gray-600)]">
+          Você pode consultar este papel, mas não alterá-lo. É necessária a permissão{" "}
+          <strong className="text-[var(--navy)]">Gerenciar papéis e acessos</strong>{" "}
+          (ou perfil administrador).
+        </p>
+      ) : null}
+      {renamed ? (
+        <p className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]">
+          Nome e descrição atualizados.
+        </p>
+      ) : null}
       {saved ? (
         <p className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]">
           Acessos salvos. As sessões dos {role._count.users} usuário
@@ -72,6 +86,15 @@ export default async function PapelAcessosPage({
           preciso entrar de novo.
         </p>
       ) : null}
+
+      <RoleMetaPanel
+        roleId={role.id}
+        name={role.name}
+        description={role.description}
+        userCount={role._count.users}
+        isSystem={role.isSystem}
+        canEdit={canEdit}
+      />
 
       <RoleAccessEditor
         roleId={role.id}

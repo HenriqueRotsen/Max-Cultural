@@ -1,7 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { isAuthEnabled } from "@/lib/auth/config";
 import { getHubSessionPayload, origemHubLoginUrl } from "@/lib/auth/hub";
 import {
   entitlementsFromWorkspace,
@@ -69,8 +68,20 @@ export async function ensureAppUser(params: {
   });
 }
 
+const HUB_USER_TTL_MS = 45_000;
+const hubUserCache = new Map<
+  string,
+  { profile: AppUser & { workspace: Workspace }; at: number }
+>();
+
 async function ensureHubAppUser(params: { id: string; email: string }) {
   const email = params.email.toLowerCase();
+  const cacheKey = `${params.id}:${email}`;
+  const cached = hubUserCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < HUB_USER_TTL_MS && cached.profile.active) {
+    return cached.profile;
+  }
+
   const name = email.split("@")[0] || "MAX Cultural";
 
   const byEmail = await prisma.appUser.findUnique({
@@ -78,19 +89,22 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
     include: { workspace: true },
   });
   if (byEmail) {
-    if (byEmail.mustChangePassword || !byEmail.active) {
-      return prisma.appUser.update({
-        where: { id: byEmail.id },
-        data: { mustChangePassword: false, active: true },
-        include: { workspace: true },
-      });
-    }
-    return byEmail;
+    const profile =
+      byEmail.mustChangePassword || !byEmail.active
+        ? await prisma.appUser.update({
+            where: { id: byEmail.id },
+            data: { mustChangePassword: false, active: true },
+            include: { workspace: true },
+          })
+        : byEmail;
+    if (hubUserCache.size > 2000) hubUserCache.clear();
+    hubUserCache.set(cacheKey, { profile, at: Date.now() });
+    return profile;
   }
 
   try {
     const workspace = await ensureBootstrapWorkspace();
-    return await prisma.appUser.upsert({
+    const profile = await prisma.appUser.upsert({
       where: { id: params.id },
       create: {
         id: params.id,
@@ -109,12 +123,19 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
       },
       include: { workspace: true },
     });
+    if (hubUserCache.size > 2000) hubUserCache.clear();
+    hubUserCache.set(cacheKey, { profile, at: Date.now() });
+    return profile;
   } catch {
     const fallback = await prisma.appUser.findFirst({
       where: { OR: [{ id: params.id }, { email }] },
       include: { workspace: true },
     });
-    if (fallback) return fallback;
+    if (fallback) {
+      if (hubUserCache.size > 2000) hubUserCache.clear();
+      hubUserCache.set(cacheKey, { profile: fallback, at: Date.now() });
+      return fallback;
+    }
     throw new Error("Não foi possível vincular a sessão do hub ao Origem.");
   }
 }
@@ -152,7 +173,6 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext> {
 export async function requireUser(options?: { roles?: AppUserRole[] }) {
   const session = await getSessionUser();
   if (!session) redirect(origemHubLoginUrl("/painel"));
-  if (session.profile.mustChangePassword && isAuthEnabled()) redirect("/alterar-senha");
   if (options?.roles && !options.roles.includes(session.profile.role)) {
     redirect("/painel");
   }

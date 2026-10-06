@@ -309,13 +309,17 @@ function refreshHubSessionAlive(token: string): Promise<HubSessionStatus> {
 
 /**
  * Confirma no hub se a sessão não foi revogada (sessionVersion).
- * Só espera a rede no primeiro acesso do token nesta instância; depois responde
- * do cache e revalida em segundo plano a cada 2 min.
- * Hub fora do ar → "unknown" (o satélite segue com os grants do cookie).
+ * Nunca bloqueia a navegação na rede: sem cache → "unknown" e revalida em
+ * background; com cache vivo → responde na hora e revalida a cada 2 min.
+ * Só "revoked" (já cacheado) força logout. Hub fora do ar → "unknown"
+ * (o satélite segue com os grants do cookie).
  */
 export async function checkHubSessionAlive(token: string): Promise<HubSessionStatus> {
   const hit = aliveCache.get(token);
-  if (!hit) return refreshHubSessionAlive(token);
+  if (!hit) {
+    void refreshHubSessionAlive(token).catch(() => {});
+    return "unknown";
+  }
   if (hit.status === "alive" && Date.now() - hit.checkedAt > ALIVE_TTL_MS) {
     void refreshHubSessionAlive(token).catch(() => {});
   }
@@ -392,6 +396,21 @@ export function writeSessionCookie(
   res.headers.append("set-cookie", base.join("; "));
 }
 
+/**
+ * Limpa cookie via Set-Cookie no header (não usar res.cookies.set depois de
+ * writeSessionCookie — no Next isso pode dropar o max_session recém-gravado).
+ */
+export function clearCookieHeader(
+  res: { headers: { append(name: string, value: string): void } },
+  name: string,
+) {
+  for (const opts of clearAuthCookieOptions()) {
+    const parts = [`${name}=`, `Path=${opts.path}`, "Max-Age=0", "HttpOnly", "SameSite=Lax"];
+    if (opts.domain) parts.push(`Domain=${opts.domain}`);
+    res.headers.append("set-cookie", parts.join("; "));
+  }
+}
+
 export async function createPending2faToken(userId: string): Promise<string> {
   const issuedAt = Date.now();
   const payload = `p2fa:${userId}:${issuedAt}`;
@@ -439,6 +458,13 @@ export function culturalLogoutUrl() {
 
 export function culturalAccountUrl() {
   return `${culturalHubUrl()}/conta`;
+}
+
+/** Hub com aviso (sem `next` para o produto — evita loop login↔satélite). */
+export function culturalDeniedUrl(message: string) {
+  const url = new URL("/", `${culturalHubUrl()}/`);
+  url.searchParams.set("error", message);
+  return url.toString();
 }
 
 /** Destino pós-login do hub (path relativo ou URL absoluta de Origem/Fluxo/Cultural). */

@@ -1,12 +1,14 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { AccessDeniedDialog } from "@/components/AccessDeniedDialog";
 import { AppSidebar } from "@/components/AppSidebar";
-import { can, getSessionUser, needs2faSetup, needsPasswordChange } from "@/lib/auth";
+import { can, getSessionUser, needsPasswordChange } from "@/lib/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
+  // Sessão revogada (ex.: troca de papel) → login limpa cookie fantasma.
   if (!user) redirect("/login");
   if (needsPasswordChange(user)) redirect("/onboarding/senha");
-  if (needs2faSetup(user)) redirect("/onboarding/2fa");
 
   const origemUrl = (process.env.NEXT_PUBLIC_ORIGEM_URL || "http://localhost:3001").replace(
     /\/$/,
@@ -19,6 +21,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="shell">
+      <Suspense fallback={null}>
+        <AccessDeniedDialog />
+      </Suspense>
       <AppSidebar
         userEmail={user.email}
         canUsers={can(user, "cultural.usuarios", "view")}
