@@ -34,12 +34,13 @@ export default async function LoginPage({
     redirect(next.startsWith("/") ? next : "/");
   }
 
-  // Cookie fantasma (papel/permissões alterados): limpa para não travar o browser.
+  // Cookie fantasma de sessão (papel/permissões alterados).
+  // Não apaga max_pending_2fa aqui — isso quebraria o fluxo do código por e-mail
+  // se o usuário voltar ao /login no meio do 2FA.
   const jar = await cookies();
-  if (jar.get(AUTH_COOKIE)?.value || jar.get(PENDING_2FA_COOKIE)?.value) {
+  if (jar.get(AUTH_COOKIE)?.value) {
     for (const opts of clearAuthCookieOptions()) {
       jar.set(AUTH_COOKIE, "", opts);
-      jar.set(PENDING_2FA_COOKIE, "", opts);
     }
   }
 
