@@ -41,6 +41,11 @@ export function verifyTotpCode(secret: string, token: string): boolean {
   return delta !== null;
 }
 
+/** 2FA por e-mail fica ligado por padrão. Só desliga com true/1/yes. */
 export function is2faDisabled(): boolean {
-  return process.env.AUTH_2FA_DISABLED === "true";
+  const raw = (process.env.AUTH_2FA_DISABLED || "")
+    .trim()
+    .replace(/^["']+|["']+$/g, "")
+    .toLowerCase();
+  return raw === "true" || raw === "1" || raw === "yes";
 }
