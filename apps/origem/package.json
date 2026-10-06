@@ -39,8 +39,8 @@
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.0",
     "playwright-core": "^1.63.0",
-    "react": "^19.2.8",
-    "react-dom": "19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "19.3.0",
     "react-leaflet": "^5.0.0",
     "resend": "^6.19.0",
     "zod": "^4.4.3"
