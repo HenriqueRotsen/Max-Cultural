@@ -118,17 +118,22 @@ export default async function UsuariosPage({
                 <td className="align-middle font-medium text-[var(--navy)]">{u.name}</td>
                 <td className="align-middle text-[var(--gray-600)]">{u.email}</td>
                 <td className="align-middle">
-                  {canEdit ? (
+                  {protectedAdmin ? (
+                    <span
+                      className="inline-flex min-w-[8.5rem] items-center rounded-lg border border-[var(--border)] bg-[var(--gray-50)] px-2.5 py-1.5 text-sm font-medium text-[var(--navy)]"
+                      title="Papel Superadmin protegido — não pode ser alterado"
+                    >
+                      {SUPERADMIN_ROLE_NAME}
+                    </span>
+                  ) : canEdit ? (
                     <RoleSelect
                       userId={u.id}
                       roleId={u.roleId}
                       userName={u.name}
                       roles={assignableRoles}
-                      locked={protectedAdmin}
-                      lockedLabel={SUPERADMIN_ROLE_NAME}
                     />
                   ) : (
-                    protectedAdmin ? SUPERADMIN_ROLE_NAME : u.role.name
+                    u.role.name
                   )}
                 </td>
                 <td className="align-middle">

@@ -6,6 +6,7 @@ import { can, getSessionUser, needsPasswordChange } from "@/lib/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
+  // Sessão revogada (ex.: troca de papel) → login limpa cookie fantasma.
   if (!user) redirect("/login");
   if (needsPasswordChange(user)) redirect("/onboarding/senha");
 

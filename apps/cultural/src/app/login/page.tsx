@@ -1,12 +1,48 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import {
+  AUTH_COOKIE,
+  PENDING_2FA_COOKIE,
+  clearAuthCookieOptions,
+  safeContinueUrl,
+} from "@max/auth";
 import { MaxCulturalLogoLink } from "@/components/BrandLogo";
 import { LoginForm } from "@/components/LoginForm";
+import { getSessionUser } from "@/lib/auth";
 import { recaptchaSiteKey } from "@/lib/recaptcha";
 
 export const metadata = { title: "Entrar" };
+export const dynamic = "force-dynamic";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const nextRaw = typeof sp.next === "string" ? sp.next : "/";
+  const next = safeContinueUrl(nextRaw, "/");
+
+  const user = await getSessionUser();
+  if (user) {
+    // Já logado de verdade (sessionVersion ok) — evita tela de login.
+    if (next.startsWith("http://") || next.startsWith("https://")) {
+      redirect(next);
+    }
+    redirect(next.startsWith("/") ? next : "/");
+  }
+
+  // Cookie fantasma (papel/permissões alterados): limpa para não travar o browser.
+  const jar = await cookies();
+  if (jar.get(AUTH_COOKIE)?.value || jar.get(PENDING_2FA_COOKIE)?.value) {
+    for (const opts of clearAuthCookieOptions()) {
+      jar.set(AUTH_COOKIE, "", opts);
+      jar.set(PENDING_2FA_COOKIE, "", opts);
+    }
+  }
+
   const siteKey = recaptchaSiteKey();
   return (
     <div className="auth-shell">
