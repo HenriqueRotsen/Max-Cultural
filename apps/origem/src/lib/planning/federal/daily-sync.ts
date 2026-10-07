@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/db";
 import { classifyLifecycleFromSituacao } from "@/lib/planning/lifecycle";
 import { listPlanningRulesets } from "@/lib/planning/rulesets";
-import { linkHomologatedSheetsForOpenProjects } from "@/lib/planning/federal/import-homologada";
 import { syncCaptacaoForWorkspace } from "@/lib/planning/federal/captacao-salic";
+import { refreshPlanningSheetsForWorkspace } from "@/lib/planning/federal/sync-sheet";
 import { syncFluxoProjeto } from "@/lib/planning/server-utils";
+import { sanitizeSalicText } from "@/lib/salic/text";
 
 /**
  * Leva os projetos da auditoria (já sincronizados do SALIC) para o planejamento:
@@ -40,15 +41,23 @@ export async function onboardPlanningFromAuditoria(
         ? "ENCERRADO"
         : classifyLifecycleFromSituacao(p.situacao);
 
+    const cleanName = sanitizeSalicText(p.name) || p.name;
+
     if (p.planningProject) {
       await prisma.planningProject.update({
         where: { id: p.planningProject.id },
-        data: { lifecycleStatus: lifecycle, name: p.name || undefined },
+        data: { lifecycleStatus: lifecycle, name: cleanName || undefined },
       });
       if (p.lifecycleStatus !== lifecycle) {
         await prisma.project.update({
           where: { id: p.id },
           data: { lifecycleStatus: lifecycle },
+        });
+      }
+      if (cleanName && cleanName !== p.name) {
+        await prisma.project.update({
+          where: { id: p.id },
+          data: { name: cleanName },
         });
       }
       updated += 1;
@@ -60,7 +69,7 @@ export async function onboardPlanningFromAuditoria(
           jurisdiction: "FEDERAL",
           rulesetVersion,
           externalCode: p.pronac,
-          name: p.name,
+          name: cleanName,
           projectId: p.id,
           lifecycleStatus: lifecycle,
         },
@@ -70,7 +79,7 @@ export async function onboardPlanningFromAuditoria(
 
     await syncFluxoProjeto({
       pronac: p.pronac,
-      nome: p.name || p.pronac,
+      nome: cleanName || p.pronac,
       proponente: p.salicAccount.name,
       bulk: true,
     });
@@ -93,9 +102,11 @@ export async function syncPlanningForWorkspace(
     `Planejamento: ${onboard.created} projeto(s) novo(s), ${onboard.updated} atualizado(s) · contextos no Fluxo conferidos`,
   );
 
-  const sheets = await linkHomologatedSheetsForOpenProjects(workspaceId, accountId);
+  // Reimporta planilha preferida (readequada → homologada) + comprovado local.
+  const sheets = await refreshPlanningSheetsForWorkspace(workspaceId, accountId);
   await log(
-    `Planejamento: ${sheets.linked} planilha(s) homologada(s) vinculada(s)` +
+    `Planejamento: ${sheets.refreshed} planilha(s) atualizada(s)` +
+      (sheets.created ? ` · ${sheets.created} criada(s)` : "") +
       (sheets.skipped ? ` · ${sheets.skipped} ignorada(s)` : "") +
       (sheets.errors.length ? ` · ${sheets.errors.slice(0, 3).join(" · ")}` : ""),
   );

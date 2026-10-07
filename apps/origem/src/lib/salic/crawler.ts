@@ -12,6 +12,7 @@ import {
   refreshProjectFinancials,
 } from "@/lib/salic/persist";
 import type { SalicProduto } from "@/lib/salic/api";
+import { sanitizeSalicText } from "@/lib/salic/text";
 import { classifyLifecycleFromSituacao } from "@/lib/planning/lifecycle";
 
 const SALIC_BASE = "https://salic.cultura.gov.br";
@@ -259,18 +260,7 @@ export async function fetchJsonAllowError(
 }
 
 function decodeHtmlEntities(value?: string | null): string | undefined {
-  if (!value) return undefined;
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&aacute;/gi, "á")
-    .replace(/&eacute;/gi, "é")
-    .replace(/&iacute;/gi, "í")
-    .replace(/&oacute;/gi, "ó")
-    .replace(/&uacute;/gi, "ú")
-    .replace(/&ccedil;/gi, "ç")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/<[^>]+>/g, "")
-    .trim();
+  return sanitizeSalicText(value);
 }
 
 function mapUiPagamentoToProduto(

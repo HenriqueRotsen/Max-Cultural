@@ -12,6 +12,7 @@ import {
   withAccountBrowser,
   type SalicUiProject,
 } from "@/lib/salic/crawler";
+import { sanitizeSalicText } from "@/lib/salic/text";
 import type { Page } from "playwright-core";
 
 export class CaptacaoImportError extends Error {
@@ -158,14 +159,14 @@ export async function applyCaptacaoToPlanningProject(params: {
     select: { id: true, accountId: true, externalCode: true, projectId: true },
   });
 
+  const cleanName = sanitizeSalicText(params.captacao.projectName);
+
   await prisma.planningProject.update({
     where: { id: project.id },
     data: {
       captadoRecebido: params.captacao.vlRecebido,
       captadoTransferido: params.captacao.vlTransferido,
-      ...(params.captacao.projectName
-        ? { name: params.captacao.projectName }
-        : {}),
+      ...(cleanName ? { name: cleanName } : {}),
     },
   });
 
@@ -177,9 +178,7 @@ export async function applyCaptacaoToPlanningProject(params: {
         ...(params.captacao.idPronacHash
           ? { salicProjectId: params.captacao.idPronacHash }
           : {}),
-        ...(params.captacao.projectName
-          ? { name: params.captacao.projectName }
-          : {}),
+        ...(cleanName ? { name: cleanName } : {}),
         lastSyncedAt: new Date(),
       },
     });
@@ -194,7 +193,7 @@ export async function applyCaptacaoToPlanningProject(params: {
       create: {
         salicAccountId: project.accountId,
         pronac: project.externalCode,
-        name: params.captacao.projectName,
+        name: cleanName,
         salicProjectId: params.captacao.idPronacHash,
         valorCaptado: params.captacao.vlCaptado,
         lastSyncedAt: new Date(),
@@ -202,7 +201,7 @@ export async function applyCaptacaoToPlanningProject(params: {
       update: {
         valorCaptado: params.captacao.vlCaptado,
         salicProjectId: params.captacao.idPronacHash || undefined,
-        name: params.captacao.projectName || undefined,
+        name: cleanName || undefined,
         lastSyncedAt: new Date(),
       },
     });

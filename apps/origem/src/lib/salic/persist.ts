@@ -11,6 +11,7 @@ import {
 } from "@/lib/salic/api";
 import { getSyncConcurrency, mapPool } from "@/lib/salic/concurrency";
 import { ProdutosCache } from "@/lib/salic/produtos-cache";
+import { sanitizeSalicText } from "@/lib/salic/text";
 
 export type ProgressFn = (
   message: string,
@@ -301,6 +302,8 @@ export async function syncProjectViaApi(params: {
   const { salicAccountId, pronac, projectName } = params;
   const cache = params.cache ?? new ProdutosCache();
 
+  const cleanName = sanitizeSalicText(projectName) ?? null;
+
   const project = await prisma.project.upsert({
     where: {
       salicAccountId_pronac: { salicAccountId, pronac },
@@ -308,13 +311,13 @@ export async function syncProjectViaApi(params: {
     create: {
       salicAccountId,
       pronac,
-      name: projectName || null,
+      name: cleanName,
       valorCaptado: params.valorCaptado ?? null,
       valorAprovado: params.valorAprovado ?? null,
       lastSyncedAt: new Date(),
     },
     update: {
-      name: projectName || undefined,
+      name: cleanName || undefined,
       ...(params.valorCaptado != null ? { valorCaptado: params.valorCaptado } : {}),
       ...(params.valorAprovado != null ? { valorAprovado: params.valorAprovado } : {}),
       lastSyncedAt: new Date(),
@@ -375,7 +378,7 @@ export async function resolvePronacsForAccount(params: {
       if (!projeto.PRONAC) continue;
       const fin = financialsFromProjeto(projeto);
       toSync.set(String(projeto.PRONAC), {
-        name: projeto.nome || null,
+        name: sanitizeSalicText(projeto.nome) || null,
         valorCaptado: fin.valorCaptado,
         valorAprovado: fin.valorAprovado,
       });

@@ -13,12 +13,17 @@ import {
   fetchCaptacaoOnPage,
   type SalicCaptacaoValues,
 } from "@/lib/planning/federal/captacao-salic";
+import { syncSalicComprovadoFromLocalPayments } from "@/lib/planning/federal/salic-reconcile";
 import { budgetLineIdentityKey, moneyN } from "@/lib/planning/readequacao";
 import { persistHomologatedSheet } from "@/lib/planning/persist-sheet";
 import {
   fetchJsonAllowError,
+  listProjectsUi,
+  listProponentesUi,
   withAccountBrowser,
 } from "@/lib/salic/crawler";
+import { decryptCredential, normalizeCgccpf } from "@/lib/crypto";
+import { sanitizeSalicText } from "@/lib/salic/text";
 
 type BrowserPage = Parameters<Parameters<typeof withAccountBrowser>[3]>[0];
 
@@ -54,7 +59,11 @@ async function tryReadequadaOnPage(
   for (const url of candidates) {
     const res = await fetchJsonAllowError(page, url);
     if (res.status === 412 || !res.ok) continue;
-    const payload = res.json as { success?: string; data?: unknown; msg?: string };
+    const payload = res.json as {
+      success?: string;
+      data?: unknown;
+      msg?: string;
+    };
     if (payload.success === "false" || payload.data == null) continue;
     const flat = flattenHomologatedPlanilha(payload.data);
     if (isUsableSheet(flat.lines)) return flat.lines;
@@ -164,7 +173,10 @@ export async function applyPlanningSheetFromSalic(params: {
   const existingByComposite = new Map(
     project.sheet.lines.map(
       (l) =>
-        [budgetLineIdentityKey({ ...l, planilhaAprovacaoId: null }), l] as const,
+        [
+          budgetLineIdentityKey({ ...l, planilhaAprovacaoId: null }),
+          l,
+        ] as const,
     ),
   );
 
@@ -184,40 +196,73 @@ export async function applyPlanningSheetFromSalic(params: {
   let created = 0;
   let skipped = 0;
 
-  await prisma.$transaction(async (tx) => {
-    let sortOrder = 0;
-    let totalApproved = 0;
-    const keepIds = new Set<string>();
+  await prisma.$transaction(
+    async (tx) => {
+      let sortOrder = 0;
+      let totalApproved = 0;
+      const keepIds = new Set<string>();
 
-    for (const l of params.lines) {
-      const amount = moneyN(l.approvedAmount);
-      totalApproved += amount;
-      const existing = matchExisting(l);
+      for (const l of params.lines) {
+        const amount = moneyN(l.approvedAmount);
+        totalApproved += amount;
+        const existing = matchExisting(l);
 
-      if (existing) {
-        const reserved = reservedByLine.get(existing.id) || 0;
-        if (reserved > amount + 1e-6) {
-          skipped += 1;
+        if (existing) {
+          const reserved = reservedByLine.get(existing.id) || 0;
+          if (reserved > amount + 1e-6) {
+            skipped += 1;
+            keepIds.add(existing.id);
+            sortOrder += 1;
+            continue;
+          }
+
+          const oldHomologated = moneyN(existing.homologatedAmount);
+          const oldApproved = moneyN(existing.approvedAmount);
+          const untouchedApproved =
+            Math.abs(oldApproved - oldHomologated) < 0.015;
+          const nextApproved = untouchedApproved ? amount : oldApproved;
+
+          const same =
+            Math.abs(oldHomologated - amount) < 0.015 &&
+            Math.abs(oldApproved - nextApproved) < 0.015 &&
+            String(existing.planilhaAprovacaoId || "") ===
+              String(l.planilhaAprovacaoId || "");
+
+          if (!same) {
+            await tx.projectBudgetLine.update({
+              where: { id: existing.id },
+              data: {
+                planilhaAprovacaoId: l.planilhaAprovacaoId,
+                fonteRecurso: l.fonteRecurso,
+                productName: l.productName,
+                stageName: l.stageName,
+                state: l.state,
+                city: l.city,
+                itemName: l.itemName,
+                categoryHint: l.categoryHint,
+                unit: l.unit || "Unidade",
+                days: l.days || 1,
+                quantity: l.quantity || 1,
+                occurrences: l.occurrences || 1,
+                unitPrice: l.unitPrice || 0,
+                homologatedAmount: amount,
+                approvedAmount: nextApproved,
+                salicComprovado: l.salicComprovado,
+                sortOrder,
+              },
+            });
+            updated += 1;
+          } else {
+            await tx.projectBudgetLine.update({
+              where: { id: existing.id },
+              data: { sortOrder },
+            });
+          }
           keepIds.add(existing.id);
-          sortOrder += 1;
-          continue;
-        }
-
-        const oldHomologated = moneyN(existing.homologatedAmount);
-        const oldApproved = moneyN(existing.approvedAmount);
-        const untouchedApproved = Math.abs(oldApproved - oldHomologated) < 0.015;
-        const nextApproved = untouchedApproved ? amount : oldApproved;
-
-        const same =
-          Math.abs(oldHomologated - amount) < 0.015 &&
-          Math.abs(oldApproved - nextApproved) < 0.015 &&
-          String(existing.planilhaAprovacaoId || "") ===
-            String(l.planilhaAprovacaoId || "");
-
-        if (!same) {
-          await tx.projectBudgetLine.update({
-            where: { id: existing.id },
+        } else {
+          await tx.projectBudgetLine.create({
             data: {
+              sheetId,
               planilhaAprovacaoId: l.planilhaAprovacaoId,
               fonteRecurso: l.fonteRecurso,
               productName: l.productName,
@@ -232,87 +277,59 @@ export async function applyPlanningSheetFromSalic(params: {
               occurrences: l.occurrences || 1,
               unitPrice: l.unitPrice || 0,
               homologatedAmount: amount,
-              approvedAmount: nextApproved,
+              approvedAmount: amount,
               salicComprovado: l.salicComprovado,
               sortOrder,
             },
           });
-          updated += 1;
-        } else {
-          await tx.projectBudgetLine.update({
-            where: { id: existing.id },
-            data: { sortOrder },
-          });
+          created += 1;
         }
-        keepIds.add(existing.id);
-      } else {
-        await tx.projectBudgetLine.create({
-          data: {
-            sheetId,
-            planilhaAprovacaoId: l.planilhaAprovacaoId,
-            fonteRecurso: l.fonteRecurso,
-            productName: l.productName,
-            stageName: l.stageName,
-            state: l.state,
-            city: l.city,
-            itemName: l.itemName,
-            categoryHint: l.categoryHint,
-            unit: l.unit || "Unidade",
-            days: l.days || 1,
-            quantity: l.quantity || 1,
-            occurrences: l.occurrences || 1,
-            unitPrice: l.unitPrice || 0,
-            homologatedAmount: amount,
-            approvedAmount: amount,
-            salicComprovado: l.salicComprovado,
-            sortOrder,
-          },
-        });
-        created += 1;
+        sortOrder += 1;
       }
-      sortOrder += 1;
-    }
 
-    const staleIds = project.sheet!.lines
-      .filter((l) => !keepIds.has(l.id))
-      .filter((l) => !(reservedByLine.get(l.id) || 0))
-      .map((l) => l.id);
-    if (staleIds.length > 0) {
-      await tx.projectBudgetLine.deleteMany({
-        where: { id: { in: staleIds }, sheetId },
+      const staleIds = project
+        .sheet!.lines.filter((l) => !keepIds.has(l.id))
+        .filter((l) => !(reservedByLine.get(l.id) || 0))
+        .map((l) => l.id);
+      if (staleIds.length > 0) {
+        await tx.projectBudgetLine.deleteMany({
+          where: { id: { in: staleIds }, sheetId },
+        });
+      }
+
+      const remaining = await tx.projectBudgetLine.findMany({
+        where: { sheetId },
+        select: { approvedAmount: true },
       });
-    }
+      const sheetTotalApproved =
+        Math.round(
+          remaining.reduce((s, l) => s + moneyN(l.approvedAmount), 0) * 100,
+        ) / 100;
 
-    const remaining = await tx.projectBudgetLine.findMany({
-      where: { sheetId },
-      select: { approvedAmount: true },
-    });
-    const sheetTotalApproved =
-      Math.round(
-        remaining.reduce((s, l) => s + moneyN(l.approvedAmount), 0) * 100,
-      ) / 100;
+      await tx.projectBudgetSheet.update({
+        where: { id: sheetId },
+        data: {
+          totalApproved:
+            sheetTotalApproved || Math.round(totalApproved * 100) / 100,
+          importedAt: now,
+          sourceFilename:
+            params.importSource === "SALIC_READEQUADA"
+              ? "SALIC planilha readequada"
+              : "SALIC planilha homologada",
+          available: true,
+        },
+      });
 
-    await tx.projectBudgetSheet.update({
-      where: { id: sheetId },
-      data: {
-        totalApproved: sheetTotalApproved || Math.round(totalApproved * 100) / 100,
-        importedAt: now,
-        sourceFilename:
-          params.importSource === "SALIC_READEQUADA"
-            ? "SALIC planilha readequada"
-            : "SALIC planilha homologada",
-        available: true,
-      },
-    });
-
-    await tx.planningProject.update({
-      where: { id: params.planningProjectId },
-      data: {
-        importSource: params.importSource,
-        importedAt: now,
-      },
-    });
-  });
+      await tx.planningProject.update({
+        where: { id: params.planningProjectId },
+        data: {
+          importSource: params.importSource,
+          importedAt: now,
+        },
+      });
+    },
+    { timeout: 120_000, maxWait: 30_000 },
+  );
 
   return { updated, created, skipped };
 }
@@ -401,6 +418,8 @@ export async function syncPlanningSheetFromSalic(params: {
     }
   }
 
+  await syncSalicComprovadoFromLocalPayments(params.planningProjectId);
+
   return { importSource: preferred.importSource, ...stats };
 }
 
@@ -465,7 +484,8 @@ export async function importPreferredSheetForNewProject(params: {
         pronac: params.pronac,
       });
       preferred.projectName = preferred.projectName || homologada.projectName;
-      preferred.idPronacHash = preferred.idPronacHash || homologada.idPronacHash;
+      preferred.idPronacHash =
+        preferred.idPronacHash || homologada.idPronacHash;
       if (homologada.captacao) {
         await applyCaptacaoToPlanningProject({
           planningProjectId: params.planningProjectId,
@@ -513,5 +533,214 @@ export async function syncPlanningSheetOnPage(params: {
     });
   }
 
+  await syncSalicComprovadoFromLocalPayments(params.planningProjectId);
+
   return { importSource: preferred.importSource, ...stats };
+}
+
+/**
+ * Reimporta planilha preferida (readequada → homologada) + captação + comprovado
+ * para todos os projetos federais em andamento. Uma sessão Playwright por proponente.
+ */
+export async function refreshPlanningSheetsForWorkspace(
+  workspaceId: string,
+  accountId?: string,
+  opts?: { onlyPronacs?: string[] },
+): Promise<{
+  refreshed: number;
+  created: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const only = opts?.onlyPronacs?.map((p) => String(p).trim()).filter(Boolean);
+  const projects = await prisma.planningProject.findMany({
+    where: {
+      workspaceId,
+      ...(accountId ? { accountId } : {}),
+      jurisdiction: "FEDERAL",
+      lifecycleStatus: "EM_ANDAMENTO",
+      ...(only?.length ? { externalCode: { in: only } } : {}),
+    },
+    include: {
+      sheet: { select: { id: true } },
+      account: {
+        select: {
+          id: true,
+          name: true,
+          cgccpf: true,
+          salicUsernameEnc: true,
+          salicPasswordEnc: true,
+        },
+      },
+    },
+    orderBy: { externalCode: "asc" },
+  });
+
+  let refreshed = 0;
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  const byAccount = new Map<string, typeof projects>();
+  for (const p of projects) {
+    const list = byAccount.get(p.accountId) || [];
+    list.push(p);
+    byAccount.set(p.accountId, list);
+  }
+
+  for (const [, group] of byAccount) {
+    const account = group[0]!.account;
+    if (!account.salicUsernameEnc || !account.salicPasswordEnc) {
+      for (const p of group) {
+        skipped += 1;
+        errors.push(
+          `${p.externalCode}: proponente «${account.name}» sem credenciais SALIC.`,
+        );
+      }
+      continue;
+    }
+
+    const username = decryptCredential(account.salicUsernameEnc);
+    const password = decryptCredential(account.salicPasswordEnc);
+    if (!username || !password) {
+      for (const p of group) {
+        skipped += 1;
+        errors.push(
+          `${p.externalCode}: credenciais SALIC inválidas no proponente «${account.name}».`,
+        );
+      }
+      continue;
+    }
+
+    const wantCnpj = normalizeCgccpf(account.cgccpf);
+
+    try {
+      await withAccountBrowser(account.id, username, password, async (page) => {
+        const proponentes = await listProponentesUi(page);
+        const match =
+          proponentes.find((p) => normalizeCgccpf(p.CPF) === wantCnpj) ||
+          proponentes.find((p) => normalizeCgccpf(p.Nome) === wantCnpj);
+        if (!match) {
+          for (const p of group) {
+            skipped += 1;
+            errors.push(
+              `${p.externalCode}: CNPJ do proponente não encontrado neste login do SALIC.`,
+            );
+          }
+          return;
+        }
+
+        const listedProjects = await listProjectsUi(
+          page,
+          match.idAgenteProponente,
+        );
+        const byPronac = new Map(
+          listedProjects.map((row) => [String(row.Pronac), row] as const),
+        );
+
+        for (const pp of group) {
+          const listed = byPronac.get(String(pp.externalCode));
+          if (!listed?.IdPRONAC) {
+            skipped += 1;
+            errors.push(
+              `${pp.externalCode}: projeto não aparece na área logada deste proponente.`,
+            );
+            continue;
+          }
+
+          try {
+            const preferred = await resolvePreferredSheetOnPage(
+              page,
+              listed.IdPRONAC,
+              { idPronacHash: listed.idPronacHash || null },
+            );
+            if (!preferred) {
+              skipped += 1;
+              errors.push(
+                `${pp.externalCode}: nenhuma planilha utilizável no SALIC.`,
+              );
+              continue;
+            }
+
+            if (!pp.sheet) {
+              await persistHomologatedSheet({
+                planningProjectId: pp.id,
+                lines: preferred.lines,
+                totalApproved: preferred.totalApproved,
+                importSource: preferred.importSource,
+                sourceFilename:
+                  preferred.importSource === "SALIC_READEQUADA"
+                    ? "SALIC planilha readequada"
+                    : "SALIC planilha homologada",
+              });
+              created += 1;
+            } else {
+              await applyPlanningSheetFromSalic({
+                planningProjectId: pp.id,
+                lines: preferred.lines,
+                importSource: preferred.importSource,
+              });
+              refreshed += 1;
+            }
+
+            if (preferred.captacao) {
+              await applyCaptacaoToPlanningProject({
+                planningProjectId: pp.id,
+                captacao: preferred.captacao,
+              });
+            } else if (listed.idPronacHash) {
+              try {
+                const captacao = await fetchCaptacaoOnPage(
+                  page,
+                  listed.idPronacHash,
+                );
+                await applyCaptacaoToPlanningProject({
+                  planningProjectId: pp.id,
+                  captacao,
+                });
+              } catch {
+                // captação opcional
+              }
+            }
+
+            const cleanName = sanitizeSalicText(
+              preferred.projectName || listed.NomeProjeto,
+            );
+            if (cleanName) {
+              await prisma.planningProject.update({
+                where: { id: pp.id },
+                data: { name: cleanName },
+              });
+              if (pp.projectId) {
+                await prisma.project.update({
+                  where: { id: pp.projectId },
+                  data: { name: cleanName },
+                });
+              }
+            }
+
+            await syncSalicComprovadoFromLocalPayments(pp.id);
+          } catch (e) {
+            skipped += 1;
+            const msg =
+              e instanceof HomologadaImportError
+                ? e.message
+                : e instanceof Error
+                  ? e.message
+                  : "Falha ao reimportar planilha";
+            errors.push(`${pp.externalCode}: ${msg}`);
+          }
+        }
+      });
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Falha na área logada do SALIC";
+      for (const p of group) {
+        skipped += 1;
+        errors.push(`${p.externalCode}: ${msg}`);
+      }
+    }
+  }
+
+  return { refreshed, created, skipped, errors };
 }

@@ -16,6 +16,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:generate": "prisma generate",
     "sync": "tsx scripts/sync.ts",
+    "planning:reimport-sheets": "tsx scripts/reimport-planning-sheets.ts",
     "dossier:export": "tsx scripts/export-legal-dossiers.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:use-local": "node ../../scripts/dev-use-local-db.mjs local",
