@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { culturalLogoutUrl } from "@max/auth";
 import { AppSidebarLayout } from "@/components/admin/app-sidebar-layout";
 import { requireDashboardUser } from "@/lib/dashboard-gate";
+import { fluxoHomePath } from "@/lib/fluxo-home";
 import { redirectToHubDenied } from "@/lib/hub";
 import { getHubFluxoAccess } from "@/lib/hub-permissions";
 import { getEffectivePermissions } from "@/lib/permissions";
@@ -43,6 +44,7 @@ export async function AdminShell({
     <AppSidebarLayout
       userEmail={user.email}
       permissions={[...permissions]}
+      homeHref={fluxoHomePath(permissions)}
       title={title}
       contentClassName="mx-auto w-full max-w-7xl"
     >

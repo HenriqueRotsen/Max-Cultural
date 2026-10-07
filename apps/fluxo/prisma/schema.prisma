@@ -102,6 +102,137 @@ model Oficina {
   @@map("oficinas")
 }
 
+enum FormularioTipo {
+  INSCRICAO
+  AVALIACAO
+}
+
+enum FormularioRespostaStatus {
+  PENDING
+  READY
+  MERGED
+  REJECTED
+}
+
+enum FormularioCampoTipo {
+  SECTION
+  SHORT_TEXT
+  LONG_TEXT
+  MULTIPLE_CHOICE
+  CHECKBOXES
+  DROPDOWN
+  FILE_UPLOAD
+  DATE
+  EMAIL
+  CPF
+  PHONE_BR
+  NAME
+  BIRTHDATE
+  GENERO
+  ETNIA
+  SIM_NAO_DETALHE
+  ADDRESS_BR
+  DECLARACAO
+  PARTICIPACAO
+}
+
+model Formulario {
+  id                   String         @id @default(cuid())
+  oficinaId            String         @map("oficina_id")
+  titulo               String
+  descricao            String         @default("") @db.Text
+  slug                 String         @unique
+  abreEm               DateTime?      @map("abre_em")
+  encerraEm            DateTime?      @map("encerra_em")
+  ativo                Boolean        @default(true)
+  tipo                 FormularioTipo @default(INSCRICAO)
+  capaUrl              String         @default("") @map("capa_url")
+  mensagemConfirmacao  String         @default("Inscrição enviada com sucesso. Aguarde o contato da equipe.") @map("mensagem_confirmacao") @db.Text
+  createdByUserId      String?        @map("created_by_user_id")
+  createdBy            User?          @relation("FormularioCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  campos               FormularioCampo[]
+  respostas            FormularioResposta[]
+
+  @@index([oficinaId])
+  @@index([ativo])
+  @@map("formularios")
+}
+
+model FormularioCampo {
+  id           String              @id @default(cuid())
+  formularioId String              @map("formulario_id")
+  formulario   Formulario          @relation(fields: [formularioId], references: [id], onDelete: Cascade)
+  ordem        Int                 @default(0)
+  rotulo       String
+  descricao    String              @default("") @db.Text
+  obrigatorio  Boolean             @default(false)
+  tipo         FormularioCampoTipo
+  /// Coluna SIGA (ex.: "E-mail") ou null = pergunta extra
+  sigaColumn   String?             @map("siga_column")
+  opcoes       Json?
+  config       Json?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([formularioId, ordem])
+  @@map("formulario_campos")
+}
+
+model FormularioResposta {
+  id                String                   @id @default(cuid())
+  formularioId      String                   @map("formulario_id")
+  formulario        Formulario               @relation(fields: [formularioId], references: [id], onDelete: Cascade)
+  cpf               String
+  payload           Json
+  status            FormularioRespostaStatus @default(PENDING)
+  selecionados      Int                      @default(0)
+  participantes     Int                      @default(0)
+  certificado       Int                      @default(0)
+  /// Nome do professor que se atribuiu à resposta (checkbox na fila).
+  professorNome     String                   @default("") @map("professor_nome")
+  mergedInscricaoId String?                  @map("merged_inscricao_id")
+  reviewedByUserId  String?                  @map("reviewed_by_user_id")
+  reviewedAt        DateTime?                @map("reviewed_at")
+  submittedAt       DateTime                 @default(now()) @map("submitted_at")
+  updatedAt         DateTime                 @updatedAt
+
+  @@unique([formularioId, cpf])
+  @@index([formularioId, status])
+  @@index([cpf])
+  @@map("formulario_respostas")
+}
+
+model OficinaProfessor {
+  id        String   @id @default(cuid())
+  oficinaId String   @map("oficina_id")
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([oficinaId, userId])
+  @@index([userId])
+  @@index([oficinaId])
+  @@map("oficina_professores")
+}
+
+/// Modelos reutilizáveis (inscrição / avaliação) editáveis no dashboard.
+model FormularioModelo {
+  id                  String         @id @default(cuid())
+  tipo                FormularioTipo @unique
+  nome                String
+  tituloDefault       String         @default("") @map("titulo_default")
+  descricaoDefault    String         @default("") @map("descricao_default") @db.Text
+  mensagemConfirmacao String         @default("") @map("mensagem_confirmacao") @db.Text
+  capaUrlDefault      String         @default("") @map("capa_url_default")
+  campos              Json
+  updatedAt           DateTime       @updatedAt
+  createdAt           DateTime       @default(now())
+
+  @@map("formulario_modelos")
+}
+
 model GeoCache {
   id          String   @id @default(cuid())
   key         String   @unique
@@ -172,6 +303,8 @@ model User {
   passwordResets   PasswordResetToken[]
   emailOtps        EmailOtp[]
   auditLogs        AuditLog[]           @relation("AuditActor")
+  formulariosCriados Formulario[]       @relation("FormularioCreatedBy")
+  oficinasProfessor  OficinaProfessor[]
 
   @@index([roleId])
   @@index([deactivatedAt])

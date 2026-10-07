@@ -13,6 +13,10 @@
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:seed": "tsx scripts/seed.ts",
+    "db:seed-professor": "tsx scripts/seed-professor-role.ts",
+    "db:local:up": "DOCKER_HOST=unix:///var/run/docker.sock docker compose up -d postgres",
+    "db:use-local": "node ../../scripts/dev-use-local-db.mjs local",
+    "db:use-remote": "node ../../scripts/dev-use-local-db.mjs remote",
     "postinstall": "prisma generate"
   },
   "dependencies": {

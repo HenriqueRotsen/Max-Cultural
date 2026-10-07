@@ -19,7 +19,12 @@ import {
 } from "@max/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, randomToken } from "@/lib/password";
-import { ADMIN_ROLE_NAME, OPERATOR_ROLE_NAME, type PermissionCode } from "@/lib/permission-catalog";
+import {
+  ADMIN_ROLE_NAME,
+  OPERATOR_ROLE_NAME,
+  PROFESSOR_ROLE_NAME,
+  type PermissionCode,
+} from "@/lib/permission-catalog";
 import {
   getEffectivePermissions,
   type AuthUser,
@@ -95,7 +100,12 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     } catch {
       hub = null;
     }
-    if (hub?.email) return resolveUserFromHubSession(hub);
+    if (hub?.email) {
+      return resolveUserFromHubSession({
+        email: hub.email,
+        permissions: hub.permissions,
+      });
+    }
   }
 
   const parsed = await parseSessionToken(jar.get(AUTH_COOKIE)?.value);
@@ -113,21 +123,34 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 /** Resolve (ou provisiona) usuário Fluxo a partir da sessão compartilhada do hub. */
 export async function resolveUserFromHubSession(session: {
   email?: string;
+  permissions?: string[];
 }): Promise<SessionUser | null> {
   const email = session.email?.trim().toLowerCase();
   if (!email) return null;
   return ensureUserFromHub({
     email,
     name: email.split("@")[0] || "MAX Cultural",
+    hubPermissions: session.permissions,
   });
 }
 
 const HUB_USER_TTL_MS = 45_000;
 const hubUserCache = new Map<string, { user: SessionUser; at: number }>();
 
+function hubLooksLikeProfessorOnly(permissions: string[] | undefined): boolean {
+  if (!permissions?.length) return false;
+  const set = new Set(permissions);
+  if (!set.has("fluxo.app")) return false;
+  // Operação ou consultas = não é professor restrito.
+  if (set.has("fluxo.operacao") || set.has("fluxo.consultas")) return false;
+  // Cookie completo (fluxo.formularios) ou cookie antigo só com fluxo.app.
+  return true;
+}
+
 async function ensureUserFromHub(input: {
   email: string;
   name: string;
+  hubPermissions?: string[];
 }): Promise<SessionUser | null> {
   const cached = hubUserCache.get(input.email);
   if (
@@ -139,29 +162,54 @@ async function ensureUserFromHub(input: {
     return cached.user;
   }
 
+  const professorOnly = hubLooksLikeProfessorOnly(input.hubPermissions);
+  const preferredRoleName = professorOnly
+    ? PROFESSOR_ROLE_NAME
+    : OPERATOR_ROLE_NAME;
+
   const existing = await prisma.user.findUnique({
     where: { email: input.email },
     include: userInclude,
   });
   if (existing) {
     if (existing.deactivatedAt) return null;
-    const user = existing.mustChangePassword
-      ? await prisma.user.update({
-          where: { id: existing.id },
-          data: { mustChangePassword: false, lastLoginAt: new Date() },
-          include: userInclude,
-        })
-      : existing;
+
+    const preferredRole = await prisma.role.findUnique({
+      where: { name: preferredRoleName },
+    });
+    const shouldAlignRole =
+      preferredRole &&
+      !existing.isSuperAdmin &&
+      existing.role.name !== preferredRoleName &&
+      (existing.role.name === OPERATOR_ROLE_NAME ||
+        existing.role.name === PROFESSOR_ROLE_NAME);
+
+    const user =
+      existing.mustChangePassword || shouldAlignRole
+        ? await prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              ...(existing.mustChangePassword
+                ? { mustChangePassword: false, lastLoginAt: new Date() }
+                : {}),
+              ...(shouldAlignRole && preferredRole
+                ? { roleId: preferredRole.id }
+                : {}),
+            },
+            include: userInclude,
+          })
+        : existing;
     if (hubUserCache.size > 2000) hubUserCache.clear();
     hubUserCache.set(input.email, { user, at: Date.now() });
     return user;
   }
 
-  const operatorRole = await prisma.role.findUnique({
-    where: { name: OPERATOR_ROLE_NAME },
+  const preferredRole = await prisma.role.findUnique({
+    where: { name: preferredRoleName },
   });
   const role =
-    operatorRole ||
+    preferredRole ||
+    (await prisma.role.findUnique({ where: { name: OPERATOR_ROLE_NAME } })) ||
     (await prisma.role.findUnique({ where: { name: ADMIN_ROLE_NAME } }));
   if (!role) return null;
 

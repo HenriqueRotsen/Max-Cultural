@@ -1,8 +1,17 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { prisma } from "../src/lib/db";
 import { encryptCredential } from "../src/lib/crypto";
 
+config({ path: ".env.local", override: true });
+
 async function main() {
+  const dbUrl = process.env.DATABASE_URL || "";
+  if (!/localhost|127\.0\.0\.1/.test(dbUrl)) {
+    throw new Error(
+      "db:seed do Origem só deve rodar no Postgres local (apaga dados). Use npm run db:use-local.",
+    );
+  }
+
   await prisma.payment.deleteMany();
   await prisma.watchedSupplier.deleteMany();
   await prisma.relatedParty.deleteMany();

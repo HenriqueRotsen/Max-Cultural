@@ -14,6 +14,15 @@ export default async function HomePage() {
     const fluxo = (process.env.NEXT_PUBLIC_FLUXO_URL || "http://localhost:3002").replace(/\/$/, "");
     const showOrigem = can(user, "origem.app", "view");
     const showFluxo = can(user, "fluxo.app", "view");
+    // Professor (ou só app Fluxo, sem operação): entra nas respostas, não na base.
+    const fluxoFormulariosOnly =
+      user.role.name === "Professor" ||
+      (can(user, "fluxo.app", "view") &&
+        !can(user, "fluxo.operacao", "view") &&
+        !can(user, "fluxo.consultas", "view"));
+    const fluxoHref = fluxoFormulariosOnly
+      ? `${fluxo}/dashboard/formularios`
+      : `${fluxo}/dashboard`;
 
     return (
       <div className="shell">
@@ -27,6 +36,7 @@ export default async function HomePage() {
           canLogs={can(user, "cultural.logs", "view")}
           canOrigem={showOrigem}
           canFluxo={showFluxo}
+          fluxoFormulariosOnly={fluxoFormulariosOnly}
           origemUrl={origem}
           fluxoUrl={fluxo}
         />
@@ -77,7 +87,7 @@ export default async function HomePage() {
               ) : null}
               {showFluxo ? (
                 <a
-                  href={`${fluxo}/dashboard`}
+                  href={fluxoHref}
                   className="card p-5 transition hover:shadow-md"
                   style={{
                     borderColor: "#5eead4",
@@ -92,7 +102,9 @@ export default async function HomePage() {
                     className="mb-4 h-12 w-auto max-w-[220px] object-contain object-left"
                   />
                   <p className="text-sm text-[var(--gray-600)]">
-                    Inscrições, análise e território.
+                    {fluxoFormulariosOnly
+                      ? "Avaliação das respostas das suas oficinas."
+                      : "Inscrições, análise e território."}
                   </p>
                 </a>
               ) : null}

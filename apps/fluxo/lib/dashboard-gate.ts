@@ -21,7 +21,17 @@ export async function requireDashboardPermission(
     redirectToHubDenied("Sem acesso ao MAX Fluxo.");
   }
   if (!perms.has(code)) {
-    redirect("/dashboard");
+    // Sem a permissão pedida: manda para a área que a pessoa realmente tem.
+    if (
+      (perms.has("formularios:review") || perms.has("formularios:write")) &&
+      !perms.has("inscricoes:read")
+    ) {
+      redirect("/dashboard/formularios");
+    }
+    if (perms.has("inscricoes:read")) {
+      redirect("/dashboard");
+    }
+    redirectToHubDenied("Sem acesso a esta área do MAX Fluxo.");
   }
   return user;
 }

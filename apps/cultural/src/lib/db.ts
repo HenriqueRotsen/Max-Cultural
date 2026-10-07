@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+import { resolve } from "node:path";
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -16,9 +18,17 @@ function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
 }
 
 function createPrismaClient() {
+  if (process.env.NODE_ENV !== "production") {
+    config({ path: resolve(process.cwd(), ".env.local"), override: true });
+  }
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
+  }
+  if (/supabase\.co|pooler\.supabase/i.test(connectionString)) {
+    console.warn(
+      "[cultural] DATABASE_URL aponta para Supabase em desenvolvimento. Rode: npm run db:use-local",
+    );
   }
   const schema = schemaFromDatabaseUrl(connectionString);
   const pool = new Pool({ connectionString });

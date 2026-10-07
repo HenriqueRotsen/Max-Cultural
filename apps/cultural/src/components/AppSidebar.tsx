@@ -19,6 +19,7 @@ export function AppSidebar({
   canLogs,
   canOrigem,
   canFluxo,
+  fluxoFormulariosOnly,
   origemUrl,
   fluxoUrl,
 }: {
@@ -29,6 +30,8 @@ export function AppSidebar({
   canLogs?: boolean;
   canOrigem?: boolean;
   canFluxo?: boolean;
+  /** Papel Professor: só avaliação de formulários. */
+  fluxoFormulariosOnly?: boolean;
   origemUrl?: string;
   fluxoUrl?: string;
 }) {
@@ -42,7 +45,10 @@ export function AppSidebar({
   });
 
   const origemHref = `${(origemUrl || "http://localhost:3001").replace(/\/$/, "")}/painel`;
-  const fluxoHref = `${(fluxoUrl || "http://localhost:3002").replace(/\/$/, "")}/dashboard`;
+  const fluxoBase = (fluxoUrl || "http://localhost:3002").replace(/\/$/, "");
+  const fluxoHref = fluxoFormulariosOnly
+    ? `${fluxoBase}/dashboard/formularios`
+    : `${fluxoBase}/dashboard`;
   const showProducts = Boolean(canOrigem || canFluxo);
 
   return (

@@ -24,9 +24,7 @@ import {
   reprocessValuesAiAction,
 } from "@/app/actions/inscricoes";
 import {
-  createContextoAction,
   createOficinaAction,
-  createProjetoAction,
   listContextosSelectAction,
   listOficinasSelectAction,
   listProjetosSelectAction,
@@ -155,13 +153,6 @@ export function ImportWizard() {
     "select",
   );
 
-  const [newCtxNome, setNewCtxNome] = useState("");
-  const [newProj, setNewProj] = useState({
-    nome: "",
-    pronac: "",
-    proponente: "",
-    ano: String(new Date().getFullYear()),
-  });
   const [newOficinaNome, setNewOficinaNome] = useState("");
 
   const [contextos, setContextos] = useState<ContextoSelectOption[]>([]);
@@ -169,12 +160,13 @@ export function ImportWizard() {
   const [oficinas, setOficinas] = useState<OficinaSelectOption[]>([]);
   const [hierarchyLoading, setHierarchyLoading] = useState(false);
 
-  const needCreateContexto = !selContextoId;
-  const needCreateProjeto = !selProjetoId;
+  const missingContexto = !selContextoId;
+  const missingProjeto = !selProjetoId;
   const needCreateOficina = !selOficinaId;
   const hierarchyComplete = Boolean(
     selContextoId && selProjetoId && selOficinaId,
   );
+  const canRegister = !missingProjeto && needCreateOficina;
 
   const [context, setContext] = useState<HierarquiaBatch>({
     contextoId: "",
@@ -247,25 +239,21 @@ export function ImportWizard() {
   }, [step, selProjetoId]);
 
   const contextoSelectItems = useMemo(
-    () => ({
-      __blank__: "Cadastrar Novo",
-      ...Object.fromEntries(
+    () =>
+      Object.fromEntries(
         contextos.map((c) => [c.id, c.nome.trim() || "(sem nome)"]),
       ),
-    }),
     [contextos],
   );
 
   const projetoSelectItems = useMemo(
-    () => ({
-      __blank__: "Cadastrar Novo",
-      ...Object.fromEntries(
+    () =>
+      Object.fromEntries(
         projetosFiltrados.map((p) => [
           p.id,
           p.pronac ? `${p.nome} · ${p.pronac}` : p.nome,
         ]),
       ),
-    }),
     [projetosFiltrados],
   );
 
@@ -391,7 +379,7 @@ export function ImportWizard() {
   }
 
   function applyProjeto(projetoId: string | null) {
-    const id = projetoId && projetoId !== "__blank__" ? projetoId : "";
+    const id = projetoId?.trim() || "";
     setSelProjetoId(id);
     setSelOficinaId("");
     setHierarchyPhase("select");
@@ -401,7 +389,7 @@ export function ImportWizard() {
   }
 
   function applyContextoPick(contextoId: string | null) {
-    const id = contextoId && contextoId !== "__blank__" ? contextoId : "";
+    const id = contextoId?.trim() || "";
     setSelContextoId(id);
     setSelProjetoId("");
     setSelOficinaId("");
@@ -567,86 +555,51 @@ export function ImportWizard() {
     }
 
     if (hierarchyPhase === "select") {
+      if (!canRegister) {
+        toast.error(
+          missingContexto
+            ? "Selecione um contexto"
+            : missingProjeto
+              ? "Selecione um projeto. Projetos são criados no MAX Origem."
+              : "Selecione contexto, projeto e oficina",
+        );
+        return;
+      }
       setHierarchyPhase("register");
       return;
     }
 
-    if (needCreateContexto && !newCtxNome.trim()) {
-      toast.error("Preencha o nome do contexto");
+    if (missingProjeto) {
+      toast.error(
+        "Selecione um projeto antes de cadastrar a oficina. Projetos vêm do MAX Origem.",
+      );
       return;
     }
-    if (needCreateProjeto && (!newProj.nome.trim() || !newProj.pronac.trim())) {
-      toast.error("Preencha nome e PRONAC do projeto");
-      return;
-    }
-    if (needCreateOficina && !newOficinaNome.trim()) {
+    if (!newOficinaNome.trim()) {
       toast.error("Preencha o nome da oficina");
       return;
     }
 
     try {
-      let contextoId = selContextoId;
-
-      if (needCreateContexto) {
-        const createdCtx = await createContextoAction({ nome: newCtxNome });
-        if (!createdCtx.ok) {
-          toast.error(createdCtx.error);
-          return;
-        }
-        contextoId = createdCtx.contexto.id;
-      }
-
-      let projetoId = selProjetoId;
-
-      if (needCreateProjeto) {
-        const createdProj = await createProjetoAction({
-          contextoId,
-          nome: newProj.nome,
-          pronac: newProj.pronac,
-          proponente: newProj.proponente,
-          ano: newProj.ano,
-          _fromImport: true,
-        });
-        if (!createdProj.ok) {
-          toast.error(createdProj.error);
-          return;
-        }
-        projetoId = createdProj.projeto.id;
-      }
-
-      if (needCreateOficina) {
-        const createdOf = await createOficinaAction({
-          projetoId,
-          nome: newOficinaNome,
-        });
-        if (!createdOf.ok) {
-          toast.error(createdOf.error);
-          return;
-        }
-        setContext(oficinaToBatch(createdOf.oficina));
-        setSelContextoId(contextoId);
-        setSelProjetoId(projetoId);
-        setSelOficinaId(createdOf.oficina.id);
-        toast.success("Cadastro concluído");
-        router.refresh();
-        await proceedAfterHierarchy();
+      const createdOf = await createOficinaAction({
+        projetoId: selProjetoId,
+        nome: newOficinaNome,
+      });
+      if (!createdOf.ok) {
+        toast.error(createdOf.error);
         return;
       }
-
-      const found = oficinas.find((o) => o.id === selOficinaId);
-      if (!found) {
-        toast.error("Oficina inválida");
-        return;
-      }
-      setContext(oficinaSelectToBatch(found));
-      toast.success("Cadastro concluído");
+      setContext(oficinaToBatch(createdOf.oficina));
+      setSelContextoId(createdOf.oficina.contextoId);
+      setSelProjetoId(createdOf.oficina.projetoId);
+      setSelOficinaId(createdOf.oficina.id);
+      setNewOficinaNome("");
+      toast.success("Oficina cadastrada");
       router.refresh();
+      await proceedAfterHierarchy();
     } catch {
       toast.error("Falha ao cadastrar hierarquia");
-      return;
     }
-
-    await proceedAfterHierarchy();
   }
 
   async function handleColumnsNext() {
@@ -928,15 +881,20 @@ export function ImportWizard() {
               <div className="space-y-2">
                 <Label>Contexto</Label>
                 <Select
-                  value={selContextoId || "__blank__"}
+                  value={selContextoId || undefined}
                   onValueChange={(v) => applyContextoPick(v)}
                   items={contextoSelectItems}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Cadastrar Novo" />
+                    <SelectValue
+                      placeholder={
+                        contextos.length === 0
+                          ? "Nenhum contexto"
+                          : "Selecione…"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__blank__">Cadastrar Novo</SelectItem>
                     {contextos.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.nome.trim() || "(sem nome)"}
@@ -948,22 +906,23 @@ export function ImportWizard() {
               <div className="space-y-2">
                 <Label>Projeto</Label>
                 <Select
-                  value={selProjetoId || "__blank__"}
+                  value={selProjetoId || undefined}
                   onValueChange={(v) => applyProjeto(v)}
-                  disabled={needCreateContexto}
+                  disabled={missingContexto}
                   items={projetoSelectItems}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue
                       placeholder={
-                        needCreateContexto
-                          ? "Cadastre o contexto primeiro"
-                          : "Cadastrar Novo"
+                        missingContexto
+                          ? "Selecione o contexto primeiro"
+                          : projetosFiltrados.length === 0
+                            ? "Nenhum projeto neste contexto"
+                            : "Selecione…"
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__blank__">Cadastrar Novo</SelectItem>
                     {projetosFiltrados.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.nome}
@@ -972,20 +931,25 @@ export function ImportWizard() {
                     ))}
                   </SelectContent>
                 </Select>
+                {!missingContexto ? (
+                  <p className="text-xs text-muted-foreground">
+                    Projetos vêm do MAX Origem; aqui só é possível selecionar.
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Oficina</Label>
                 <Select
                   value={selOficinaId || "__blank__"}
                   onValueChange={(v) => applyOficina(v)}
-                  disabled={needCreateProjeto}
+                  disabled={missingProjeto}
                   items={oficinaSelectItems}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue
                       placeholder={
-                        needCreateProjeto
-                          ? "Cadastre o projeto primeiro"
+                        missingProjeto
+                          ? "Selecione o projeto primeiro"
                           : "Cadastrar Novo"
                       }
                     />
@@ -1004,15 +968,18 @@ export function ImportWizard() {
 
             {!hierarchyComplete ? (
               <p className="text-sm text-muted-foreground">
-                Falta cadastrar:{" "}
                 {[
-                  needCreateContexto ? "contexto" : null,
-                  needCreateProjeto ? "projeto" : null,
-                  needCreateOficina ? "oficina" : null,
+                  missingContexto ? "selecionar contexto" : null,
+                  missingProjeto ? "selecionar projeto (MAX Origem)" : null,
+                  !missingProjeto && needCreateOficina
+                    ? "cadastrar ou selecionar oficina"
+                    : null,
                 ]
                   .filter(Boolean)
-                  .join(", ")}
-                . Clique em Continuar para preencher.
+                  .join(" · ")}
+                {canRegister
+                  ? ". Clique em Continuar para cadastrar a oficina."
+                  : "."}
               </p>
             ) : selOficinaId ? (
               <p className="text-sm text-muted-foreground">
@@ -1031,85 +998,18 @@ export function ImportWizard() {
               </p>
             ) : null}
 
-            {hierarchyPhase === "register" && !hierarchyComplete ? (
+            {hierarchyPhase === "register" && canRegister ? (
               <div className="space-y-4 rounded-xl border border-brand/20 bg-[var(--navy-soft)]/70 p-4">
                 <p className="text-sm font-medium text-brand-deep">
-                  Cadastre o que falta na hierarquia
+                  Cadastrar nova oficina
                 </p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {needCreateContexto ? (
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="newCtxNome">Nome do contexto</Label>
-                      <Input
-                        id="newCtxNome"
-                        value={newCtxNome}
-                        placeholder="Ex.: Arte em Rede"
-                        onChange={(e) => setNewCtxNome(e.target.value)}
-                      />
-                    </div>
-                  ) : null}
-                  {needCreateProjeto ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="newProjNome">Nome do projeto</Label>
-                        <Input
-                          id="newProjNome"
-                          value={newProj.nome}
-                          onChange={(e) =>
-                            setNewProj((p) => ({ ...p, nome: e.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="newPronac">PRONAC</Label>
-                        <Input
-                          id="newPronac"
-                          value={newProj.pronac}
-                          onChange={(e) =>
-                            setNewProj((p) => ({ ...p, pronac: e.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="newProponente">Proponente</Label>
-                        <Input
-                          id="newProponente"
-                          value={newProj.proponente}
-                          onChange={(e) =>
-                            setNewProj((p) => ({
-                              ...p,
-                              proponente: e.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="newAno">Ano</Label>
-                        <Input
-                          id="newAno"
-                          inputMode="numeric"
-                          maxLength={4}
-                          value={newProj.ano}
-                          onChange={(e) =>
-                            setNewProj((p) => ({
-                              ...p,
-                              ano: e.target.value.replace(/\D/g, "").slice(0, 4),
-                            }))
-                          }
-                        />
-                      </div>
-                    </>
-                  ) : null}
-                  {needCreateOficina ? (
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="newOficina">Nome da oficina</Label>
-                      <Input
-                        id="newOficina"
-                        value={newOficinaNome}
-                        onChange={(e) => setNewOficinaNome(e.target.value)}
-                      />
-                    </div>
-                  ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="newOficina">Nome da oficina</Label>
+                  <Input
+                    id="newOficina"
+                    value={newOficinaNome}
+                    onChange={(e) => setNewOficinaNome(e.target.value)}
+                  />
                 </div>
               </div>
             ) : null}
@@ -1134,14 +1034,12 @@ export function ImportWizard() {
                 onClick={handleContextNext}
                 disabled={
                   busy ||
-                  (hierarchyPhase === "register" &&
-                    ((needCreateContexto && !newCtxNome.trim()) ||
-                      (needCreateProjeto &&
-                        (!newProj.nome.trim() || !newProj.pronac.trim())) ||
-                      (needCreateOficina && !newOficinaNome.trim())))
+                  (hierarchyPhase === "register" && !newOficinaNome.trim())
                 }
               >
-                {hierarchyPhase === "select" && !hierarchyComplete
+                {hierarchyPhase === "select" &&
+                !hierarchyComplete &&
+                canRegister
                   ? "Continuar e cadastrar"
                   : "Continuar"}
               </Button>

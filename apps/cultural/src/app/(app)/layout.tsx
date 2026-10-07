@@ -31,6 +31,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         canLogs={can(user, "cultural.logs", "view")}
         canOrigem={can(user, "origem.app", "view")}
         canFluxo={can(user, "fluxo.app", "view")}
+        fluxoFormulariosOnly={
+          user.role.name === "Professor" ||
+          (can(user, "fluxo.app", "view") &&
+            !can(user, "fluxo.operacao", "view") &&
+            !can(user, "fluxo.consultas", "view"))
+        }
         origemUrl={origemUrl}
         fluxoUrl={fluxoUrl}
       />

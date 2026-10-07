@@ -85,7 +85,11 @@ export async function POST(request: NextRequest) {
   if (needsPasswordChange(user)) {
     const token = await createSessionTokenForUser(user.id);
     if (!token) {
-      return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
+      return loginErrorRedirect(
+        request,
+        next,
+        "Não foi possível criar a sessão. Contate o suporte.",
+      );
     }
     void writeAuditLog({
       actorUserId: user.id,
@@ -126,7 +130,11 @@ export async function POST(request: NextRequest) {
 
   const token = await createSessionTokenForUser(user.id);
   if (!token) {
-    return loginErrorRedirect(request, next, "E-mail ou senha incorretos.");
+    return loginErrorRedirect(
+      request,
+      next,
+      "Não foi possível criar a sessão. Contate o suporte.",
+    );
   }
 
   await Promise.all([

@@ -10,6 +10,9 @@ export const PERMISSION_CODES = [
   "contextos:create",
   "contextos:write",
   "import:write",
+  "formularios:write",
+  "formularios:review",
+  "formularios:merge",
   "consultas:cpf",
   "consultas:territorio",
   "usuarios:read",
@@ -83,6 +86,25 @@ export const PERMISSION_CATALOG: Array<{
     group: "Importação",
   },
   {
+    code: "formularios:write",
+    label: "Criar e editar formulários",
+    group: "Formulários",
+    description: "Criar formulários por oficina, capa, campos e professores.",
+  },
+  {
+    code: "formularios:review",
+    label: "Avaliar respostas de formulários",
+    group: "Formulários",
+    description:
+      "Papel Professor: ver e marcar Selecionado/Professor nas oficinas atribuídas.",
+  },
+  {
+    code: "formularios:merge",
+    label: "Mesclar respostas na base",
+    group: "Formulários",
+    description: "Enviar respostas aprovadas para a base completa.",
+  },
+  {
     code: "consultas:cpf",
     label: "Consultar CPF",
     group: "Consultas",
@@ -128,3 +150,4 @@ export const PERMISSION_CATALOG: Array<{
 
 export const ADMIN_ROLE_NAME = "Administrador";
 export const OPERATOR_ROLE_NAME = "Operador";
+export const PROFESSOR_ROLE_NAME = "Professor";

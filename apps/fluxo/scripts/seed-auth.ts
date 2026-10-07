@@ -11,6 +11,7 @@ import { Pool } from "pg";
 import {
   ADMIN_ROLE_NAME,
   OPERATOR_ROLE_NAME,
+  PROFESSOR_ROLE_NAME,
   PERMISSION_CATALOG,
 } from "../lib/permission-catalog";
 import { hashPassword } from "../lib/password";
@@ -78,6 +79,22 @@ async function main() {
       },
     });
 
+    const professorRole = await prisma.role.upsert({
+      where: { name: PROFESSOR_ROLE_NAME },
+      create: {
+        name: PROFESSOR_ROLE_NAME,
+        description:
+          "Só avalia respostas das oficinas em que está vinculado como professor",
+        isSystem: true,
+        dataScopeMode: "LIMITED",
+      },
+      update: {
+        description:
+          "Só avalia respostas das oficinas em que está vinculado como professor",
+        isSystem: true,
+      },
+    });
+
     await prisma.rolePermission.deleteMany({ where: { roleId: adminRole.id } });
     await prisma.rolePermission.createMany({
       data: allPerms.map((p) => ({
@@ -97,6 +114,9 @@ async function main() {
       "contextos:read",
       "contextos:create",
       "import:write",
+      "formularios:write",
+      "formularios:review",
+      "formularios:merge",
       "consultas:cpf",
       "consultas:territorio",
       "perfil:write",
@@ -112,7 +132,28 @@ async function main() {
         })),
       skipDuplicates: true,
     });
-    console.log(`Roles: ${ADMIN_ROLE_NAME}, ${OPERATOR_ROLE_NAME}`);
+
+    const professorCodes = [
+      "dashboard:access",
+      "formularios:review",
+      "perfil:write",
+    ];
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: professorRole.id },
+    });
+    await prisma.rolePermission.createMany({
+      data: professorCodes
+        .map((c) => byCode.get(c))
+        .filter(Boolean)
+        .map((permissionId) => ({
+          roleId: professorRole.id,
+          permissionId: permissionId!,
+        })),
+      skipDuplicates: true,
+    });
+    console.log(
+      `Roles: ${ADMIN_ROLE_NAME}, ${OPERATOR_ROLE_NAME}, ${PROFESSOR_ROLE_NAME}`,
+    );
 
     const email = (
       process.env.BOOTSTRAP_ADMIN_EMAIL?.trim() ||
@@ -176,6 +217,40 @@ async function main() {
     } else {
       console.log(
         "Defina BOOTSTRAP_ADMIN_PASSWORD para criar o superadmin inicial.",
+      );
+    }
+
+    const dbUrl = process.env.DATABASE_URL || "";
+    const isLocalDb =
+      /localhost|127\.0\.0\.1/.test(dbUrl) && !/supabase|pooler/i.test(dbUrl);
+    if (isLocalDb) {
+      const demoPass =
+        process.env.DEMO_PASSWORD ||
+        process.env.BOOTSTRAP_ADMIN_PASSWORD ||
+        "LocalDemo123!";
+      const demoHash = await hashPassword(demoPass);
+      await prisma.user.upsert({
+        where: { email: "professor@maxcultural.local" },
+        update: {
+          passwordHash: demoHash,
+          name: "Professor Demo",
+          roleId: professorRole.id,
+          isSuperAdmin: false,
+          mustChangePassword: false,
+          deactivatedAt: null,
+        },
+        create: {
+          email: "professor@maxcultural.local",
+          name: "Professor Demo",
+          passwordHash: demoHash,
+          roleId: professorRole.id,
+          isSuperAdmin: false,
+          mustChangePassword: false,
+          totpEnabled: false,
+        },
+      });
+      console.log(
+        `Demo professor: professor@maxcultural.local (papel ${PROFESSOR_ROLE_NAME})`,
       );
     }
   } finally {

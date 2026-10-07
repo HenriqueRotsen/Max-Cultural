@@ -79,6 +79,11 @@ function codesFromHubIds(ids: Set<string>, fetchFailed = false): HubFluxoAccess 
       }
     }
   }
+  // Fallback explícito: papel Professor (fluxo.formularios) → review,
+  // mesmo se o mapa em cache do HMR estiver desatualizado.
+  if (ids.has("fluxo.formularios")) {
+    codes.add("formularios:review");
+  }
   codes.add("perfil:write");
   return { hasHubSession: true, allowedProduct: true, codes, fetchFailed };
 }

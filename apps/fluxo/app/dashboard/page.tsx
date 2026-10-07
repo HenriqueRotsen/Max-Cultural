@@ -1,9 +1,12 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { InscricoesTable } from "@/components/admin/inscricoes-table";
 import { PageLoading } from "@/components/page-loading";
 import { listInscricoesAction } from "@/app/actions/inscricoes";
-import { requireDashboardPermission } from "@/lib/dashboard-gate";
+import { requireDashboardUser } from "@/lib/dashboard-gate";
+import { getEffectivePermissions } from "@/lib/permissions";
+import { redirectToHubDenied } from "@/lib/hub";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -16,7 +19,22 @@ export default async function AdminPage({
 }: {
   searchParams: SearchParams;
 }) {
-  await requireDashboardPermission("inscricoes:read");
+  const user = await requireDashboardUser();
+  const perms = await getEffectivePermissions(user.id);
+  if (!perms.has("dashboard:access")) {
+    redirectToHubDenied("Sem acesso ao MAX Fluxo.");
+  }
+  if (!perms.has("inscricoes:read")) {
+    // Professor / só formulários: nunca a "base", e sim a lista de respostas.
+    if (
+      perms.has("formularios:review") ||
+      perms.has("formularios:write") ||
+      perms.has("formularios:merge")
+    ) {
+      redirect("/dashboard/formularios");
+    }
+    redirectToHubDenied("Sem acesso à base do MAX Fluxo.");
+  }
 
   return (
     <AdminShell title="Base completa">

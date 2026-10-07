@@ -16,6 +16,9 @@
     "db:migrate:origem": "npm run db:migrate -w max-origem",
     "db:migrate:fluxo": "npm run db:migrate -w max-fluxo",
     "db:seed:cultural": "npm run db:seed -w max-cultural-app",
+    "db:use-local": "node scripts/dev-use-local-db.mjs local",
+    "db:use-remote": "node scripts/dev-use-local-db.mjs remote",
+    "db:demo": "npm run db:seed:cultural && npm run db:seed -w max-origem && npm run db:seed-auth -w max-fluxo && npm run db:seed-demo -w max-fluxo",
     "audit": "node scripts/ci-audit-gate.mjs"
   },
   "overrides": {

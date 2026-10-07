@@ -182,7 +182,17 @@ export const ACCESS_CATALOG = [
   {
     id: "fluxo.operacao",
     label: "Operação",
-    description: "Inscrições, contextos, importação e análise.",
+    description: "Inscrições, contextos, importação, formulários e análise.",
+    kind: "screen",
+    group: "Fluxo",
+    product: "fluxo",
+    parentId: "fluxo.app",
+  },
+  {
+    id: "fluxo.formularios",
+    label: "Avaliação de formulários",
+    description:
+      "Somente respostas das oficinas em que é professor (papel Professor).",
     kind: "screen",
     group: "Fluxo",
     product: "fluxo",
@@ -229,7 +239,12 @@ export const HUB_TO_FLUXO_PERMISSIONS: Record<string, readonly string[]> = {
     "contextos:create",
     "contextos:write",
     "import:write",
+    "formularios:write",
+    "formularios:review",
+    "formularios:merge",
   ],
+  /** Papel Professor: só fila de respostas das oficinas atribuídas. */
+  "fluxo.formularios": ["formularios:review"],
   "fluxo.consultas": ["consultas:cpf", "consultas:territorio"],
 };
 

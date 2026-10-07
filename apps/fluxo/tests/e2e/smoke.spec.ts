@@ -18,4 +18,23 @@ test.describe("Fluxo smoke", () => {
     expect(response!.status()).toBeLessThan(500);
     await expect(page.locator("body")).toBeVisible();
   });
+
+  test("GET /f/slug-inexistente não é 500", async ({ request }) => {
+    const res = await request.get("/f/slug-inexistente-smoke-test", {
+      maxRedirects: 0,
+    });
+    expect(res.status()).toBeLessThan(500);
+    expect([200, 404]).toContain(res.status());
+  });
+
+  test("página pública de formulário inexistente renderiza mensagem", async ({
+    page,
+  }) => {
+    const response = await page.goto("/f/slug-inexistente-smoke-test", {
+      waitUntil: "domcontentloaded",
+    });
+    expect(response).toBeTruthy();
+    expect(response!.status()).toBeLessThan(500);
+    await expect(page.getByText(/formulário indisponível/i)).toBeVisible();
+  });
 });

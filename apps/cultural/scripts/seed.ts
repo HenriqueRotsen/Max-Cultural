@@ -1,7 +1,6 @@
-import "dotenv/config";
 import { config } from "dotenv";
 
-config({ path: ".env.local" });
+config({ path: ".env.local", override: true });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -32,6 +31,21 @@ async function main() {
     create: {
       name: "Operador",
       description: "Origem e Fluxo operacionais, sem IAM nem capacidades privilegiadas",
+      isSystem: true,
+    },
+  });
+
+  const professorRole = await prisma.role.upsert({
+    where: { name: "Professor" },
+    update: {
+      description:
+        "MAX Fluxo: somente avaliação de respostas das oficinas atribuídas",
+      isSystem: true,
+    },
+    create: {
+      name: "Professor",
+      description:
+        "MAX Fluxo: somente avaliação de respostas das oficinas atribuídas",
       isSystem: true,
     },
   });
@@ -89,29 +103,132 @@ async function main() {
     })),
   });
 
+  const professorIds = ["cultural.home", "fluxo.app", "fluxo.formularios"] as const;
+  await prisma.rolePermission.deleteMany({ where: { roleId: professorRole.id } });
+  await prisma.rolePermission.createMany({
+    data: professorIds.map((screen) => ({
+      roleId: professorRole.id,
+      screen,
+      canView: true,
+      canEdit: false,
+    })),
+  });
+
   const email = PROTECTED_SUPERADMIN_EMAIL;
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || "TroqueEstaSenha1!";
   const passwordHash = await bcrypt.hash(password, 12);
+  const resetBootstrapPassword =
+    process.env.BOOTSTRAP_ADMIN_RESET === "true" ||
+    process.env.BOOTSTRAP_ADMIN_RESET === "1";
 
-  await prisma.user.upsert({
-    where: { email },
-    update: {
-      passwordHash,
-      roleId: superRole.id,
-      isSuperAdmin: true,
-      mustChangePassword: false,
-      deactivatedAt: null,
-    },
-    create: {
-      email,
-      name: "Superadmin",
-      passwordHash,
-      roleId: superRole.id,
-      isSuperAdmin: true,
-      mustChangePassword: false,
-      totpEnabled: false,
-    },
-  });
+  const existingProtected = await prisma.user.findUnique({ where: { email } });
+  if (!existingProtected) {
+    await prisma.user.create({
+      data: {
+        email,
+        name: "Superadmin",
+        passwordHash,
+        roleId: superRole.id,
+        isSuperAdmin: true,
+        mustChangePassword: false,
+        totpEnabled: false,
+      },
+    });
+  } else {
+    // Nunca sobrescreve senha em produção/remoto sem BOOTSTRAP_ADMIN_RESET=true.
+    await prisma.user.update({
+      where: { id: existingProtected.id },
+      data: {
+        roleId: superRole.id,
+        isSuperAdmin: true,
+        deactivatedAt: null,
+        ...(resetBootstrapPassword
+          ? { passwordHash, mustChangePassword: false }
+          : {}),
+      },
+    });
+    if (resetBootstrapPassword) {
+      console.log(`Senha do Superadmin ${email} redefinida (BOOTSTRAP_ADMIN_RESET).`);
+    }
+  }
+
+  // Contas extras só para ambiente local (não apontam para o remoto).
+  const dbUrl = process.env.DATABASE_URL || "";
+  const isLocalDb =
+    /localhost|127\.0\.0\.1/.test(dbUrl) && !/supabase|pooler/i.test(dbUrl);
+
+  if (isLocalDb) {
+    const demoPassword = process.env.DEMO_PASSWORD || password;
+    const demoHash = await bcrypt.hash(demoPassword, 12);
+
+    await prisma.user.upsert({
+      where: { email: "admin@maxcultural.local" },
+      update: {
+        passwordHash: demoHash,
+        roleId: superRole.id,
+        isSuperAdmin: true,
+        mustChangePassword: false,
+        deactivatedAt: null,
+        name: "Admin Local",
+      },
+      create: {
+        email: "admin@maxcultural.local",
+        name: "Admin Local",
+        passwordHash: demoHash,
+        roleId: superRole.id,
+        isSuperAdmin: true,
+        mustChangePassword: false,
+        totpEnabled: false,
+      },
+    });
+
+    await prisma.user.upsert({
+      where: { email: "operador@maxcultural.local" },
+      update: {
+        passwordHash: demoHash,
+        roleId: operador.id,
+        isSuperAdmin: false,
+        mustChangePassword: false,
+        deactivatedAt: null,
+        name: "Operador Demo",
+      },
+      create: {
+        email: "operador@maxcultural.local",
+        name: "Operador Demo",
+        passwordHash: demoHash,
+        roleId: operador.id,
+        isSuperAdmin: false,
+        mustChangePassword: false,
+        totpEnabled: false,
+      },
+    });
+
+    await prisma.user.upsert({
+      where: { email: "professor@maxcultural.local" },
+      update: {
+        passwordHash: demoHash,
+        roleId: professorRole.id,
+        isSuperAdmin: false,
+        mustChangePassword: false,
+        deactivatedAt: null,
+        name: "Professor Demo",
+      },
+      create: {
+        email: "professor@maxcultural.local",
+        name: "Professor Demo",
+        passwordHash: demoHash,
+        roleId: professorRole.id,
+        isSuperAdmin: false,
+        mustChangePassword: false,
+        totpEnabled: false,
+      },
+    });
+
+    console.log(
+      "Seed local: admin@maxcultural.local + operador@maxcultural.local + professor@maxcultural.local",
+    );
+    console.log(`Senha demo: ${demoPassword}`);
+  }
 
   console.log(`Seed ok. Superadmin protegido: ${email}`);
   await prisma.$disconnect();

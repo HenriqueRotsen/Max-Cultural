@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  ClipboardList,
   FolderTree,
   LogOut,
   MapPinned,
@@ -34,7 +35,8 @@ type NavItem = {
   href: string;
   label: string;
   match: (p: string) => boolean;
-  permission?: string;
+  /** Uma permissão ou qualquer uma da lista. */
+  permission?: string | string[];
   icon: React.ComponentType<{ className?: string }>;
 };
 
@@ -76,6 +78,13 @@ const NAV_GROUPS: NavGroup[] = [
         match: (p) => p.startsWith("/dashboard/importar"),
         permission: "import:write",
         icon: Upload,
+      },
+      {
+        href: "/dashboard/formularios",
+        label: "Formulários",
+        match: (p) => p.startsWith("/dashboard/formularios"),
+        permission: ["formularios:write", "formularios:review"],
+        icon: ClipboardList,
       },
     ],
   },
@@ -130,13 +139,21 @@ const NAV_GROUPS: NavGroup[] = [
 
 const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM !== "false";
 
+function itemAllowed(
+  permission: string | string[] | undefined,
+  permissions: string[] | null,
+): boolean {
+  if (!permission || permissions === null) return true;
+  const needed = Array.isArray(permission) ? permission : [permission];
+  return needed.some((code) => permissions.includes(code));
+}
+
 function filterGroups(permissions: string[] | null): NavGroup[] {
   return NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
       if (hideAcesso && group.id === "acesso") return false;
-      if (!item.permission || permissions === null) return true;
-      return permissions.includes(item.permission);
+      return itemAllowed(item.permission, permissions);
     }),
   })).filter((group) => group.items.length > 0);
 }
@@ -195,11 +212,13 @@ function SidebarNav({
 function SidebarPanel({
   permissions,
   userEmail,
+  homeHref = "/dashboard",
   onNavigate,
   className,
 }: {
   permissions: string[] | null;
   userEmail: string;
+  homeHref?: string;
   onNavigate?: () => void;
   className?: string;
 }) {
@@ -212,7 +231,7 @@ function SidebarPanel({
     >
       <div className="flex items-center px-5 py-5">
         <BrandLogo
-          href="/dashboard"
+          href={homeHref}
           className="min-w-0"
         />
       </div>
@@ -269,6 +288,8 @@ export type AppSidebarLayoutProps = {
   userEmail: string;
   /** codes de permissão; null = mostrar tudo */
   permissions: string[] | null;
+  /** Destino do logo (professores → formulários). */
+  homeHref?: string;
   title?: string;
   actions?: ReactNode;
   backHref?: string;
@@ -282,6 +303,7 @@ export type AppSidebarLayoutProps = {
 export function AppSidebarLayout({
   userEmail,
   permissions,
+  homeHref = "/dashboard",
   title: _title,
   actions,
   backHref,
@@ -318,6 +340,7 @@ export function AppSidebarLayout({
         <SidebarPanel
           permissions={permissions}
           userEmail={userEmail}
+          homeHref={homeHref}
         />
       </div>
 
@@ -334,6 +357,7 @@ export function AppSidebarLayout({
             <SidebarPanel
               permissions={permissions}
               userEmail={userEmail}
+              homeHref={homeHref}
               onNavigate={() => setMobileOpen(false)}
               className="relative"
             />

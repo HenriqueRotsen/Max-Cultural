@@ -10,6 +10,33 @@ Sistema Integrado de Gestão e Acompanhamento Cultural — padronização de ins
 - Ollama local (ETL inteligente)
 - SheetJS / PapaParse
 
+## Banco local (recomendado no dev)
+
+Para testar **sem tocar** no Supabase/produção:
+
+```bash
+# Postgres Docker (porta 5436, apps/cultural/docker-compose.yml)
+npm run db:local:up
+
+# Aponta .env.local para localhost (backup do remoto em .env.local.remote)
+npm run db:use-local
+
+# Schema + admin local
+npx prisma db push
+npm run db:seed-auth
+
+npm run dev
+```
+
+Voltar ao remoto: `npm run db:use-remote`.
+
+Se o terminal tiver `DATABASE_URL` exportada (Supabase), o Prisma pode ignorar o `.env.local`.
+O `prisma.config.ts` agora força override do `.env.local`; ainda assim, no shell:
+
+```bash
+unset DATABASE_URL DIRECT_URL
+```
+
 ## Setup com Supabase
 
 1. Crie um projeto em [supabase.com](https://supabase.com).

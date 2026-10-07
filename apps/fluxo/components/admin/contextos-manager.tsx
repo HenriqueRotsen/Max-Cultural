@@ -239,16 +239,19 @@ export function ContextosManager({
           return;
         }
         toast.success("Contexto atualizado");
-      } else {
-        const r = await createContextoAction({ nome: ctxNome });
-        if (!r.ok) {
-          toast.error(r.error);
-          return;
-        }
-        toast.success("Contexto criado");
+        setCtxOpen(false);
+        router.push(listHref({ q: r.contexto.nome, page: 1 }));
+        return;
       }
+      const r = await createContextoAction({ nome: ctxNome });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      toast.success("Contexto criado");
       setCtxOpen(false);
-      refreshList();
+      // Lista tem paginação (25/página) ordenada por nome — busca o recém-criado.
+      router.push(listHref({ tab: "contextos", q: r.contexto.nome, page: 1 }));
     });
   }
 
@@ -840,6 +843,12 @@ export function ContextosManager({
                 onValueChange={(v) =>
                   setProjForm((f) => ({ ...f, contextoId: v ?? "" }))
                 }
+                items={Object.fromEntries(
+                  projContextos.map((c) => [
+                    c.id,
+                    c.nome.trim() || "(sem nome)",
+                  ]),
+                )}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />
@@ -930,6 +939,12 @@ export function ContextosManager({
                     projetoId: "",
                   }));
                 }}
+                items={Object.fromEntries(
+                  ofContextos.map((c) => [
+                    c.id,
+                    c.nome.trim() || "(sem nome)",
+                  ]),
+                )}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />
@@ -951,6 +966,12 @@ export function ContextosManager({
                   setOfForm((f) => ({ ...f, projetoId: v ?? "" }))
                 }
                 disabled={!ofForm.contextoId}
+                items={Object.fromEntries(
+                  ofProjetos.map((p) => [
+                    p.id,
+                    p.pronac ? `${p.nome} · ${p.pronac}` : p.nome,
+                  ]),
+                )}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />

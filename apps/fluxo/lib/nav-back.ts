@@ -8,6 +8,7 @@ const ROOT_PATHS = new Set([
   "/dashboard/analise",
   "/dashboard/contextos",
   "/dashboard/importar",
+  "/dashboard/formularios",
   "/dashboard/perfil",
   "/pessoa",
   "/territorio",
@@ -19,6 +20,10 @@ export function resolveBackFallback(pathname: string): BackTarget | null {
   if (ROOT_PATHS.has(pathname)) return null;
 
   const segments = pathname.split("/").filter(Boolean);
+
+  if (pathname.startsWith("/dashboard/formularios/")) {
+    return { href: "/dashboard/formularios", label: "Formulários" };
+  }
 
   if (pathname.startsWith("/dashboard/acesso/")) {
     return { href: "/dashboard", label: "Base" };

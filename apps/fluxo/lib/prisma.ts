@@ -1,13 +1,19 @@
-import { config } from "dotenv";
-import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
+
+/**
+ * Subir ao mudar o schema Prisma — força um client novo no processo.
+ * Não encerra o pool antigo no hot reload (isso causa
+ * "Cannot use a pool after calling end on the pool" no Next).
+ */
+const PRISMA_CLIENT_REV = 7;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   pgPool: Pool | undefined;
   prismaConnectionString: string | undefined;
+  prismaClientRev: number | undefined;
 };
 
 function isPlaceholderUrl(url: string) {
@@ -15,9 +21,8 @@ function isPlaceholderUrl(url: string) {
 }
 
 function resolveDatabaseUrl() {
-  if (process.env.NODE_ENV !== "production") {
-    config({ path: resolve(process.cwd(), ".env.local"), override: true });
-  }
+  // Next.js já carrega apps/fluxo/.env.local — não chamar dotenv aqui
+  // (loga "injected env" e o overlay do Next bloqueia cliques).
   const url = process.env.DATABASE_URL ?? "";
   if (!url) {
     throw new Error("DATABASE_URL is not set");
@@ -35,7 +40,6 @@ function createPrismaClient(connectionString: string) {
   if (schema && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
     throw new Error(`Invalid Postgres schema name: ${schema}`);
   }
-  // $queryRaw / scripts precisam do search_path; o adapter só qualifica SQL gerado.
   const pool = new Pool({
     connectionString,
     ...(schema ? { options: `-c search_path=${schema},public` } : {}),
@@ -50,52 +54,30 @@ function createPrismaClient(connectionString: string) {
   };
 }
 
-type RuntimeModel = {
-  fields?: Array<{ name: string }>;
-};
-
-function clientHasCurrentSchema(client: PrismaClient): boolean {
-  const c = client as unknown as {
-    user?: unknown;
-    _runtimeDataModel?: {
-      models?: Record<string, RuntimeModel>;
-    };
-  };
-  if (typeof c.user === "undefined") return false;
-  const fields = c._runtimeDataModel?.models?.UserDataScope?.fields ?? [];
-  return fields.some((f) => f.name === "access");
-}
-
 function resolveClient(): PrismaClient {
   const connectionString = resolveDatabaseUrl();
   const existing = globalForPrisma.prisma;
   if (
     existing &&
     globalForPrisma.prismaConnectionString === connectionString &&
-    clientHasCurrentSchema(existing)
+    globalForPrisma.prismaClientRev === PRISMA_CLIENT_REV
   ) {
     return existing;
   }
-  if (existing) {
-    void existing.$disconnect().catch(() => undefined);
-  }
-  if (globalForPrisma.pgPool) {
-    void globalForPrisma.pgPool.end().catch(() => undefined);
-  }
+
   const { client, pool } = createPrismaClient(connectionString);
   globalForPrisma.prisma = client;
   globalForPrisma.pgPool = pool;
   globalForPrisma.prismaConnectionString = connectionString;
+  globalForPrisma.prismaClientRev = PRISMA_CLIENT_REV;
   return client;
 }
 
 /**
- * Lazy: não exige DATABASE_URL no `next build` (preview Dependabot / collect
- * page data). Conecta só no primeiro acesso em runtime.
+ * Lazy: não exige DATABASE_URL no `next build`.
  */
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop, receiver) {
-    // Evita que o Proxy seja tratado como thenable pelo await.
     if (prop === "then") return undefined;
     const client = resolveClient();
     const value = Reflect.get(client, prop, receiver);

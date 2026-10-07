@@ -58,8 +58,6 @@ export type ProjetoInput = {
   pronac: string;
   proponente?: string;
   ano?: string;
-  /** Apenas importação em lote — cadastro manual desativado. */
-  _fromImport?: boolean;
 };
 
 export type OficinaInput = {

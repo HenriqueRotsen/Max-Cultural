@@ -1,8 +1,8 @@
-import "dotenv/config";
 import { config } from "dotenv";
 import { defineConfig } from "prisma/config";
 
-config({ path: ".env.local" });
+// .env.local manda no dev — sobrescreve DATABASE_URL exportada no shell (ex.: Supabase).
+config({ path: ".env.local", override: true });
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

@@ -10,7 +10,7 @@ import type {
   ProjetoDTO,
   ProjetoInput,
 } from "@/lib/contexto";
-import { nextIdOficina, nextIdProjeto } from "@/lib/ids";
+import { nextIdOficina } from "@/lib/ids";
 import { normalizeAnoProjeto } from "@/lib/normalize";
 import { prisma } from "@/lib/prisma";
 import { assertDataAccess, hasScopeAccess, resolveDataScope, contextoWhereFromScope, projetoWhereFromScope, oficinaWhereFromScope } from "@/lib/data-scope";
@@ -774,6 +774,27 @@ export async function createContextoAction(
     data: { nome },
     include: { _count: { select: { projetos: true } } },
   });
+
+  // Quem cria em escopo LIMITED precisa ver/editar o recurso novo.
+  if (!actor.isSuperAdmin && actor.dataScopeMode === "LIMITED") {
+    await prisma.userDataScope.upsert({
+      where: {
+        userId_kind_resourceId: {
+          userId: actor.id,
+          kind: "CONTEXTO",
+          resourceId: created.id,
+        },
+      },
+      create: {
+        userId: actor.id,
+        kind: "CONTEXTO",
+        resourceId: created.id,
+        access: "EDITOR",
+      },
+      update: { access: "EDITOR" },
+    });
+  }
+
   await writeAuditLog({
     actorUserId: actor.id,
     action: "contexto.created",
@@ -870,71 +891,12 @@ export async function deleteContextoAction(
 }
 
 export async function createProjetoAction(
-  input: ProjetoInput,
+  _input: ProjetoInput,
 ): Promise<{ ok: true; projeto: ProjetoDTO } | { ok: false; error: string }> {
-  if (!input._fromImport) {
-    return {
-      ok: false,
-      error:
-        "Projetos são criados automaticamente pelo MAX Origem. Edite o contexto de um projeto existente ou crie oficinas.",
-    };
-  }
-
-  const actor = await requireAnyPermission([
-    "contextos:create",
-    "import:write",
-  ]);
-  if (!input.contextoId.trim())
-    return { ok: false, error: "Selecione um contexto." };
-  if (!input.nome.trim()) return { ok: false, error: "Informe o nome do projeto." };
-  if (!input.pronac.trim()) return { ok: false, error: "Informe o PRONAC." };
-  const ano = normalizeAnoProjeto(input.ano ?? "");
-  if (ano && !/^\d{4}$/.test(ano)) {
-    return { ok: false, error: "O ano deve ter 4 dígitos (ex.: 2025)." };
-  }
-  const ctx = await prisma.contexto.findUnique({
-    where: { id: input.contextoId },
-  });
-  if (!ctx) return { ok: false, error: "Contexto não encontrado." };
-
-  const allowed = await assertDataAccess(
-    actor.id,
-    { contextoId: input.contextoId },
-    { write: true },
-  );
-  if (!allowed) {
-    return {
-      ok: false,
-      error:
-        "Você precisa de acesso de edição neste contexto para cadastrar projetos.",
-    };
-  }
-
-  const id = await nextIdProjeto();
-  const created = await prisma.projeto.create({
-    data: {
-      id,
-      nome: input.nome.trim(),
-      pronac: input.pronac.trim(),
-      proponente: (input.proponente ?? "").trim(),
-      ano,
-      contextoId: input.contextoId,
-    },
-    include: {
-      contexto: { select: { nome: true } },
-      _count: { select: { oficinas: true } },
-    },
-  });
-  await writeAuditLog({
-    actorUserId: actor.id,
-    action: "projeto.created",
-    entityType: "Projeto",
-    entityId: created.id,
-    meta: { nome: created.nome, contextoId: created.contextoId },
-  });
   return {
-    ok: true,
-    projeto: toProjetoDto(created, 0, { hasEditorAccess: true, canEdit: true, canDelete: true }),
+    ok: false,
+    error:
+      "Projetos são criados automaticamente pelo MAX Origem. Aqui você pode cadastrar contextos e oficinas, ou editar o contexto de um projeto existente.",
   };
 }
 
