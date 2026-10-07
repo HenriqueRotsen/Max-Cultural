@@ -2,12 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import {
-  AUTH_COOKIE,
-  PENDING_2FA_COOKIE,
-  clearAuthCookieOptions,
-  safeContinueUrl,
-} from "@max/auth";
+import { AUTH_COOKIE, safeContinueUrl } from "@max/auth";
 import { MaxCulturalLogoLink } from "@/components/BrandLogo";
 import { LoginForm } from "@/components/LoginForm";
 import { getSessionUser } from "@/lib/auth";
@@ -34,14 +29,18 @@ export default async function LoginPage({
     redirect(next.startsWith("/") ? next : "/");
   }
 
-  // Cookie fantasma de sessão (papel/permissões alterados).
-  // Não apaga max_pending_2fa aqui — isso quebraria o fluxo do código por e-mail
-  // se o usuário voltar ao /login no meio do 2FA.
+  // Cookie fantasma de sessão (papel/permissões alterados / senha resetada).
+  // Não dá para alterar cookies em RSC — redireciona para Route Handler.
+  // Não apaga max_pending_2fa (fluxo do código por e-mail).
   const jar = await cookies();
   if (jar.get(AUTH_COOKIE)?.value) {
-    for (const opts of clearAuthCookieOptions()) {
-      jar.set(AUTH_COOKIE, "", opts);
-    }
+    const loginPath =
+      next && next !== "/"
+        ? `/login?next=${encodeURIComponent(next)}`
+        : "/login";
+    redirect(
+      `/api/auth/clear-session-cookie?next=${encodeURIComponent(loginPath)}`,
+    );
   }
 
   const siteKey = recaptchaSiteKey();
