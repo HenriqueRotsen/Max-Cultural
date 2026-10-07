@@ -2017,8 +2017,8 @@ export async function refreshPaymentDueNotifications(opts?: {
         });
         if (existing) continue;
 
-        const pct = b.availableCap > 0
-          ? Math.round((b.reserved / b.availableCap) * 100)
+        const pct = b.approved > 0
+          ? Math.round((b.reserved / b.approved) * 100)
           : 100;
         const title = `Rubrica quase esgotada — ${p.externalCode}`;
         const body = `${line.itemName}: ${pct}% do disponível operacional reservado (resta R$ ${b.available.toFixed(2)})`;

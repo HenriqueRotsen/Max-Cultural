@@ -73,13 +73,15 @@ export const HELP = {
 
   // Planejamento / disponível
   planningDisponivel:
-    "Teto operacional da rubrica = orçamento aprovado × % sobre o aprovado. Sem captação, usa 100% do aprovado.",
+    "Disponível na rubrica = aprovado MinC − reservado. Em cada item você pode gastar o valor total da rubrica; com permissão de excesso (IN), até 2×. O teto do projeto (KPI) é o limite do que se tem para operar.",
   planningSaldo:
-    "Saldo na rubrica = teto operacional − reservado − pago. Pagamentos antecipados (sem NF) já entram como pago.",
+    "Saldo na rubrica = aprovado pelo MinC − valor pago (inclui comprovado no SALIC e pagamentos locais). Reservas em aberto não entram neste saldo.",
   planningAprovado:
     "Orçamento aprovado (MinC) na planilha homologada do projeto.",
   planningCaptacao:
-    "Captado, recebido e transferido vêm do SALIC. Rendimentos são manuais. Base de captação = captado + recebido + rendimentos − transferido; o % sobre o aprovado ajusta o teto operacional de todas as rubricas.",
+    "Captado, recebido e transferido vêm do SALIC. Rendimentos são manuais. Base de captação = captado + recebido + rendimentos − transferido. Esse valor é o teto operacional do projeto: não se gasta mais do que se tem, mesmo podendo redistribuir e exceder rubricas individuais (até 100% na IN vigente).",
   planningAdminProduto:
-    "Produto Administração: o saldo usa 100% do aprovado MinC (não reduz pela captação). Não pode usar a permissão de exceder rubrica.",
+    "Produto Administração: não pode exceder o aprovado da rubrica. Continua contando no teto operacional do projeto.",
+  planningTetoProjeto:
+    "Teto operacional do projeto = o que se pode gastar no total (base de captação). Sem dados de captação, usa 100% do aprovado. Não se pode reservar além deste teto.",
 } as const;

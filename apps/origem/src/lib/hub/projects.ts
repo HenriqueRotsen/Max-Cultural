@@ -177,7 +177,7 @@ function toSummary(
     totalApproved: bal?.totalApproved ?? money(p.sheet?.totalApproved),
     totalReserved: bal?.totalReserved ?? 0,
     totalPaid: bal?.totalPaid ?? 0,
-    totalAvailable: bal?.totalAvailable ?? 0,
+    totalAvailable: bal?.totalSaldo ?? 0,
     commitmentsCount: p.commitments.length,
     documentsCount: p.documents.length,
     updatedAt: p.updatedAt.toISOString(),

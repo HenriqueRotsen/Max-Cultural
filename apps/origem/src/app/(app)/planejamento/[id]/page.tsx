@@ -186,7 +186,7 @@ export default async function PlanningProjectPage({
               {
                 label: `Teto (${pctLabel || "—"})`,
                 value: formatCurrency(bal.totalAvailableCap),
-                help: HELP.planningDisponivel,
+                help: HELP.planningTetoProjeto,
                 emphasize: true,
               },
               {
@@ -199,7 +199,7 @@ export default async function PlanningProjectPage({
               },
               {
                 label: "Saldo",
-                value: formatCurrency(bal.totalAvailable),
+                value: formatCurrency(bal.totalSaldo),
                 help: HELP.planningSaldo,
               },
             ]}

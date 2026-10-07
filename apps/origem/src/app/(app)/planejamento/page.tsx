@@ -62,7 +62,7 @@ export default async function PlanejamentoIndexPage() {
       situacao: p.project?.situacao ?? null,
       lifecycleStatus: p.lifecycleStatus,
       totalApproved: bal?.totalApproved ?? 0,
-      totalAvailable: bal?.totalAvailable ?? 0,
+      totalAvailable: bal?.totalSaldo ?? 0,
     };
   });
 

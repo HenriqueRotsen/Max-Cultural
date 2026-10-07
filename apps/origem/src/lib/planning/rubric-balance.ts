@@ -1,27 +1,42 @@
 export type LineBalance = {
   lineId: string;
   approved: number;
-  /** Teto operacional (aprovado × fator de captura). */
+  /**
+   * Teto da rubrica para gastar sem excesso (= aprovado MinC).
+   * Captação não reduz por linha — o teto operacional é do projeto.
+   */
   availableCap: number;
   reserved: number;
   paid: number;
   /** Comprovado no SALIC (VlComprovado / sync relação pagamentos). */
   salicComprovado: number;
-  /** Saldo operacional = availableCap − reserved. */
+  /**
+   * Saldo na rubrica (visão MinC) = aprovado − pago.
+   * Não desconta reserva em aberto.
+   */
+  saldo: number;
+  /** Disponível na rubrica para novas reservas = aprovado − reservado. */
   available: number;
   isAdmin: boolean;
   /** Estourou o aprovado MinC. */
   overApproved: boolean;
-  /** Estourou o disponível operacional. */
+  /** Estourou o disponível da rubrica (aprovado). */
   over: boolean;
   near: boolean;
 };
 
 export type ProjectBalance = {
   totalApproved: number;
+  /**
+   * Teto operacional do projeto: o que se pode gastar no total
+   * (base de captação, ou 100% do aprovado se ainda não houver sinal).
+   */
   totalAvailableCap: number;
   totalReserved: number;
   totalPaid: number;
+  /** Soma dos saldos MinC (aprovado − pago). */
+  totalSaldo: number;
+  /** Restante do teto do projeto = teto − reservado. */
   totalAvailable: number;
   pctCaptadoT: number;
   pctCaptadoOnly: number;
@@ -57,7 +72,7 @@ export function roundCents(v: number): number {
   return Math.round((Number.isFinite(v) ? v : 0) * 100) / 100;
 }
 
-/** Produto Administração (SALIC) — não permite excesso sobre o disponível. */
+/** Produto Administração (SALIC) — não permite excesso sobre a rubrica. */
 export function isAdminProduct(productName: string | null | undefined): boolean {
   return /administra/i.test(String(productName || ""));
 }
@@ -71,6 +86,8 @@ export function computeCaptacaoFactors(input: {
 }): {
   valorCaptado: number;
   operableBase: number;
+  /** Teto do projeto (= operableBase com sinal de captação; senão totalApproved). */
+  projectCap: number;
   pctCaptadoT: number;
   pctCaptadoOnly: number;
 } {
@@ -79,28 +96,33 @@ export function computeCaptacaoFactors(input: {
   const recebido = Math.max(0, n(input.captadoRecebido));
   const transferido = Math.max(0, n(input.captadoTransferido));
   const rendimentos = Math.max(0, n(input.rendimentos));
-  const operableBase = Math.max(0, valorCaptado + recebido + rendimentos - transferido);
+  const operableBase = Math.max(
+    0,
+    valorCaptado + recebido + rendimentos - transferido,
+  );
   const hasCaptacaoSignal =
     valorCaptado > 0 || recebido > 0 || rendimentos > 0 || transferido > 0;
-  // Sem dados de captação ainda: disponível = aprovado (100%), para não zerar o operacional.
-  const pctCaptadoT =
-    totalApproved > 0
-      ? hasCaptacaoSignal
-        ? operableBase / totalApproved
-        : 1
-      : 0;
+  // Sem dados de captação: teto = aprovado total (não zera o operacional).
+  const projectCap = hasCaptacaoSignal ? operableBase : totalApproved;
+  const pctCaptadoT = totalApproved > 0 ? projectCap / totalApproved : 0;
   const pctCaptadoOnly =
     totalApproved > 0
       ? hasCaptacaoSignal
         ? valorCaptado / totalApproved
         : 1
       : 0;
-  return { valorCaptado, operableBase, pctCaptadoT, pctCaptadoOnly };
+  return {
+    valorCaptado,
+    operableBase,
+    projectCap,
+    pctCaptadoT,
+    pctCaptadoOnly,
+  };
 }
 
 /**
- * Saldo operacional das rubricas de produção usa aprovado × %Captado(T).
- * Administração usa 100% do aprovado MinC (sem redução pela captação).
+ * Por rubrica: pode gastar o aprovado inteiro (e até 2× com ACL de excesso).
+ * No projeto: não pode gastar além do teto operacional (captação).
  */
 export function computeProjectBalance(input: {
   lines: Array<{
@@ -118,7 +140,7 @@ export function computeProjectBalance(input: {
   captadoRecebido?: unknown;
   captadoTransferido?: unknown;
   rendimentos?: unknown;
-  /** Fração do disponível a partir da qual a linha fica “próxima”. Default 0.8. */
+  /** Fração do aprovado a partir da qual a linha fica “próxima”. Default 0.8. */
   nearPct?: number;
   /**
    * Valor local já refletido no SALIC (por linha), para calcular o gap
@@ -142,6 +164,7 @@ export function computeProjectBalance(input: {
       reserved: 0,
       paid: 0,
       salicComprovado: Math.max(0, n(line.salicComprovado)),
+      saldo: approved,
       available: approved,
       isAdmin: isAdminProduct(line.productName),
       overApproved: false,
@@ -192,7 +215,7 @@ export function computeProjectBalance(input: {
     totalPaid += salicOnly;
   }
 
-  let totalAvailableCap = 0;
+  let totalSaldo = 0;
   totalApproved = 0;
   for (const bal of lines.values()) {
     bal.approved = roundCents(bal.approved);
@@ -200,25 +223,28 @@ export function computeProjectBalance(input: {
     bal.paid = roundCents(bal.paid);
     bal.salicComprovado = roundCents(bal.salicComprovado);
     totalApproved += bal.approved;
-    bal.availableCap = roundCents(
-      bal.isAdmin ? bal.approved : bal.approved * factors.pctCaptadoT,
-    );
-    totalAvailableCap += bal.availableCap;
-    bal.available = roundCents(bal.availableCap - bal.reserved);
+    // Rubrica inteira disponível (captação não corta por linha).
+    bal.availableCap = bal.approved;
+    bal.saldo = roundCents(bal.approved - bal.paid);
+    totalSaldo += bal.saldo;
+    bal.available = roundCents(bal.approved - bal.reserved);
     bal.overApproved =
       bal.approved <= 0 || bal.reserved >= bal.approved - 1e-9;
-    bal.over =
-      bal.availableCap <= 0 || bal.reserved >= bal.availableCap - 1e-9;
+    bal.over = bal.overApproved;
     bal.near =
-      !bal.over && bal.reserved >= bal.availableCap * nearPct - 1e-9;
+      !bal.over && bal.reserved >= bal.approved * nearPct - 1e-9;
   }
+
+  const projectCap = roundCents(factors.projectCap);
+  totalReserved = roundCents(totalReserved);
 
   return {
     totalApproved: roundCents(totalApproved),
-    totalAvailableCap: roundCents(totalAvailableCap),
-    totalReserved: roundCents(totalReserved),
+    totalAvailableCap: projectCap,
+    totalReserved,
     totalPaid: roundCents(totalPaid),
-    totalAvailable: roundCents(totalAvailableCap - totalReserved),
+    totalSaldo: roundCents(totalSaldo),
+    totalAvailable: roundCents(projectCap - totalReserved),
     pctCaptadoT: factors.pctCaptadoT,
     pctCaptadoOnly: factors.pctCaptadoOnly,
     operableBase: roundCents(factors.operableBase),
@@ -232,9 +258,10 @@ export type ReserveCheckResult =
   | { ok: false; message: string };
 
 /**
- * Reserva usa saldo disponível.
- * Admin: nunca overflow.
- * allowOverflow (demais): até 2× aprovado e projeto ≤ total aprovado.
+ * Reserva:
+ * - projeto: nunca além do teto operacional (o que se tem);
+ * - rubrica: até o aprovado; com ACL, até 2× (IN atual);
+ * - Administração: sem excesso na rubrica.
  */
 export function canReserveAmount(params: {
   lineId: string;
@@ -253,12 +280,20 @@ export function canReserveAmount(params: {
 
   const nextLineReserved = line.reserved + amount;
   const nextProjectReserved = params.balance.totalReserved + amount;
+  const projectCap = params.balance.totalAvailableCap;
+
+  if (nextProjectReserved > projectCap + 1e-6) {
+    return {
+      ok: false,
+      message: `Excederia o teto operacional do projeto (disponível R$ ${Math.max(0, projectCap - params.balance.totalReserved).toFixed(2)})`,
+    };
+  }
 
   if (line.isAdmin) {
     if (amount > line.available + 1e-6) {
       return {
         ok: false,
-        message: `Administração não pode exceder o disponível (R$ ${line.available.toFixed(2)})`,
+        message: `Administração não pode exceder a rubrica (disponível R$ ${line.available.toFixed(2)})`,
       };
     }
     return { ok: true, overflow: false };
@@ -274,17 +309,11 @@ export function canReserveAmount(params: {
     return { ok: true, overflow: false };
   }
 
-  // Overflow ACL: teto é aprovado (não disponível)
+  // Overflow ACL (IN): até 2× o aprovado da rubrica; teto do projeto já validado.
   if (nextLineReserved > line.approved * 2 + 1e-6) {
     return {
       ok: false,
       message: `Excesso acima de 100% da rubrica (máx. R$ ${(line.approved * 2).toFixed(2)})`,
-    };
-  }
-  if (nextProjectReserved > params.balance.totalApproved + 1e-6) {
-    return {
-      ok: false,
-      message: `Total do projeto excederia o orçamento aprovado (R$ ${params.balance.totalApproved.toFixed(2)})`,
     };
   }
   return { ok: true, overflow: nextLineReserved > line.approved + 1e-6 };

@@ -46,11 +46,10 @@ function rowClass(b: LineBalance | undefined) {
 export function BudgetTree({
   lines,
   balances,
-  pctCaptadoTLabel,
 }: {
   lines: Line[];
   balances: Map<string, LineBalance>;
-  /** Ex.: "67,4%" para o thead */
+  /** @deprecated Teto do projeto fica no KPI; mantido por compatibilidade de props. */
   pctCaptadoTLabel?: string;
 }) {
   const tree = groupLines(lines);
@@ -60,11 +59,11 @@ export function BudgetTree({
       <div className="flex flex-wrap gap-4 text-xs text-[var(--gray-500)]">
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" />
-          Perto do disponível (≥80%)
+          Perto do aprovado (≥80%)
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />
-          No limite do disponível
+          No limite da rubrica
         </span>
       </div>
 
@@ -76,9 +75,6 @@ export function BudgetTree({
           <div className="space-y-2 p-3">
             {[...products.entries()].map(([produto, etapas]) => {
               const isAdminProduto = isAdminProduct(produto);
-              const dispHeader = pctCaptadoTLabel
-                ? `Teto operacional (${pctCaptadoTLabel})`
-                : "Teto operacional";
               return (
               <details key={produto} open className="rounded-lg border border-[var(--border)]">
                 <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
@@ -114,14 +110,12 @@ export function BudgetTree({
                                   >
                                     Aprovado (MinC)
                                   </ThHelp>
-                                  {!isAdminProduto ? (
-                                    <ThHelp
-                                      className="py-1 pr-2"
-                                      help={HELP.planningDisponivel}
-                                    >
-                                      {dispHeader}
-                                    </ThHelp>
-                                  ) : null}
+                                  <ThHelp
+                                    className="py-1 pr-2"
+                                    help={HELP.planningDisponivel}
+                                  >
+                                    Disponível
+                                  </ThHelp>
                                   <th className="py-1 pr-2">Reservado</th>
                                   <th className="py-1 pr-2">Pago</th>
                                   <ThHelp
@@ -155,13 +149,11 @@ export function BudgetTree({
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(approved)}
                                       </td>
-                                      {!isAdminProduto ? (
-                                        <td className="py-1.5 pr-2 tabular-nums">
-                                          {formatCurrency(
-                                            b?.availableCap ?? approved,
-                                          )}
-                                        </td>
-                                      ) : null}
+                                      <td className="py-1.5 pr-2 tabular-nums">
+                                        {formatCurrency(
+                                          b?.available ?? approved,
+                                        )}
+                                      </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(b?.reserved ?? 0)}
                                       </td>
@@ -170,7 +162,8 @@ export function BudgetTree({
                                       </td>
                                       <td className="py-1.5 tabular-nums font-medium">
                                         {formatCurrency(
-                                          b?.available ?? approved,
+                                          b?.saldo ??
+                                            approved - (b?.paid ?? 0),
                                         )}
                                       </td>
                                     </tr>
