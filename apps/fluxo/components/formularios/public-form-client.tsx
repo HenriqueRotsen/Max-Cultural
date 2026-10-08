@@ -534,7 +534,12 @@ export function PublicFormClient({
       );
     }
 
-    if (campo.tipo === "MULTIPLE_CHOICE" || campo.tipo === "DROPDOWN") {
+    if (
+      campo.tipo === "MULTIPLE_CHOICE" ||
+      campo.tipo === "DROPDOWN" ||
+      campo.tipo === "TERRITORIO_OFICINA"
+    ) {
+      if (campo.config?.hidden === true) return null;
       const opts = asOptions(campo.opcoes);
       if (campo.tipo === "DROPDOWN") {
         return (

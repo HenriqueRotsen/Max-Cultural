@@ -32,6 +32,7 @@ import type {
 } from "@/lib/contexto";
 import { ListPager } from "@/components/admin/list-pager";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -110,6 +111,14 @@ export function ContextosManager({
     contextoId: "",
     projetoId: "",
     nome: "",
+    ofereceOnline: false,
+    oferecePresencial: true,
+    territorios: [] as Array<{
+      key: string;
+      nome: string;
+      cidade: string;
+      estado: string;
+    }>,
   });
   const [ofContextos, setOfContextos] = useState<ContextoSelectOption[]>([]);
   const [ofProjetos, setOfProjetos] = useState<ProjetoSelectOption[]>([]);
@@ -314,7 +323,16 @@ export function ContextosManager({
       projetoId = projetosRows[0]?.id ?? "";
     }
     setOfEditId(null);
-    setOfForm({ contextoId: ctxId, projetoId, nome: "" });
+    setOfForm({
+      contextoId: ctxId,
+      projetoId,
+      nome: "",
+      ofereceOnline: false,
+      oferecePresencial: true,
+      territorios: [
+        { key: crypto.randomUUID(), nome: "", cidade: "", estado: "" },
+      ],
+    });
     setOfOpen(true);
   }
 
@@ -324,27 +342,48 @@ export function ContextosManager({
       contextoId: o.contextoId,
       projetoId: o.projetoId,
       nome: o.nome,
+      ofereceOnline: o.ofereceOnline,
+      oferecePresencial: o.oferecePresencial,
+      territorios:
+        o.territorios.length > 0
+          ? o.territorios.map((t) => ({
+              key: t.id,
+              nome: t.nome,
+              cidade: t.cidade,
+              estado: t.estado,
+            }))
+          : o.oferecePresencial
+            ? [{ key: crypto.randomUUID(), nome: "", cidade: "", estado: "" }]
+            : [],
     });
     setOfOpen(true);
   }
 
   async function saveOf() {
     startTransition(async () => {
+      const payload = {
+        projetoId: ofForm.projetoId,
+        nome: ofForm.nome,
+        ofereceOnline: ofForm.ofereceOnline,
+        oferecePresencial: ofForm.oferecePresencial,
+        territorios: ofForm.oferecePresencial
+          ? ofForm.territorios.map((t, i) => ({
+              nome: t.nome,
+              cidade: t.cidade,
+              estado: t.estado,
+              ordem: i,
+            }))
+          : [],
+      };
       if (ofEditId) {
-        const r = await updateOficinaAction(ofEditId, {
-          projetoId: ofForm.projetoId,
-          nome: ofForm.nome,
-        });
+        const r = await updateOficinaAction(ofEditId, payload);
         if (!r.ok) {
           toast.error(r.error);
           return;
         }
         toast.success("Oficina atualizada");
       } else {
-        const r = await createOficinaAction({
-          projetoId: ofForm.projetoId,
-          nome: ofForm.nome,
-        });
+        const r = await createOficinaAction(payload);
         if (!r.ok) {
           toast.error(r.error);
           return;
@@ -917,13 +956,13 @@ export function ContextosManager({
       </Dialog>
 
       <Dialog open={ofOpen} onOpenChange={setOfOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {ofEditId ? "Editar oficina" : "Nova oficina"}
             </DialogTitle>
             <DialogDescription>
-              A oficina fica vinculada a um único projeto (e ao contexto dele).
+              A oficina pode ser online e/ou presencial (com um ou mais territórios).
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
@@ -995,6 +1034,165 @@ export function ContextosManager({
                 placeholder="Ex.: Oficina de IA"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Modalidade</Label>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={ofForm.ofereceOnline}
+                    onCheckedChange={(v) =>
+                      setOfForm((f) => ({
+                        ...f,
+                        ofereceOnline: v === true,
+                      }))
+                    }
+                  />
+                  Online
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={ofForm.oferecePresencial}
+                    onCheckedChange={(v) => {
+                      const on = v === true;
+                      setOfForm((f) => ({
+                        ...f,
+                        oferecePresencial: on,
+                        territorios:
+                          on && f.territorios.length === 0
+                            ? [
+                                {
+                                  key: crypto.randomUUID(),
+                                  nome: "",
+                                  cidade: "",
+                                  estado: "",
+                                },
+                              ]
+                            : f.territorios,
+                      }));
+                    }}
+                  />
+                  Presencial
+                </label>
+              </div>
+            </div>
+            {ofForm.oferecePresencial && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Territórios presenciais</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setOfForm((f) => ({
+                        ...f,
+                        territorios: [
+                          ...f.territorios,
+                          {
+                            key: crypto.randomUUID(),
+                            nome: "",
+                            cidade: "",
+                            estado: "",
+                          },
+                        ],
+                      }))
+                    }
+                  >
+                    <Plus className="size-3.5" />
+                    Adicionar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Cidade e UF são obrigatórios. Comunidade/território é opcional.
+                </p>
+                <div className="grid gap-3">
+                  {ofForm.territorios.map((t, idx) => (
+                    <div
+                      key={t.key}
+                      className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_1fr_4rem_auto]"
+                    >
+                      <div className="space-y-1">
+                        <Label className="text-xs">Cidade</Label>
+                        <Input
+                          value={t.cidade}
+                          onChange={(e) =>
+                            setOfForm((f) => ({
+                              ...f,
+                              territorios: f.territorios.map((row, i) =>
+                                i === idx
+                                  ? { ...row, cidade: e.target.value }
+                                  : row,
+                              ),
+                            }))
+                          }
+                          placeholder="Imperatriz"
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-1">
+                        <Label className="text-xs">Comunidade (opc.)</Label>
+                        <Input
+                          value={t.nome}
+                          onChange={(e) =>
+                            setOfForm((f) => ({
+                              ...f,
+                              territorios: f.territorios.map((row, i) =>
+                                i === idx
+                                  ? { ...row, nome: e.target.value }
+                                  : row,
+                              ),
+                            }))
+                          }
+                          placeholder="Quilombo X"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">UF</Label>
+                        <Input
+                          value={t.estado}
+                          maxLength={2}
+                          onChange={(e) =>
+                            setOfForm((f) => ({
+                              ...f,
+                              territorios: f.territorios.map((row, i) =>
+                                i === idx
+                                  ? {
+                                      ...row,
+                                      estado: e.target.value
+                                        .toUpperCase()
+                                        .replace(/[^A-Z]/g, "")
+                                        .slice(0, 2),
+                                    }
+                                  : row,
+                              ),
+                            }))
+                          }
+                          placeholder="MA"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={ofForm.territorios.length <= 1}
+                          onClick={() =>
+                            setOfForm((f) => ({
+                              ...f,
+                              territorios: f.territorios.filter(
+                                (_, i) => i !== idx,
+                              ),
+                            }))
+                          }
+                          aria-label="Remover território"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOfOpen(false)}>

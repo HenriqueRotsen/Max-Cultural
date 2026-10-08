@@ -973,6 +973,7 @@ export function RespostasQueue({
                                     </div>
                                   ) : c.tipo === "MULTIPLE_CHOICE" ||
                                     c.tipo === "DROPDOWN" ||
+                                    c.tipo === "TERRITORIO_OFICINA" ||
                                     c.tipo === "GENERO" ||
                                     c.tipo === "ETNIA" ? (
                                     <select

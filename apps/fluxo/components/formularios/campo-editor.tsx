@@ -37,6 +37,7 @@ const VINCULO_DISABLED_TIPOS = new Set([
   "ADDRESS_BR",
   "DECLARACAO",
   "FILE_UPLOAD",
+  "TERRITORIO_OFICINA",
 ]);
 
 const COLUNAS_VINCULAVEIS = PERSON_COLUMNS.filter(
@@ -339,6 +340,14 @@ export function CampoEditor({ campos, onChange }: Props) {
               }
             />
           </div>
+
+          {campo.tipo === "TERRITORIO_OFICINA" && (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              As opções (Online e/ou territórios com Cidade/UF) vêm do cadastro da
+              oficina no momento da inscrição. Vincule a coluna SIGA
+              &quot;Territorio&quot;.
+            </p>
+          )}
 
           {(campo.tipo === "MULTIPLE_CHOICE" ||
             campo.tipo === "CHECKBOXES" ||

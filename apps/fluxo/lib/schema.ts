@@ -112,6 +112,25 @@ export type BatchContext = {
   Nome_projeto: string;
   Identificacao_ano_projeto: string;
   Nome_oficina?: string;
+  /** Catálogo da oficina para casar coluna de território no import. */
+  oficinaTerritorioCatalog?: {
+    ofereceOnline: boolean;
+    oferecePresencial: boolean;
+    territorios: Array<{
+      id: string;
+      nome: string;
+      cidade: string;
+      estado: string;
+    }>;
+    aliases?: Array<{
+      rawNormalized: string;
+      online: boolean;
+      oficinaTerritorioId?: string | null;
+      cidade?: string;
+      estado?: string;
+      territorio?: string;
+    }>;
+  };
 };
 
 const emptyToString = z.preprocess(

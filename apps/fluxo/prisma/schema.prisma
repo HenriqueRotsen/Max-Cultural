@@ -91,15 +91,60 @@ model Projeto {
 }
 
 model Oficina {
-  id        String   @id
-  nome      String
-  projetoId String
-  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Restrict)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String              @id
+  nome               String
+  projetoId          String
+  projeto            Projeto             @relation(fields: [projetoId], references: [id], onDelete: Restrict)
+  /// Oferece modalidade online (opção sintética "Online" na inscrição).
+  ofereceOnline      Boolean             @default(false) @map("oferece_online")
+  /// Oferece modalidade presencial (requer ≥1 OficinaTerritorio na UI).
+  oferecePresencial  Boolean             @default(true) @map("oferece_presencial")
+  territorios        OficinaTerritorio[]
+  territorioAliases  OficinaTerritorioAlias[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([projetoId])
   @@map("oficinas")
+}
+
+/// Locais presenciais em que a oficina ocorre (N por oficina).
+model OficinaTerritorio {
+  id        String                   @id @default(cuid())
+  oficinaId String                   @map("oficina_id")
+  oficina   Oficina                  @relation(fields: [oficinaId], references: [id], onDelete: Cascade)
+  /// Rótulo curto da comunidade/território (opcional se for só a cidade).
+  nome      String                   @default("")
+  cidade    String
+  estado    String
+  ordem     Int                      @default(0)
+  aliases   OficinaTerritorioAlias[]
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  @@index([oficinaId, ordem])
+  @@index([cidade, estado])
+  @@map("oficina_territorios")
+}
+
+/// Alias de texto livre (import) → Online ou um OficinaTerritorio / cidade-UF.
+model OficinaTerritorioAlias {
+  id                  String             @id @default(cuid())
+  oficinaId           String             @map("oficina_id")
+  oficina             Oficina            @relation(fields: [oficinaId], references: [id], onDelete: Cascade)
+  rawNormalized       String             @map("raw_normalized")
+  online              Boolean            @default(false)
+  oficinaTerritorioId String?            @map("oficina_territorio_id")
+  oficinaTerritorio   OficinaTerritorio? @relation(fields: [oficinaTerritorioId], references: [id], onDelete: SetNull)
+  cidade              String             @default("")
+  estado              String             @default("")
+  territorio          String             @default("")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@unique([oficinaId, rawNormalized])
+  @@index([oficinaId])
+  @@map("oficina_territorio_aliases")
 }
 
 enum FormularioTipo {
@@ -134,6 +179,7 @@ enum FormularioCampoTipo {
   ADDRESS_BR
   DECLARACAO
   PARTICIPACAO
+  TERRITORIO_OFICINA
 }
 
 model Formulario {

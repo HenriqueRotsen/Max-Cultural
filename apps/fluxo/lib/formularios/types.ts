@@ -18,6 +18,7 @@ export const FORMULARIO_CAMPO_TIPOS = [
   "ADDRESS_BR",
   "DECLARACAO",
   "PARTICIPACAO",
+  "TERRITORIO_OFICINA",
 ] as const;
 
 export type FormularioCampoTipoCode = (typeof FORMULARIO_CAMPO_TIPOS)[number];
@@ -74,6 +75,7 @@ export const FORMULARIO_CAMPO_TIPO_LABELS: Record<FormularioCampoTipoCode, strin
   ADDRESS_BR: "Endereço (CEP)",
   DECLARACAO: "Declaração",
   PARTICIPACAO: "Participação (avaliação)",
+  TERRITORIO_OFICINA: "Território da oficina",
 };
 
 export function slugifyTitulo(titulo: string): string {

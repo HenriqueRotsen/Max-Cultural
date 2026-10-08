@@ -30,6 +30,93 @@ import {
   formularioRateLimitRequired,
 } from "@/lib/rate-limit";
 import { uploadPublicImage } from "@/lib/storage/object-store";
+import {
+  catalogFromOficinaParts,
+  resolveOficinaTerritorioChoice,
+  territorioOficinaFieldMeta,
+  type OficinaTerritorioCatalog,
+} from "@/lib/oficina-territorio";
+
+async function loadOficinaTerritorioCatalog(
+  oficinaId: string,
+): Promise<OficinaTerritorioCatalog | null> {
+  const oficina = await prisma.oficina.findUnique({
+    where: { id: oficinaId },
+    select: {
+      ofereceOnline: true,
+      oferecePresencial: true,
+      territorios: {
+        orderBy: { ordem: "asc" },
+        select: { id: true, nome: true, cidade: true, estado: true },
+      },
+      territorioAliases: {
+        select: {
+          rawNormalized: true,
+          online: true,
+          oficinaTerritorioId: true,
+          cidade: true,
+          estado: true,
+          territorio: true,
+        },
+      },
+    },
+  });
+  if (!oficina) return null;
+  return catalogFromOficinaParts({
+    ofereceOnline: oficina.ofereceOnline,
+    oferecePresencial: oficina.oferecePresencial,
+    territorios: oficina.territorios,
+    aliases: oficina.territorioAliases,
+  });
+}
+
+function hydrateTerritorioOficinaCampos<
+  T extends {
+    tipo: string;
+    obrigatorio: boolean;
+    opcoes: string[] | null;
+    config: Record<string, unknown> | null;
+    sigaColumn: string | null;
+  },
+>(campos: T[], catalog: OficinaTerritorioCatalog | null): T[] {
+  if (!catalog) return campos;
+  const meta = territorioOficinaFieldMeta(catalog);
+  return campos.map((c) => {
+    if (c.tipo !== "TERRITORIO_OFICINA") return c;
+    return {
+      ...c,
+      obrigatorio: meta.obrigatorio,
+      opcoes: meta.opcoes,
+      sigaColumn: c.sigaColumn ?? "Territorio",
+      config: {
+        ...(c.config ?? {}),
+        hidden: !meta.showField,
+        autoChoice: meta.autoChoice,
+      },
+    };
+  });
+}
+
+function applyTerritorioChoiceToSiga(
+  sigaPartial: Record<string, unknown>,
+  choice: string,
+  catalog: OficinaTerritorioCatalog,
+): { oficinaTerritorioId: string | null; online: boolean } {
+  const resolved = resolveOficinaTerritorioChoice(choice, catalog);
+  if (resolved.online) {
+    sigaPartial.Cidade = "";
+    sigaPartial.Estado = "";
+    sigaPartial.Territorio = resolved.territorio;
+  } else if (resolved.matched || resolved.cidade || resolved.territorio) {
+    sigaPartial.Cidade = resolved.cidade;
+    sigaPartial.Estado = resolved.estado;
+    sigaPartial.Territorio = resolved.territorio;
+  }
+  return {
+    oficinaTerritorioId: resolved.oficinaTerritorioId,
+    online: resolved.online,
+  };
+}
 
 const CAPA_MAX_BYTES = 5 * 1024 * 1024;
 const CAPA_MIME: Record<string, string> = {
@@ -151,14 +238,41 @@ function cleanOpcoes(opcoes: string[] | null | undefined) {
   return cleaned.length ? cleaned : undefined;
 }
 
+/** Modelos antigos ainda têm SHORT_TEXT em Territorio — promove para o tipo tipado. */
+function upgradeTerritorioOficinaCampos(
+  campos: FormularioCampoDraft[],
+): FormularioCampoDraft[] {
+  return campos.map((c) => {
+    if (c.sigaColumn !== "Territorio") return c;
+    if (c.tipo === "TERRITORIO_OFICINA") return c;
+    if (c.tipo !== "SHORT_TEXT" && c.tipo !== "DROPDOWN") return c;
+    return {
+      ...c,
+      tipo: "TERRITORIO_OFICINA",
+      rotulo:
+        c.rotulo.includes("comunidade") || c.rotulo === "Território / comunidade"
+          ? "Em qual território você quer se inscrever?"
+          : c.rotulo,
+      descricao:
+        c.descricao?.trim() ||
+        "Escolha Online ou o território presencial (cidade/UF). As opções vêm do cadastro da oficina.",
+      obrigatorio: true,
+      opcoes: null,
+    };
+  });
+}
+
 function mapCamposCreate(campos: FormularioCampoDraft[]) {
-  return campos.map((c, i) => ({
+  return upgradeTerritorioOficinaCampos(campos).map((c, i) => ({
     ordem: c.ordem ?? i,
     rotulo: c.rotulo.trim(),
     descricao: c.descricao ?? "",
     obrigatorio: Boolean(c.obrigatorio),
     tipo: asCampoTipo(c.tipo),
-    sigaColumn: c.sigaColumn,
+    sigaColumn:
+      c.tipo === "TERRITORIO_OFICINA"
+        ? c.sigaColumn ?? "Territorio"
+        : c.sigaColumn,
     opcoes: cleanOpcoes(c.opcoes) as Prisma.InputJsonValue | undefined,
     config:
       c.config == null ? undefined : (c.config as Prisma.InputJsonValue),
@@ -467,6 +581,21 @@ export async function getPublicFormularioBySlugAction(slug: string) {
     where: { id: form.oficinaId },
     include: { projeto: { include: { contexto: true } } },
   });
+  const catalog = await loadOficinaTerritorioCatalog(form.oficinaId);
+  const campos = hydrateTerritorioOficinaCampos(
+    form.campos.map((c) => ({
+      id: c.id,
+      ordem: c.ordem,
+      rotulo: c.rotulo,
+      descricao: c.descricao,
+      obrigatorio: c.obrigatorio,
+      tipo: c.tipo as FormularioCampoTipoCode,
+      sigaColumn: c.sigaColumn,
+      opcoes: (c.opcoes as string[] | null) ?? null,
+      config: (c.config as Record<string, unknown> | null) ?? null,
+    })),
+    catalog,
+  );
   return {
     ok: true as const,
     form: {
@@ -477,17 +606,7 @@ export async function getPublicFormularioBySlugAction(slug: string) {
       tipo: form.tipo as "INSCRICAO" | "AVALIACAO",
       capaUrl: form.capaUrl,
       mensagemConfirmacao: form.mensagemConfirmacao,
-      campos: form.campos.map((c) => ({
-        id: c.id,
-        ordem: c.ordem,
-        rotulo: c.rotulo,
-        descricao: c.descricao,
-        obrigatorio: c.obrigatorio,
-        tipo: c.tipo as FormularioCampoTipoCode,
-        sigaColumn: c.sigaColumn,
-        opcoes: (c.opcoes as string[] | null) ?? null,
-        config: (c.config as Record<string, unknown> | null) ?? null,
-      })),
+      campos,
     },
     oficinaNome: oficina?.nome ?? "",
     projetoNome: oficina?.projeto.nome ?? "",
@@ -535,7 +654,8 @@ export async function submitPublicFormularioAction(input: {
   );
   if (!captcha.ok) return { ok: false, error: captcha.error };
 
-  const validated = validateFormularioAnswers(
+  const catalog = await loadOficinaTerritorioCatalog(form.oficinaId);
+  const camposHydrated = hydrateTerritorioOficinaCampos(
     form.campos.map((c) => ({
       id: c.id,
       rotulo: c.rotulo,
@@ -543,8 +663,30 @@ export async function submitPublicFormularioAction(input: {
       tipo: c.tipo as FormularioCampoTipoCode,
       sigaColumn: c.sigaColumn,
       opcoes: (c.opcoes as string[] | null) ?? null,
+      config: (c.config as Record<string, unknown> | null) ?? null,
     })),
-    input.answers,
+    catalog,
+  );
+
+  const answers = { ...input.answers };
+  for (const c of camposHydrated) {
+    if (c.tipo !== "TERRITORIO_OFICINA") continue;
+    const auto = c.config?.autoChoice;
+    if (typeof auto === "string" && auto && !String(answers[c.id] ?? "").trim()) {
+      answers[c.id] = auto;
+    }
+  }
+
+  const validated = validateFormularioAnswers(
+    camposHydrated.map((c) => ({
+      id: c.id,
+      rotulo: c.rotulo,
+      obrigatorio: c.obrigatorio,
+      tipo: c.tipo,
+      sigaColumn: c.sigaColumn,
+      opcoes: c.opcoes,
+    })),
+    answers,
   );
   if (!validated.ok) {
     return {
@@ -552,6 +694,23 @@ export async function submitPublicFormularioAction(input: {
       error: validated.errors._cpf || "Corrija os campos destacados.",
       fieldErrors: validated.errors,
     };
+  }
+
+  let oficinaTerritorioId: string | null = null;
+  let territorioOnline = false;
+  if (catalog) {
+    for (const c of camposHydrated) {
+      if (c.tipo !== "TERRITORIO_OFICINA") continue;
+      const choice = String(validated.values[c.id] ?? "").trim();
+      if (!choice) continue;
+      const applied = applyTerritorioChoiceToSiga(
+        validated.sigaPartial,
+        choice,
+        catalog,
+      );
+      oficinaTerritorioId = applied.oficinaTerritorioId;
+      territorioOnline = applied.online;
+    }
   }
 
   const existingInscricao = await prisma.inscricao.findFirst({
@@ -579,6 +738,8 @@ export async function submitPublicFormularioAction(input: {
         payload: {
           answers: validated.values,
           sigaPartial: validated.sigaPartial,
+          oficinaTerritorioId,
+          territorioOnline,
         } as Prisma.InputJsonValue,
         status: "PENDING",
       },

@@ -200,7 +200,8 @@ export function validateFormularioAnswers(
         break;
       }
       case "MULTIPLE_CHOICE":
-      case "DROPDOWN": {
+      case "DROPDOWN":
+      case "TERRITORIO_OFICINA": {
         const n = String(rawVal ?? "").trim();
         const allowed = campo.opcoes ?? [];
         if (n && allowed.length && !allowed.includes(n)) {

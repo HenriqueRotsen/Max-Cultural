@@ -144,10 +144,11 @@ export function defaultInscricaoCampos(): FormularioCampoDraft[] {
       config: null,
     },
     {
-      rotulo: "Território / comunidade",
-      descricao: "Opcional — quilombo, assentamento, regional, etc.",
-      obrigatorio: false,
-      tipo: "SHORT_TEXT",
+      rotulo: "Em qual território você quer se inscrever?",
+      descricao:
+        "Escolha Online ou o território presencial (cidade/UF). As opções vêm do cadastro da oficina.",
+      obrigatorio: true,
+      tipo: "TERRITORIO_OFICINA",
       sigaColumn: "Territorio",
       opcoes: null,
       config: null,

@@ -25,6 +25,7 @@ import {
 } from "@/app/actions/inscricoes";
 import {
   createOficinaAction,
+  getOficinaTerritorioCatalogAction,
   listContextosSelectAction,
   listOficinasSelectAction,
   listProjetosSelectAction,
@@ -133,6 +134,16 @@ function oficinaSelectToBatch(o: OficinaSelectOption): HierarquiaBatch {
     Nome_projeto: o.projetoNome,
     Identificacao_ano_projeto: o.ano,
     Nome_oficina: o.nome,
+    oficinaTerritorioCatalog: {
+      ofereceOnline: Boolean(o.ofereceOnline),
+      oferecePresencial: o.oferecePresencial !== false,
+      territorios: (o.territorios ?? []).map((t) => ({
+        id: t.id,
+        nome: t.nome,
+        cidade: t.cidade,
+        estado: t.estado,
+      })),
+    },
   };
 }
 
@@ -542,6 +553,20 @@ export function ImportWizard() {
     }
   }
 
+  async function enrichContextCatalog(batch: HierarquiaBatch): Promise<HierarquiaBatch> {
+    const catalog = await getOficinaTerritorioCatalogAction(batch.id_oficina);
+    if (!catalog) return batch;
+    return {
+      ...batch,
+      oficinaTerritorioCatalog: {
+        ofereceOnline: catalog.ofereceOnline,
+        oferecePresencial: catalog.oferecePresencial,
+        territorios: catalog.territorios,
+        aliases: catalog.aliases,
+      },
+    };
+  }
+
   async function handleContextNext() {
     if (hierarchyComplete && hierarchyPhase === "select") {
       const found = oficinas.find((o) => o.id === selOficinaId);
@@ -549,7 +574,8 @@ export function ImportWizard() {
         toast.error("Oficina inválida");
         return;
       }
-      setContext(oficinaSelectToBatch(found));
+      const batch = await enrichContextCatalog(oficinaSelectToBatch(found));
+      setContext(batch);
       await proceedAfterHierarchy();
       return;
     }
@@ -589,7 +615,7 @@ export function ImportWizard() {
         toast.error(createdOf.error);
         return;
       }
-      setContext(oficinaToBatch(createdOf.oficina));
+      setContext(await enrichContextCatalog(oficinaToBatch(createdOf.oficina)));
       setSelContextoId(createdOf.oficina.contextoId);
       setSelProjetoId(createdOf.oficina.projetoId);
       setSelOficinaId(createdOf.oficina.id);

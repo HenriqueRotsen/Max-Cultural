@@ -30,6 +30,22 @@ export type ProjetoDTO = {
   updatedAt: string;
 };
 
+export type OficinaTerritorioDTO = {
+  id: string;
+  nome: string;
+  cidade: string;
+  estado: string;
+  ordem: number;
+};
+
+export type OficinaTerritorioInput = {
+  id?: string;
+  nome?: string;
+  cidade: string;
+  estado: string;
+  ordem?: number;
+};
+
 export type OficinaDTO = {
   id: string;
   nome: string;
@@ -40,6 +56,9 @@ export type OficinaDTO = {
   pronac: string;
   proponente: string;
   ano: string;
+  ofereceOnline: boolean;
+  oferecePresencial: boolean;
+  territorios: OficinaTerritorioDTO[];
   inscricoesCount: number;
   hasEditorAccess: boolean;
   canEdit: boolean;
@@ -63,6 +82,9 @@ export type ProjetoInput = {
 export type OficinaInput = {
   projetoId: string;
   nome: string;
+  ofereceOnline?: boolean;
+  oferecePresencial?: boolean;
+  territorios?: OficinaTerritorioInput[];
 };
 
 /** Snapshot completo para carimbar importação */
@@ -82,5 +104,15 @@ export function oficinaToBatch(o: OficinaDTO): HierarquiaBatch {
     Nome_projeto: o.projetoNome,
     Identificacao_ano_projeto: o.ano,
     Nome_oficina: o.nome,
+    oficinaTerritorioCatalog: {
+      ofereceOnline: o.ofereceOnline,
+      oferecePresencial: o.oferecePresencial,
+      territorios: o.territorios.map((t) => ({
+        id: t.id,
+        nome: t.nome,
+        cidade: t.cidade,
+        estado: t.estado,
+      })),
+    },
   };
 }

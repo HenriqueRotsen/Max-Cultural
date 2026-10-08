@@ -20,4 +20,12 @@ export type OficinaSelectOption = {
   pronac: string;
   proponente: string;
   ano: string;
+  ofereceOnline?: boolean;
+  oferecePresencial?: boolean;
+  territorios?: Array<{
+    id: string;
+    nome: string;
+    cidade: string;
+    estado: string;
+  }>;
 };

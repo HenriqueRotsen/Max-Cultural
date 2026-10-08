@@ -104,6 +104,11 @@ export const HEADER_SYNONYMS: Record<string, SigaCulturalColumn> = {
   regional: "Territorio",
   regionais: "Territorio",
   territorio_comunidade: "Territorio",
+  voce_quer_se_inscrever_para_qual_oficina: "Territorio",
+  qual_oficina: "Territorio",
+  qual_territorio: "Territorio",
+  territorio_da_oficina: "Territorio",
+  local_da_oficina: "Territorio",
   inscritos: "Inscritos",
   selecionados: "Selecionados",
   selecionado: "Selecionados",
@@ -242,8 +247,14 @@ export function normalizeHeaderKey(key: string): string {
  * Match por inclusão: "CPF do aluno" → CPF, "e-mail pessoal" → E-mail
  */
 function matchHeaderByIncludes(key: string): SigaCulturalColumn | null {
-  // perguntas longas de formulário (Google Forms etc.)
-  if (/qual_oficina|inscrever.*oficina|oficina_desej/.test(key)) return null;
+  // «Você quer se inscrever para qual oficina?» → escolha de território/local
+  if (
+    /qual_oficina|inscrever.*oficina|oficina_desej|qual_territorio|territorio_da_oficina|local_da_oficina/.test(
+      key,
+    )
+  ) {
+    return "Territorio";
+  }
 
   const rules: Array<[RegExp, SigaCulturalColumn]> = [
     [/(^|_)cpf($|_)/, "CPF"],

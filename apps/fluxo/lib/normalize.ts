@@ -17,6 +17,7 @@ import {
 } from "@/lib/column-map";
 import { enrichCidadeEstado } from "@/lib/municipio-uf";
 import { applyParsedFullAddress } from "@/lib/address-parse";
+import { parseTerritorioInscricao } from "@/lib/oficina-territorio";
 
 export { normalizeHeaderKey, HEADER_SYNONYMS } from "@/lib/column-map";
 export type { SigaCulturalColumn } from "@/lib/schema";
@@ -849,16 +850,65 @@ export function normalizeRow(
   const addressSplit = applyParsedFullAddress(merged);
   Object.assign(merged, addressSplit);
 
-  const { Cidade: cidadeSplit, Territorio: territorioSplit } =
-    splitCidadeTerritorio({
-      Cidade: merged.Cidade,
-      Territorio: merged.Territorio,
+  const catalog = context?.oficinaTerritorioCatalog ?? null;
+  let cidadeNorm = "";
+  let estadoNorm = "";
+  let territorioNorm = "";
+
+  const territorioRaw = String(merged.Territorio ?? "").trim();
+  if (territorioRaw && catalog) {
+    const parsed = parseTerritorioInscricao(territorioRaw, catalog);
+    if (parsed.matched || parsed.online) {
+      cidadeNorm = parsed.cidade;
+      estadoNorm = parsed.estado;
+      territorioNorm = parsed.territorio;
+      if (!parsed.online && !cidadeNorm && String(merged.Cidade ?? "").trim()) {
+        const { Cidade: cidadeSplit } = splitCidadeTerritorio({
+          Cidade: merged.Cidade,
+          Territorio: "",
+        });
+        const enrichedCity = enrichCidadeEstado({
+          cidade: cidadeSplit,
+          estado: String(merged.Estado ?? ""),
+          territorio: "",
+        });
+        cidadeNorm = enrichedCity.cidade;
+        estadoNorm = estadoNorm || enrichedCity.estado;
+      }
+    }
+  }
+
+  if (!cidadeNorm && !territorioNorm) {
+    const { Cidade: cidadeSplit, Territorio: territorioSplit } =
+      splitCidadeTerritorio({
+        Cidade: merged.Cidade,
+        Territorio: merged.Territorio,
+      });
+    const enriched = enrichCidadeEstado({
+      cidade: cidadeSplit,
+      estado: String(merged.Estado ?? ""),
+      territorio: territorioSplit,
     });
-  const enriched = enrichCidadeEstado({
-    cidade: cidadeSplit,
-    estado: String(merged.Estado ?? ""),
-    territorio: territorioSplit,
-  });
+    cidadeNorm = enriched.cidade;
+    estadoNorm = enriched.estado;
+    territorioNorm = enriched.territorio;
+  } else if (!cidadeNorm && String(merged.Cidade ?? "").trim()) {
+    const enriched = enrichCidadeEstado({
+      cidade: String(merged.Cidade ?? ""),
+      estado: String(merged.Estado ?? ""),
+      territorio: territorioNorm,
+    });
+    cidadeNorm = enriched.cidade;
+    estadoNorm = estadoNorm || enriched.estado;
+  } else if (cidadeNorm && !estadoNorm) {
+    const enriched = enrichCidadeEstado({
+      cidade: cidadeNorm,
+      estado: String(merged.Estado ?? ""),
+      territorio: territorioNorm,
+    });
+    cidadeNorm = enriched.cidade;
+    estadoNorm = enriched.estado;
+  }
 
   const candidate = {
     ...merged,
@@ -876,14 +926,14 @@ export function normalizeRow(
     Numero: normalizeNumero(merged.Numero),
     Complemento: String(merged.Complemento ?? "").trim(),
     Bairro: normalizeAddressLine(merged.Bairro),
-    Cidade: enriched.cidade,
-    Estado: enriched.estado,
+    Cidade: cidadeNorm,
+    Estado: estadoNorm,
     Genero: normalizeGenero(merged.Genero),
     Etnia: normalizeEtnia(merged.Etnia),
     Possui_deficiencia: normalizeSimComDetalhe(merged.Possui_deficiencia),
     Redesocial: String(merged.Redesocial ?? "").trim().replace(/^@+/, "@"),
     Escolaridade: String(merged.Escolaridade ?? "").trim(),
-    Territorio: enriched.territorio,
+    Territorio: territorioNorm,
     RestricaoAlimentar: normalizeSimComDetalhe(merged.RestricaoAlimentar),
     Ficousabendo: String(merged.Ficousabendo ?? "").trim(),
     Data_nascimento: formatDateBR(birth),
