@@ -27,8 +27,12 @@ const nextConfig: NextConfig = {
               "https://challenges.cloudflare.com",
             ],
             frameSrc: ["https://challenges.cloudflare.com"],
-            // Tiles Leaflet (OSM.de — gratuito, sem API key).
-            imgSrc: ["https://tile.openstreetmap.de"],
+            // Capas (Supabase Storage / URL pública) + tiles Leaflet.
+            imgSrc: [
+              "https:",
+              "https://*.supabase.co",
+              "https://tile.openstreetmap.de",
+            ],
           },
         }),
       },
