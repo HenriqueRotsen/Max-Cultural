@@ -1,8 +1,5 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
-import { extname, join } from "node:path";
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { FormularioCampoTipo, Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
@@ -31,15 +28,7 @@ import {
   formularioRateLimitRequired,
 } from "@/lib/rate-limit";
 
-const CAPA_MAX_BYTES = 2 * 1024 * 1024;
-const CAPA_MIME: Record<string, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-  "image/gif": ".gif",
-};
-
-/** Aceita só path local de upload ou URL http(s). */
+/** Aceita URL http(s). Paths `/uploads/...` antigos ainda são lidos. */
 function sanitizeCapaUrl(raw: string | undefined | null): string {
   const u = (raw ?? "").trim();
   if (!u) return "";
@@ -54,77 +43,7 @@ function sanitizeCapaUrl(raw: string | undefined | null): string {
   } catch {
     /* inválida */
   }
-  throw new Error(
-    "URL de capa inválida. Use http(s) ou envie a imagem pelo upload.",
-  );
-}
-
-function looksLikeImage(buf: Buffer, mime: string): boolean {
-  if (buf.length < 12) return false;
-  if (mime === "image/jpeg") return buf[0] === 0xff && buf[1] === 0xd8;
-  if (mime === "image/png") {
-    return (
-      buf[0] === 0x89 &&
-      buf[1] === 0x50 &&
-      buf[2] === 0x4e &&
-      buf[3] === 0x47
-    );
-  }
-  if (mime === "image/gif") {
-    return buf.slice(0, 3).toString("ascii") === "GIF";
-  }
-  if (mime === "image/webp") {
-    return (
-      buf.slice(0, 4).toString("ascii") === "RIFF" &&
-      buf.slice(8, 12).toString("ascii") === "WEBP"
-    );
-  }
-  return false;
-}
-
-/** Upload de arte de capa → `/uploads/formularios/capas/...` */
-export async function uploadFormularioCapaAction(
-  formData: FormData,
-): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
-  await requirePermission("formularios:write");
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Selecione um arquivo de imagem." };
-  }
-  if (file.size > CAPA_MAX_BYTES) {
-    return { ok: false, error: "Imagem muito grande (máx. 2 MB)." };
-  }
-  const mime = (file.type || "").toLowerCase();
-  const extFromMime = CAPA_MIME[mime];
-  if (!extFromMime) {
-    return { ok: false, error: "Use JPG, PNG, WebP ou GIF." };
-  }
-  const nameExt = extname(file.name || "").toLowerCase();
-  const ext =
-    nameExt === ".jpeg" || nameExt === ".jpg" || nameExt === ".png" || nameExt === ".webp" || nameExt === ".gif"
-      ? nameExt === ".jpeg"
-        ? ".jpg"
-        : nameExt
-      : extFromMime;
-
-  try {
-    const buf = Buffer.from(await file.arrayBuffer());
-    if (!looksLikeImage(buf, mime)) {
-      return { ok: false, error: "Arquivo não parece uma imagem válida." };
-    }
-    const dir = join(process.cwd(), "public", "uploads", "formularios", "capas");
-    await mkdir(dir, { recursive: true });
-    const filename = `${randomUUID()}${ext}`;
-    await writeFile(join(dir, filename), buf);
-    return { ok: true, url: `/uploads/formularios/capas/${filename}` };
-  } catch (err) {
-    console.error("[uploadFormularioCapa]", err);
-    return {
-      ok: false,
-      error:
-        "Não foi possível salvar o arquivo neste ambiente. Tente uma URL pública.",
-    };
-  }
+  throw new Error("URL de capa inválida. Use um link http(s) público.");
 }
 
 const TIPOS_PERMITIDOS = new Set<string>(FORMULARIO_CAMPO_TIPOS);
