@@ -740,20 +740,15 @@ function softenPdfText(text: string): string {
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // Worker precisa ser registrado antes do PDFParse (Vercel/serverless).
-  // Import sob demanda evita carregar pdfjs no topo e derrubar outras actions.
-  await import("pdf-parse/worker");
-  const { PDFParse } = await import("pdf-parse");
-  // pdfjs espera Uint8Array; Buffer do Node às vezes falha no runtime serverless.
-  const data = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-  const parser = new PDFParse({ data });
-  try {
-    const result = await parser.getText();
-    const raw = result.text?.trim() || "";
-    return raw ? softenPdfText(raw) : "";
-  } finally {
-    await parser.destroy().catch(() => undefined);
-  }
+  // unpdf: PDF.js serverless (sem canvas nativo) — estável na Vercel.
+  // Cópia do buffer evita issues de view compartilhada do ArrayBuffer.
+  const data = Uint8Array.from(buffer);
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(data);
+  const result = await extractText(pdf, { mergePages: true });
+  const text = result.text;
+  const raw = (Array.isArray(text) ? text.join("\n") : String(text ?? "")).trim();
+  return raw ? softenPdfText(raw) : "";
 }
 
 export async function extractNfFromBuffer(params: {

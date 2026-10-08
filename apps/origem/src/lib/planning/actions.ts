@@ -113,9 +113,31 @@ export async function updatePlanningCaptacao(
 }
 
 
+function isNextNavigationError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const dig = "digest" in err ? String((err as { digest?: unknown }).digest) : "";
+  return dig.startsWith("NEXT_REDIRECT") || dig.startsWith("NEXT_NOT_FOUND");
+}
+
 export async function uploadNfForReview(
   planningProjectId: string,
   _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    return await uploadNfForReviewInner(planningProjectId, formData);
+  } catch (err) {
+    if (isNextNavigationError(err)) throw err;
+    console.error("[uploadNfForReview]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      error: `Não foi possível processar o arquivo (${msg.slice(0, 180)}). Tente novamente ou outro PDF/XML.`,
+    };
+  }
+}
+
+async function uploadNfForReviewInner(
+  planningProjectId: string,
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
@@ -142,7 +164,8 @@ export async function uploadNfForReview(
   });
   if (!project?.importedAt) return { error: "Projeto sem planilha importada" };
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  // Cópia explícita: views sobre ArrayBuffer detached quebram o pdf.js na Vercel.
+  const buffer = Buffer.from(new Uint8Array(await file.arrayBuffer()));
   const extracted = await extractNfFromBuffer({
     buffer,
     filename: file.name,

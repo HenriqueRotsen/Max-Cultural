@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
     "@prisma/adapter-pg",
     "pg",
     "pdf-parse",
-    "@napi-rs/canvas",
+    "unpdf",
   ],
   // Arquivos não-JS que o tracing não detecta: binário do Chromium serverless
   // e metadados do playwright-core (browsers.json etc.).
@@ -31,8 +31,6 @@ const nextConfig: NextConfig = {
     "/**": [
       "../../node_modules/@sparticuz/chromium/bin/**",
       "../../node_modules/playwright-core/**",
-      "../../node_modules/pdf-parse/dist/**",
-      "../../node_modules/@napi-rs/canvas/**",
     ],
   },
   async headers() {
