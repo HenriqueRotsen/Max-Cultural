@@ -740,10 +740,13 @@ function softenPdfText(text: string): string {
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // Import sob demanda: pdfjs-dist pode quebrar ao carregar na Vercel (canvas nativo),
-  // e no topo do módulo isso derrubava todas as Server Actions que importam este arquivo.
+  // Worker precisa ser registrado antes do PDFParse (Vercel/serverless).
+  // Import sob demanda evita carregar pdfjs no topo e derrubar outras actions.
+  await import("pdf-parse/worker");
   const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: buffer });
+  // pdfjs espera Uint8Array; Buffer do Node às vezes falha no runtime serverless.
+  const data = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const parser = new PDFParse({ data });
   try {
     const result = await parser.getText();
     const raw = result.text?.trim() || "";
@@ -771,11 +774,13 @@ export async function extractNfFromBuffer(params: {
     try {
       text = await extractPdfText(params.buffer);
     } catch (err) {
-      console.error("[nf/extract] pdf-parse failed:", err);
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error("[nf/extract] pdf-parse failed:", detail);
       return {
         items: [],
         notes: "Falha ao ler o PDF — preencha manualmente",
         extractOk: false,
+        warnings: [`pdf-parse: ${detail.slice(0, 240)}`],
       };
     }
     if (!text) {

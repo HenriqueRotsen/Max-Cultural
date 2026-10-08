@@ -29,6 +29,7 @@
     "@e965/xlsx": "0.20.3",
     "@max/auth": "*",
     "@max/security-headers": "*",
+    "@napi-rs/canvas": "^1.0.10",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@sparticuz/chromium": "^153.0.0",
