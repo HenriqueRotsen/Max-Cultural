@@ -1,4 +1,4 @@
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile, readFile, rm } from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
 import { tmpdir } from "os";
@@ -8,8 +8,7 @@ import {
   isPdfDocument,
   readPlanningDocumentBytes,
 } from "@/lib/nf/read-document-bytes";
-
-const SALIC_MERGE_ROOT = path.join(process.cwd(), "uploads", "planning", "salic-merge");
+import { docsBucket, uploadObject } from "@/lib/storage/object-store";
 
 export type MergeSource = {
   storagePath: string;
@@ -20,7 +19,9 @@ export type MergeSource = {
 function runGs(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn("gs", args, { stdio: "ignore" });
-    child.on("error", () => reject(new Error("Ghostscript (gs) não disponível para unir PDFs.")));
+    child.on("error", () =>
+      reject(new Error("Ghostscript (gs) não disponível para unir PDFs.")),
+    );
     child.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error("Falha ao unir PDFs com Ghostscript."));
@@ -28,7 +29,11 @@ function runGs(args: string[]): Promise<void> {
   });
 }
 
-async function writeTempPdfFromSource(source: MergeSource, tmpDir: string, index: number) {
+async function writeTempPdfFromSource(
+  source: MergeSource,
+  tmpDir: string,
+  index: number,
+) {
   const bytes = await readPlanningDocumentBytes(source.storagePath);
   const out = path.join(tmpDir, `part-${index}.pdf`);
 
@@ -58,7 +63,7 @@ async function writeTempPdfFromSource(source: MergeSource, tmpDir: string, index
 
 /**
  * Une NF/RPA + comprovante (ou vários PDFs/imagens) em um único PDF.
- * Ordem: fiscal primeiro, comprovante depois.
+ * Ordem: fiscal primeiro, comprovante depois. Resultado vai ao Storage.
  */
 export async function mergeDocumentsToPdf(
   sources: MergeSource[],
@@ -68,8 +73,10 @@ export async function mergeDocumentsToPdf(
     throw new Error("Nenhum documento para unir.");
   }
 
-  await mkdir(SALIC_MERGE_ROOT, { recursive: true });
-  const tmpDir = path.join(tmpdir(), `origem-merge-${randomBytes(6).toString("hex")}`);
+  const tmpDir = path.join(
+    tmpdir(),
+    `origem-merge-${randomBytes(6).toString("hex")}`,
+  );
   await mkdir(tmpDir, { recursive: true });
 
   try {
@@ -79,10 +86,10 @@ export async function mergeDocumentsToPdf(
     }
 
     const safe = outputBasename.replace(/[^\w.\-]+/g, "_").slice(0, 120);
-    const outPath = path.join(SALIC_MERGE_ROOT, `${safe}-${Date.now()}.pdf`);
+    const outPath = path.join(tmpDir, `${safe}.pdf`);
 
     if (partPaths.length === 1) {
-      const single = await readPlanningDocumentBytes(partPaths[0]!);
+      const single = await readFile(partPaths[0]!);
       await writeFile(outPath, single);
     } else {
       await runGs([
@@ -97,15 +104,21 @@ export async function mergeDocumentsToPdf(
       ]);
     }
 
-    const { readFile } = await import("fs/promises");
     const merged = await readFile(outPath);
     if (merged.length === 0) {
       throw new Error("PDF unificado ficou vazio.");
     }
 
-    return { storagePath: outPath, byteSize: merged.length };
+    const storagePath = await uploadObject({
+      bucket: docsBucket(),
+      key: `planning/salic-merge/${Date.now()}-${safe}.pdf`,
+      buffer: merged,
+      contentType: "application/pdf",
+      isPublic: false,
+    });
+
+    return { storagePath, byteSize: merged.length };
   } finally {
-    const { rm } = await import("fs/promises");
     await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }

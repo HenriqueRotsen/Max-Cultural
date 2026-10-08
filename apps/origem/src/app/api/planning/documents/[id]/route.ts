@@ -1,16 +1,25 @@
-import { readFile } from "fs/promises";
-import { access } from "fs/promises";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
+import { readPlanningDocumentBytes } from "@/lib/nf/read-document-bytes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function resolveMimeType(doc: { mimeType: string; filename: string; storagePath: string }) {
+function resolveMimeType(doc: {
+  mimeType: string;
+  filename: string;
+  storagePath: string;
+}) {
   const name = doc.filename.toLowerCase();
   const stored = doc.storagePath.toLowerCase();
-  if (doc.mimeType && doc.mimeType !== "application/octet-stream") return doc.mimeType;
+  if (doc.mimeType && doc.mimeType !== "application/octet-stream") {
+    if (doc.mimeType === "application/gzip") {
+      if (name.endsWith(".pdf") || stored.includes(".pdf")) return "application/pdf";
+      if (name.endsWith(".xml") || stored.includes(".xml")) return "application/xml";
+    }
+    return doc.mimeType;
+  }
   if (name.endsWith(".pdf") || stored.endsWith(".pdf")) return "application/pdf";
   if (name.endsWith(".xml") || stored.endsWith(".xml")) return "application/xml";
   if (/\.(png|jpe?g|gif|webp)$/i.test(name)) {
@@ -37,23 +46,26 @@ export async function GET(
     const { id } = await context.params;
     const doc = await loadDocument(id);
     if (!doc) {
-      return NextResponse.json({ error: "Documento não encontrado" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Documento não encontrado" },
+        { status: 404 },
+      );
     }
 
+    let body: Buffer;
     try {
-      await access(doc.storagePath);
+      body = await readPlanningDocumentBytes(doc.storagePath);
     } catch {
-      return NextResponse.json({ error: "Arquivo ausente no disco" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Arquivo ausente no armazenamento" },
+        { status: 404 },
+      );
     }
 
     const url = new URL(request.url);
     const download = url.searchParams.get("download") === "1";
-    const isGz = doc.storagePath.endsWith(".gz");
     const filename = doc.filename || "documento";
     const mimeType = resolveMimeType(doc);
-
-    const raw = await readFile(doc.storagePath);
-    const body = isGz ? (await import("zlib")).gunzipSync(raw) : raw;
 
     const headers = new Headers();
     headers.set("Content-Type", mimeType);
@@ -66,7 +78,7 @@ export async function GET(
     headers.set("Content-Security-Policy", "frame-ancestors 'self'");
     headers.set("Content-Length", String(body.length));
 
-    return new NextResponse(body, { status: 200, headers });
+    return new NextResponse(new Uint8Array(body), { status: 200, headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });

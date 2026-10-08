@@ -31,7 +31,6 @@ import {
   checkTaxProofAgainstNf,
   mergeWarnings,
 } from "@/lib/nf/document-cross-check";
-import { storeCompressedDocument } from "@/lib/nf/compress";
 import { normalizeFiscalNumber } from "@/lib/nf/fiscal-number";
 import { buildPlanningDocumentFilename } from "@/lib/nf/document-filename";
 import {
@@ -401,8 +400,8 @@ export async function deletePlanningFiscalDocument(
   });
 
   try {
-    const { unlink } = await import("fs/promises");
-    await unlink(storagePath);
+    const { deleteObject } = await import("@/lib/storage/object-store");
+    await deleteObject(storagePath);
   } catch {
     // arquivo já ausente
   }

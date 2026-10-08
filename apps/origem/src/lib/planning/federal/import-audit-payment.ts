@@ -1,5 +1,3 @@
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/db";
 import { canExceedRubric } from "@/lib/planning/acl";
 import { findOrCreateCatalogServiceForRubric } from "@/lib/catalog/service-from-rubric";
@@ -12,6 +10,7 @@ import {
 } from "@/lib/planning/rubric-balance";
 import { loadPublishedPaidByLine } from "@/lib/planning/federal/audit-reconcile";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
+import { uploadPlanningDocument } from "@/lib/storage/object-store";
 
 /**
  * Importa um Payment da auditoria como reserva PAID + proof stub no planejamento.
@@ -106,15 +105,17 @@ export async function importAuditPaymentAsPaidCommitment(params: {
   if (!cnpj) throw new Error("Fornecedor do pagamento sem CPF/CNPJ válido.");
 
   const paidAt = payment.paymentDate || new Date();
-  const dir = path.join(process.cwd(), "uploads", "planning", "audit-import");
-  await mkdir(dir, { recursive: true });
   const filename = `AUDIT_${payment.externalId}.txt`;
-  const storagePath = path.join(dir, `${project.id}_${payment.externalId}.txt`);
   const body = Buffer.from(
     `Importado da auditoria SALIC\nidComprovante=${payment.externalId}\npaymentId=${payment.id}\n`,
     "utf8",
   );
-  await writeFile(storagePath, body);
+  const storagePath = await uploadPlanningDocument({
+    workspaceId: params.workspaceId,
+    filename: `${project.id}_${filename}`,
+    buffer: body,
+    contentType: "text/plain",
+  });
 
   const commitmentId = await prisma.$transaction(async (tx) => {
     if (takenEngagement && !takenEngagement.commitment) {

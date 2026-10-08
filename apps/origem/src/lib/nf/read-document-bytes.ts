@@ -1,9 +1,8 @@
-import { access, readFile } from "fs/promises";
 import { gunzipSync } from "zlib";
+import { downloadObject, isSupabaseStoragePath } from "@/lib/storage/object-store";
 
 export async function readPlanningDocumentBytes(storagePath: string): Promise<Buffer> {
-  await access(storagePath);
-  const raw = await readFile(storagePath);
+  const raw = await downloadObject(storagePath);
   if (storagePath.endsWith(".gz")) {
     return gunzipSync(raw);
   }
@@ -21,4 +20,12 @@ export function isImageDocument(mimeType: string, filename: string): boolean {
   const m = mimeType.toLowerCase();
   const f = filename.toLowerCase();
   return m.startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(f);
+}
+
+export function isStoredGzip(storagePath: string): boolean {
+  return storagePath.endsWith(".gz");
+}
+
+export function storageKind(storagePath: string): "supabase" | "local" {
+  return isSupabaseStoragePath(storagePath) ? "supabase" : "local";
 }

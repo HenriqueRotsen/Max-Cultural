@@ -84,7 +84,10 @@ O gargalo é a API SALIC. Otimizações seguras (sem perder dados):
 | `DATABASE_URL` | Postgres / Supabase |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon (client + SSR) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role (legado Supabase Auth, se usado) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role (Storage + Auth legado) |
+| `SUPABASE_STORAGE_BUCKET_DOCS` | Bucket privado de NF/RPA/comprovantes (default `max-docs`) |
+| `SUPABASE_STORAGE_BUCKET_PUBLIC` | Bucket público de capas (default `max-public`) |
+| `STORAGE_DRIVER` | `supabase` (prod) ou `local` (disco em dev) |
 | `NEXT_PUBLIC_SITE_URL` | URL canônica do Origem |
 | `RESEND_API_KEY` | Opcional: e-mails de notificação do planejamento |
 | `CRON_SECRET` | Cron diário `GET /api/cron/sync-salic` (08:00 BRT / 11:00 UTC) |

@@ -90,8 +90,11 @@ Para cada projeto:
 | `SYNC_CONCURRENCY` | `2` |
 | `CRON_SECRET` | Bearer do cron `/api/cron/sync-salic` (08:00 BRT) |
 | `NEXT_PUBLIC_SITE_URL` | `https://origem.maxcultural.com.br` |
-| `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` | se ainda usar Auth legado |
+| `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` | Storage (NF/RPA) + Auth legado |
+| `SUPABASE_STORAGE_BUCKET_DOCS` | opcional; default `max-docs` |
 | `RESEND_API_KEY` | opcional (e-mail de diligência / avisos) |
+
+Storage: ver [`docs/supabase-storage.md`](./supabase-storage.md). Após deploy, `npm run storage:ensure-buckets` no Origem (ou o 1º upload cria os buckets).
 
 ### Fluxo
 
@@ -99,6 +102,8 @@ Para cada projeto:
 |-----|------|
 | `DATABASE_URL` / `DIRECT_URL` | `schema=fluxo` |
 | `NEXT_PUBLIC_APP_URL` | `https://fluxo.maxcultural.com.br` |
+| `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` | capas no Storage público |
+| `SUPABASE_STORAGE_BUCKET_PUBLIC` | opcional; default `max-public` |
 | `NEXT_PUBLIC_HIDE_FLUXO_IAM` | `true` (IAM no hub) |
 | `AUTH_2FA_DISABLED` | `true` (login fica no Cultural; ignore no Fluxo) |
 | `BOOTSTRAP_ADMIN_*` | seed-auth local |

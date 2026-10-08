@@ -79,6 +79,7 @@ export async function persistPlanningUpload(params: {
     buffer: params.buffer,
     filename: params.filename,
     mimeType: params.mimeType,
+    workspaceId: params.workspaceId,
   });
 
   return { ...stored, contentHash };

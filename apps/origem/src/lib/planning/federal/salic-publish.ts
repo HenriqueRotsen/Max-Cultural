@@ -339,8 +339,10 @@ export async function getSalicPackagePreviewBytes(
   }
 
   const prepared = await prepareSalicPackageFile(pkg, project.externalCode);
-  const { readFile } = await import("fs/promises");
-  const body = await readFile(prepared.storagePath);
+  const { readPlanningDocumentBytes } = await import(
+    "@/lib/nf/read-document-bytes"
+  );
+  const body = await readPlanningDocumentBytes(prepared.storagePath);
 
   const commitment = await prisma.planningDocument.findUnique({
     where: { id: proofId },
