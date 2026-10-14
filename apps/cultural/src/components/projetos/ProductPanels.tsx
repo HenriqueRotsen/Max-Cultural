@@ -167,6 +167,7 @@ export function OrigemPanel({
   const teto = Number.isFinite(project.totalAvailableCap)
     ? project.totalAvailableCap
     : project.totalApproved;
+  const paid = Math.max(0, project.totalPaid);
   const saldo = Number.isFinite(project.totalSaldo) ? project.totalSaldo : 0;
   const pctLabel =
     project.pctCaptadoT > 0
@@ -174,12 +175,22 @@ export function OrigemPanel({
           maximumFractionDigits: 1,
         })}%`
       : null;
-  // Donut sobre o teto: Pago + Saldo (= teto − pago). Reservado fica só no KPI —
-  // misturar Reservado com Saldo no gráfico duplicaria conceitos.
-  const slices = [
-    { label: "Pago", value: Math.max(0, project.totalPaid), color: t.paid },
-    { label: "Saldo", value: Math.max(0, saldo), color: t.available },
-  ];
+  // Donut sobre o teto: Pago + Saldo. Se pago > teto, mostra fatia "Acima do teto"
+  // (não rotular isso como Saldo).
+  const slices =
+    teto > 0 && paid > teto
+      ? [
+          { label: "Pago (no teto)", value: teto, color: t.paid },
+          {
+            label: "Acima do teto",
+            value: paid - teto,
+            color: "#f59e0b",
+          },
+        ]
+      : [
+          { label: "Pago", value: paid, color: t.paid },
+          { label: "Saldo", value: Math.max(0, saldo), color: t.available },
+        ];
 
   return (
     <PanelShell
@@ -228,11 +239,12 @@ export function OrigemPanel({
           <Stat
             label="Saldo"
             value={formatMoney(saldo)}
-            soft={t.soft2}
-            accent={t.ink}
+            soft={saldo < 0 ? "#fef3c7" : t.soft2}
+            accent={saldo < 0 ? "#b45309" : t.ink}
           />
           <p className="mt-1 px-1 text-[11px] text-[var(--gray-500)]">
-            Saldo = teto − pago (reservas em aberto não entram neste valor).
+            Saldo = teto − pago (inclui comprovado no SALIC; reservas em aberto não
+            entram).
           </p>
         </div>
       </div>

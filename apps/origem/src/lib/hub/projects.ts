@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { getHubSessionPayload, isHubSsoEnabled } from "@/lib/auth/hub";
 import { ensureBootstrapWorkspace } from "@/lib/auth/workspace";
 import { computeProjectBalance } from "@/lib/planning/rubric-balance";
+import { loadPublishedPaidByLineBatch } from "@/lib/planning/federal/audit-reconcile";
 import {
   importSourceLabel,
   jurisdictionLabel,
@@ -147,12 +148,14 @@ function toSummary(
         id: string;
         approvedAmount: unknown;
         productName?: string | null;
+        salicComprovado?: unknown;
       }>;
     } | null;
     commitments: Array<{ budgetLineId: string; amount: unknown; status: string }>;
     documents: Array<{ id: string }>;
   },
   slug: string,
+  publishedPaidByLine?: Record<string, number>,
 ): HubProjectSummary {
   const bal = p.sheet
     ? computeProjectBalance({
@@ -162,6 +165,7 @@ function toSummary(
         captadoRecebido: p.captadoRecebido,
         captadoTransferido: p.captadoTransferido,
         rendimentos: p.rendimentos,
+        publishedPaidByLine,
       })
     : null;
 
@@ -208,7 +212,14 @@ export async function listHubProjectSummaries(
       project: { select: { situacao: true, valorCaptado: true } },
       sheet: {
         include: {
-          lines: { select: { id: true, approvedAmount: true, productName: true } },
+          lines: {
+            select: {
+              id: true,
+              approvedAmount: true,
+              productName: true,
+              salicComprovado: true,
+            },
+          },
         },
       },
       commitments: {
@@ -218,6 +229,10 @@ export async function listHubProjectSummaries(
       documents: { select: { id: true } },
     },
   });
+
+  const publishedByProject = await loadPublishedPaidByLineBatch(
+    rows.map((r) => r.id),
+  );
 
   const codeCount = new Map<string, number>();
   for (const r of rows) {
@@ -255,6 +270,7 @@ export async function listHubProjectSummaries(
         documents: r.documents,
       },
       hubProjectSlug(r.externalCode, r.id, colliding),
+      publishedByProject.get(r.id),
     ),
   );
 }
@@ -271,7 +287,14 @@ export async function getHubProjectBySlug(
       project: { select: { situacao: true, valorCaptado: true } },
       sheet: {
         include: {
-          lines: { select: { id: true, approvedAmount: true, productName: true } },
+          lines: {
+            select: {
+              id: true,
+              approvedAmount: true,
+              productName: true,
+              salicComprovado: true,
+            },
+          },
         },
       },
       commitments: {
@@ -281,6 +304,10 @@ export async function getHubProjectBySlug(
       documents: { select: { id: true } },
     },
   });
+
+  const publishedByProject = await loadPublishedPaidByLineBatch(
+    rows.map((r) => r.id),
+  );
 
   const codeCount = new Map<string, number>();
   for (const r of rows) {
@@ -318,6 +345,7 @@ export async function getHubProjectBySlug(
         documents: r.documents,
       },
       hubProjectSlug(r.externalCode, r.id, colliding),
+      publishedByProject.get(r.id),
     ),
   );
 

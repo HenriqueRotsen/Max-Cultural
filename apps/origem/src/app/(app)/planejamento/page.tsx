@@ -40,6 +40,13 @@ export default async function PlanejamentoIndexPage() {
     },
   });
 
+  const { loadPublishedPaidByLineBatch } = await import(
+    "@/lib/planning/federal/audit-reconcile"
+  );
+  const publishedByProject = await loadPublishedPaidByLineBatch(
+    projects.map((p) => p.id),
+  );
+
   const cards: PlanningProjectCard[] = projects.map((p) => {
     const bal = p.sheet
       ? computeProjectBalance({
@@ -49,6 +56,7 @@ export default async function PlanejamentoIndexPage() {
           captadoRecebido: p.captadoRecebido,
           captadoTransferido: p.captadoTransferido,
           rendimentos: p.rendimentos,
+          publishedPaidByLine: publishedByProject.get(p.id),
         })
       : null;
     return {
