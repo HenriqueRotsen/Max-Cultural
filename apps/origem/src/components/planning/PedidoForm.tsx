@@ -10,6 +10,11 @@ import {
   type RubricSelectOption,
 } from "@/components/planning/RubricSearchSelect";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import {
+  INSTALLMENT_COUNT_MAX,
+  INSTALLMENT_COUNT_MIN,
+  splitInstallments,
+} from "@/lib/planning/installments";
 
 const initial: ActionState = {};
 
@@ -20,12 +25,15 @@ type ParcelDraft = {
   expectedPayAt: string;
 };
 
-function newParcel(defaultLineId: string): ParcelDraft {
+function newParcel(
+  defaultLineId: string,
+  overrides?: Partial<Pick<ParcelDraft, "amount" | "expectedPayAt" | "budgetLineId">>,
+): ParcelDraft {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    budgetLineId: defaultLineId,
-    amount: null,
-    expectedPayAt: "",
+    budgetLineId: overrides?.budgetLineId ?? defaultLineId,
+    amount: overrides?.amount ?? null,
+    expectedPayAt: overrides?.expectedPayAt ?? "",
   };
 }
 
@@ -45,6 +53,10 @@ export function PedidoForm({
     newParcel(defaultLineId),
   ]);
   const [hasBond, setHasBond] = useState(false);
+  const [installmentCount, setInstallmentCount] = useState(12);
+  const [firstPayAt, setFirstPayAt] = useState("");
+  const [splitLineId, setSplitLineId] = useState(defaultLineId);
+  const [splitError, setSplitError] = useState<string | null>(null);
 
   const parcelsSum = useMemo(
     () =>
@@ -71,6 +83,41 @@ export function PedidoForm({
     totalAmount > 0 &&
     Math.abs(parcelsSum - totalAmount) > 0.02;
 
+  function generateInstallments() {
+    setSplitError(null);
+    if (totalAmount == null || !(totalAmount > 0)) {
+      setSplitError("Informe o valor total antes de gerar as parcelas.");
+      return;
+    }
+    if (!firstPayAt) {
+      setSplitError("Informe a data da 1ª parcela.");
+      return;
+    }
+    const lineId = splitLineId || defaultLineId;
+    if (!lineId) {
+      setSplitError("Selecione a rubrica das parcelas.");
+      return;
+    }
+    try {
+      const parts = splitInstallments(
+        totalAmount,
+        installmentCount,
+        firstPayAt,
+      );
+      setParcels(
+        parts.map((p) =>
+          newParcel(lineId, {
+            amount: p.amount,
+            expectedPayAt: p.expectedPayAt,
+            budgetLineId: lineId,
+          }),
+        ),
+      );
+    } catch (e) {
+      setSplitError(e instanceof Error ? e.message : "Não foi possível gerar.");
+    }
+  }
+
   return (
     <form action={formAction} className="card space-y-4 p-5">
       <input type="hidden" name="parcelsJson" value={parcelsJson} />
@@ -79,8 +126,8 @@ export function PedidoForm({
       <div>
         <h2 className="font-semibold text-[var(--navy)]">Novo pedido</h2>
         <p className="mt-1 text-sm text-[var(--gray-500)]">
-          Reserva o valor nas rubricas sem precisar da NF. Depois você vincula a
-          nota e registra o pagamento de cada parcela.
+          Reserva o valor nas rubricas sem precisar da NF — inclusive em N×.
+          Cada parcela entra no contas a pagar com o vencimento previsto.
         </p>
       </div>
 
@@ -120,6 +167,64 @@ export function PedidoForm({
           required
         />
       </label>
+
+      <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-3">
+        <h3 className="text-sm font-semibold text-[var(--navy)]">
+          Parcelar em N×
+        </h3>
+        <p className="text-xs text-[var(--gray-500)]">
+          Gera parcelas iguais mês a mês. Depois você pode ajustar valor, data
+          ou rubrica de cada uma.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="field">
+            <span>Parcelas</span>
+            <input
+              type="number"
+              min={INSTALLMENT_COUNT_MIN}
+              max={INSTALLMENT_COUNT_MAX}
+              value={installmentCount}
+              onChange={(e) =>
+                setInstallmentCount(
+                  Math.min(
+                    INSTALLMENT_COUNT_MAX,
+                    Math.max(
+                      INSTALLMENT_COUNT_MIN,
+                      Number(e.target.value) || INSTALLMENT_COUNT_MIN,
+                    ),
+                  ),
+                )
+              }
+            />
+          </label>
+          <label className="field">
+            <span>1ª parcela</span>
+            <input
+              type="date"
+              value={firstPayAt}
+              onChange={(e) => setFirstPayAt(e.target.value)}
+            />
+          </label>
+          <label className="field sm:col-span-1">
+            <span>Rubrica padrão</span>
+            <RubricSearchSelect
+              value={splitLineId}
+              options={lines}
+              onChange={setSplitLineId}
+            />
+          </label>
+        </div>
+        {splitError ? (
+          <p className="text-sm text-red-700">{splitError}</p>
+        ) : null}
+        <button
+          type="button"
+          className="btn btn-ghost text-sm"
+          onClick={generateInstallments}
+        >
+          Gerar {installmentCount} parcelas
+        </button>
+      </div>
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

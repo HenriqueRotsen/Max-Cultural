@@ -15,6 +15,10 @@ import {
   parseParticipacaoStatus,
 } from "@/lib/normalize";
 import { GENEROS, ETNIAS } from "@/lib/schema";
+import {
+  asTerritorioOficinaFormValue,
+  applyTerritorioOficinaFormToSiga,
+} from "@/lib/oficina-territorio";
 
 export type CampoValidavel = {
   id: string;
@@ -199,9 +203,31 @@ export function validateFormularioAnswers(
         }
         break;
       }
-      case "MULTIPLE_CHOICE":
-      case "DROPDOWN":
       case "TERRITORIO_OFICINA": {
+        const terr = asTerritorioOficinaFormValue(rawVal);
+        terr.estado = normalizeUf(terr.estado);
+        values[campo.id] = terr;
+        if (campo.obrigatorio && !terr.modalidade) {
+          errors[campo.id] = "Escolha Online ou Presencial.";
+        } else if (terr.modalidade === "PRESENCIAL") {
+          if (!terr.cidade.trim() || !terr.estado.trim()) {
+            errors[campo.id] = "Informe cidade e UF do território presencial.";
+          } else if (terr.estado.length !== 2) {
+            errors[campo.id] = "UF inválida.";
+          }
+        }
+        if (
+          terr.modalidade === "ONLINE" ||
+          (terr.modalidade === "PRESENCIAL" &&
+            terr.cidade.trim() &&
+            terr.estado.trim())
+        ) {
+          applyTerritorioOficinaFormToSiga(sigaPartial, terr);
+        }
+        break;
+      }
+      case "MULTIPLE_CHOICE":
+      case "DROPDOWN": {
         const n = String(rawVal ?? "").trim();
         const allowed = campo.opcoes ?? [];
         if (n && allowed.length && !allowed.includes(n)) {

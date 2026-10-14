@@ -146,7 +146,7 @@ export function defaultInscricaoCampos(): FormularioCampoDraft[] {
     {
       rotulo: "Em qual território você quer se inscrever?",
       descricao:
-        "Escolha Online ou o território presencial (cidade/UF). As opções vêm do cadastro da oficina.",
+        "Escolha Online ou Presencial. Se presencial, informe cidade, território/comunidade e UF.",
       obrigatorio: true,
       tipo: "TERRITORIO_OFICINA",
       sigaColumn: "Territorio",

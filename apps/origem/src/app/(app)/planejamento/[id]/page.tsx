@@ -75,6 +75,10 @@ export default async function PlanningProjectPage({
 
   const valorCaptado = money(project.project?.valorCaptado);
   const publishedPaidByLine = await loadPublishedPaidByLine(project.id);
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const lockData = project.sheet
+    ? await loadLockedLineIds(project.sheet.id, project.sheet.lines)
+    : { locks: [], lockedLineIds: new Set<string>() };
   const bal = project.sheet
     ? computeProjectBalance({
         lines: project.sheet.lines,
@@ -84,6 +88,7 @@ export default async function PlanningProjectPage({
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
         publishedPaidByLine,
+        lockedLineIds: lockData.lockedLineIds,
       })
     : null;
   const allowEditRubricas = await canEditRubricas();
@@ -97,6 +102,7 @@ export default async function PlanningProjectPage({
       ? project.sheet.lines.map((l) => ({
           id: l.id,
           sortOrder: l.sortOrder,
+          locked: lockData.lockedLineIds.has(l.id),
           itemName: l.itemName,
           stageName: l.stageName,
           productName: l.productName,
@@ -200,7 +206,7 @@ export default async function PlanningProjectPage({
               {
                 label: "Saldo",
                 value: formatCurrency(bal.totalSaldo),
-                help: HELP.planningSaldo,
+                help: HELP.planningSaldoProjeto,
               },
             ]}
           />
@@ -212,6 +218,10 @@ export default async function PlanningProjectPage({
             <BudgetTree
               lines={project.sheet.lines}
               balances={bal.lines}
+              locks={lockData.locks}
+              planningProjectId={project.id}
+              sheetId={project.sheet.id}
+              canToggleLocks={allowEditRubricas && !closed}
               pctCaptadoTLabel={pctLabel}
             />
           </section>

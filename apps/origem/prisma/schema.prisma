@@ -692,6 +692,14 @@ model PlanningProject {
   @@map("planning_projects")
 }
 
+enum BudgetHierarchyLockLevel {
+  FONTE
+  PRODUCT
+  STAGE
+  CITY
+  ITEM
+}
+
 model ProjectBudgetSheet {
   id                String   @id @default(cuid())
   planningProjectId String   @unique
@@ -701,10 +709,37 @@ model ProjectBudgetSheet {
   sourceFilename    String?
   available         Boolean  @default(true)
 
-  planningProject PlanningProject     @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  planningProject PlanningProject        @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
   lines           ProjectBudgetLine[]
+  hierarchyLocks  BudgetHierarchyLock[]
 
   @@map("project_budget_sheets")
+}
+
+/// Cadeado em qualquer nível da árvore (fonte → produto → etapa → cidade → item).
+/// Trava edições e uso de saldo de todas as linhas descendentes.
+model BudgetHierarchyLock {
+  id              String                    @id @default(cuid())
+  sheetId         String
+  level           BudgetHierarchyLockLevel
+  /// Chave canônica única no sheet (ex.: "PRODUCT|Incentivo|Oficina X").
+  scopeKey        String
+  fonteRecurso    String                    @default("")
+  productName     String                    @default("")
+  stageName       String                    @default("")
+  state           String                    @default("")
+  city            String                    @default("")
+  budgetLineId    String?
+  lockedByUserId  String?
+  lockedAt        DateTime                  @default(now())
+  note            String                    @default("")
+
+  sheet ProjectBudgetSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@unique([sheetId, scopeKey])
+  @@index([sheetId, level])
+  @@index([budgetLineId])
+  @@map("budget_hierarchy_locks")
 }
 
 model ProjectBudgetLine {

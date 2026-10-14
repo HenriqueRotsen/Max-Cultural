@@ -45,6 +45,11 @@ export default async function PagamentoAntecipadoPage({
     project.project?.valorCaptado != null
       ? Number(project.project.valorCaptado)
       : 0;
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
   const bal = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
@@ -52,6 +57,7 @@ export default async function PagamentoAntecipadoPage({
     captadoRecebido: project.captadoRecebido,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
+    lockedLineIds,
   });
 
   const rubricOptions: RubricSelectOption[] = project.sheet.lines.map((l) => {

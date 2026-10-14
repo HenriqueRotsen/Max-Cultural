@@ -52,8 +52,8 @@ export default async function PedidosListPage({
             <Link href={`/planejamento/${id}`}>{project.externalCode}</Link> / Pedidos
           </>
         }
-        title="Pedidos"
-        description="Reservas parceladas sem NF — contas a pagar do projeto."
+        title="Pedidos / parcelamento"
+        description="Reservas em N× sem NF — cada parcela entra no contas a pagar com vencimento."
         actions={
           <Link href={`/planejamento/${id}/pedidos/novo`} className="btn">
             Novo pedido

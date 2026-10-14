@@ -76,9 +76,10 @@ describe("rubric-balance", () => {
     expect(bal.totalReserved).toBe(400);
     expect(bal.totalPaid).toBe(100);
     expect(bal.totalAvailableCap).toBe(1200);
-    // Saldo MinC = aprovado − pago (reserva em aberto não entra)
+    // Saldo MinC por linha = aprovado − pago (reserva em aberto não entra)
     expect(bal.lines.get("a")!.saldo).toBe(900);
     expect(bal.lines.get("b")!.saldo).toBe(200);
+    // Saldo do projeto = teto − pago
     expect(bal.totalSaldo).toBe(1100);
     // Disponível na rubrica = aprovado − reservado
     expect(bal.lines.get("a")!.available).toBe(600);
@@ -120,7 +121,26 @@ describe("rubric-balance", () => {
     expect(bal.lines.get("a")!.saldo).toBe(650);
     expect(bal.lines.get("a")!.available).toBe(650);
     expect(bal.totalPaid).toBe(350);
+    // teto 1000 − pago 350
     expect(bal.totalSaldo).toBe(650);
+  });
+
+  it("saldo total do projeto = teto − pago (não soma dos saldos MinC)", () => {
+    const bal = computeProjectBalance({
+      lines: [
+        { id: "a", approvedAmount: 1000, productName: "Produção" },
+        { id: "b", approvedAmount: 1000, productName: "Produção" },
+      ],
+      commitments: [{ budgetLineId: "a", amount: 200, status: "PAID" }],
+      valorCaptado: 800,
+    });
+    // Soma dos saldos por linha = (1000-200) + 1000 = 1800
+    expect(bal.lines.get("a")!.saldo).toBe(800);
+    expect(bal.lines.get("b")!.saldo).toBe(1000);
+    // Saldo do projeto = teto 800 − pago 200
+    expect(bal.totalAvailableCap).toBe(800);
+    expect(bal.totalPaid).toBe(200);
+    expect(bal.totalSaldo).toBe(600);
   });
 
   it("local não publicado + salic: soma o gap (sem double-count do publicado)", () => {

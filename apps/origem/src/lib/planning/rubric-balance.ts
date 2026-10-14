@@ -23,6 +23,8 @@ export type LineBalance = {
   /** Estourou o disponível da rubrica (aprovado). */
   over: boolean;
   near: boolean;
+  /** Cadeado na hierarquia — sem edição nem novas reservas. */
+  locked: boolean;
 };
 
 export type ProjectBalance = {
@@ -34,7 +36,7 @@ export type ProjectBalance = {
   totalAvailableCap: number;
   totalReserved: number;
   totalPaid: number;
-  /** Soma dos saldos MinC (aprovado − pago). */
+  /** Saldo do projeto = teto operacional − pago. */
   totalSaldo: number;
   /** Restante do teto do projeto = teto − reservado. */
   totalAvailable: number;
@@ -147,8 +149,14 @@ export function computeProjectBalance(input: {
    * salicComprovado − publicado sem double-count.
    */
   publishedPaidByLine?: Map<string, number> | Record<string, number>;
+  /** IDs de linhas bloqueadas (cadeado na hierarquia). */
+  lockedLineIds?: Set<string> | Iterable<string>;
 }): ProjectBalance {
   const nearPct = input.nearPct ?? 0.8;
+  const lockedIds =
+    input.lockedLineIds instanceof Set
+      ? input.lockedLineIds
+      : new Set(input.lockedLineIds ?? []);
   const lines = new Map<string, LineBalance>();
   let totalApproved = 0;
   let totalReserved = 0;
@@ -170,6 +178,7 @@ export function computeProjectBalance(input: {
       overApproved: false,
       over: false,
       near: false,
+      locked: lockedIds.has(line.id),
     });
   }
 
@@ -215,7 +224,6 @@ export function computeProjectBalance(input: {
     totalPaid += salicOnly;
   }
 
-  let totalSaldo = 0;
   totalApproved = 0;
   for (const bal of lines.values()) {
     bal.approved = roundCents(bal.approved);
@@ -226,24 +234,30 @@ export function computeProjectBalance(input: {
     // Rubrica inteira disponível (captação não corta por linha).
     bal.availableCap = bal.approved;
     bal.saldo = roundCents(bal.approved - bal.paid);
-    totalSaldo += bal.saldo;
-    bal.available = roundCents(bal.approved - bal.reserved);
+    bal.available = bal.locked
+      ? 0
+      : roundCents(bal.approved - bal.reserved);
     bal.overApproved =
       bal.approved <= 0 || bal.reserved >= bal.approved - 1e-9;
     bal.over = bal.overApproved;
     bal.near =
-      !bal.over && bal.reserved >= bal.approved * nearPct - 1e-9;
+      !bal.locked &&
+      !bal.over &&
+      bal.reserved >= bal.approved * nearPct - 1e-9;
   }
 
   const projectCap = roundCents(factors.projectCap);
   totalReserved = roundCents(totalReserved);
+  totalPaid = roundCents(totalPaid);
+  // Saldo do projeto = teto − pago (não a soma dos saldos por rubrica).
+  const totalSaldo = roundCents(projectCap - totalPaid);
 
   return {
     totalApproved: roundCents(totalApproved),
     totalAvailableCap: projectCap,
     totalReserved,
-    totalPaid: roundCents(totalPaid),
-    totalSaldo: roundCents(totalSaldo),
+    totalPaid,
+    totalSaldo,
     totalAvailable: roundCents(projectCap - totalReserved),
     pctCaptadoT: factors.pctCaptadoT,
     pctCaptadoOnly: factors.pctCaptadoOnly,
@@ -268,6 +282,7 @@ export function canReserveAmount(params: {
   amount: number;
   balance: ProjectBalance;
   allowOverflow: boolean;
+  lockedLineIds?: Set<string> | Iterable<string>;
 }): ReserveCheckResult {
   const amount = params.amount;
   if (!(amount > 0)) {
@@ -276,6 +291,17 @@ export function canReserveAmount(params: {
   const line = params.balance.lines.get(params.lineId);
   if (!line) {
     return { ok: false, message: "Rubrica não encontrada" };
+  }
+  const lockedExtra =
+    params.lockedLineIds instanceof Set
+      ? params.lockedLineIds
+      : new Set(params.lockedLineIds ?? []);
+  if (line.locked || lockedExtra.has(params.lineId)) {
+    return {
+      ok: false,
+      message:
+        "Rubrica bloqueada: edições e uso de saldo desabilitados.",
+    };
   }
 
   const nextLineReserved = line.reserved + amount;

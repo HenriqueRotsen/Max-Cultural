@@ -253,6 +253,9 @@ export function CampoEditor({ campos, onChange }: Props) {
                           ...(v === "SECTION"
                             ? { obrigatorio: false, sigaColumn: null }
                             : {}),
+                          ...(v === "TERRITORIO_OFICINA"
+                            ? { sigaColumn: "Territorio", obrigatorio: true }
+                            : {}),
                         });
                       }}
                       items={Object.fromEntries(
@@ -277,7 +280,11 @@ export function CampoEditor({ campos, onChange }: Props) {
                   <div className="space-y-1">
                     <Label>Coluna vinculada</Label>
                     <Select
-                      value={campo.sigaColumn ?? "__none__"}
+                      value={
+                        campo.tipo === "TERRITORIO_OFICINA"
+                          ? "Territorio"
+                          : (campo.sigaColumn ?? "__none__")
+                      }
                       onValueChange={(v) =>
                         update(i, {
                           sigaColumn:
@@ -287,6 +294,9 @@ export function CampoEditor({ campos, onChange }: Props) {
                       disabled={VINCULO_DISABLED_TIPOS.has(campo.tipo)}
                       items={{
                         __none__: "Nenhuma (pergunta extra)",
+                        ...(campo.tipo === "TERRITORIO_OFICINA"
+                          ? { Territorio: columnLabel("Territorio") }
+                          : {}),
                         ...(campo.sigaColumn &&
                         !(COLUNAS_VINCULAVEIS as readonly string[]).includes(
                           campo.sigaColumn,
@@ -343,9 +353,10 @@ export function CampoEditor({ campos, onChange }: Props) {
 
           {campo.tipo === "TERRITORIO_OFICINA" && (
             <p className="text-xs text-muted-foreground sm:col-span-2">
-              As opções (Online e/ou territórios com Cidade/UF) vêm do cadastro da
-              oficina no momento da inscrição. Vincule a coluna SIGA
-              &quot;Territorio&quot;.
+              No formulário público a pessoa escolhe Online e/ou Presencial (conforme
+              a oficina) e, se presencial, informa cidade, território/comunidade e
+              UF. Preenche automaticamente as colunas SIGA Cidade, Estado e
+              Territorio.
             </p>
           )}
 

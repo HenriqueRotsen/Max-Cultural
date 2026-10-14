@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ONLINE_TERRITORIO_LABEL,
+  applyTerritorioOficinaFormToSiga,
   buildOficinaTerritorioOpcoes,
   oficinaTerritorioLabel,
   parseTerritorioInscricao,
   resolveOficinaTerritorioChoice,
   territorioOficinaFieldMeta,
+  territorioOficinaStructuredMeta,
   type OficinaTerritorioCatalog,
 } from "@/lib/oficina-territorio";
 import { mapHeadersHeuristic, normalizeHeaderKey } from "@/lib/column-map";
@@ -77,6 +79,30 @@ describe("buildOficinaTerritorioOpcoes / field meta", () => {
     expect(meta.showField).toBe(true);
     expect(meta.obrigatorio).toBe(true);
     expect(meta.opcoes.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("territorioOficinaStructuredMeta / form value", () => {
+  it("online+presencial → escolha de modalidade", () => {
+    const meta = territorioOficinaStructuredMeta(catalog);
+    expect(meta.autoModalidade).toBeNull();
+    expect(meta.ofereceOnline).toBe(true);
+    expect(meta.oferecePresencial).toBe(true);
+
+    const siga: Record<string, unknown> = {};
+    applyTerritorioOficinaFormToSiga(
+      siga,
+      {
+        modalidade: "PRESENCIAL",
+        cidade: "Imperatriz",
+        estado: "MA",
+        territorio: "Quilombo X",
+      },
+      catalog,
+    );
+    expect(siga.Cidade).toBe("Imperatriz");
+    expect(siga.Estado).toBe("MA");
+    expect(siga.Territorio).toBe("Quilombo X");
   });
 });
 

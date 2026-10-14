@@ -55,6 +55,22 @@ export const EMPTY_ADDRESS_BR: AddressBrValue = {
   Estado: "",
 };
 
+/** Valor do campo TERRITORIO_OFICINA no formulário público. */
+export type TerritorioOficinaValue = {
+  modalidade: "ONLINE" | "PRESENCIAL" | "";
+  cidade: string;
+  estado: string;
+  /** Comunidade / território (opcional no presencial). */
+  territorio: string;
+};
+
+export const EMPTY_TERRITORIO_OFICINA: TerritorioOficinaValue = {
+  modalidade: "",
+  cidade: "",
+  estado: "",
+  territorio: "",
+};
+
 export const FORMULARIO_CAMPO_TIPO_LABELS: Record<FormularioCampoTipoCode, string> = {
   SECTION: "Seção / título",
   SHORT_TEXT: "Texto curto",

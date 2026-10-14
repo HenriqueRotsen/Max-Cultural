@@ -457,3 +457,135 @@ export function territorioOficinaFieldMeta(catalog: OficinaTerritorioCatalog): {
   }
   return { opcoes, showField: true, obrigatorio: true, autoChoice: null };
 }
+
+export type TerritorioOficinaFormValue = {
+  modalidade: "ONLINE" | "PRESENCIAL" | "";
+  cidade: string;
+  estado: string;
+  territorio: string;
+};
+
+export const EMPTY_TERRITORIO_OFICINA_FORM: TerritorioOficinaFormValue = {
+  modalidade: "",
+  cidade: "",
+  estado: "",
+  territorio: "",
+};
+
+/** Meta do campo composto (modalidade + cidade/UF/território). */
+export function territorioOficinaStructuredMeta(
+  catalog: OficinaTerritorioCatalog | null,
+): {
+  ofereceOnline: boolean;
+  oferecePresencial: boolean;
+  /** Se só uma modalidade: pré-seleciona e esconde o rádio. */
+  autoModalidade: "ONLINE" | "PRESENCIAL" | null;
+  showField: boolean;
+} {
+  const ofereceOnline = Boolean(catalog?.ofereceOnline);
+  const oferecePresencial = catalog ? catalog.oferecePresencial !== false : true;
+  if (!ofereceOnline && !oferecePresencial) {
+    return {
+      ofereceOnline: false,
+      oferecePresencial: false,
+      autoModalidade: null,
+      showField: false,
+    };
+  }
+  if (ofereceOnline && !oferecePresencial) {
+    return {
+      ofereceOnline: true,
+      oferecePresencial: false,
+      autoModalidade: "ONLINE",
+      showField: true,
+    };
+  }
+  if (!ofereceOnline && oferecePresencial) {
+    return {
+      ofereceOnline: false,
+      oferecePresencial: true,
+      autoModalidade: "PRESENCIAL",
+      showField: true,
+    };
+  }
+  return {
+    ofereceOnline: true,
+    oferecePresencial: true,
+    autoModalidade: null,
+    showField: true,
+  };
+}
+
+export function asTerritorioOficinaFormValue(
+  raw: unknown,
+): TerritorioOficinaFormValue {
+  if (!raw || typeof raw !== "object") {
+    // Compat: string antiga (label Online ou Cidade/UF)
+    const s = String(raw ?? "").trim();
+    if (!s) return { ...EMPTY_TERRITORIO_OFICINA_FORM };
+    if (looksLikeOnlineKeyword(s) || s === ONLINE_TERRITORIO_LABEL) {
+      return {
+        modalidade: "ONLINE",
+        cidade: "",
+        estado: "",
+        territorio: ONLINE_TERRITORIO_LABEL,
+      };
+    }
+    return {
+      modalidade: "PRESENCIAL",
+      cidade: "",
+      estado: "",
+      territorio: s,
+    };
+  }
+  const o = raw as Record<string, unknown>;
+  const mod = String(o.modalidade ?? "").toUpperCase();
+  return {
+    modalidade:
+      mod === "ONLINE" || mod === "PRESENCIAL"
+        ? (mod as "ONLINE" | "PRESENCIAL")
+        : "",
+    cidade: String(o.cidade ?? o.Cidade ?? "").trim(),
+    estado: String(o.estado ?? o.Estado ?? o.uf ?? "")
+      .trim()
+      .toUpperCase()
+      .slice(0, 2),
+    territorio: String(o.territorio ?? o.Territorio ?? "").trim(),
+  };
+}
+
+export function applyTerritorioOficinaFormToSiga(
+  sigaPartial: Record<string, unknown>,
+  value: TerritorioOficinaFormValue,
+  catalog?: OficinaTerritorioCatalog | null,
+): { oficinaTerritorioId: string | null; online: boolean } {
+  if (value.modalidade === "ONLINE") {
+    // Mantém Cidade/Estado do endereço residencial, se já preenchidos.
+    sigaPartial.Territorio = ONLINE_TERRITORIO_LABEL;
+    return { oficinaTerritorioId: null, online: true };
+  }
+  if (value.modalidade === "PRESENCIAL") {
+    const cidade = value.cidade.trim();
+    const estado = value.estado.trim().toUpperCase();
+    const territorio = value.territorio.trim();
+    sigaPartial.Cidade = cidade;
+    sigaPartial.Estado = estado;
+    sigaPartial.Territorio = territorio;
+    if (catalog?.territorios.length) {
+      const hit = catalog.territorios.find(
+        (t) =>
+          normalizeTerritorioRawKey(t.cidade) ===
+            normalizeTerritorioRawKey(cidade) &&
+          t.estado.toUpperCase() === estado &&
+          (!territorio ||
+            normalizeTerritorioRawKey(t.nome) ===
+              normalizeTerritorioRawKey(territorio)),
+      );
+      if (hit) {
+        return { oficinaTerritorioId: hit.id, online: false };
+      }
+    }
+    return { oficinaTerritorioId: null, online: false };
+  }
+  return { oficinaTerritorioId: null, online: false };
+}

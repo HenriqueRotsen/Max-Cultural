@@ -82,6 +82,11 @@ export async function importAuditPaymentAsPaidCommitment(params: {
   if (!(amount > 0)) throw new Error("Valor do pagamento inválido.");
 
   const publishedPaidByLine = await loadPublishedPaidByLine(project.id);
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
@@ -90,6 +95,7 @@ export async function importAuditPaymentAsPaidCommitment(params: {
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     publishedPaidByLine,
+    lockedLineIds,
   });
 
   const allowOverflow = await canExceedRubric();

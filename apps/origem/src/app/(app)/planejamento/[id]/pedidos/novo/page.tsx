@@ -37,6 +37,11 @@ export default async function NovoPedidoPage({
     project.project?.valorCaptado != null
       ? Number(project.project.valorCaptado)
       : 0;
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
   const bal = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
@@ -44,6 +49,7 @@ export default async function NovoPedidoPage({
     captadoRecebido: project.captadoRecebido,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
+    lockedLineIds,
   });
 
   const rubricOptions: RubricSelectOption[] = project.sheet.lines.map((l) => {
@@ -74,8 +80,8 @@ export default async function NovoPedidoPage({
             Novo pedido
           </>
         }
-        title="Novo pedido"
-        description="Reserve o teto operacional sem NF, com uma ou mais parcelas por rubrica."
+        title="Novo pedido / parcelamento"
+        description="Reserve o teto operacional sem NF — em 1× ou N× (ex.: 12 parcelas). Cada parcela aparece no contas a pagar."
       />
       <PedidoForm
         planningProjectId={id}

@@ -64,6 +64,11 @@ async function loadProjectForReservation(planningProjectId: string) {
     "@/lib/planning/federal/audit-reconcile"
   );
   const publishedPaidByLine = await loadPublishedPaidByLine(planningProjectId);
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
@@ -72,8 +77,16 @@ async function loadProjectForReservation(planningProjectId: string) {
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     publishedPaidByLine,
+    lockedLineIds,
   });
-  return { entitlements, project, balance, valorCaptado, publishedPaidByLine };
+  return {
+    entitlements,
+    project,
+    balance,
+    valorCaptado,
+    publishedPaidByLine,
+    lockedLineIds,
+  };
 }
 
 type SupplierInput = {
@@ -159,7 +172,14 @@ export async function createManualReservation(
   const session = await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
+  const {
+    entitlements,
+    project,
+    balance,
+    valorCaptado,
+    publishedPaidByLine,
+    lockedLineIds,
+  } = loaded;
 
   const budgetLineId = String(formData.get("budgetLineId") || "").trim();
   const amount =
@@ -230,6 +250,7 @@ export async function createManualReservation(
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
         publishedPaidByLine,
+        lockedLineIds,
       });
       const liveCheck = canReserveAmount({
         lineId: budgetLineId,
@@ -326,7 +347,14 @@ export async function uploadAdvancePayment(
   const session = await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
+  const {
+    entitlements,
+    project,
+    balance,
+    valorCaptado,
+    publishedPaidByLine,
+    lockedLineIds,
+  } = loaded;
 
   const grossAmount =
     parseBrMoney(String(formData.get("amount") || "")) || 0;
@@ -506,6 +534,7 @@ export async function uploadAdvancePayment(
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
         publishedPaidByLine,
+        lockedLineIds,
       });
       for (const slice of slices) {
         const line = project.sheet!.lines.find((l) => l.id === slice.budgetLineId);
@@ -647,7 +676,14 @@ export async function confirmProducerReservations(
   const session = await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
+  const {
+    entitlements,
+    project,
+    balance,
+    valorCaptado,
+    publishedPaidByLine,
+    lockedLineIds,
+  } = loaded;
 
   const rowsRaw = String(formData.get("rowsJson") || "[]");
   let rows: Array<{
@@ -681,6 +717,7 @@ export async function confirmProducerReservations(
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     publishedPaidByLine,
+    lockedLineIds,
   });
   for (const r of selected) {
     const line = project.sheet!.lines.find((l) => l.id === r.budgetLineId);
@@ -796,7 +833,14 @@ export async function parseProducerSheetAction(
   await requireUser();
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
-  const { entitlements, project, balance, valorCaptado, publishedPaidByLine } = loaded;
+  const {
+    entitlements,
+    project,
+    balance,
+    valorCaptado,
+    publishedPaidByLine,
+    lockedLineIds,
+  } = loaded;
 
   const file = formData.get("sheetFile");
   if (!(file instanceof File) || file.size === 0) {

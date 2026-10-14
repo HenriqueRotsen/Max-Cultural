@@ -26,6 +26,10 @@ import {
   formatPhoneDisplay,
 } from "@/lib/normalize";
 import type { FormularioCampoTipoCode } from "@/lib/formularios/types";
+import {
+  asTerritorioOficinaFormValue,
+  type TerritorioOficinaFormValue,
+} from "@/lib/oficina-territorio";
 import { ETNIAS, GENEROS } from "@/lib/schema";
 
 export type RespostaRow = {
@@ -247,6 +251,18 @@ function FieldValue({ field }: { field: DisplayField }) {
     }
   }
 
+  if (field.tipo === "TERRITORIO_OFICINA") {
+    const terr = asTerritorioOficinaFormValue(field.value);
+    if (terr.modalidade === "ONLINE") {
+      return <p>Online</p>;
+    }
+    if (terr.modalidade === "PRESENCIAL") {
+      const cityUf = [terr.cidade, terr.estado].filter(Boolean).join("/");
+      const line = [cityUf, terr.territorio].filter(Boolean).join(" · ");
+      return <p>{line || "Presencial"}</p>;
+    }
+  }
+
   if (field.tipo === "FILE_UPLOAD" && typeof field.value === "string") {
     const url = field.value.trim();
     if (url.startsWith("/") || url.startsWith("http")) {
@@ -325,6 +341,95 @@ function answersFromRow(r: RespostaRow, campos: RespostaCampoMeta[]): Record<str
     }
   }
   return answers;
+}
+
+function TerritorioOficinaEditor({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: unknown;
+  onChange: (next: TerritorioOficinaFormValue) => void;
+  disabled?: boolean;
+}) {
+  const terr = asTerritorioOficinaFormValue(value);
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            disabled={disabled}
+            checked={terr.modalidade === "ONLINE"}
+            onChange={() =>
+              onChange({
+                modalidade: "ONLINE",
+                cidade: "",
+                estado: "",
+                territorio: "Online",
+              })
+            }
+          />
+          Online
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            disabled={disabled}
+            checked={terr.modalidade === "PRESENCIAL"}
+            onChange={() =>
+              onChange({
+                ...terr,
+                modalidade: "PRESENCIAL",
+                territorio:
+                  terr.territorio === "Online" ? "" : terr.territorio,
+              })
+            }
+          />
+          Presencial
+        </label>
+      </div>
+      {terr.modalidade === "PRESENCIAL" ? (
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_4.5rem]">
+          <label className="space-y-1 text-xs">
+            <span className="text-muted-foreground">Cidade</span>
+            <Input
+              disabled={disabled}
+              value={terr.cidade}
+              onChange={(e) => onChange({ ...terr, cidade: e.target.value })}
+            />
+          </label>
+          <label className="space-y-1 text-xs">
+            <span className="text-muted-foreground">Território</span>
+            <Input
+              disabled={disabled}
+              value={terr.territorio === "Online" ? "" : terr.territorio}
+              onChange={(e) =>
+                onChange({ ...terr, territorio: e.target.value })
+              }
+            />
+          </label>
+          <label className="space-y-1 text-xs">
+            <span className="text-muted-foreground">UF</span>
+            <Input
+              disabled={disabled}
+              maxLength={2}
+              value={terr.estado}
+              onChange={(e) =>
+                onChange({
+                  ...terr,
+                  estado: e.target.value
+                    .replace(/[^a-zA-Z]/g, "")
+                    .toUpperCase()
+                    .slice(0, 2),
+                })
+              }
+            />
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function AddressEditor({
@@ -907,6 +1012,7 @@ export function RespostasQueue({
                                 className={cn(
                                   "rounded-xl border border-border/60 bg-white px-3 py-2.5",
                                   (c.tipo === "ADDRESS_BR" ||
+                                    c.tipo === "TERRITORIO_OFICINA" ||
                                     c.tipo === "LONG_TEXT") &&
                                     "sm:col-span-2",
                                 )}
@@ -917,6 +1023,14 @@ export function RespostasQueue({
                                 <div className="mt-1.5">
                                   {c.tipo === "ADDRESS_BR" ? (
                                     <AddressEditor
+                                      value={val}
+                                      disabled={pending || locked}
+                                      onChange={(next) =>
+                                        setDraftField(c.id, next)
+                                      }
+                                    />
+                                  ) : c.tipo === "TERRITORIO_OFICINA" ? (
+                                    <TerritorioOficinaEditor
                                       value={val}
                                       disabled={pending || locked}
                                       onChange={(next) =>
@@ -973,7 +1087,6 @@ export function RespostasQueue({
                                     </div>
                                   ) : c.tipo === "MULTIPLE_CHOICE" ||
                                     c.tipo === "DROPDOWN" ||
-                                    c.tipo === "TERRITORIO_OFICINA" ||
                                     c.tipo === "GENERO" ||
                                     c.tipo === "ETNIA" ? (
                                     <select

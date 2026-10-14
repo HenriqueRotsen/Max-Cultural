@@ -1038,6 +1038,11 @@ export async function confirmNfReservation(
     "@/lib/planning/federal/audit-reconcile"
   );
   const publishedPaidByLine = await loadPublishedPaidByLine(project.id);
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
 
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
@@ -1047,6 +1052,7 @@ export async function confirmNfReservation(
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     publishedPaidByLine,
+    lockedLineIds,
   });
 
   const allowOverflow = await canExceedRubric();
@@ -1160,6 +1166,7 @@ export async function confirmNfReservation(
       captadoTransferido: project.captadoTransferido,
       rendimentos: project.rendimentos,
       publishedPaidByLine,
+      lockedLineIds,
     });
     for (const slice of slices) {
       const line = project.sheet!.lines.find((l) => l.id === slice.budgetLineId);
@@ -2229,9 +2236,19 @@ export async function saveRubricReallocation(
   });
   if (!project?.sheet) return { error: "Projeto sem planilha" };
 
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { isForbiddenApprovedChange } = await import(
+    "@/lib/planning/hierarchy-lock"
+  );
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
+
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
+    lockedLineIds,
   });
 
   const target = Math.round(money(project.sheet.totalApproved) * 100) / 100;
@@ -2244,6 +2261,12 @@ export async function saveRubricReallocation(
       return { error: `Valor inválido para «${line.itemName}»` };
     }
     const value = Math.round(Number(raw) * 100) / 100;
+    const current = Math.round(money(line.approvedAmount) * 100) / 100;
+    if (isForbiddenApprovedChange(line.id, current, value, lockedLineIds)) {
+      return {
+        error: `«${line.itemName}» está bloqueada — não é possível alterar o valor.`,
+      };
+    }
     const homologated = money(line.homologatedAmount);
     const reserved = balance.lines.get(line.id)?.reserved ?? 0;
     const admin = isAdminProduct(line.productName);
@@ -2417,6 +2440,26 @@ export async function saveReadequacaoDraft(
   });
   if (!validated.ok) return { error: validated.error };
 
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const sheetLines = await prisma.projectBudgetLine.findMany({
+    where: { sheetId: project.sheet.id },
+  });
+  const { lockedLineIds } = await loadLockedLineIds(project.sheet.id, sheetLines);
+  const currentById = new Map(
+    sheetLines.map((l) => [l.id, Math.round(moneyN(l.approvedAmount) * 100) / 100]),
+  );
+  for (const line of snap.lines) {
+    if (String(line.id).startsWith("new-")) continue;
+    if (!lockedLineIds.has(line.id)) continue;
+    const current = currentById.get(line.id);
+    const next = Math.round(moneyN(line.approvedAmount) * 100) / 100;
+    if (current != null && Math.abs(next - current) > 0.005) {
+      return {
+        error: `«${line.itemName}» está bloqueada — não é possível alterar o valor na readequação.`,
+      };
+    }
+  }
+
   // Homologado e aprovado são o mesmo valor na readequação.
   snap.lines = snap.lines.map((l) => {
     const amount = moneyN(l.approvedAmount);
@@ -2489,6 +2532,29 @@ export async function applyReadequacaoDraft(draftId: string): Promise<ActionStat
     reservedByLine,
   });
   if (!validated.ok) return { error: validated.error };
+
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
+  const currentById = new Map(
+    project.sheet.lines.map((l) => [
+      l.id,
+      Math.round(moneyN(l.approvedAmount) * 100) / 100,
+    ]),
+  );
+  for (const line of snap.lines) {
+    if (String(line.id).startsWith("new-")) continue;
+    if (!lockedLineIds.has(line.id)) continue;
+    const current = currentById.get(line.id);
+    const next = Math.round(moneyN(line.approvedAmount) * 100) / 100;
+    if (current != null && Math.abs(next - current) > 0.005) {
+      return {
+        error: `«${line.itemName}» está bloqueada — não é possível aplicar alteração.`,
+      };
+    }
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -2578,3 +2644,112 @@ export async function applyReadequacaoDraft(draftId: string): Promise<ActionStat
 }
 
 void exportReadequacaoCsv;
+
+export type ToggleHierarchyLockInput = {
+  planningProjectId: string;
+  sheetId: string;
+  level: "FONTE" | "PRODUCT" | "STAGE" | "CITY" | "ITEM";
+  fonteRecurso?: string;
+  productName?: string;
+  stageName?: string;
+  state?: string;
+  city?: string;
+  budgetLineId?: string;
+};
+
+/** Alterna cadeado em um nó da hierarquia (fonte → item). */
+export async function toggleBudgetHierarchyLockAction(
+  input: ToggleHierarchyLockInput,
+): Promise<ActionState> {
+  const session = await requireUser();
+  if (!(await canEditRubricas())) {
+    return {
+      error:
+        "Sem permissão para bloquear rubricas. Peça «Editar rubricas» no MAX Cultural.",
+    };
+  }
+  const { entitlements } = await getWorkspaceContext();
+  const project = await prisma.planningProject.findFirst({
+    where: {
+      id: input.planningProjectId,
+      workspaceId: entitlements.workspaceId,
+    },
+    include: {
+      sheet: { include: { lines: true } },
+    },
+  });
+  if (!project?.sheet || project.sheet.id !== input.sheetId) {
+    return { error: "Projeto ou planilha não encontrados." };
+  }
+
+  const {
+    buildLockScopeKey,
+    findLockForScope,
+    validateLockPathAgainstLines,
+  } = await import("@/lib/planning/hierarchy-lock");
+  const { loadHierarchyLocks } = await import("@/lib/planning/hierarchy-lock-db");
+
+  const path = {
+    fonteRecurso: input.fonteRecurso,
+    productName: input.productName,
+    stageName: input.stageName,
+    state: input.state,
+    city: input.city,
+    budgetLineId: input.budgetLineId,
+  };
+  const validated = validateLockPathAgainstLines(
+    input.level,
+    path,
+    project.sheet.lines,
+  );
+  if (!validated.ok) return { error: validated.error };
+
+  const locks = await loadHierarchyLocks(project.sheet.id);
+  const existing = findLockForScope(locks, input.level, validated.normalized);
+
+  if (existing?.id) {
+    await prisma.budgetHierarchyLock.delete({ where: { id: existing.id } });
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.hierarchy_unlocked",
+      entityType: "ProjectBudgetSheet",
+      entityId: project.sheet.id,
+      meta: {
+        level: input.level,
+        scopeKey: validated.scopeKey,
+        planningProjectId: project.id,
+      },
+    });
+    revalidatePlanning(project.id);
+    return { ok: true };
+  }
+
+  const scopeKey = buildLockScopeKey(input.level, validated.normalized);
+  await prisma.budgetHierarchyLock.create({
+    data: {
+      sheetId: project.sheet.id,
+      level: input.level,
+      scopeKey,
+      fonteRecurso: validated.normalized.fonteRecurso,
+      productName: validated.normalized.productName,
+      stageName: validated.normalized.stageName,
+      state: validated.normalized.state,
+      city: validated.normalized.city,
+      budgetLineId: validated.normalized.budgetLineId,
+      lockedByUserId: session.id,
+    },
+  });
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.hierarchy_locked",
+    entityType: "ProjectBudgetSheet",
+    entityId: project.sheet.id,
+    meta: {
+      level: input.level,
+      scopeKey,
+      planningProjectId: project.id,
+    },
+  });
+  revalidatePlanning(project.id);
+  return { ok: true };
+}

@@ -140,6 +140,54 @@ describe("validateFormularioAnswers", () => {
     expect(result.errors.tel).toMatch(/telefone/i);
   });
 
+  it("TERRITORIO_OFICINA presencial preenche Cidade/Estado/Territorio", () => {
+    const campos: CampoValidavel[] = [
+      ...baseCampos,
+      {
+        id: "terr",
+        rotulo: "Território",
+        obrigatorio: true,
+        tipo: "TERRITORIO_OFICINA",
+        sigaColumn: "Territorio",
+        opcoes: null,
+      },
+    ];
+    const ok = validateFormularioAnswers(campos, {
+      ...validAnswers,
+      terr: {
+        modalidade: "PRESENCIAL",
+        cidade: "Imperatriz",
+        estado: "ma",
+        territorio: "Quilombo X",
+      },
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.sigaPartial.Cidade).toBe("Imperatriz");
+    expect(ok.sigaPartial.Estado).toBe("MA");
+    expect(ok.sigaPartial.Territorio).toBe("Quilombo X");
+
+    const online = validateFormularioAnswers(campos, {
+      ...validAnswers,
+      terr: { modalidade: "ONLINE", cidade: "", estado: "", territorio: "" },
+    });
+    expect(online.ok).toBe(true);
+    expect(online.sigaPartial.Territorio).toBe("Online");
+    // Cidade do ADDRESS_BR permanece
+    expect(online.sigaPartial.Cidade).toBe("Belo Horizonte");
+
+    const bad = validateFormularioAnswers(campos, {
+      ...validAnswers,
+      terr: {
+        modalidade: "PRESENCIAL",
+        cidade: "",
+        estado: "",
+        territorio: "",
+      },
+    });
+    expect(bad.ok).toBe(false);
+    expect(bad.errors.terr).toMatch(/cidade/i);
+  });
+
   it("rejeita opções fora da lista (checkbox / dropdown)", () => {
     const badCheckbox = validateFormularioAnswers(baseCampos, {
       ...validAnswers,

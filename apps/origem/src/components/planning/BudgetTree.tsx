@@ -3,8 +3,15 @@ import {
   isAdminProduct,
   type LineBalance,
 } from "@/lib/planning/rubric-balance";
+import {
+  hasExactLock,
+  isLineLocked,
+  isNodeEffectivelyLocked,
+  type HierarchyLockRecord,
+} from "@/lib/planning/hierarchy-lock";
 import { FieldHelp, ThHelp } from "@/components/FieldHelp";
 import { HELP } from "@/lib/help";
+import { HierarchyLockButton } from "@/components/planning/HierarchyLockButton";
 
 type Line = {
   id: string;
@@ -38,21 +45,36 @@ function groupLines(lines: Line[]) {
 
 function rowClass(b: LineBalance | undefined) {
   if (!b) return "border-t border-[var(--border)]";
+  if (b.locked) return "border-t border-amber-200 bg-amber-50/70 text-amber-950";
   if (b.over) return "border-t border-red-200 bg-red-50 text-red-900";
   if (b.near) return "border-t border-amber-200 bg-amber-50 text-amber-950";
   return "border-t border-[var(--border)]";
 }
 
+function sampleLine(items: Line[]): Line | null {
+  return items[0] ?? null;
+}
+
 export function BudgetTree({
   lines,
   balances,
+  locks = [],
+  planningProjectId,
+  sheetId,
+  canToggleLocks = false,
 }: {
   lines: Line[];
   balances: Map<string, LineBalance>;
+  locks?: HierarchyLockRecord[];
+  planningProjectId?: string;
+  sheetId?: string;
+  canToggleLocks?: boolean;
   /** @deprecated Teto do projeto fica no KPI; mantido por compatibilidade de props. */
   pctCaptadoTLabel?: string;
 }) {
   const tree = groupLines(lines);
+  const lockUi =
+    Boolean(planningProjectId && sheetId) && (canToggleLocks || locks.length > 0);
 
   return (
     <div className="space-y-3">
@@ -65,44 +87,193 @@ export function BudgetTree({
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />
           No limite da rubrica
         </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-700" />
+          Bloqueado (sem edição / saldo)
+        </span>
       </div>
 
-      {[...tree.entries()].map(([fonte, products]) => (
+      {[...tree.entries()].map(([fonte, products]) => {
+        const fonteItems = [...products.values()].flatMap((etapas) =>
+          [...etapas.values()].flatMap((regioes) =>
+            [...regioes.values()].flat(),
+          ),
+        );
+        const fonteLocked = isNodeEffectivelyLocked(
+          locks,
+          "FONTE",
+          { fonteRecurso: fonte },
+          sampleLine(fonteItems),
+        );
+        const fonteExact = hasExactLock(locks, "FONTE", { fonteRecurso: fonte });
+        return (
         <details key={fonte} open className="card overflow-hidden">
           <summary className="cursor-pointer bg-[var(--gray-50)] px-4 py-3 font-semibold text-[var(--navy)]">
-            {fonte}
+            <span className="inline-flex items-center gap-2">
+              {lockUi ? (
+                <HierarchyLockButton
+                  planningProjectId={planningProjectId!}
+                  sheetId={sheetId!}
+                  level="FONTE"
+                  path={{ fonteRecurso: fonte }}
+                  locked={fonteLocked}
+                  exactLocked={fonteExact}
+                  canToggle={canToggleLocks}
+                />
+              ) : null}
+              {fonte}
+              {fonteLocked ? (
+                <span className="text-xs font-normal text-amber-700">Bloqueado</span>
+              ) : null}
+            </span>
           </summary>
           <div className="space-y-2 p-3">
             {[...products.entries()].map(([produto, etapas]) => {
               const isAdminProduto = isAdminProduct(produto);
+              const produtoItems = [...etapas.values()].flatMap((regioes) =>
+                [...regioes.values()].flat(),
+              );
+              const produtoLocked = isNodeEffectivelyLocked(
+                locks,
+                "PRODUCT",
+                { fonteRecurso: fonte, productName: produto },
+                sampleLine(produtoItems),
+              );
+              const produtoExact = hasExactLock(locks, "PRODUCT", {
+                fonteRecurso: fonte,
+                productName: produto,
+              });
               return (
               <details key={produto} open className="rounded-lg border border-[var(--border)]">
                 <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
                   <span className="inline-flex items-center gap-1.5">
+                    {lockUi ? (
+                      <HierarchyLockButton
+                        planningProjectId={planningProjectId!}
+                        sheetId={sheetId!}
+                        level="PRODUCT"
+                        path={{ fonteRecurso: fonte, productName: produto }}
+                        locked={produtoLocked}
+                        exactLocked={produtoExact}
+                        canToggle={canToggleLocks}
+                      />
+                    ) : null}
                     {produto}
                     {isAdminProduto ? (
                       <FieldHelp text={HELP.planningAdminProduto} />
                     ) : null}
+                    {produtoLocked ? (
+                      <span className="text-xs font-normal text-amber-700">
+                        Bloqueado
+                      </span>
+                    ) : null}
                   </span>
                 </summary>
                 <div className="space-y-2 p-2">
-                  {[...etapas.entries()].map(([etapa, regioes]) => (
+                  {[...etapas.entries()].map(([etapa, regioes]) => {
+                    const etapaItems = [...regioes.values()].flat();
+                    const etapaLocked = isNodeEffectivelyLocked(
+                      locks,
+                      "STAGE",
+                      {
+                        fonteRecurso: fonte,
+                        productName: produto,
+                        stageName: etapa,
+                      },
+                      sampleLine(etapaItems),
+                    );
+                    const etapaExact = hasExactLock(locks, "STAGE", {
+                      fonteRecurso: fonte,
+                      productName: produto,
+                      stageName: etapa,
+                    });
+                    return (
                     <details key={etapa} open>
                       <summary className="cursor-pointer px-2 py-1 text-sm text-[var(--gray-600)]">
-                        {etapa}
+                        <span className="inline-flex items-center gap-1.5">
+                          {lockUi ? (
+                            <HierarchyLockButton
+                              planningProjectId={planningProjectId!}
+                              sheetId={sheetId!}
+                              level="STAGE"
+                              path={{
+                                fonteRecurso: fonte,
+                                productName: produto,
+                                stageName: etapa,
+                              }}
+                              locked={etapaLocked}
+                              exactLocked={etapaExact}
+                              canToggle={canToggleLocks}
+                            />
+                          ) : null}
+                          {etapa}
+                          {etapaLocked ? (
+                            <span className="text-xs font-normal text-amber-700">
+                              Bloqueado
+                            </span>
+                          ) : null}
+                        </span>
                       </summary>
-                      {[...regioes.entries()].map(([regiao, items]) => (
+                      {[...regioes.entries()].map(([regiao, items]) => {
+                        const state = items[0]?.state ?? "";
+                        const city = items[0]?.city ?? "";
+                        const cityLocked = isNodeEffectivelyLocked(
+                          locks,
+                          "CITY",
+                          {
+                            fonteRecurso: fonte,
+                            productName: produto,
+                            stageName: etapa,
+                            state,
+                            city,
+                          },
+                          sampleLine(items),
+                        );
+                        const cityExact = hasExactLock(locks, "CITY", {
+                          fonteRecurso: fonte,
+                          productName: produto,
+                          stageName: etapa,
+                          state,
+                          city,
+                        });
+                        return (
                         <details key={regiao} open className="mb-2 ml-2">
                           <summary className="cursor-pointer py-1 text-xs font-medium text-[var(--gray-500)]">
-                            {regiao || "—"}
-                            <span className="ml-2 font-normal tabular-nums text-[var(--gray-400)]">
-                              ({items.length} {items.length === 1 ? "item" : "itens"})
+                            <span className="inline-flex items-center gap-1.5">
+                              {lockUi ? (
+                                <HierarchyLockButton
+                                  planningProjectId={planningProjectId!}
+                                  sheetId={sheetId!}
+                                  level="CITY"
+                                  path={{
+                                    fonteRecurso: fonte,
+                                    productName: produto,
+                                    stageName: etapa,
+                                    state,
+                                    city,
+                                  }}
+                                  locked={cityLocked}
+                                  exactLocked={cityExact}
+                                  canToggle={canToggleLocks}
+                                />
+                              ) : null}
+                              {regiao || "—"}
+                              <span className="ml-1 font-normal tabular-nums text-[var(--gray-400)]">
+                                ({items.length}{" "}
+                                {items.length === 1 ? "item" : "itens"})
+                              </span>
+                              {cityLocked ? (
+                                <span className="text-xs font-normal text-amber-700">
+                                  Bloqueado
+                                </span>
+                              ) : null}
                             </span>
                           </summary>
                           <div className="overflow-x-auto pl-1">
                             <table className="w-full text-left text-sm">
                               <thead>
                                 <tr className="text-xs text-[var(--gray-500)]">
+                                  {lockUi ? <th className="w-8 py-1 pr-1" /> : null}
                                   <th className="py-1 pr-2">Item</th>
                                   <ThHelp
                                     className="py-1 pr-2"
@@ -132,11 +303,33 @@ export function BudgetTree({
                                   const approved =
                                     b?.approved ??
                                     (Number(line.approvedAmount) || 0);
+                                  const itemExact = hasExactLock(locks, "ITEM", {
+                                    budgetLineId: line.id,
+                                  });
+                                  const itemLocked =
+                                    b?.locked || isLineLocked(line, locks);
                                   return (
                                     <tr key={line.id} className={rowClass(b)}>
+                                      {lockUi ? (
+                                        <td className="py-1.5 pr-1">
+                                          <HierarchyLockButton
+                                            planningProjectId={planningProjectId!}
+                                            sheetId={sheetId!}
+                                            level="ITEM"
+                                            path={{ budgetLineId: line.id }}
+                                            locked={itemLocked}
+                                            exactLocked={itemExact}
+                                            canToggle={canToggleLocks}
+                                          />
+                                        </td>
+                                      ) : null}
                                       <td className="py-1.5 pr-2">
                                         {line.itemName}
-                                        {b?.over ? (
+                                        {itemLocked ? (
+                                          <span className="ml-2 text-xs font-semibold text-amber-800">
+                                            bloqueado
+                                          </span>
+                                        ) : b?.over ? (
                                           <span className="ml-2 text-xs font-semibold">
                                             no limite
                                           </span>
@@ -150,9 +343,11 @@ export function BudgetTree({
                                         {formatCurrency(approved)}
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
-                                        {formatCurrency(
-                                          b?.available ?? approved,
-                                        )}
+                                        {itemLocked
+                                          ? "—"
+                                          : formatCurrency(
+                                              b?.available ?? approved,
+                                            )}
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(b?.reserved ?? 0)}
@@ -173,16 +368,19 @@ export function BudgetTree({
                             </table>
                           </div>
                         </details>
-                      ))}
+                        );
+                      })}
                     </details>
-                  ))}
+                    );
+                  })}
                 </div>
               </details>
               );
             })}
           </div>
         </details>
-      ))}
+        );
+      })}
     </div>
   );
 }

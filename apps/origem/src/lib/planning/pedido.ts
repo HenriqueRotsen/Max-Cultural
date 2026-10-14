@@ -115,6 +115,11 @@ export async function createPedido(
     "@/lib/planning/federal/audit-reconcile"
   );
   const publishedPaidByLine = await loadPublishedPaidByLine(planningProjectId);
+  const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
+  const { lockedLineIds } = await loadLockedLineIds(
+    project.sheet.id,
+    project.sheet.lines,
+  );
   const balance = computeProjectBalance({
     lines: project.sheet.lines,
     commitments: project.commitments,
@@ -123,6 +128,7 @@ export async function createPedido(
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     publishedPaidByLine,
+    lockedLineIds,
   });
 
   const allowOverflow = await canExceedRubric();
@@ -177,6 +183,7 @@ export async function createPedido(
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
         publishedPaidByLine,
+        lockedLineIds,
       });
       for (const [lineId, amount] of byLine) {
         const line = project.sheet!.lines.find((l) => l.id === lineId)!;

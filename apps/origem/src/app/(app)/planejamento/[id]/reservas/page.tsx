@@ -358,7 +358,7 @@ export default async function PlanningReservasPage({
               href={`/planejamento/${project.id}/pedidos`}
               className="btn btn-ghost"
             >
-              Pedidos
+              Pedidos / parcelamento
             </Link>
             <Link
               href={`/planejamento/${project.id}/pedidos/novo`}

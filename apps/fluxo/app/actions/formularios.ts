@@ -31,9 +31,10 @@ import {
 } from "@/lib/rate-limit";
 import { uploadPublicImage } from "@/lib/storage/object-store";
 import {
+  applyTerritorioOficinaFormToSiga,
+  asTerritorioOficinaFormValue,
   catalogFromOficinaParts,
-  resolveOficinaTerritorioChoice,
-  territorioOficinaFieldMeta,
+  territorioOficinaStructuredMeta,
   type OficinaTerritorioCatalog,
 } from "@/lib/oficina-territorio";
 
@@ -79,43 +80,23 @@ function hydrateTerritorioOficinaCampos<
     sigaColumn: string | null;
   },
 >(campos: T[], catalog: OficinaTerritorioCatalog | null): T[] {
-  if (!catalog) return campos;
-  const meta = territorioOficinaFieldMeta(catalog);
+  const meta = territorioOficinaStructuredMeta(catalog);
   return campos.map((c) => {
     if (c.tipo !== "TERRITORIO_OFICINA") return c;
     return {
       ...c,
-      obrigatorio: meta.obrigatorio,
-      opcoes: meta.opcoes,
+      obrigatorio: meta.showField ? c.obrigatorio || true : false,
+      opcoes: null,
       sigaColumn: c.sigaColumn ?? "Territorio",
       config: {
         ...(c.config ?? {}),
         hidden: !meta.showField,
-        autoChoice: meta.autoChoice,
+        ofereceOnline: meta.ofereceOnline,
+        oferecePresencial: meta.oferecePresencial,
+        autoModalidade: meta.autoModalidade,
       },
     };
   });
-}
-
-function applyTerritorioChoiceToSiga(
-  sigaPartial: Record<string, unknown>,
-  choice: string,
-  catalog: OficinaTerritorioCatalog,
-): { oficinaTerritorioId: string | null; online: boolean } {
-  const resolved = resolveOficinaTerritorioChoice(choice, catalog);
-  if (resolved.online) {
-    sigaPartial.Cidade = "";
-    sigaPartial.Estado = "";
-    sigaPartial.Territorio = resolved.territorio;
-  } else if (resolved.matched || resolved.cidade || resolved.territorio) {
-    sigaPartial.Cidade = resolved.cidade;
-    sigaPartial.Estado = resolved.estado;
-    sigaPartial.Territorio = resolved.territorio;
-  }
-  return {
-    oficinaTerritorioId: resolved.oficinaTerritorioId,
-    online: resolved.online,
-  };
 }
 
 const CAPA_MAX_BYTES = 5 * 1024 * 1024;
@@ -671,9 +652,11 @@ export async function submitPublicFormularioAction(input: {
   const answers = { ...input.answers };
   for (const c of camposHydrated) {
     if (c.tipo !== "TERRITORIO_OFICINA") continue;
-    const auto = c.config?.autoChoice;
-    if (typeof auto === "string" && auto && !String(answers[c.id] ?? "").trim()) {
-      answers[c.id] = auto;
+    const auto = c.config?.autoModalidade;
+    if (auto !== "ONLINE" && auto !== "PRESENCIAL") continue;
+    const current = asTerritorioOficinaFormValue(answers[c.id]);
+    if (!current.modalidade) {
+      answers[c.id] = { ...current, modalidade: auto };
     }
   }
 
@@ -698,19 +681,17 @@ export async function submitPublicFormularioAction(input: {
 
   let oficinaTerritorioId: string | null = null;
   let territorioOnline = false;
-  if (catalog) {
-    for (const c of camposHydrated) {
-      if (c.tipo !== "TERRITORIO_OFICINA") continue;
-      const choice = String(validated.values[c.id] ?? "").trim();
-      if (!choice) continue;
-      const applied = applyTerritorioChoiceToSiga(
-        validated.sigaPartial,
-        choice,
-        catalog,
-      );
-      oficinaTerritorioId = applied.oficinaTerritorioId;
-      territorioOnline = applied.online;
-    }
+  for (const c of camposHydrated) {
+    if (c.tipo !== "TERRITORIO_OFICINA") continue;
+    const terr = asTerritorioOficinaFormValue(validated.values[c.id]);
+    if (!terr.modalidade) continue;
+    const applied = applyTerritorioOficinaFormToSiga(
+      validated.sigaPartial,
+      terr,
+      catalog,
+    );
+    oficinaTerritorioId = applied.oficinaTerritorioId;
+    territorioOnline = applied.online;
   }
 
   const existingInscricao = await prisma.inscricao.findFirst({

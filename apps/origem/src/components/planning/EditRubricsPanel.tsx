@@ -19,6 +19,7 @@ export type EditableRubricLine = {
   approvedAmount: number;
   reserved: number;
   isAdmin?: boolean;
+  locked?: boolean;
 };
 
 function round2(n: number) {
@@ -163,6 +164,7 @@ export function EditRubricsPanel({
           <ul className="space-y-2">
             {lines.map((line) => {
               const admin = Boolean(line.isAdmin);
+              const locked = Boolean(line.locked);
               const max = admin
                 ? round2(line.approvedAmount)
                 : round2(line.homologatedAmount * 2);
@@ -175,7 +177,9 @@ export function EditRubricsPanel({
                 <li
                   key={line.id}
                   className={`rounded-xl border px-3 py-2 ${
-                    admin
+                    locked
+                      ? "border-amber-300 bg-amber-50/70 opacity-90"
+                      : admin
                       ? "border-[var(--border)] bg-[var(--gray-50)]"
                       : aboveHomolog
                         ? "border-amber-300 bg-amber-50/60"
@@ -186,15 +190,17 @@ export function EditRubricsPanel({
                     <button
                       type="button"
                       title={
-                        admin
+                        locked
+                          ? "Rubrica bloqueada — desbloqueie na árvore para editar"
+                          : admin
                           ? "Administração não pode ser excedida"
                           : "Ajustar / exceder rubrica"
                       }
                       aria-label={`Ajustar rubrica ${line.itemName}`}
                       aria-expanded={open}
-                      disabled={admin}
+                      disabled={admin || locked}
                       className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition ${
-                        admin
+                        admin || locked
                           ? "cursor-not-allowed border-[var(--border)] text-[var(--gray-400)]"
                           : open
                             ? "border-[var(--navy)] bg-[var(--navy)] text-white"
@@ -219,6 +225,11 @@ export function EditRubricsPanel({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-[var(--navy)]">
                         {formatRubricShortLabel(line)}
+                        {locked ? (
+                          <span className="ml-2 text-xs font-semibold text-amber-800">
+                            bloqueada
+                          </span>
+                        ) : null}
                       </p>
                       <p className="truncate text-xs text-[var(--gray-500)]">
                         {line.stageName}

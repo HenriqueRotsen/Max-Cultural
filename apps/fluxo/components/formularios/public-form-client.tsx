@@ -8,6 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { GENEROS, ETNIAS } from "@/lib/schema";
 import type { FormularioCampoTipoCode } from "@/lib/formularios/types";
+import {
+  EMPTY_TERRITORIO_OFICINA_FORM,
+  asTerritorioOficinaFormValue,
+  type TerritorioOficinaFormValue,
+} from "@/lib/oficina-territorio";
 import { executeRecaptcha } from "@/components/formularios/recaptcha-execute";
 
 type CampoPublico = {
@@ -168,6 +173,18 @@ function validatePageFields(
     const v = values[campo.id];
     if (campo.tipo === "DECLARACAO") {
       if (v !== true) errors[campo.id] = "É necessário declarar o cumprimento.";
+      continue;
+    }
+    if (campo.tipo === "TERRITORIO_OFICINA") {
+      const terr = asTerritorioOficinaFormValue(v);
+      if (!terr.modalidade) {
+        errors[campo.id] = "Escolha Online ou Presencial.";
+      } else if (
+        terr.modalidade === "PRESENCIAL" &&
+        (!terr.cidade.trim() || !terr.estado.trim())
+      ) {
+        errors[campo.id] = "Informe cidade e UF do território presencial.";
+      }
       continue;
     }
     if (isEmptyValue(v)) {
@@ -534,12 +551,129 @@ export function PublicFormClient({
       );
     }
 
-    if (
-      campo.tipo === "MULTIPLE_CHOICE" ||
-      campo.tipo === "DROPDOWN" ||
-      campo.tipo === "TERRITORIO_OFICINA"
-    ) {
+    if (campo.tipo === "TERRITORIO_OFICINA") {
       if (campo.config?.hidden === true) return null;
+      const canOnline =
+        campo.config?.ofereceOnline == null
+          ? true
+          : Boolean(campo.config.ofereceOnline);
+      const canPresencial =
+        campo.config?.oferecePresencial == null
+          ? true
+          : Boolean(campo.config.oferecePresencial);
+      const autoMod =
+        campo.config?.autoModalidade === "ONLINE" ||
+        campo.config?.autoModalidade === "PRESENCIAL"
+          ? campo.config.autoModalidade
+          : null;
+      const stored = asTerritorioOficinaFormValue(values[campo.id]);
+      const terr: TerritorioOficinaFormValue = {
+        ...EMPTY_TERRITORIO_OFICINA_FORM,
+        ...stored,
+        modalidade: stored.modalidade || autoMod || "",
+      };
+      const showModalityPick = canOnline && canPresencial && !autoMod;
+      const isPresencial = terr.modalidade === "PRESENCIAL";
+
+      const setTerr = (patch: Partial<TerritorioOficinaFormValue>) => {
+        const next = { ...terr, ...patch };
+        if (next.modalidade === "ONLINE") {
+          next.cidade = "";
+          next.estado = "";
+          next.territorio = "Online";
+        }
+        setField(campo.id, next);
+      };
+
+      return (
+        <fieldset
+          key={campo.id}
+          className="space-y-3 rounded-lg border border-slate-200 p-4"
+        >
+          <legend className="px-1 text-sm font-medium text-slate-800">
+            {campo.rotulo}
+            {campo.obrigatorio ? " *" : ""}
+          </legend>
+          {help}
+          {errEl}
+          {showModalityPick ? (
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={`${campo.id}-mod`}
+                  checked={terr.modalidade === "ONLINE"}
+                  onChange={() => setTerr({ modalidade: "ONLINE" })}
+                />
+                Online
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={`${campo.id}-mod`}
+                  checked={terr.modalidade === "PRESENCIAL"}
+                  onChange={() =>
+                    setTerr({
+                      modalidade: "PRESENCIAL",
+                      territorio:
+                        terr.territorio === "Online" ? "" : terr.territorio,
+                    })
+                  }
+                />
+                Presencial
+              </label>
+            </div>
+          ) : terr.modalidade ? (
+            <p className="text-sm text-slate-600">
+              Modalidade:{" "}
+              <span className="font-medium">
+                {terr.modalidade === "ONLINE" ? "Online" : "Presencial"}
+              </span>
+            </p>
+          ) : null}
+          {isPresencial ? (
+            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_4.5rem]">
+              <div className="space-y-1">
+                <Label>Cidade *</Label>
+                <Input
+                  value={terr.cidade}
+                  onChange={(e) => setTerr({ cidade: e.target.value })}
+                  placeholder="Ex.: Imperatriz"
+                  autoComplete="address-level2"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Território / comunidade</Label>
+                <Input
+                  value={terr.territorio === "Online" ? "" : terr.territorio}
+                  onChange={(e) => setTerr({ territorio: e.target.value })}
+                  placeholder="Opcional — quilombo, assentamento…"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>UF *</Label>
+                <Input
+                  value={terr.estado}
+                  maxLength={2}
+                  onChange={(e) =>
+                    setTerr({
+                      estado: e.target.value
+                        .replace(/[^a-zA-Z]/g, "")
+                        .toUpperCase()
+                        .slice(0, 2),
+                    })
+                  }
+                  placeholder="MA"
+                  autoComplete="address-level1"
+                />
+              </div>
+            </div>
+          ) : null}
+        </fieldset>
+      );
+    }
+
+    if (campo.tipo === "MULTIPLE_CHOICE" || campo.tipo === "DROPDOWN") {
       const opts = asOptions(campo.opcoes);
       if (campo.tipo === "DROPDOWN") {
         return (
