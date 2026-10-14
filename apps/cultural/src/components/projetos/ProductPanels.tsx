@@ -164,10 +164,21 @@ export function OrigemPanel({
   origemBase: string;
 }) {
   const t = ORIGEM;
+  const teto = Number.isFinite(project.totalAvailableCap)
+    ? project.totalAvailableCap
+    : project.totalApproved;
+  const saldo = Number.isFinite(project.totalSaldo) ? project.totalSaldo : 0;
+  const pctLabel =
+    project.pctCaptadoT > 0
+      ? `${(project.pctCaptadoT * 100).toLocaleString("pt-BR", {
+          maximumFractionDigits: 1,
+        })}%`
+      : null;
+  // Donut sobre o teto: Pago + Saldo (= teto − pago). Reservado fica só no KPI —
+  // misturar Reservado com Saldo no gráfico duplicaria conceitos.
   const slices = [
-    { label: "Pago", value: project.totalPaid, color: t.paid },
-    { label: "Reservado", value: project.totalReserved, color: t.reserved },
-    { label: "Saldo", value: project.totalAvailable, color: t.available },
+    { label: "Pago", value: Math.max(0, project.totalPaid), color: t.paid },
+    { label: "Saldo", value: Math.max(0, saldo), color: t.available },
   ];
 
   return (
@@ -189,22 +200,53 @@ export function OrigemPanel({
       }
     >
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Aprovado" value={formatMoney(project.totalApproved)} soft={t.soft2} accent={t.ink} />
-        <Stat label="Saldo" value={formatMoney(project.totalAvailable)} soft={t.soft2} accent={t.ink} />
-        <Stat label="Reservado" value={formatMoney(project.totalReserved)} soft={t.soft2} accent={t.ink} />
-        <Stat label="Pago" value={formatMoney(project.totalPaid)} soft={t.soft2} accent={t.ink} />
+        <Stat
+          label="Aprovado (MinC)"
+          value={formatMoney(project.totalApproved)}
+          soft={t.soft2}
+          accent={t.ink}
+        />
+        <Stat
+          label={pctLabel ? `Teto (${pctLabel})` : "Teto"}
+          value={formatMoney(teto)}
+          soft={t.soft2}
+          accent={t.ink}
+        />
+        <Stat
+          label="Reservado"
+          value={formatMoney(project.totalReserved)}
+          soft={t.soft2}
+          accent={t.ink}
+        />
+        <Stat
+          label="Pago"
+          value={formatMoney(project.totalPaid)}
+          soft={t.soft2}
+          accent={t.ink}
+        />
+        <div className="col-span-2">
+          <Stat
+            label="Saldo"
+            value={formatMoney(saldo)}
+            soft={t.soft2}
+            accent={t.ink}
+          />
+          <p className="mt-1 px-1 text-[11px] text-[var(--gray-500)]">
+            Saldo = teto − pago (reservas em aberto não entram neste valor).
+          </p>
+        </div>
       </div>
 
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-400)]">
-          Uso do orçamento
+          Uso do teto
         </p>
         <DonutChart
           accent={t.accent}
           money
-          centerLabel="Aprovado"
+          centerLabel="Teto"
           slices={
-            project.totalApproved > 0
+            teto > 0
               ? slices
               : [{ label: "Sem valores", value: 1, color: t.available }]
           }
@@ -264,6 +306,20 @@ export function FluxoPanel({
 
       {found && fluxo ? (
         <>
+          {fluxo.projetos.length > 0 ? (
+            <dl className="grid gap-2 sm:grid-cols-2">
+              <Meta
+                label={fluxo.projetos.length > 1 ? "Projetos Fluxo" : "Projeto Fluxo"}
+                value={
+                  fluxo.projetos.length === 1
+                    ? `${fluxo.projetos[0]!.nome} · ${fluxo.projetos[0]!.ano}`
+                    : `${fluxo.projetos.length} vinculados · ${fluxo.projetos[0]!.nome}…`
+                }
+              />
+              <Meta label="PRONAC" value={fluxo.pronac} />
+            </dl>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-3">
             <Stat label="Inscritos" value={String(fluxo.totais.inscritos)} soft={t.soft2} accent={t.ink} />
             <Stat

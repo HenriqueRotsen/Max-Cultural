@@ -16,9 +16,13 @@ export type HubProjectSummary = {
   importSourceLabel: string;
   hasSheet: boolean;
   totalApproved: number;
+  /** Teto operacional. */
+  totalAvailableCap: number;
   totalReserved: number;
   totalPaid: number;
-  totalAvailable: number;
+  /** Saldo = teto − pago. */
+  totalSaldo: number;
+  pctCaptadoT: number;
   commitmentsCount: number;
   documentsCount: number;
   updatedAt: string;

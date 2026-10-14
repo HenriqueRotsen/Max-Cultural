@@ -16,7 +16,8 @@ export type PlanningProjectCard = {
   situacao: string | null;
   lifecycleStatus: string;
   totalApproved: number;
-  totalAvailable: number;
+  /** Saldo do projeto = teto − pago. */
+  totalSaldo: number;
 };
 
 type SortKey = "name" | "code" | "approved" | "balance" | "imported";
@@ -39,7 +40,7 @@ function ProjectListCard({
   importSource,
   situacao,
   totalApproved,
-  totalAvailable,
+  totalSaldo,
   muted,
 }: {
   href: string;
@@ -51,7 +52,7 @@ function ProjectListCard({
   importSource: string | null;
   situacao: string | null;
   totalApproved: number;
-  totalAvailable: number;
+  totalSaldo: number;
   muted?: boolean;
 }) {
   const meta = [
@@ -159,7 +160,7 @@ function ProjectListCard({
                   muted ? "text-[var(--gray-500)]" : "text-[#5b52c9]"
                 }`}
               >
-                {formatCurrency(totalAvailable)}
+                {formatCurrency(totalSaldo)}
               </p>
             </div>
           </div>
@@ -198,7 +199,7 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
         case "approved":
           return b.totalApproved - a.totalApproved;
         case "balance":
-          return b.totalAvailable - a.totalAvailable;
+          return b.totalSaldo - a.totalSaldo;
         case "imported":
           return (b.importedAt || "").localeCompare(a.importedAt || "");
         case "name":
@@ -304,7 +305,7 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
               importSource={p.importSource}
               situacao={p.situacao}
               totalApproved={p.totalApproved}
-              totalAvailable={p.totalAvailable}
+              totalSaldo={p.totalSaldo}
               muted={
                 projectListBucket({
                   lifecycleStatus: p.lifecycleStatus,

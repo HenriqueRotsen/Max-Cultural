@@ -24,9 +24,14 @@ export type HubProjectSummary = {
   importSourceLabel: string;
   hasSheet: boolean;
   totalApproved: number;
+  /** Teto operacional (= captação com sinal, senão aprovado). */
+  totalAvailableCap: number;
   totalReserved: number;
   totalPaid: number;
-  totalAvailable: number;
+  /** Saldo do projeto = teto − pago (não confundir com “livre para reservar”). */
+  totalSaldo: number;
+  /** Fração teto/aprovado (0–1), para rótulo do teto. */
+  pctCaptadoT: number;
   commitmentsCount: number;
   documentsCount: number;
   updatedAt: string;
@@ -175,9 +180,11 @@ function toSummary(
     importSourceLabel: importSourceLabel(p.importSource),
     hasSheet: Boolean(p.sheet),
     totalApproved: bal?.totalApproved ?? money(p.sheet?.totalApproved),
+    totalAvailableCap: bal?.totalAvailableCap ?? money(p.sheet?.totalApproved),
     totalReserved: bal?.totalReserved ?? 0,
     totalPaid: bal?.totalPaid ?? 0,
-    totalAvailable: bal?.totalSaldo ?? 0,
+    totalSaldo: bal?.totalSaldo ?? 0,
+    pctCaptadoT: bal?.pctCaptadoT ?? 0,
     commitmentsCount: p.commitments.length,
     documentsCount: p.documents.length,
     updatedAt: p.updatedAt.toISOString(),
