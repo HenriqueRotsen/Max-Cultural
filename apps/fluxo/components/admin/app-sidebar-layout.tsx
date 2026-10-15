@@ -137,8 +137,8 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-/** Oculta o menu Acesso só se a env for explicitamente "true" (IAM só no hub). */
-const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM === "true";
+/** IAM de telas no hub Cultural; menu Acesso do Fluxo fica oculto por padrão. */
+const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM !== "false";
 
 function itemAllowed(
   permission: string | string[] | undefined,

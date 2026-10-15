@@ -8,6 +8,7 @@ import {
   type DataScopeKind,
   type ScopeAccessLevel,
 } from "@/lib/data-scope-shared";
+import { getHubFluxoAccess } from "@/lib/hub-permissions";
 
 export type {
   ScopeAccessLevel,
@@ -152,10 +153,23 @@ async function resolveLimitedFromEntries(
 /**
  * Resolve escopo com herança: contexto → projeto → oficina.
  * Usuário LIMITED sem escopos próprios herda o escopo padrão do papel.
+ *
+ * Com SSO do hub: quem tem operação (`fluxo.operacao` → inscricoes/contextos)
+ * vê todos os dados — o controle de acesso fica no MAX Cultural.
  * Memoizado por request.
  */
 export const resolveDataScope = cache(
   async (userId: string): Promise<DataScopeResolved> => {
+    const hub = await getHubFluxoAccess();
+    if (
+      hub.hasHubSession &&
+      hub.allowedProduct &&
+      !hub.fetchFailed &&
+      (hub.codes.has("inscricoes:read") || hub.codes.has("contextos:read"))
+    ) {
+      return { ...ALL_SCOPE, accessByKey: new Map() };
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {

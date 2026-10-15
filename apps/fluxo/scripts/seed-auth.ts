@@ -69,13 +69,16 @@ async function main() {
       where: { name: OPERATOR_ROLE_NAME },
       create: {
         name: OPERATOR_ROLE_NAME,
-        description: "Operação do dia a dia (sem gerenciar acesso)",
+        description:
+          "Operação do dia a dia — dados liberados; telas pelo hub (fluxo.operacao)",
         isSystem: true,
-        dataScopeMode: "LIMITED",
+        dataScopeMode: "ALL",
       },
       update: {
-        description: "Operação do dia a dia (sem gerenciar acesso)",
+        description:
+          "Operação do dia a dia — dados liberados; telas pelo hub (fluxo.operacao)",
         isSystem: true,
+        dataScopeMode: "ALL",
       },
     });
 

@@ -104,7 +104,7 @@ Storage: ver [`docs/supabase-storage.md`](./supabase-storage.md). Após deploy, 
 | `NEXT_PUBLIC_APP_URL` | `https://fluxo.maxcultural.com.br` |
 | `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` | capas no Storage público |
 | `SUPABASE_STORAGE_BUCKET_PUBLIC` | opcional; default `max-public` |
-| `NEXT_PUBLIC_HIDE_FLUXO_IAM` | opcional; `true` esconde o menu Acesso (escopos de dados ficam sem UI no Fluxo) |
+| `NEXT_PUBLIC_HIDE_FLUXO_IAM` | `true` por padrão no código (≠ `"false"`): IAM de telas no hub; Operador com `fluxo.operacao` vê os dados |
 | `AUTH_2FA_DISABLED` | `true` (login fica no Cultural; ignore no Fluxo) |
 | `BOOTSTRAP_ADMIN_*` | seed-auth local |
 

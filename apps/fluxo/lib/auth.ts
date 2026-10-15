@@ -166,6 +166,9 @@ async function ensureUserFromHub(input: {
   const preferredRoleName = professorOnly
     ? PROFESSOR_ROLE_NAME
     : OPERATOR_ROLE_NAME;
+  const hubOperacao = Boolean(
+    input.hubPermissions?.includes("fluxo.operacao"),
+  );
 
   const existing = await prisma.user.findUnique({
     where: { email: input.email },
@@ -183,9 +186,15 @@ async function ensureUserFromHub(input: {
       existing.role.name !== preferredRoleName &&
       (existing.role.name === OPERATOR_ROLE_NAME ||
         existing.role.name === PROFESSOR_ROLE_NAME);
+    // Operador com operação no hub: dados liberados (controle de telas no Cultural).
+    const shouldUnlockData =
+      hubOperacao &&
+      !existing.isSuperAdmin &&
+      existing.role.name === OPERATOR_ROLE_NAME &&
+      existing.dataScopeMode !== "ALL";
 
     const user =
-      existing.mustChangePassword || shouldAlignRole
+      existing.mustChangePassword || shouldAlignRole || shouldUnlockData
         ? await prisma.user.update({
             where: { id: existing.id },
             data: {
@@ -195,6 +204,7 @@ async function ensureUserFromHub(input: {
               ...(shouldAlignRole && preferredRole
                 ? { roleId: preferredRole.id }
                 : {}),
+              ...(shouldUnlockData ? { dataScopeMode: "ALL" as const } : {}),
             },
             include: userInclude,
           })
@@ -223,6 +233,12 @@ async function ensureUserFromHub(input: {
       mustChangePassword: false,
       totpEnabled: false,
       lastLoginAt: new Date(),
+      dataScopeMode:
+        professorOnly || role.name === PROFESSOR_ROLE_NAME
+          ? "LIMITED"
+          : hubOperacao || role.name === OPERATOR_ROLE_NAME || role.name === ADMIN_ROLE_NAME
+            ? "ALL"
+            : "LIMITED",
     },
     include: userInclude,
   });
