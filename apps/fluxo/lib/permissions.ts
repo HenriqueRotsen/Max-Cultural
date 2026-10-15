@@ -19,6 +19,15 @@ const FORMULARIOS_CODES: PermissionCode[] = [
   "dashboard:access",
 ];
 
+/** IAM local (menu Acesso) — o hub não modela escopo de dados do Fluxo. */
+const IAM_CODES: PermissionCode[] = [
+  "usuarios:read",
+  "usuarios:write",
+  "roles:read",
+  "roles:write",
+  "audit:read",
+];
+
 function applyLocalRole(
   set: Set<PermissionCode>,
   user: {
@@ -68,13 +77,18 @@ export const getEffectivePermissions = cache(
     if (hub.hasHubSession && !hub.fetchFailed) {
       if (!hub.allowedProduct) return new Set();
       const set = new Set<PermissionCode>(hub.codes);
-      // Une grants locais de formulários (cookie SSO pode estar desatualizado
-      // após criar o papel Professor / fluxo.formularios).
+      // Une grants locais: formulários (SSO antigo) + IAM (escopo de dados).
       if (user && !user.deactivatedAt) {
         const local = new Set<PermissionCode>();
         applyLocalRole(local, user);
         for (const code of FORMULARIOS_CODES) {
           if (local.has(code)) set.add(code);
+        }
+        for (const code of IAM_CODES) {
+          if (local.has(code)) set.add(code);
+        }
+        if (user.isSuperAdmin) {
+          for (const code of PERMISSION_CODES) set.add(code);
         }
       }
       set.add("perfil:write");

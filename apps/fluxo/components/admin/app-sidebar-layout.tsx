@@ -137,7 +137,8 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM !== "false";
+/** Oculta o menu Acesso só se a env for explicitamente "true" (IAM só no hub). */
+const hideAcesso = process.env.NEXT_PUBLIC_HIDE_FLUXO_IAM === "true";
 
 function itemAllowed(
   permission: string | string[] | undefined,

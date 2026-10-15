@@ -246,6 +246,12 @@ export const HUB_TO_FLUXO_PERMISSIONS: Record<string, readonly string[]> = {
   /** Papel Professor: só fila de respostas das oficinas atribuídas. */
   "fluxo.formularios": ["formularios:review"],
   "fluxo.consultas": ["consultas:cpf", "consultas:territorio"],
+  /**
+   * IAM do hub → gestão de usuários/escopos no Fluxo (menu Acesso).
+   * Escopo de contextos/projetos/oficinas só existe no satélite.
+   */
+  "cultural.usuarios": ["usuarios:read", "roles:read", "audit:read"],
+  "cultural.usuarios.edit": ["usuarios:write", "roles:write"],
 };
 
 export function isAccessPermissionId(id: string): id is AccessPermissionId {
