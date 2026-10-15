@@ -77,10 +77,12 @@ export async function loadPublishedPaidByLineBatch(
   });
 
   for (const proof of proofs) {
-    let byLine = out.get(proof.planningProjectId);
+    const projectId = proof.planningProjectId;
+    if (!projectId) continue;
+    let byLine = out.get(projectId);
     if (!byLine) {
       byLine = {};
-      out.set(proof.planningProjectId, byLine);
+      out.set(projectId, byLine);
     }
     for (const alloc of proof.allocations) {
       if (alloc.commitment.status === "CANCELLED") continue;
