@@ -27,7 +27,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "bcryptjs": "^3.0.3",
-    "dotenv": "^18.0.4",
+    "dotenv": "^18.0.7",
     "next": "16.3.8",
     "otpauth": "^9.5.1",
     "pg": "^8.23.0",
@@ -35,7 +35,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "resend": "^6.19.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
