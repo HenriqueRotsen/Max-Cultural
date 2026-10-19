@@ -77,6 +77,6 @@ jobs:
             ## Test plan
             - [ ] CI Security (audit gate) verde
             - [ ] Smoke login / app afetado após merge
-          labels: |
-            dependencies
-            security
+          # Só labels que já existem no repo — label inexistente faz o action falhar
+          # depois do push e a PR não abre (branch fica órfã).
+          labels: dependencies
