@@ -24,7 +24,7 @@
     "strip:string-fields": "tsx scripts/strip-string-fields.ts"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "^1.9.0",
     "@e965/xlsx": "0.20.3",
     "@max/auth": "*",
     "@max/security-headers": "*",
@@ -42,8 +42,8 @@
     "date-fns": "^4.4.0",
     "dotenv": "^18.0.4",
     "leaflet": "^1.9.4",
-    "lucide-react": "^1.25.0",
-    "next": "16.3.8",
+    "lucide-react": "^1.55.0",
+    "next": "16.4.0",
     "next-themes": "^0.4.6",
     "otpauth": "^9.5.1",
     "papaparse": "^5.5.4",
