@@ -6,11 +6,13 @@ import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
 import { SiteShell } from "@/components/app-header";
 import { StatusKindBadge } from "@/components/status-badges";
+import { parseSocioCohort } from "@/lib/socio";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ idProjeto: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -23,9 +25,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function ProjetoPage({ params }: Props) {
+export default async function ProjetoPage({ params, searchParams }: Props) {
   const { idProjeto } = await params;
-  const result = await getProjetoPageAction(idProjeto);
+  const cohort = parseSocioCohort((await searchParams).perfil);
+  const result = await getProjetoPageAction(idProjeto, cohort);
   const back = result.ok
     ? {
         href: `/contexto/${encodeURIComponent(result.data.contextoId)}`,
@@ -48,13 +51,19 @@ export default async function ProjetoPage({ params }: Props) {
           <p className="mt-2 text-sm text-amber-900">{result.error}</p>
         </div>
       ) : (
-        <ProjetoView data={result.data} />
+        <ProjetoView data={result.data} cohort={cohort} />
       )}
     </SiteShell>
   );
 }
 
-function ProjetoView({ data }: { data: ProjetoPageData }) {
+function ProjetoView({
+  data,
+  cohort,
+}: {
+  data: ProjetoPageData;
+  cohort: ReturnType<typeof parseSocioCohort>;
+}) {
   return (
     <div className="space-y-10">
       <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
@@ -128,7 +137,7 @@ function ProjetoView({ data }: { data: ProjetoPageData }) {
         </div>
       </section>
 
-      <SocioBreakdownPanel socio={data.socio} />
+      <SocioBreakdownPanel socio={data.socio} cohort={cohort} />
 
       <section className="space-y-4">
         <div>

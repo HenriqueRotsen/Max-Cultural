@@ -40,6 +40,11 @@ export type FluxoHubSummary = {
   };
   topEstados: Array<{ estado: string; inscritos: number }>;
   socio?: FluxoSocioBreakdown;
+  socioByCohort?: {
+    inscritos: FluxoSocioBreakdown;
+    selecionados: FluxoSocioBreakdown;
+    certificados: FluxoSocioBreakdown;
+  };
   fluxoUrl: string;
 };
 

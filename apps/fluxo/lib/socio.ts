@@ -1,20 +1,17 @@
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import type { SocioBreakdown } from "@/lib/socio-cohort";
 
-export type SocioBucket = {
-  label: string;
-  count: number;
-  pct: number;
-};
-
-export type SocioBreakdown = {
-  total: number;
-  genero: SocioBucket[];
-  etnia: SocioBucket[];
-  escolaridade: SocioBucket[];
-  idade: SocioBucket[];
-  deficienca: SocioBucket[];
-};
+export {
+  SOCIO_COHORT_PARAM,
+  SOCIO_COHORTS,
+  andSocioCohort,
+  parseSocioCohort,
+  socioCohortWhere,
+  type SocioBreakdown,
+  type SocioBucket,
+  type SocioCohort,
+} from "@/lib/socio-cohort";
 
 function ageBand(age: number): string {
   if (!Number.isFinite(age) || age <= 0) return "Não informado";
@@ -29,7 +26,7 @@ function ageBand(age: number): string {
 function toBuckets(
   counts: Map<string, number>,
   total: number,
-): SocioBucket[] {
+): Array<{ label: string; count: number; pct: number }> {
   return [...counts.entries()]
     .map(([label, count]) => ({
       label: label || "Não informado",

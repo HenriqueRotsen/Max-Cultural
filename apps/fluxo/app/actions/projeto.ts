@@ -4,7 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { prismaToRow } from "@/lib/schema";
 import { formatCpfDisplay, normalizeAddressLine, normalizeUf } from "@/lib/normalize";
 import { formatCellDisplay } from "@/lib/validate";
-import { aggregateSocio, type SocioBreakdown } from "@/lib/socio";
+import {
+  aggregateSocio,
+  andSocioCohort,
+  type SocioBreakdown,
+  type SocioCohort,
+} from "@/lib/socio";
 import { getContextoForProjeto } from "@/app/actions/programa";
 import {
   isOnlineRow,
@@ -183,6 +188,7 @@ function collectLocalizacoes(
 
 export async function getProjetoPageAction(
   idProjetoRaw: string,
+  socioCohort: SocioCohort = "inscritos",
 ): Promise<{ ok: true; data: ProjetoPageData } | { ok: false; error: string }> {
   const user = await requireAuth();
   const perms = await getEffectivePermissions(user.id);
@@ -292,7 +298,9 @@ export async function getProjetoPageAction(
 
   const [socio, programa] = await Promise.all([
     records.length
-      ? aggregateSocio(andScope(scope, { idProjeto }))
+      ? aggregateSocio(
+          andSocioCohort(andScope(scope, { idProjeto }), socioCohort),
+        )
       : Promise.resolve(emptySocio),
     getContextoForProjeto(idProjeto),
   ]);
@@ -319,6 +327,7 @@ export async function getProjetoPageAction(
 export async function getOficinaPageAction(
   idProjetoRaw: string,
   idOficinaRaw: string,
+  socioCohort: SocioCohort = "inscritos",
 ): Promise<{ ok: true; data: OficinaPageData } | { ok: false; error: string }> {
   const user = await requireAuth();
   const perms = await getEffectivePermissions(user.id);
@@ -387,7 +396,9 @@ export async function getOficinaPageAction(
 
   const inscritos = inscritosList.length;
   const localizacoes = collectLocalizacoes(records);
-  const socio = await aggregateSocio(andScope(scope, { idProjeto, idOficina }));
+  const socio = await aggregateSocio(
+    andSocioCohort(andScope(scope, { idProjeto, idOficina }), socioCohort),
+  );
 
   return {
     ok: true,

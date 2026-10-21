@@ -7,7 +7,12 @@ import {
   extractEdicaoNumero,
   programaStem,
 } from "@/lib/programa";
-import { aggregateSocio, type SocioBreakdown } from "@/lib/socio";
+import {
+  aggregateSocio,
+  andSocioCohort,
+  type SocioBreakdown,
+  type SocioCohort,
+} from "@/lib/socio";
 import { assertDataAccess, resolveDataScope } from "@/lib/data-scope";
 import { requireAuth } from "@/lib/auth";
 import { getEffectivePermissions } from "@/lib/permissions";
@@ -112,6 +117,7 @@ export async function listProgramasAction(): Promise<ProgramaListItem[]> {
 
 export async function getContextoPanoramaAction(
   idRaw: string,
+  socioCohort: SocioCohort = "inscritos",
 ): Promise<
   { ok: true; data: ProgramaPanorama } | { ok: false; error: string }
 > {
@@ -195,7 +201,9 @@ export async function getContextoPanoramaAction(
           idade: [],
           deficienca: [],
         }
-      : await aggregateSocio({ idProjeto: { in: projetoIds } });
+      : await aggregateSocio(
+          andSocioCohort({ idProjeto: { in: projetoIds } }, socioCohort),
+        );
 
   const totais = edicoes.reduce(
     (acc, e) => {

@@ -1,4 +1,8 @@
-import { enrichCidadeEstado, isKnownMunicipio } from "@/lib/municipio-uf";
+import {
+  enrichCidadeEstado,
+  isKnownMunicipio,
+  parseAgendaLocalLabel,
+} from "@/lib/municipio-uf";
 
 export const ONLINE_TERRITORIO_LABEL = "Online";
 
@@ -346,6 +350,44 @@ export function parseTerritorioInscricao(
       oficinaTerritorioId: null,
       matched: false,
       label: text,
+    };
+  }
+
+  const agenda = parseAgendaLocalLabel(text);
+  if (agenda) {
+    if (catalog?.territorios.length) {
+      const hit = catalog.territorios.find(
+        (t) =>
+          normalizeTerritorioRawKey(t.cidade) ===
+            normalizeTerritorioRawKey(agenda.cidade) &&
+          t.estado.toUpperCase() === agenda.estado.toUpperCase() &&
+          normalizeTerritorioRawKey(t.nome) ===
+            normalizeTerritorioRawKey(agenda.territorio),
+      );
+      if (hit) {
+        return {
+          online: false,
+          cidade: hit.cidade,
+          estado: hit.estado,
+          territorio: String(hit.nome ?? "").trim(),
+          oficinaTerritorioId: hit.id,
+          matched: true,
+          label: oficinaTerritorioLabel(hit),
+        };
+      }
+    }
+    return {
+      online: false,
+      cidade: agenda.cidade,
+      estado: agenda.estado,
+      territorio: agenda.territorio,
+      oficinaTerritorioId: null,
+      matched: true,
+      label: oficinaTerritorioLabel({
+        nome: agenda.territorio,
+        cidade: agenda.cidade,
+        estado: agenda.estado,
+      }),
     };
   }
 

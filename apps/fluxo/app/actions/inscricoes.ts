@@ -44,7 +44,12 @@ import {
 import { Prisma } from "@prisma/client";
 import Papa from "papaparse";
 import * as XLSX from "@e965/xlsx";
-import { aggregateSocio, type SocioBreakdown } from "@/lib/socio";
+import {
+  aggregateSocio,
+  andSocioCohort,
+  type SocioBreakdown,
+  type SocioCohort,
+} from "@/lib/socio";
 import {
   getAnaliseFilterOptions,
   getInscricaoFilterOptions,
@@ -458,6 +463,7 @@ export type AnaliseFilters = {
   estado?: string;
   cidade?: string;
   territorio?: string;
+  socioCohort?: SocioCohort;
 };
 
 export type AnaliseRow = {
@@ -684,7 +690,7 @@ export async function getAnaliseAction(
   }));
 
   const [socio, programas] = await Promise.all([
-    aggregateSocio(where),
+    aggregateSocio(andSocioCohort(where, filters.socioCohort ?? "inscritos")),
     listContextosPanoramaAction(),
   ]);
 

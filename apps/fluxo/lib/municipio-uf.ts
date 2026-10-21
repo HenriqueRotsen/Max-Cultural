@@ -82,6 +82,53 @@ export function parseUfSuffix(cidadeRaw: string): {
   return { cidade: raw, estado: "" };
 }
 
+/** " – Ma: 20 A 23 De Julho" / ": 11 a 14 de julho" */
+function stripOficinaAgendaSuffix(raw: string): string {
+  let s = String(raw ?? "").trim();
+  s = s.replace(/\s*[-–—]\s*[A-Za-zÀ-ÿ]{2}\s*:\s*.+$/i, "").trim();
+  s = s.replace(
+    /\s*:\s*\d{1,2}\s*(?:a|à|ate|até)\s*\d{1,2}\s+de\s+\w+.*$/i,
+    "",
+  ).trim();
+  return s;
+}
+
+function titleCommunity(value: string): string {
+  const s = normalizeAddressLine(value);
+  if (!s) return "";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Rótulo de oficina presencial no import (ex. Cultura na Praça):
+ * `Açailândia (assentamento Novo Oriente) – Ma: 20 A 23 De Julho`
+ * `Canaã Dos Carajás – Pa: 11 A 14 De Julho`
+ */
+export function parseAgendaLocalLabel(raw: unknown): {
+  cidade: string;
+  estado: string;
+  territorio: string;
+} | null {
+  const original = String(raw ?? "").trim();
+  if (!original) return null;
+  const stripped = stripOficinaAgendaSuffix(original);
+  if (stripped === original && !/\(.+\)/.test(original)) return null;
+
+  let cidadePart = stripped;
+  let territorio = "";
+  const paren = stripped.match(/^(.*?)\s*\((.+)\)\s*$/);
+  if (paren) {
+    cidadePart = paren[1]!.trim();
+    territorio = titleCommunity(paren[2]!);
+  }
+
+  const parsedUf = parseUfSuffix(cidadePart);
+  const cidade = normalizeAddressLine(parsedUf.cidade || cidadePart);
+  const estado = parsedUf.estado || lookupUfByCidade(cidade);
+  if (!cidade || !isKnownMunicipio(cidade)) return null;
+  return { cidade, estado, territorio };
+}
+
 export function lookupUfByCidade(cidade: string): string {
   const key = cityKey(cidade);
   if (!key) return "";
@@ -149,8 +196,15 @@ export function enrichCidadeEstado(input: {
     }
   }
 
-  // Território texto livre que é só nome de município (já coberto acima);
-  // se cidade vazia e territorio não-município, mantém.
+  // Agenda/import: "Cidade (comunidade) – MA: 11 a 14 de julho"
+  if (territorio) {
+    const agenda = parseAgendaLocalLabel(territorio);
+    if (agenda) {
+      cidade = agenda.cidade;
+      estado = agenda.estado || estado;
+      territorio = agenda.territorio;
+    }
+  }
 
   if (!estado && cidade) {
     estado = lookupUfByCidade(cidade);

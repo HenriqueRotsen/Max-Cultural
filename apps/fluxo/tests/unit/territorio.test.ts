@@ -30,4 +30,20 @@ describe("territorio", () => {
       }),
     ).toMatch(/^\/territorio\/online\//);
   });
+
+  it("agenda presencial não é online", () => {
+    expect(
+      isOnlineRow({
+        territorio:
+          "Açailândia (assentamento Novo Oriente) – Ma: 20 A 23 De Julho",
+        cidade: "",
+      }),
+    ).toBe(false);
+    expect(
+      isOnlineRow({
+        territorio: "Assentamento Novo Oriente",
+        cidade: "Açailândia",
+      }),
+    ).toBe(false);
+  });
 });

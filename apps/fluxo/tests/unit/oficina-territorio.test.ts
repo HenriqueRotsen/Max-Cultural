@@ -140,6 +140,26 @@ describe("parseTerritorioInscricao", () => {
     expect(r.online).toBe(true);
     expect(r.matched).toBe(true);
   });
+
+  it("parseia agenda Cultura na Praça (cidade + comunidade + UF + datas)", () => {
+    const a = parseTerritorioInscricao(
+      "Açailândia (assentamento Novo Oriente) – Ma: 20 A 23 De Julho",
+    );
+    expect(a.matched).toBe(true);
+    expect(a.online).toBe(false);
+    expect(a.cidade).toBe("Açailândia");
+    expect(a.estado).toBe("MA");
+    expect(a.territorio).toBe("Assentamento Novo Oriente");
+
+    const b = parseTerritorioInscricao(
+      "Canaã Dos Carajás – Pa: 11 A 14 De Julho",
+    );
+    expect(b.matched).toBe(true);
+    expect(b.online).toBe(false);
+    expect(b.cidade).toMatch(/Canaã Dos Carajás/i);
+    expect(b.estado).toBe("PA");
+    expect(b.territorio).toBe("");
+  });
 });
 
 describe("column-map território da oficina", () => {

@@ -4,6 +4,7 @@ import { AnaliseDashboard } from "@/components/admin/analise-dashboard";
 import { PageLoading } from "@/components/page-loading";
 import { getAnaliseAction } from "@/app/actions/inscricoes";
 import { requireDashboardPermission } from "@/lib/dashboard-gate";
+import { parseSocioCohort } from "@/lib/socio";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -54,6 +55,7 @@ async function AnaliseContent({
       estado: str(params.estado),
       cidade: str(params.cidade),
       territorio: str(params.territorio),
+      socioCohort: parseSocioCohort(params.perfil),
     });
   } catch (e) {
     error = e instanceof Error ? e.message : "Erro ao carregar análise";

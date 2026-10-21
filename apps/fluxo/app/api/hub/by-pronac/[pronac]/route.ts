@@ -4,7 +4,7 @@ import {
   hubAuthErrorResponse,
   requireHubAnyPermission,
 } from "@/lib/hub/auth";
-import { aggregateSocio } from "@/lib/socio";
+import { aggregateSocio, andSocioCohort } from "@/lib/socio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,16 +68,19 @@ export async function GET(
       select: { idOficina: true },
     });
 
-    const [topEstados, socio] = await Promise.all([
-      prisma.inscricao.groupBy({
-        by: ["estado"],
-        where: { pronac, NOT: { estado: "" } },
-        _sum: { inscritos: true },
-        orderBy: { _sum: { inscritos: "desc" } },
-        take: 8,
-      }),
-      aggregateSocio({ pronac }),
-    ]);
+    const [topEstados, socio, socioSelecionados, socioCertificados] =
+      await Promise.all([
+        prisma.inscricao.groupBy({
+          by: ["estado"],
+          where: { pronac, NOT: { estado: "" } },
+          _sum: { inscritos: true },
+          orderBy: { _sum: { inscritos: "desc" } },
+          take: 8,
+        }),
+        aggregateSocio({ pronac }),
+        aggregateSocio(andSocioCohort({ pronac }, "selecionados")),
+        aggregateSocio(andSocioCohort({ pronac }, "certificados")),
+      ]);
 
     const inscritos = aggregates._sum.inscritos ?? 0;
     const selecionados = aggregates._sum.selecionados ?? 0;
@@ -115,6 +118,11 @@ export async function GET(
           inscritos: e._sum.inscritos ?? 0,
         })),
       socio,
+      socioByCohort: {
+        inscritos: socio,
+        selecionados: socioSelecionados,
+        certificados: socioCertificados,
+      },
       fluxoUrl: primary
         ? `${fluxoBaseUrl()}/projeto/${primary.id}`
         : `${fluxoBaseUrl()}/dashboard`,

@@ -8,11 +8,13 @@ import {
   TerritorioBreadcrumb,
   TerritorioKpiGrid,
 } from "@/components/territorio/territorio-ui";
+import { parseSocioCohort } from "@/lib/socio";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -25,9 +27,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function TerritorioOnlineDetailPage({ params }: Props) {
+export default async function TerritorioOnlineDetailPage({
+  params,
+  searchParams,
+}: Props) {
   const { slug } = await params;
-  const result = await getOnlineTerritorioPageAction(slug);
+  const cohort = parseSocioCohort((await searchParams).perfil);
+  const result = await getOnlineTerritorioPageAction(slug, cohort);
 
   return (
       <>
@@ -55,7 +61,7 @@ export default async function TerritorioOnlineDetailPage({ params }: Props) {
             <TerritorioKpiGrid kpis={result.data.kpis} />
           </section>
 
-          <SocioBreakdownPanel socio={result.data.socio} />
+          <SocioBreakdownPanel socio={result.data.socio} cohort={cohort} />
 
           <section className="space-y-4">
             <h2 className="font-heading text-2xl font-semibold text-brand-deep">

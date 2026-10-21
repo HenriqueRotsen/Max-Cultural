@@ -6,6 +6,7 @@ import {
   TerritorioBreadcrumb,
   TerritorioKpiGrid,
 } from "@/components/territorio/territorio-ui";
+import { parseSocioCohort } from "@/lib/socio";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
@@ -14,8 +15,13 @@ export const metadata: Metadata = {
   description: "Oficinas e comunidades online (sem localidade física).",
 };
 
-export default async function TerritorioOnlineIndexPage() {
-  const data = await listOnlineTerritoriosAction();
+export default async function TerritorioOnlineIndexPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const cohort = parseSocioCohort((await searchParams).perfil);
+  const data = await listOnlineTerritoriosAction(cohort);
 
   return (
       <div className="space-y-10">
@@ -30,7 +36,7 @@ export default async function TerritorioOnlineIndexPage() {
           <TerritorioKpiGrid kpis={data.kpis} />
         </section>
 
-        <SocioBreakdownPanel socio={data.socio} />
+        <SocioBreakdownPanel socio={data.socio} cohort={cohort} />
 
         <section className="space-y-4">
           <h2 className="font-heading text-2xl font-semibold text-brand-deep">

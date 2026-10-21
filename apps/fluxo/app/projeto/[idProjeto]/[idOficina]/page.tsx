@@ -9,6 +9,7 @@ import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { SiteShell } from "@/components/app-header";
 import { PhoneLink } from "@/components/phone-link";
 import { StatusBadges, StatusKindBadge } from "@/components/status-badges";
+import { parseSocioCohort } from "@/lib/socio";
 import { buildTerritorioPath } from "@/lib/territorio-slug";
 import { isOnlineRow } from "@/lib/territorio-online";
 
@@ -16,6 +17,7 @@ const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Fluxo";
 
 type Props = {
   params: Promise<{ idProjeto: string; idOficina: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -28,9 +30,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function OficinaPage({ params }: Props) {
+export default async function OficinaPage({ params, searchParams }: Props) {
   const { idProjeto, idOficina } = await params;
-  const result = await getOficinaPageAction(idProjeto, idOficina);
+  const cohort = parseSocioCohort((await searchParams).perfil);
+  const result = await getOficinaPageAction(idProjeto, idOficina, cohort);
   const back = result.ok
     ? {
         href: `/projeto/${encodeURIComponent(result.data.id_projeto)}`,
@@ -56,7 +59,7 @@ export default async function OficinaPage({ params }: Props) {
           <p className="mt-2 text-sm text-amber-900">{result.error}</p>
         </div>
       ) : (
-        <OficinaView data={result.data} />
+        <OficinaView data={result.data} cohort={cohort} />
       )}
     </SiteShell>
   );
@@ -123,7 +126,13 @@ function LocalizacaoList({ items }: { items: OficinaLocalizacao[] }) {
   );
 }
 
-function OficinaView({ data }: { data: OficinaPageData }) {
+function OficinaView({
+  data,
+  cohort,
+}: {
+  data: OficinaPageData;
+  cohort: ReturnType<typeof parseSocioCohort>;
+}) {
   const { totais } = data;
 
   return (
@@ -194,7 +203,7 @@ function OficinaView({ data }: { data: OficinaPageData }) {
         </div>
       </section>
 
-      <SocioBreakdownPanel socio={data.socio} />
+      <SocioBreakdownPanel socio={data.socio} cohort={cohort} />
 
       <section className="space-y-4">
         <div>

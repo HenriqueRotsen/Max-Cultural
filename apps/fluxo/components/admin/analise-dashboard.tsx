@@ -35,6 +35,7 @@ import { StatusKindBadge, type StatusKind } from "@/components/status-badges";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { PageLoading } from "@/components/page-loading";
 import { formatCpfDisplay } from "@/lib/normalize";
+import { parseSocioCohort } from "@/lib/socio-cohort";
 import { buildTerritorioPath } from "@/lib/territorio-slug";
 
 function MetricBar({
@@ -603,7 +604,10 @@ export function AnaliseDashboard({ data }: Props) {
         </section>
       ) : null}
 
-      <SocioBreakdownPanel socio={socio} />
+      <SocioBreakdownPanel
+        socio={socio}
+        cohort={parseSocioCohort(searchParams.get("perfil"))}
+      />
 
       <DataSheet
         title="Por oficina"

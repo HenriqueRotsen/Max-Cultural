@@ -176,26 +176,89 @@ export function BarChart({
   );
 }
 
+type SocioCohortId = "inscritos" | "selecionados" | "certificados";
+
+const SOCIO_COHORTS: Array<{ id: SocioCohortId; label: string }> = [
+  { id: "inscritos", label: "Inscritos" },
+  { id: "selecionados", label: "Selecionados" },
+  { id: "certificados", label: "Certificados" },
+];
+
+type SocioBreakdownLike = {
+  total: number;
+  genero: Array<{ label: string; count: number; pct: number }>;
+  etnia: Array<{ label: string; count: number; pct: number }>;
+  escolaridade: Array<{ label: string; count: number; pct: number }>;
+  idade: Array<{ label: string; count: number; pct: number }>;
+  deficienca: Array<{ label: string; count: number; pct: number }>;
+};
+
+function sectionsFromBreakdown(socio: SocioBreakdownLike) {
+  return [
+    { id: "genero", title: "Gênero", items: socio.genero },
+    { id: "idade", title: "Idade", items: socio.idade },
+    { id: "etnia", title: "Etnia", items: socio.etnia },
+    { id: "escolaridade", title: "Escolaridade", items: socio.escolaridade },
+    { id: "deficiencia", title: "Deficiência", items: socio.deficienca },
+  ];
+}
+
 export function SocioTabs({
   accent,
   soft,
   sections,
+  byCohort,
 }: {
   accent: string;
   soft: string;
-  sections: Array<{
+  sections?: Array<{
     id: string;
     title: string;
     items: Array<{ label: string; count: number; pct: number }>;
   }>;
+  byCohort?: Partial<Record<SocioCohortId, SocioBreakdownLike | undefined>>;
 }) {
-  const available = sections.filter((s) => s.items.some((i) => i.count > 0));
-  const [tab, setTab] = useState(available[0]?.id || sections[0]?.id || "");
+  const [cohort, setCohort] = useState<SocioCohortId>("inscritos");
+  const breakdown = byCohort?.[cohort] ?? byCohort?.inscritos;
+  const resolved = breakdown ? sectionsFromBreakdown(breakdown) : sections ?? [];
+  const available = resolved.filter((s) => s.items.some((i) => i.count > 0));
+  const [tab, setTab] = useState(available[0]?.id || resolved[0]?.id || "");
   const current = available.find((s) => s.id === tab) || available[0];
+
+  const cohortFilter = byCohort ? (
+    <div className="flex flex-wrap gap-1.5">
+      {SOCIO_COHORTS.map((opt) => {
+        const on = opt.id === cohort;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => setCohort(opt.id)}
+            className="rounded-lg px-2.5 py-1 text-[11px] font-semibold transition"
+            style={
+              on
+                ? { background: accent, color: "#fff" }
+                : { background: soft, color: accent }
+            }
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
 
   if (!current) {
     return (
-      <p className="text-sm text-[var(--gray-500)]">Sem perfil sociodemográfico.</p>
+      <div className="space-y-3">
+        {cohortFilter}
+        <p className="text-sm text-[var(--gray-500)]">
+          Sem perfil sociodemográfico
+          {byCohort
+            ? ` para ${SOCIO_COHORTS.find((c) => c.id === cohort)?.label.toLowerCase()}.`
+            : "."}
+        </p>
+      </div>
     );
   }
 
@@ -214,6 +277,7 @@ export function SocioTabs({
 
   return (
     <div className="space-y-3">
+      {cohortFilter}
       <div className="flex flex-wrap gap-1.5">
         {available.map((s) => {
           const on = s.id === current.id;

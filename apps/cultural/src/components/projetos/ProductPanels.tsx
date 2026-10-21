@@ -397,6 +397,7 @@ export function FluxoPanel({
             <SocioTabs
               accent={t.accent}
               soft={t.soft2}
+              byCohort={fluxo.socioByCohort}
               sections={[
                 { id: "genero", title: "Gênero", items: fluxo.socio?.genero ?? [] },
                 { id: "idade", title: "Idade", items: fluxo.socio?.idade ?? [] },

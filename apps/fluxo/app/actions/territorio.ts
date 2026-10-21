@@ -21,7 +21,12 @@ import {
 } from "@/lib/geo";
 import { lookupMunicipioCoords } from "@/lib/municipio-coords";
 import { formatCellDisplay } from "@/lib/validate";
-import { aggregateSocio, type SocioBreakdown } from "@/lib/socio";
+import {
+  aggregateSocio,
+  andSocioCohort,
+  type SocioBreakdown,
+  type SocioCohort,
+} from "@/lib/socio";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { andScope, resolveDataScope } from "@/lib/data-scope";
@@ -241,7 +246,9 @@ async function attachMapPoints(
   return points;
 }
 
-export async function listTerritoriosOverviewAction(): Promise<{
+export async function listTerritoriosOverviewAction(
+  socioCohort: SocioCohort = "inscritos",
+): Promise<{
   estados: Array<{ estado: string; href: string; kpis: TerritorioKpis }>;
   mapPoints: MapPoint[];
   totais: TerritorioKpis;
@@ -251,7 +258,7 @@ export async function listTerritoriosOverviewAction(): Promise<{
   const { where } = await territorioQuery({});
   const [rows, socio] = await Promise.all([
     loadAggRows(where),
-    aggregateSocio(where),
+    aggregateSocio(andSocioCohort(where, socioCohort)),
   ]);
 
   const byEstado = new Map<
@@ -350,7 +357,10 @@ export async function listTerritoriosOverviewAction(): Promise<{
   return { estados, mapPoints, totais, online, socio };
 }
 
-export async function getEstadoPageAction(ufRaw: string): Promise<
+export async function getEstadoPageAction(
+  ufRaw: string,
+  socioCohort: SocioCohort = "inscritos",
+): Promise<
   | {
       ok: true;
       data: {
@@ -375,7 +385,7 @@ export async function getEstadoPageAction(ufRaw: string): Promise<
   const { where } = await territorioQuery(estadoWhere);
   const [rows, socio] = await Promise.all([
     loadAggRows(where),
-    aggregateSocio(where),
+    aggregateSocio(andSocioCohort(where, socioCohort)),
   ]);
   // Also match exact UF after normalize — DB may store "MA"
   const filtered = rows.filter(
@@ -459,6 +469,7 @@ export async function getEstadoPageAction(ufRaw: string): Promise<
 export async function getCidadePageAction(
   ufRaw: string,
   cidadeSlug: string,
+  socioCohort: SocioCohort = "inscritos",
 ): Promise<
   | {
       ok: true;
@@ -594,7 +605,7 @@ export async function getCidadePageAction(
     estado: { equals: estado, mode: "insensitive" },
     cidade: { equals: cidade, mode: "insensitive" },
   });
-  const socio = await aggregateSocio(cidadeWhere);
+  const socio = await aggregateSocio(andSocioCohort(cidadeWhere, socioCohort));
 
   return {
     ok: true,
@@ -615,6 +626,7 @@ export async function getTerritorioPageAction(
   ufRaw: string,
   cidadeSlug: string,
   territorioSlug: string,
+  socioCohort: SocioCohort = "inscritos",
 ): Promise<
   | {
       ok: true;
@@ -643,7 +655,11 @@ export async function getTerritorioPageAction(
     }
   | { ok: false; error: string; redirectHref?: string }
 > {
-  const cidadeResult = await getCidadePageAction(ufRaw, cidadeSlug);
+  const cidadeResult = await getCidadePageAction(
+    ufRaw,
+    cidadeSlug,
+    socioCohort,
+  );
   if (!cidadeResult.ok) return cidadeResult;
 
   const { estado, cidade } = cidadeResult.data;
@@ -768,7 +784,7 @@ export async function getTerritorioPageAction(
   }));
 
   const mapPoints = await attachMapPoints([{ cidade, estado, kpis }]);
-  const socio = await aggregateSocio(terrWhere);
+  const socio = await aggregateSocio(andSocioCohort(terrWhere, socioCohort));
 
   return {
     ok: true,
@@ -793,7 +809,9 @@ export async function resolveCityCoordsAction(
   return ensureCityCoords(cidade, estado);
 }
 
-export async function listOnlineTerritoriosAction(): Promise<{
+export async function listOnlineTerritoriosAction(
+  socioCohort: SocioCohort = "inscritos",
+): Promise<{
   kpis: TerritorioKpis;
   items: Array<{ label: string; href: string; kpis: TerritorioKpis }>;
   socio: SocioBreakdown;
@@ -811,8 +829,12 @@ export async function listOnlineTerritoriosAction(): Promise<{
   const onlineIds = onlineRows.map((r) => r.id);
   const socio =
     onlineIds.length > 0
-      ? await aggregateSocio({ id: { in: onlineIds } })
-      : await aggregateSocio({ id: { in: ["__none__"] } });
+      ? await aggregateSocio(
+          andSocioCohort({ id: { in: onlineIds } }, socioCohort),
+        )
+      : await aggregateSocio(
+          andSocioCohort({ id: { in: ["__none__"] } }, socioCohort),
+        );
 
   const kpis = emptyKpis();
   const ofSet = new Set<string>();
@@ -857,7 +879,10 @@ export async function listOnlineTerritoriosAction(): Promise<{
   return { kpis, items, socio };
 }
 
-export async function getOnlineTerritorioPageAction(slugRaw: string): Promise<
+export async function getOnlineTerritorioPageAction(
+  slugRaw: string,
+  socioCohort: SocioCohort = "inscritos",
+): Promise<
   | {
       ok: true;
       data: {
@@ -948,9 +973,9 @@ export async function getOnlineTerritorioPageAction(slugRaw: string): Promise<
     byOficina.set(ok, of);
   }
 
-  const socio = await aggregateSocio({
-    id: { in: fullRows.map((r) => r.id) },
-  });
+  const socio = await aggregateSocio(
+    andSocioCohort({ id: { in: fullRows.map((r) => r.id) } }, socioCohort),
+  );
 
   return {
     ok: true,
