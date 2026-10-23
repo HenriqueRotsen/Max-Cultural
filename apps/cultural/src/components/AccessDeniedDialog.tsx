@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /** Mostra modal quando satélites (Origem/Fluxo) devolvem o usuário com ?error=. */
@@ -9,14 +9,12 @@ export function AccessDeniedDialog() {
   const router = useRouter();
   const pathname = usePathname();
   const message = params.get("error");
-  const [open, setOpen] = useState(Boolean(message));
-
-  useEffect(() => {
-    setOpen(Boolean(message));
-  }, [message]);
+  // Guarda a mensagem já dispensada; uma mensagem nova reabre o modal.
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const open = Boolean(message) && message !== dismissed;
 
   function dismiss() {
-    setOpen(false);
+    setDismissed(message);
     const next = new URLSearchParams(params.toString());
     next.delete("error");
     const qs = next.toString();

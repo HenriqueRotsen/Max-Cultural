@@ -8,6 +8,7 @@ import {
   useId,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -20,6 +21,17 @@ import {
   type LogsQuery,
   type LogsSortKey,
 } from "@/lib/logs-query";
+
+const noopSubscribe = () => () => {};
+
+/** true só no navegador (após hidratação) — sem setState em efeito. */
+function useIsClient() {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
 
 type ActorOption = { id: string; email: string; name: string | null };
 type FilterOptions = {
@@ -100,10 +112,9 @@ function LogDetailDialog({
   onClose: () => void;
 }) {
   const titleId = useId();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
 
   useEffect(() => {
-    setMounted(true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
