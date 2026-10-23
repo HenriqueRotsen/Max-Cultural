@@ -1,12 +1,13 @@
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
 import { prisma } from "@/lib/db";
+import { digitsParam } from "@/lib/lookup/digits-param";
 
 /** Busca descrição oficial da subclasse CNAE no IBGE. */
 export async function fetchCnaeDescriptionFromIbge(
   raw: string,
 ): Promise<string | null> {
-  const code = normalizeCnaeCode(raw);
-  if (!code || code.length < 7) return null;
+  const code = digitsParam(normalizeCnaeCode(raw) ?? "", 7);
+  if (!code) return null;
 
   try {
     const res = await fetch(

@@ -1,4 +1,5 @@
 /** Consulta pública ViaCEP — https://viacep.com.br */
+import { digitsParam } from "@/lib/lookup/digits-param";
 
 export type ViaCepResult = {
   zip: string;
@@ -10,8 +11,8 @@ export type ViaCepResult = {
 };
 
 export async function fetchViaCep(cepRaw: string): Promise<ViaCepResult | null> {
-  const cep = cepRaw.replace(/\D/g, "");
-  if (cep.length !== 8) return null;
+  const cep = digitsParam(cepRaw, 8);
+  if (!cep) return null;
 
   const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`, {
     next: { revalidate: 86400 },
