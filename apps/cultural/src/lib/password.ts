@@ -37,15 +37,21 @@ function randomIndex(n: number): number {
 
 export function generateProvisionalPassword(length = 12): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$%";
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += alphabet[randomIndex(alphabet.length)];
+  const pick = (set: string) => set[randomIndex(set.length)]!;
+  // Um de cada classe mínima; o resto do alfabeto todo.
+  const chars = [
+    pick("abcdefghijkmnopqrstuvwxyz"),
+    pick("ABCDEFGHJKLMNPQRSTUVWXYZ"),
+    pick("23456789"),
+    pick("!@$%"),
+  ];
+  while (chars.length < length) chars.push(pick(alphabet));
+  // Fisher–Yates para as classes garantidas não ficarem sempre no início.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomIndex(i + 1);
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
   }
-  if (!/[a-z]/.test(out)) out = `a${out.slice(1)}`;
-  if (!/[A-Z]/.test(out)) out = `A${out.slice(1)}`;
-  if (!/\d/.test(out)) out = `2${out.slice(1)}`;
-  if (!/[^A-Za-z0-9]/.test(out)) out = `!${out.slice(1)}`;
-  return out;
+  return chars.join("");
 }
 
 export async function hashToken(raw: string): Promise<string> {
