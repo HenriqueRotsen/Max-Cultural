@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AUTH_COOKIE, safeContinueUrl } from "@max/auth";
 import { MaxCulturalLogoLink } from "@/components/BrandLogo";
 import { LoginForm } from "@/components/LoginForm";
+import { PasswordRulesPreview } from "@/components/PasswordRulesPreview";
 import { getSessionUser } from "@/lib/auth";
 import { recaptchaSiteKey } from "@/lib/recaptcha";
 
@@ -63,6 +64,17 @@ export default async function LoginPage({
             Esqueci minha senha
           </Link>
         </p>
+        <details className="mt-3 text-sm text-[var(--gray-500)]">
+          <summary className="cursor-pointer font-medium text-[var(--gray-600)]">
+            Primeiro acesso ou senha temporária?
+          </summary>
+          <p className="mt-2 text-xs">
+            Entre com a senha que você recebeu por e-mail. Logo em seguida o sistema pedirá
+            uma senha nova e mostrará, enquanto você digita, quais requisitos já foram
+            atendidos.
+          </p>
+          <PasswordRulesPreview title="A nova senha precisa ter:" />
+        </details>
       </div>
     </div>
   );

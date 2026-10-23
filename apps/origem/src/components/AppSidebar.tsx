@@ -11,9 +11,10 @@ const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000"
 
 const auditoriaLinks = [
   { href: "/inicio", label: "Início", icon: HomeIcon },
-  { href: "/panorama", label: "Insights", icon: ChartIcon },
+  { href: "/panorama", label: "Panorama", icon: ChartIcon },
   { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon },
   { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon },
+  { href: "/fornecedores-pagos", label: "Fornecedores", icon: PackageIcon },
   { href: "/observados", label: "Observados", icon: UsersIcon },
 ];
 
@@ -23,7 +24,7 @@ const proponentesLinks = [
 ];
 
 const fornecedoresLinks = [
-  { href: "/fornecedores", label: "Dashboard", icon: HomeIcon },
+  { href: "/fornecedores", label: "Visão geral", icon: HomeIcon },
   { href: "/fornecedores/favoritos", label: "Favoritos", icon: HeartIcon },
   { href: "/fornecedores/empresas", label: "Fornecedores", icon: UsersIcon },
   { href: "/fornecedores/mapa", label: "Mapa", icon: MapIcon },

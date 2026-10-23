@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PageHeader, StatCard } from "@/components/ui";
+import { FieldHelp } from "@/components/FieldHelp";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { getCategoryLabel } from "@/lib/catalog/categories";
 
 export const dynamic = "force-dynamic";
 
-export default async function CatalogDashboardPage() {
+export default async function CatalogVisaoGeralPage() {
   const { entitlements } = await getWorkspaceContext();
   const ws = entitlements.workspaceId;
 
@@ -61,9 +62,9 @@ export default async function CatalogDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Fornecedores › Dashboard"
+        breadcrumb="Fornecedores › Visão geral"
         title="Banco de preços"
-        description="Cadastre fornecedores, serviços e contratações. Os comprovantes da Auditoria entram automaticamente como histórico de preços."
+        description="Resumo do seu banco de preços: quanto já foi gasto com fornecedores, o custo médio de cada contratação e quem atrasa entregas. Os comprovantes de pagamento da Auditoria (SALIC) entram aqui automaticamente como histórico de preços; contratações fora do SALIC podem ser lançadas à mão."
         actions={
           <>
             <Link href="/fornecedores/empresas/novo" className="btn">
@@ -83,24 +84,38 @@ export default async function CatalogDashboardPage() {
         <StatCard
           label="Gasto total"
           value={formatCurrency(totalSpend)}
-          hint={`${engagements} contratações`}
+          hint={`${engagements} contratações registradas`}
+          help="Soma do valor de todas as contratações registradas no banco de preços, desde o início — inclui as importadas dos comprovantes do SALIC e as lançadas manualmente."
         />
-        <StatCard label="Custo médio" value={formatCurrency(avg)} hint="por contratação" />
+        <StatCard
+          label="Custo médio"
+          value={formatCurrency(avg)}
+          hint="por contratação"
+          help="Gasto total dividido pelo número de contratações. Ex.: R$ 10.000 em 4 contratações = R$ 2.500 por contratação."
+        />
         <StatCard
           label="Fornecedores"
           value={String(suppliers)}
           hint={`${services} serviços cadastrados`}
+          help="Empresas ou pessoas cadastradas no banco de preços. Cada fornecedor pode oferecer vários serviços (ex.: locação de som, transporte), cada um com seu histórico de preços."
         />
         <StatCard
           label="Taxa de atraso"
           value={`${delayRate.toFixed(0)}%`}
-          hint={`${delayed} com atraso`}
+          hint={`${delayed} de ${engagements} entregues com atraso`}
+          help="Percentual das contratações marcadas como “entregue com atraso”. Ex.: 2 atrasos em 10 contratações = 20%. Quanto menor, mais confiáveis os fornecedores."
         />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
-          <h2 className="text-sm font-semibold text-[var(--navy)]">Gastos por mês</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--navy)]">
+            Gastos por mês
+            <FieldHelp text="Cada barra mostra a soma do valor das contratações feitas no mês. A barra mais longa é o mês de maior gasto; as outras são proporcionais a ele. O número depois do valor é a quantidade de contratações." />
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--gray-500)]">
+            Valor total contratado em cada mês.
+          </p>
           {monthly.length === 0 ? (
             <p className="mt-4 text-sm text-[var(--gray-500)]">Sem contratações ainda.</p>
           ) : (
@@ -110,7 +125,8 @@ export default async function CatalogDashboardPage() {
                   <div className="mb-1 flex justify-between text-xs text-[var(--gray-500)]">
                     <span>{m.month}</span>
                     <span>
-                      {formatCurrency(m.total_spend)} · {Number(m.count)}x
+                      {formatCurrency(m.total_spend)} · {Number(m.count)}{" "}
+                      {Number(m.count) === 1 ? "contratação" : "contratações"}
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--gray-50)]">
@@ -125,7 +141,13 @@ export default async function CatalogDashboardPage() {
           )}
         </div>
         <div className="card p-5">
-          <h2 className="text-sm font-semibold text-[var(--navy)]">Por categoria</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--navy)]">
+            Categorias mais contratadas
+            <FieldHelp text="As 5 categorias de serviço (ex.: som, alimentação, transporte) com mais contratações. O número à direita é a quantidade de contratações em cada uma." />
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--gray-500)]">
+            Tipos de serviço que você mais contrata.
+          </p>
           {byCategory.length === 0 ? (
             <p className="mt-4 text-sm text-[var(--gray-500)]">Sem dados.</p>
           ) : (
@@ -134,7 +156,9 @@ export default async function CatalogDashboardPage() {
                 <li key={row.category}>
                   <div className="mb-1 flex justify-between text-xs text-[var(--gray-500)]">
                     <span>{getCategoryLabel(row.category)}</span>
-                    <span>{Number(row.total)}x</span>
+                    <span>
+                      {Number(row.total)} {Number(row.total) === 1 ? "contratação" : "contratações"}
+                    </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--gray-50)]">
                     <div
@@ -151,7 +175,10 @@ export default async function CatalogDashboardPage() {
 
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-          <h2 className="text-sm font-semibold text-[var(--navy)]">Contratações recentes</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--navy)]">
+            Contratações recentes
+            <FieldHelp text="As 8 contratações mais novas. “SALIC” indica que veio de um comprovante de pagamento da Auditoria; “No prazo” ou “Atraso” mostram como foi a entrega nas contratações lançadas manualmente." />
+          </h2>
           <Link href="/fornecedores/contratacoes" className="text-sm font-semibold text-[var(--gold)] hover:underline">
             Ver todas →
           </Link>
@@ -167,8 +194,18 @@ export default async function CatalogDashboardPage() {
                 <tr className="border-b border-[var(--border)] text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-400)]">
                   <th className="px-5 py-3">Serviço</th>
                   <th className="py-3">Fornecedor</th>
-                  <th className="py-3">Prazo</th>
-                  <th className="py-3">Avaliação</th>
+                  <th className="py-3">
+                    <span className="inline-flex items-center gap-1">
+                      Origem / prazo
+                      <FieldHelp text="SALIC = importada de um comprovante da Auditoria. No prazo / Atraso = situação da entrega informada ao registrar a contratação." />
+                    </span>
+                  </th>
+                  <th className="py-3">
+                    <span className="inline-flex items-center gap-1">
+                      Avaliação
+                      <FieldHelp text="Nota de 1 a 5 estrelas dada ao fornecedor nesta contratação (qualidade do serviço)." />
+                    </span>
+                  </th>
                   <th className="px-5 py-3 text-right">Valor</th>
                 </tr>
               </thead>

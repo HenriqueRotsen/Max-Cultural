@@ -92,7 +92,7 @@ const MODULES: ModuleCard[] = [
   {
     href: "/inicio",
     title: "Auditoria",
-    description: "Sync SALIC, insights por fornecedor e relatório de auditoria.",
+    description: "Sync SALIC, panorama por fornecedor e relatório de auditoria.",
     cta: "Abrir",
     theme: {
       topBar: "bg-[linear-gradient(90deg,#2563eb_0%,#0ea5e9_100%)]",

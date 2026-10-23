@@ -57,7 +57,7 @@ export default async function HomePage() {
               </Link>
             )}
             <Link href="/panorama" className="btn btn-ghost">
-              Ver insights
+              Ver panorama
             </Link>
           </>
         }
@@ -101,13 +101,18 @@ export default async function HomePage() {
               },
               {
                 href: "/panorama",
-                title: "Insights",
+                title: "Panorama",
                 text: "Concentração, maiores fornecedores e projetos em destaque.",
               },
               {
                 href: "/contas?tab=atualizacao",
                 title: "Atualizar",
                 text: "Busca projetos e pagamentos no SALIC para o MAX Origem.",
+              },
+              {
+                href: "/fornecedores-pagos",
+                title: "Fornecedores",
+                text: "Todos que já receberam pagamento nos PRONACs carregados.",
               },
               {
                 href: "/auditoria",

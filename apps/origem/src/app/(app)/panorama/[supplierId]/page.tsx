@@ -26,6 +26,7 @@ export default async function SupplierDetailPage({
   const pronac = typeof sp.pronac === "string" ? sp.pronac : undefined;
   const fromFornecedores = sp.from === "fornecedores";
   const fromCatalog = sp.from === "catalog";
+  const fromAuditoria = sp.from === "auditoria";
 
   const detail = await getSupplierDetail(supplierId, {
     accountId,
@@ -55,19 +56,19 @@ export default async function SupplierDetailPage({
       <div>
         <Link
           href={
-            fromCatalog
+            fromCatalog || fromFornecedores
               ? "/fornecedores/empresas"
-              : fromFornecedores
-                ? "/fornecedores/empresas"
+              : fromAuditoria
+                ? "/fornecedores-pagos"
                 : "/panorama"
           }
           className="text-sm text-[var(--gray-500)] hover:text-[var(--navy)]"
         >
-          {fromCatalog
+          {fromCatalog || fromFornecedores
             ? "← Voltar ao banco de preços"
-            : fromFornecedores
-              ? "← Voltar ao banco de preços"
-              : "← Voltar aos insights"}
+            : fromAuditoria
+              ? "← Voltar aos fornecedores"
+              : "← Voltar ao panorama"}
         </Link>
       </div>
 
@@ -77,7 +78,9 @@ export default async function SupplierDetailPage({
             ? "Fornecedores › Auditoria › Detalhe"
             : fromFornecedores
               ? "Início › Observados › Detalhe"
-              : "Início › Panorama › Detalhe"
+              : fromAuditoria
+                ? "Auditoria › Fornecedores › Detalhe"
+                : "Início › Panorama › Detalhe"
         }
         title={detail.supplier.name}
         description={`CNPJ/CPF ${formatCgccpf(detail.supplier.cgccpf)} · ${formatCurrency(detail.total)} · ${detail.payments.length} pagamentos`}

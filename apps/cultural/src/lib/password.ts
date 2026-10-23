@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { checkPasswordRules } from "@/lib/password-rules";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -18,25 +19,8 @@ export function validateStrongPassword(
   password: string,
   opts?: { email?: string },
 ): PasswordStrengthResult {
-  if (password.length < 10) {
-    return { ok: false, error: "A senha deve ter pelo menos 10 caracteres." };
-  }
-  if (!/[a-z]/.test(password)) {
-    return { ok: false, error: "Inclua ao menos uma letra minúscula." };
-  }
-  if (!/[A-Z]/.test(password)) {
-    return { ok: false, error: "Inclua ao menos uma letra maiúscula." };
-  }
-  if (!/\d/.test(password)) {
-    return { ok: false, error: "Inclua ao menos um dígito." };
-  }
-  if (!/[^A-Za-z0-9]/.test(password)) {
-    return { ok: false, error: "Inclua ao menos um símbolo." };
-  }
-  const email = opts?.email?.trim().toLowerCase();
-  if (email && password.toLowerCase().includes(email.split("@")[0] ?? "")) {
-    return { ok: false, error: "A senha não pode conter o e-mail." };
-  }
+  const failed = checkPasswordRules(password, opts?.email).find((c) => !c.ok);
+  if (failed) return { ok: false, error: failed.error };
   return { ok: true };
 }
 
