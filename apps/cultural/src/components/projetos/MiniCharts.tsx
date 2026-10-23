@@ -36,15 +36,15 @@ export function DonutChart({
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
 
-  let offset = 0;
   const arcs = slices
     .filter((s) => s.value > 0)
-    .map((s) => {
+    .reduce<Array<ChartSlice & { dash: number; offset: number }>>((acc, s) => {
+      const prev = acc[acc.length - 1];
+      const offset = prev ? prev.offset + prev.dash : 0;
       const len = total > 0 ? (s.value / total) * c : 0;
-      const item = { ...s, dash: len, offset };
-      offset += len;
-      return item;
-    });
+      acc.push({ ...s, dash: len, offset });
+      return acc;
+    }, []);
 
   const tip = active ? slices.find((s) => s.label === active) : null;
 

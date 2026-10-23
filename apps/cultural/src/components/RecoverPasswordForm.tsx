@@ -20,7 +20,7 @@ export function RecoverPasswordForm({ siteKey = "" }: { siteKey?: string }) {
     >
       <div className="field">
         <label htmlFor="email">E-mail</label>
-        <input id="email" name="email" type="email" required />
+        <input id="email" name="email" type="email" autoComplete="username" required />
       </div>
       {state.error ? <p className="auth-alert">{state.error}</p> : null}
       {botError ? <p className="auth-alert">{botError}</p> : null}

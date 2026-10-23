@@ -1,40 +1,34 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { completePasswordChangeAction, type AuthActionState } from "@/lib/actions/auth";
 import { useClientRedirect } from "@/lib/use-client-redirect";
-import { PasswordInput } from "@/components/PasswordInput";
+import { NewPasswordFields } from "@/components/NewPasswordFields";
 
 const initial: AuthActionState = {};
 
-export function PasswordChangeForm() {
+export function PasswordChangeForm({ email }: { email?: string }) {
   const [state, action, pending] = useActionState(completePasswordChangeAction, initial);
+  const [valid, setValid] = useState(false);
   useClientRedirect(state.redirectTo);
 
   return (
     <form action={action} className="mt-5 space-y-4">
-      <div className="field">
-        <label htmlFor="password">Senha</label>
-        <PasswordInput
-          id="password"
-          name="password"
-          autoComplete="new-password"
-          required
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="confirm">Confirmar</label>
-        <PasswordInput
-          id="confirm"
-          name="confirm"
-          autoComplete="new-password"
-          required
-        />
-      </div>
+      <NewPasswordFields email={email} onValidChange={setValid} />
       {state.error ? <p className="auth-alert">{state.error}</p> : null}
-      <button type="submit" className="btn w-full" disabled={pending || !!state.redirectTo}>
-        {pending || state.redirectTo ? "Salvando…" : "Salvar"}
+      <button
+        type="submit"
+        className="btn w-full"
+        disabled={pending || !!state.redirectTo || !valid}
+        title={valid ? undefined : "Atenda todos os requisitos e confirme a senha para continuar."}
+      >
+        {pending || state.redirectTo ? "Salvando…" : "Salvar nova senha"}
       </button>
+      {!valid ? (
+        <p className="text-center text-xs text-[var(--gray-500)]">
+          O botão será liberado quando todos os requisitos estiverem marcados em verde.
+        </p>
+      ) : null}
     </form>
   );
 }

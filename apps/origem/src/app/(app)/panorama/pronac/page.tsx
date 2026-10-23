@@ -142,7 +142,7 @@ export default async function PronacPanoramaPage({
               Definir observados
             </Link>
             <Link href="/panorama" className="btn btn-ghost">
-              Ver insights
+              Ver panorama
             </Link>
           </div>
         }

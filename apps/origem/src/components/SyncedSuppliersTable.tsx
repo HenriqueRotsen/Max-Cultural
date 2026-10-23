@@ -11,6 +11,8 @@ type SupplierRow = {
   cgccpf: string;
   payments: number;
   total: number;
+  /** Também está na lista de observados. */
+  watched?: boolean;
 };
 
 type SortKey = "name" | "cgccpf" | "payments" | "total";
@@ -98,7 +100,7 @@ export function SyncedSuppliersTable({ suppliers }: { suppliers: SupplierRow[] }
               </th>
               <th>
                 <button type="button" className="sort-th" onClick={() => toggleSort("total")}>
-                  {sortLabel("total", "Total")}
+                  {sortLabel("total", "Total pago")}
                 </button>
               </th>
               <th>
@@ -113,11 +115,19 @@ export function SyncedSuppliersTable({ suppliers }: { suppliers: SupplierRow[] }
               <tr key={s.id}>
                 <td>
                   <Link
-                    href={`/panorama/${s.id}?from=fornecedores`}
+                    href={`/panorama/${s.id}?from=auditoria`}
                     className="font-semibold text-[var(--navy)] underline-offset-2 hover:text-[var(--gold)] hover:underline"
                   >
                     {s.name}
                   </Link>
+                  {s.watched ? (
+                    <span
+                      className="badge badge-muted ml-2 align-middle"
+                      title="Este fornecedor está na sua lista de observados"
+                    >
+                      Observado
+                    </span>
+                  ) : null}
                 </td>
                 <td>{formatCgccpf(s.cgccpf)}</td>
                 <td className="font-medium text-[var(--navy)]">{formatCurrency(s.total)}</td>

@@ -88,7 +88,7 @@ export default async function ContaPage() {
         </dl>
       </section>
 
-      <AccountProfileForm name={user.name} />
+      <AccountProfileForm name={user.name} email={user.email} />
     </div>
   );
 }

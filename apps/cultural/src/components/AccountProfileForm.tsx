@@ -1,16 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { AuthActionState } from "@/lib/actions/auth";
 import {
   changeOwnPasswordAction,
   updateOwnProfileAction,
 } from "@/lib/actions/account";
 import { PasswordInput } from "@/components/PasswordInput";
+import { NewPasswordFields } from "@/components/NewPasswordFields";
 
 const initial: AuthActionState = {};
 
-export function AccountProfileForm({ name }: { name: string }) {
+export function AccountProfileForm({ name, email }: { name: string; email?: string }) {
+  const [newPassValid, setNewPassValid] = useState(false);
   const [profileState, profileAction, profilePending] = useActionState(
     updateOwnProfileAction,
     initial,
@@ -46,8 +48,8 @@ export function AccountProfileForm({ name }: { name: string }) {
         <div>
           <h2 className="text-base font-semibold text-[var(--navy)]">Alterar senha</h2>
           <p className="mt-1 text-sm text-[var(--gray-500)]">
-            Use a senha atual e uma nova senha forte (mínimo 10 caracteres, letra
-            maiúscula, minúscula, número e símbolo).
+            Informe a senha atual e crie uma nova. Os requisitos ficam verdes conforme
+            você digita.
           </p>
         </div>
         <div className="field">
@@ -59,29 +61,16 @@ export function AccountProfileForm({ name }: { name: string }) {
             autoComplete="current-password"
           />
         </div>
-        <div className="field">
-          <label htmlFor="password">Nova senha</label>
-          <PasswordInput
-            id="password"
-            name="password"
-            required
-            autoComplete="new-password"
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="confirm">Confirmar nova senha</label>
-          <PasswordInput
-            id="confirm"
-            name="confirm"
-            required
-            autoComplete="new-password"
-          />
-        </div>
+        <NewPasswordFields
+          key={passState.message ?? "nova-senha"}
+          email={email}
+          onValidChange={setNewPassValid}
+        />
         {passState.message ? (
           <p className="text-sm text-[#176b3a]">{passState.message}</p>
         ) : null}
         {passState.error ? <p className="auth-alert">{passState.error}</p> : null}
-        <button type="submit" className="btn" disabled={passPending}>
+        <button type="submit" className="btn" disabled={passPending || !newPassValid}>
           {passPending ? "Atualizando…" : "Atualizar senha"}
         </button>
       </form>

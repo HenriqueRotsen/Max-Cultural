@@ -23,7 +23,7 @@ export default async function ObservadosPage({
 }) {
   const sp = await searchParams;
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
-  if (tabParam === "todos") redirect("/fornecedores/empresas");
+  if (tabParam === "todos") redirect("/fornecedores-pagos");
 
   const { entitlements } = await getWorkspaceContext();
   const ws = entitlements.workspaceId;
@@ -58,7 +58,7 @@ export default async function ObservadosPage({
       <PageHeader
         breadcrumb="Auditoria › Observados"
         title="Observados"
-        description="Lista de acompanhamento para a análise de vínculos. O cadastro completo de fornecedores fica no módulo Fornecedores."
+        description="Lista de acompanhamento para a análise de vínculos. Todos os fornecedores pagos ficam em Auditoria › Fornecedores; o banco de preços fica no módulo Fornecedores."
       />
 
       <nav className="accounts-tabs" aria-label="Abas de observados">

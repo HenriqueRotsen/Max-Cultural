@@ -40,14 +40,12 @@ export function buildTerritorioPath(parts: {
 
   const uf = slugifyUf(parts.estado);
   if (!uf || uf === "online") return "/territorio";
-  const segments = ["/territorio", uf];
+  // Prefixo literal "/territorio/" fixa a origem: nenhum valor da linha vira host.
   const cidade = slugifyPart(parts.cidade);
-  if (cidade) {
-    segments.push(cidade);
-    const terr = slugifyPart(parts.territorio);
-    if (terr) segments.push(terr);
-  }
-  return segments.join("/");
+  if (!cidade) return `/territorio/${uf}`;
+  const terr = slugifyPart(parts.territorio);
+  if (!terr) return `/territorio/${uf}/${cidade}`;
+  return `/territorio/${uf}/${cidade}/${terr}`;
 }
 
 export function matchesSlug(canonical: string, slug: string): boolean {

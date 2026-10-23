@@ -5,6 +5,7 @@ import {
   type AddressParts,
 } from "@/lib/catalog/address";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
+import { digitsParam } from "@/lib/lookup/digits-param";
 
 export type CnpjLookupResult = {
   cnpj: string;
@@ -52,7 +53,9 @@ function toAddressParts(parts: {
 }
 
 async function lookupCnpjBrasilApi(cnpj: string): Promise<CnpjLookupResult | null> {
-  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+  const safe = digitsParam(cnpj, 14);
+  if (!safe) return null;
+  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${safe}`, {
     headers: { Accept: "application/json", "User-Agent": "MAX-Origem/1.0" },
     cache: "no-store",
   });
@@ -120,7 +123,9 @@ async function lookupCnpjBrasilApi(cnpj: string): Promise<CnpjLookupResult | nul
 }
 
 async function lookupCnpjWs(cnpj: string): Promise<CnpjLookupResult | null> {
-  const res = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`, {
+  const safe = digitsParam(cnpj, 14);
+  if (!safe) return null;
+  const res = await fetch(`https://publica.cnpj.ws/cnpj/${safe}`, {
     headers: { Accept: "application/json", "User-Agent": "MAX-Origem/1.0" },
     cache: "no-store",
   });
@@ -220,8 +225,8 @@ export async function lookupCnpj(
 export async function lookupCep(
   cepInput: string,
 ): Promise<CepLookupResult | null> {
-  const zipCode = digitsOnly(cepInput);
-  if (zipCode.length !== 8) return null;
+  const zipCode = digitsParam(cepInput, 8);
+  if (!zipCode) return null;
 
   try {
     const via = await fetch(`https://viacep.com.br/ws/${zipCode}/json/`, {

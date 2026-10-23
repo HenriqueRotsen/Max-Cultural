@@ -1,3 +1,4 @@
+import { digitsParam } from "@/lib/lookup/digits-param";
 /** Consulta pública de CNPJ (BrasilAPI + fallback CNPJ.ws). */
 
 export type CnpjQsaMember = {
@@ -77,7 +78,9 @@ const FETCH_HEADERS = {
 } as const;
 
 async function fetchCnpjBrasilApi(cnpj: string): Promise<CnpjCompanyResult | null> {
-  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+  const safe = digitsParam(cnpj, 14);
+  if (!safe) return null;
+  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${safe}`, {
     headers: FETCH_HEADERS,
     cache: "no-store",
   });
@@ -161,7 +164,9 @@ async function fetchCnpjBrasilApi(cnpj: string): Promise<CnpjCompanyResult | nul
 }
 
 async function fetchCnpjWs(cnpj: string): Promise<CnpjCompanyResult | null> {
-  const res = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`, {
+  const safe = digitsParam(cnpj, 14);
+  if (!safe) return null;
+  const res = await fetch(`https://publica.cnpj.ws/cnpj/${safe}`, {
     headers: FETCH_HEADERS,
     cache: "no-store",
   });

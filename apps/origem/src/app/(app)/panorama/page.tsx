@@ -48,8 +48,8 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Início › Insights"
-        title="Insights"
+        breadcrumb="Auditoria › Panorama"
+        title="Panorama"
         description="Leitura rápida dos pagamentos carregados: concentração, maiores fornecedores e projetos em destaque."
         actions={
           <div className="flex flex-wrap gap-2">

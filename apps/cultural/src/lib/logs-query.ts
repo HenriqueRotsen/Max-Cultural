@@ -70,9 +70,9 @@ export function parseLogsQuery(
 ): LogsQuery {
   const rawQ = (first(sp.q) || "").trim();
   let action = (first(sp.action) || "").trim();
-  let screen = (first(sp.screen) || "").trim();
-  let actorId = (first(sp.actor) || "").trim();
-  let entityType = (first(sp.entityType) || "").trim();
+  const screen = (first(sp.screen) || "").trim();
+  const actorId = (first(sp.actor) || "").trim();
+  const entityType = (first(sp.entityType) || "").trim();
   let from = (first(sp.from) || "").trim();
   let to = (first(sp.to) || "").trim();
   const sortRaw = (first(sp.sort) || "createdAt").trim() as LogsSortKey;

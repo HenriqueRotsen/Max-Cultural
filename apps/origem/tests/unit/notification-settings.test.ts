@@ -14,6 +14,7 @@ describe("notification-settings", () => {
       "NF_PENDING",
       "TAX_DUE_ISS",
       "TAX_DUE_FEDERAL",
+      "SALIC_DILIGENCIA",
     ]);
   });
 
@@ -26,6 +27,7 @@ describe("notification-settings", () => {
         nfPending: false,
         taxDueIss: false,
         taxDueFederal: false,
+        salicDiligencia: false,
       }),
     ).toEqual(["PAYMENT_OVERDUE"]);
   });

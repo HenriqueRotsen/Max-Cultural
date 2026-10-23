@@ -4,7 +4,15 @@
  */
 export function sanitizeSalicText(value?: string | null): string | undefined {
   if (value == null) return undefined;
-  const cleaned = value
+  // Remove tags até estabilizar (evita "<scr<script>ipt>" sobrar como tag).
+  let stripped = value;
+  let prev: string;
+  do {
+    prev = stripped;
+    stripped = stripped.replace(/<[^>]*>/g, "");
+  } while (stripped !== prev);
+  const cleaned = stripped
+    .replace(/[<>]/g, "")
     .replace(/\u0096/g, "–")
     .replace(/\u0097/g, "—")
     .replace(/\u0091/g, "‘")
@@ -13,7 +21,6 @@ export function sanitizeSalicText(value?: string | null): string | undefined {
     .replace(/\u0094/g, "”")
     .replace(/&ndash;/gi, "–")
     .replace(/&mdash;/gi, "—")
-    .replace(/&amp;/g, "&")
     .replace(/&aacute;/gi, "á")
     .replace(/&eacute;/gi, "é")
     .replace(/&iacute;/gi, "í")
@@ -21,7 +28,8 @@ export function sanitizeSalicText(value?: string | null): string | undefined {
     .replace(/&uacute;/gi, "ú")
     .replace(/&ccedil;/gi, "ç")
     .replace(/&nbsp;/gi, " ")
-    .replace(/<[^>]+>/g, "")
+    // &amp; por último: "&amp;nbsp;" deve virar "&nbsp;" literal, não espaço.
+    .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
   return cleaned || undefined;

@@ -370,7 +370,7 @@ export async function getPanoramaInsights(
   const highlights: string[] = [];
 
   if (rows.length === 0) {
-    highlights.push("Ainda não há pagamentos carregados. Atualize os dados para ver insights.");
+    highlights.push("Ainda não há pagamentos carregados. Atualize os dados para ver o panorama.");
   } else {
     if (topSuppliers[0]) {
       highlights.push(

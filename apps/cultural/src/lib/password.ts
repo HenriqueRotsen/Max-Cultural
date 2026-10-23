@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { checkPasswordRules } from "@/lib/password-rules";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -18,34 +19,27 @@ export function validateStrongPassword(
   password: string,
   opts?: { email?: string },
 ): PasswordStrengthResult {
-  if (password.length < 10) {
-    return { ok: false, error: "A senha deve ter pelo menos 10 caracteres." };
-  }
-  if (!/[a-z]/.test(password)) {
-    return { ok: false, error: "Inclua ao menos uma letra minúscula." };
-  }
-  if (!/[A-Z]/.test(password)) {
-    return { ok: false, error: "Inclua ao menos uma letra maiúscula." };
-  }
-  if (!/\d/.test(password)) {
-    return { ok: false, error: "Inclua ao menos um dígito." };
-  }
-  if (!/[^A-Za-z0-9]/.test(password)) {
-    return { ok: false, error: "Inclua ao menos um símbolo." };
-  }
-  const email = opts?.email?.trim().toLowerCase();
-  if (email && password.toLowerCase().includes(email.split("@")[0] ?? "")) {
-    return { ok: false, error: "A senha não pode conter o e-mail." };
-  }
+  const failed = checkPasswordRules(password, opts?.email).find((c) => !c.ok);
+  if (failed) return { ok: false, error: failed.error };
   return { ok: true };
+}
+
+/** Índice uniforme em [0, n) — rejeição por máscara de bits, sem viés de módulo. */
+function randomIndex(n: number): number {
+  const mask = 2 ** Math.ceil(Math.log2(n)) - 1;
+  const buf = new Uint8Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    const v = buf[0]! & mask;
+    if (v < n) return v;
+  }
 }
 
 export function generateProvisionalPassword(length = 12): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$%";
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
   let out = "";
   for (let i = 0; i < length; i++) {
-    out += alphabet[bytes[i]! % alphabet.length];
+    out += alphabet[randomIndex(alphabet.length)];
   }
   if (!/[a-z]/.test(out)) out = `a${out.slice(1)}`;
   if (!/[A-Z]/.test(out)) out = `A${out.slice(1)}`;
@@ -70,7 +64,7 @@ export function randomToken(bytes = 32): string {
 }
 
 export function randomOtpCode(digits = 6): string {
-  const max = 10 ** digits;
-  const n = crypto.getRandomValues(new Uint32Array(1))[0]! % max;
-  return String(n).padStart(digits, "0");
+  let out = "";
+  for (let i = 0; i < digits; i++) out += String(randomIndex(10));
+  return out;
 }

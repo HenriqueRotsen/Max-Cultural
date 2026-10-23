@@ -16,12 +16,13 @@ export default async function OnboardingSenhaPage() {
     <div className="auth-shell">
       <div className="auth-card">
         <MaxCulturalLogoLink href="/login" />
-        <h1 className="auth-title">Senha temporária</h1>
+        <h1 className="auth-title">Crie sua nova senha</h1>
         <p className="auth-lead">
-          Sua senha atual é provisória. Defina uma senha forte (10+ caracteres, maiúscula,
-          dígito e símbolo). Em seguida enviaremos um código de verificação para o seu e-mail.
+          Sua senha atual é provisória. Crie uma senha forte — a lista abaixo mostra, enquanto
+          você digita, o que já foi atendido. Em seguida enviaremos um código de verificação
+          para o seu e-mail.
         </p>
-        <PasswordChangeForm />
+        <PasswordChangeForm email={user.email} />
       </div>
     </div>
   );

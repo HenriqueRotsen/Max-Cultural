@@ -1,35 +1,61 @@
 "use client";
 
-import { useId, useState, type InputHTMLAttributes } from "react";
+import { useId, useState, type InputHTMLAttributes, type KeyboardEvent } from "react";
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
   id?: string;
   name: string;
 };
 
-export function PasswordInput({ id, className, ...props }: Props) {
+export function PasswordInput({ id, className, onKeyDown, onKeyUp, onBlur, ...props }: Props) {
   const autoId = useId();
   const inputId = id || autoId;
   const [visible, setVisible] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+
+  function readCapsLock(e: KeyboardEvent<HTMLInputElement>) {
+    if (typeof e.getModifierState === "function") {
+      setCapsLock(e.getModifierState("CapsLock"));
+    }
+  }
 
   return (
-    <div className="relative">
-      <input
-        {...props}
-        id={inputId}
-        type={visible ? "text" : "password"}
-        className={`w-full pr-11 ${className || ""}`}
-      />
-      <button
-        type="button"
-        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[var(--gray-500)] transition hover:text-[var(--navy)]"
-        aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
-        aria-pressed={visible}
-        onClick={() => setVisible((v) => !v)}
-        tabIndex={0}
-      >
-        {visible ? <EyeOffIcon /> : <EyeIcon />}
-      </button>
+    <div>
+      <div className="relative">
+        <input
+          {...props}
+          id={inputId}
+          type={visible ? "text" : "password"}
+          className={`w-full pr-11 ${className || ""}`}
+          onKeyDown={(e) => {
+            readCapsLock(e);
+            onKeyDown?.(e);
+          }}
+          onKeyUp={(e) => {
+            readCapsLock(e);
+            onKeyUp?.(e);
+          }}
+          onBlur={(e) => {
+            setCapsLock(false);
+            onBlur?.(e);
+          }}
+        />
+        <button
+          type="button"
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[var(--gray-500)] transition hover:text-[var(--navy)]"
+          aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
+          aria-pressed={visible}
+          onClick={() => setVisible((v) => !v)}
+          tabIndex={0}
+        >
+          {visible ? <EyeOffIcon /> : <EyeIcon />}
+        </button>
+      </div>
+      {capsLock ? (
+        <p className="mt-1.5 text-xs font-medium text-amber-700" role="status">
+          ⚠ Caps Lock está ativado — a senha diferencia maiúsculas de minúsculas.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FieldHelp } from "@/components/FieldHelp";
 import { CatalogPriceDollars } from "@/components/catalog/CatalogPriceDollars";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { getCategoryLabel } from "@/lib/catalog/categories";
@@ -41,16 +42,18 @@ export function CatalogSupplierInsights({
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="card p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
             Taxa de atraso (último ano)
+            <FieldHelp text="Percentual das contratações deste fornecedor nos últimos 12 meses que foram entregues com atraso. “—” = nenhuma contratação no período." />
           </p>
           <p className="mt-3 text-2xl font-semibold text-[var(--navy)]">
             {delay != null ? `${delay.toFixed(0)}%` : "—"}
           </p>
         </div>
         <div className="card p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
-            Posicionamento (último ano)
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
+            Faixa de preço (último ano)
+            <FieldHelp text="Compara o preço de cada serviço deste fornecedor com o mesmo tipo de serviço de outros fornecedores do banco de preços: barato, normal, caro ou muito caro. Os cifrões ($ a $$$$) ao lado de cada serviço mostram a mesma faixa." />
           </p>
           <p className="mt-3 text-sm font-medium text-[var(--navy)]">{formatTierSummary(summary)}</p>
         </div>
@@ -58,7 +61,10 @@ export function CatalogSupplierInsights({
 
       <div className="card overflow-hidden">
         <div className="border-b border-[var(--border)] px-5 py-4">
-          <h2 className="text-sm font-semibold text-[var(--navy)]">Serviços / produtos</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--navy)]">
+            Serviços / produtos
+            <FieldHelp text="Cada serviço oferecido pelo fornecedor. “Média” é o preço médio pago no último ano (por unidade, quando o serviço é cobrado por hora, diária etc.). “Última” é a contratação mais recente." />
+          </h2>
         </div>
         {services.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-[var(--gray-500)]">
