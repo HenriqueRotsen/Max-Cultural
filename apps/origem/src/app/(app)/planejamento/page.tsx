@@ -27,7 +27,8 @@ export default async function PlanejamentoIndexPage() {
   const { entitlements } = await getWorkspaceContext();
 
   const projects = await prisma.planningProject.findMany({
-    where: { workspaceId: entitlements.workspaceId },
+    // Encerrados somem do Origem.
+    where: { workspaceId: entitlements.workspaceId, closedAt: null },
     orderBy: [{ name: "asc" }, { externalCode: "asc" }],
     include: {
       account: { select: { name: true } },
@@ -66,7 +67,7 @@ export default async function PlanejamentoIndexPage() {
       accountName: p.account.name,
       importedAt: p.importedAt?.toISOString() ?? null,
       importSource: p.importSource,
-      situacao: p.situacao ?? null,
+      situacao: null,
       lifecycleStatus: p.lifecycleStatus,
       totalApproved: bal?.totalApproved ?? 0,
       totalSaldo: bal?.totalSaldo ?? 0,

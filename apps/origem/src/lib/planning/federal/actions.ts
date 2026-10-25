@@ -54,6 +54,7 @@ export async function previewPlanningProjectContext(
   accountId: string,
   pronac: string,
   projectNameHint?: string,
+  opts?: { skipSalic?: boolean },
 ): Promise<
   | {
       ok: true;
@@ -74,6 +75,9 @@ export async function previewPlanningProjectContext(
       where: { id: accountId, workspaceId: entitlements.workspaceId },
     });
     if (!account) return { ok: false, error: "Proponente inválido" };
+  }
+  // Estadual não tem SALIC: o nome vem do que a pessoa digitou.
+  if (accountId && !opts?.skipSalic) {
     try {
       const preview = await fetchSalicProjectPreview({
         accountId,

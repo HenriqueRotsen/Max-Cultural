@@ -15,6 +15,8 @@ describe("notification-settings", () => {
       "TAX_DUE_ISS",
       "TAX_DUE_FEDERAL",
       "SALIC_DILIGENCIA",
+      "READEQUADA_APPLIED",
+      "EVALUATION_PENDING",
     ]);
   });
 
@@ -28,6 +30,8 @@ describe("notification-settings", () => {
         taxDueIss: false,
         taxDueFederal: false,
         salicDiligencia: false,
+        readequadaApplied: false,
+        evaluationPending: false,
       }),
     ).toEqual(["PAYMENT_OVERDUE"]);
   });

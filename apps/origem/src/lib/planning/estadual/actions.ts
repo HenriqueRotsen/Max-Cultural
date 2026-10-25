@@ -23,12 +23,11 @@ export async function startPlanningProjectState(
   const rulesetVersion = String(formData.get("rulesetVersion") || "").trim();
   const jurisdiction = String(formData.get("jurisdiction") || "").trim();
   const file = formData.get("sheetFile");
+  const projectName = String(formData.get("projectName") || "").trim().slice(0, 300);
+  const hasFile = file instanceof File && file.size > 0;
 
-  if (!accountId || !externalCode || !rulesetVersion || !jurisdiction) {
-    return { error: "Preencha UF, proponente, código e norma" };
-  }
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Envie o arquivo da planilha homologada" };
+  if (!accountId || !externalCode || !rulesetVersion || !jurisdiction || !projectName) {
+    return { error: "Preencha UF, proponente, norma, código e nome do projeto" };
   }
 
   const account = await prisma.salicAccount.findFirst({
@@ -49,14 +48,17 @@ export async function startPlanningProjectState(
     return { error: "Este código já foi iniciado neste proponente" };
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  let parsed;
-  try {
-    parsed = parseStateHomologatedFile(buffer, file.name);
-  } catch (e) {
-    return {
-      error: e instanceof Error ? e.message : "Falha ao ler a planilha",
-    };
+  // Arquivo é opcional: sem ele, o projeto nasce com a planilha vazia e as rubricas
+  // são lançadas à mão no projeto.
+  let parsed: ReturnType<typeof parseStateHomologatedFile> = { lines: [], totalApproved: 0 };
+  if (hasFile) {
+    try {
+      parsed = parseStateHomologatedFile(Buffer.from(await file.arrayBuffer()), file.name);
+    } catch (e) {
+      return {
+        error: e instanceof Error ? e.message : "Falha ao ler a planilha",
+      };
+    }
   }
 
   const project =
@@ -68,14 +70,15 @@ export async function startPlanningProjectState(
         jurisdiction,
         rulesetVersion,
         externalCode,
-        name: externalCode,
+        name: projectName,
+        sheetSearchActive: false,
       },
     }));
 
   if (existing) {
     await prisma.planningProject.update({
       where: { id: existing.id },
-      data: { rulesetVersion, jurisdiction },
+      data: { rulesetVersion, jurisdiction, name: projectName, sheetSearchActive: false },
     });
   }
 
@@ -83,8 +86,8 @@ export async function startPlanningProjectState(
     planningProjectId: project.id,
     lines: parsed.lines,
     totalApproved: parsed.totalApproved,
-    sourceFilename: file.name,
-    importSource: "STATE_FILE",
+    sourceFilename: hasFile ? file.name : null,
+    importSource: hasFile ? "STATE_FILE" : "STATE_MANUAL",
   });
 
   const fluxoErr = await syncFluxoProjeto({

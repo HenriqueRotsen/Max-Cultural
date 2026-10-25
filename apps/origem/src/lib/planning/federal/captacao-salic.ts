@@ -183,6 +183,7 @@ export async function syncCaptacaoForWorkspace(
       workspaceId,
       ...(accountId ? { accountId } : {}),
       jurisdiction: "FEDERAL",
+      closedAt: null,
     },
     include: {
       account: {

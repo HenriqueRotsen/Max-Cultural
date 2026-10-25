@@ -145,6 +145,7 @@ export default async function BuscarSaldoPage({
       where: {
         workspaceId: entitlements.workspaceId,
         importedAt: { not: null },
+        closedAt: null,
         ...(accountId ? { accountId } : {}),
       },
       include: {

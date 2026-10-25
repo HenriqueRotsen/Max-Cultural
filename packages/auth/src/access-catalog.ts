@@ -187,6 +187,15 @@ export const ACCESS_CATALOG = [
     product: "origem",
     parentId: "origem.planejamento",
   },
+  {
+    id: "origem.planejamento.encerrar",
+    label: "Encerrar projeto",
+    description: "Encerra o projeto (confirmação dupla); depois disso ele some do Origem.",
+    kind: "capability",
+    group: "Origem",
+    product: "origem",
+    parentId: "origem.planejamento",
+  },
 
   // —— Fluxo ——
   {
@@ -234,6 +243,7 @@ export const ORIGEM_PRIVILEGED_CAPABILITIES = [
   "origem.planejamento.readequacao",
   "origem.planejamento.excluir_nf",
   "origem.planejamento.editar_rubricas",
+  "origem.planejamento.encerrar",
 ] as const;
 
 /** Mapeamento hub → códigos locais do Fluxo (interseção no satélite). */

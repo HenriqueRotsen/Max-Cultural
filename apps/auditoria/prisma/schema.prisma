@@ -566,6 +566,8 @@ enum AppNotificationType {
   TAX_DUE_ISS
   TAX_DUE_FEDERAL
   SALIC_DILIGENCIA
+  READEQUADA_APPLIED
+  EVALUATION_PENDING
 
   @@schema("origem")
 }

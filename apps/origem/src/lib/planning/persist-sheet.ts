@@ -7,7 +7,7 @@ export async function persistHomologatedSheet(params: {
   lines: HomologatedLine[];
   totalApproved: number;
   sourceFilename?: string | null;
-  importSource: "SALIC_HOMOLOGADA" | "STATE_FILE" | "SALIC_READEQUADA";
+  importSource: "SALIC_HOMOLOGADA" | "STATE_FILE" | "STATE_MANUAL" | "SALIC_READEQUADA";
 }) {
   const now = new Date();
   return prisma.$transaction(async (tx) => {

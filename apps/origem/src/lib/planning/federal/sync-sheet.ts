@@ -17,6 +17,11 @@ import { syncSalicComprovadoFromSalicItems } from "@/lib/planning/federal/salic-
 import { budgetLineIdentityKey, moneyN } from "@/lib/planning/readequacao";
 import { persistHomologatedSheet } from "@/lib/planning/persist-sheet";
 import {
+  hasSheetVersion,
+  notifyReadequadaApplied,
+  saveSheetVersion,
+} from "@/lib/planning/federal/sheet-versions";
+import {
   fetchJsonAllowError,
   listProjectsUi,
   listProponentesUi,
@@ -83,6 +88,47 @@ async function tryHomologadaOnPage(
   const flat = flattenHomologatedPlanilha(payload.data);
   if (isUsableSheet(flat.lines)) return flat.lines;
   return null;
+}
+
+/** Folha de trabalho atual como linhas do SALIC (cópia de segurança da "anterior"). */
+function workingSheetAsLines(
+  lines: Array<{
+    planilhaAprovacaoId: string | null;
+    fonteRecurso: string;
+    productName: string;
+    stageName: string;
+    state: string;
+    city: string;
+    itemName: string;
+    categoryHint: string | null;
+    unit: string;
+    days: number;
+    quantity: unknown;
+    occurrences: unknown;
+    unitPrice: unknown;
+    homologatedAmount: unknown;
+    salicComprovado: unknown;
+    sortOrder: number;
+  }>,
+): HomologatedLine[] {
+  return lines.map((l) => ({
+    planilhaAprovacaoId: l.planilhaAprovacaoId,
+    fonteRecurso: l.fonteRecurso,
+    productName: l.productName,
+    stageName: l.stageName,
+    state: l.state,
+    city: l.city,
+    itemName: l.itemName,
+    categoryHint: l.categoryHint,
+    unit: l.unit,
+    days: l.days,
+    quantity: moneyN(l.quantity),
+    occurrences: moneyN(l.occurrences),
+    unitPrice: moneyN(l.unitPrice),
+    approvedAmount: moneyN(l.homologatedAmount),
+    salicComprovado: l.salicComprovado == null ? null : moneyN(l.salicComprovado),
+    sortOrder: l.sortOrder,
+  }));
 }
 
 /** Preferência: readequada válida; senão homologada. */
@@ -432,47 +478,67 @@ export async function syncPlanningSheetFromSalic(params: {
   return { importSource: preferred.importSource, ...stats };
 }
 
-/** Primeiro import (onboard): escolhe readequada ou homologada. */
+/**
+ * Primeiro import do projeto federal: busca a homologada e a readequada, guarda a
+ * cópia de cada uma e usa a readequada se existir (aí a busca diária para). Sem
+ * readequada, usa a homologada e segue procurando a readequada enquanto o projeto
+ * estiver ativo.
+ */
 export async function importPreferredSheetForNewProject(params: {
   accountId: string;
   pronac: string;
   planningProjectId: string;
 }): Promise<PreferredSheetResult> {
-  let preferred: PreferredSheetResult | null = null;
+  let homologada: Awaited<ReturnType<typeof fetchHomologatedLinesFromSalic>> | null = null;
+  let homologadaError: unknown = null;
   try {
-    const readequada = await fetchReadequadaLinesFromSalic({
+    homologada = await fetchHomologatedLinesFromSalic({
       accountId: params.accountId,
       pronac: params.pronac,
     });
-    const lines = readequada.map((l) => ({
-      ...l,
-      approvedAmount: moneyN(l.approvedAmount ?? l.homologatedAmount),
-    }));
-    if (isUsableSheet(lines)) {
-      preferred = {
-        lines,
-        totalApproved: sheetTotal(lines),
-        importSource: "SALIC_READEQUADA",
-      };
-    }
-  } catch {
-    preferred = null;
+  } catch (e) {
+    homologadaError = e;
   }
 
-  if (!preferred) {
-    const homologada = await fetchHomologatedLinesFromSalic({
-      accountId: params.accountId,
-      pronac: params.pronac,
-    });
-    preferred = {
-      lines: homologada.lines,
-      totalApproved: homologada.totalApproved,
-      importSource: "SALIC_HOMOLOGADA",
-      captacao: homologada.captacao,
-      projectName: homologada.projectName,
-      idPronacHash: homologada.idPronacHash,
-    };
+  let readequada: HomologatedLine[] | null = null;
+  try {
+    const lines = (
+      await fetchReadequadaLinesFromSalic({ accountId: params.accountId, pronac: params.pronac })
+    ).map((l) => ({ ...l, approvedAmount: moneyN(l.approvedAmount ?? l.homologatedAmount) }));
+    if (isUsableSheet(lines)) readequada = lines;
+  } catch {
+    readequada = null;
   }
+
+  const homologadaUsable = homologada && isUsableSheet(homologada.lines) ? homologada : null;
+  if (!homologadaUsable && !readequada) {
+    if (homologadaError) throw homologadaError;
+    throw new HomologadaImportError("Nenhuma planilha utilizável no SALIC");
+  }
+
+  if (homologadaUsable) {
+    await saveSheetVersion({
+      planningProjectId: params.planningProjectId,
+      kind: "HOMOLOGADA",
+      lines: homologadaUsable.lines,
+      totalApproved: homologadaUsable.totalApproved,
+    });
+  }
+
+  const preferred: PreferredSheetResult = readequada
+    ? {
+        lines: readequada,
+        totalApproved: sheetTotal(readequada),
+        importSource: "SALIC_READEQUADA",
+      }
+    : {
+        lines: homologadaUsable!.lines,
+        totalApproved: homologadaUsable!.totalApproved,
+        importSource: "SALIC_HOMOLOGADA",
+      };
+  preferred.captacao = homologada?.captacao ?? null;
+  preferred.projectName = homologada?.projectName ?? null;
+  preferred.idPronacHash = homologada?.idPronacHash ?? null;
 
   await persistHomologatedSheet({
     planningProjectId: params.planningProjectId,
@@ -481,30 +547,27 @@ export async function importPreferredSheetForNewProject(params: {
     importSource: preferred.importSource,
   });
 
+  const now = new Date();
+  if (readequada) {
+    await saveSheetVersion({
+      planningProjectId: params.planningProjectId,
+      kind: "READEQUADA",
+      lines: readequada,
+      totalApproved: preferred.totalApproved,
+    });
+  }
+  await prisma.planningProject.update({
+    where: { id: params.planningProjectId },
+    data: readequada
+      ? { sheetSearchActive: false, readequadaAppliedAt: now, readequadaNoticeSeenAt: now }
+      : { sheetSearchActive: true },
+  });
+
   if (preferred.captacao) {
     await applyCaptacaoToPlanningProject({
       planningProjectId: params.planningProjectId,
       captacao: preferred.captacao,
     });
-  } else if (preferred.importSource === "SALIC_READEQUADA") {
-    try {
-      const homologada = await fetchHomologatedLinesFromSalic({
-        accountId: params.accountId,
-        pronac: params.pronac,
-      });
-      preferred.projectName = preferred.projectName || homologada.projectName;
-      preferred.idPronacHash =
-        preferred.idPronacHash || homologada.idPronacHash;
-      if (homologada.captacao) {
-        await applyCaptacaoToPlanningProject({
-          planningProjectId: params.planningProjectId,
-          captacao: homologada.captacao,
-        });
-        preferred.captacao = homologada.captacao;
-      }
-    } catch {
-      // ok
-    }
   }
 
   return preferred;
@@ -531,10 +594,17 @@ export async function refreshPlanningSheetsForWorkspace(
       ...(accountId ? { accountId } : {}),
       jurisdiction: "FEDERAL",
       lifecycleStatus: "EM_ANDAMENTO",
+      closedAt: null,
       ...(only?.length ? { externalCode: { in: only } } : {}),
     },
     include: {
-      sheet: { select: { id: true } },
+      sheet: {
+        select: {
+          id: true,
+          totalApproved: true,
+          lines: { orderBy: { sortOrder: "asc" } },
+        },
+      },
       account: {
         select: {
           id: true,
@@ -621,63 +691,91 @@ export async function refreshPlanningSheetsForWorkspace(
           }
 
           try {
-            const preferred = await resolvePreferredSheetOnPage(
-              page,
-              listed.IdPRONAC,
-              { idPronacHash: listed.idPronacHash || null },
-            );
-            if (!preferred) {
-              skipped += 1;
-              errors.push(
-                `${pp.externalCode}: nenhuma planilha utilizável no SALIC.`,
-              );
-              continue;
-            }
-
-            if (!pp.sheet) {
-              await persistHomologatedSheet({
-                planningProjectId: pp.id,
-                lines: preferred.lines,
-                totalApproved: preferred.totalApproved,
-                importSource: preferred.importSource,
-                sourceFilename:
-                  preferred.importSource === "SALIC_READEQUADA"
-                    ? "SALIC planilha readequada"
-                    : "SALIC planilha homologada",
-              });
-              created += 1;
-            } else {
-              await applyPlanningSheetFromSalic({
-                planningProjectId: pp.id,
-                lines: preferred.lines,
-                importSource: preferred.importSource,
-              });
-              refreshed += 1;
-            }
-
-            if (preferred.captacao) {
-              await applyCaptacaoToPlanningProject({
-                planningProjectId: pp.id,
-                captacao: preferred.captacao,
-              });
-            } else if (listed.idPronacHash) {
-              try {
-                const captacao = await fetchCaptacaoOnPage(
-                  page,
-                  listed.idPronacHash,
-                );
-                await applyCaptacaoToPlanningProject({
+            // Planilha: só enquanto a readequada não apareceu. Achou → troca, avisa e para.
+            if (pp.sheetSearchActive || !pp.sheet) {
+              const readequada = await tryReadequadaOnPage(page, listed.IdPRONAC);
+              if (readequada) {
+                const total = sheetTotal(readequada);
+                if (!(await hasSheetVersion(pp.id, "HOMOLOGADA"))) {
+                  const homologada =
+                    (await tryHomologadaOnPage(page, listed.IdPRONAC)) ||
+                    (pp.sheet ? workingSheetAsLines(pp.sheet.lines) : null);
+                  if (homologada) {
+                    await saveSheetVersion({
+                      planningProjectId: pp.id,
+                      kind: "HOMOLOGADA",
+                      lines: homologada,
+                      totalApproved: sheetTotal(homologada),
+                    });
+                  }
+                }
+                await saveSheetVersion({
                   planningProjectId: pp.id,
-                  captacao,
+                  kind: "READEQUADA",
+                  lines: readequada,
+                  totalApproved: total,
                 });
+                if (!pp.sheet) {
+                  await persistHomologatedSheet({
+                    planningProjectId: pp.id,
+                    lines: readequada,
+                    totalApproved: total,
+                    importSource: "SALIC_READEQUADA",
+                    sourceFilename: "SALIC planilha readequada",
+                  });
+                  created += 1;
+                } else {
+                  await applyPlanningSheetFromSalic({
+                    planningProjectId: pp.id,
+                    lines: readequada,
+                    importSource: "SALIC_READEQUADA",
+                  });
+                  refreshed += 1;
+                }
+                await prisma.planningProject.update({
+                  where: { id: pp.id },
+                  data: {
+                    sheetSearchActive: false,
+                    readequadaAppliedAt: new Date(),
+                    readequadaNoticeSeenAt: null,
+                  },
+                });
+                if (pp.sheet) await notifyReadequadaApplied(pp.id);
+              } else if (!pp.sheet) {
+                const homologada = await tryHomologadaOnPage(page, listed.IdPRONAC);
+                if (!homologada) {
+                  skipped += 1;
+                  errors.push(`${pp.externalCode}: nenhuma planilha utilizável no SALIC.`);
+                  continue;
+                }
+                await saveSheetVersion({
+                  planningProjectId: pp.id,
+                  kind: "HOMOLOGADA",
+                  lines: homologada,
+                  totalApproved: sheetTotal(homologada),
+                });
+                await persistHomologatedSheet({
+                  planningProjectId: pp.id,
+                  lines: homologada,
+                  totalApproved: sheetTotal(homologada),
+                  importSource: "SALIC_HOMOLOGADA",
+                  sourceFilename: "SALIC planilha homologada",
+                });
+                created += 1;
+              }
+            }
+
+            // Captação segue do SALIC enquanto o projeto estiver ativo.
+            if (listed.idPronacHash) {
+              try {
+                const captacao = await fetchCaptacaoOnPage(page, listed.idPronacHash);
+                await applyCaptacaoToPlanningProject({ planningProjectId: pp.id, captacao });
               } catch {
                 // captação opcional
               }
             }
 
-            const cleanName = sanitizeSalicText(
-              preferred.projectName || listed.NomeProjeto,
-            );
+            const cleanName = sanitizeSalicText(listed.NomeProjeto);
             if (cleanName) {
               await prisma.planningProject.update({
                 where: { id: pp.id },

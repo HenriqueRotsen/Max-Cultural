@@ -8,6 +8,8 @@ export type NotificationPrefs = {
   taxDueIss: boolean;
   taxDueFederal: boolean;
   salicDiligencia: boolean;
+  readequadaApplied: boolean;
+  evaluationPending: boolean;
   emailEnabled: boolean;
   dueSoonDaysAhead: number;
   nfPendingDaysAfterPaid: number;
@@ -21,6 +23,8 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   taxDueIss: true,
   taxDueFederal: true,
   salicDiligencia: true,
+  readequadaApplied: true,
+  evaluationPending: true,
   emailEnabled: false,
   dueSoonDaysAhead: 5,
   nfPendingDaysAfterPaid: 7,
@@ -37,7 +41,9 @@ export const NOTIFICATION_TYPE_META: Record<
       | "nfPending"
       | "taxDueIss"
       | "taxDueFederal"
-      | "salicDiligencia";
+      | "salicDiligencia"
+      | "readequadaApplied"
+      | "evaluationPending";
   }
 > = {
   PAYMENT_DUE_SOON: { label: "Pagamento previsto", prefKey: "paymentDueSoon" },
@@ -52,6 +58,14 @@ export const NOTIFICATION_TYPE_META: Record<
   SALIC_DILIGENCIA: {
     label: "Diligência no SALIC",
     prefKey: "salicDiligencia",
+  },
+  READEQUADA_APPLIED: {
+    label: "Planilha readequada aplicada",
+    prefKey: "readequadaApplied",
+  },
+  EVALUATION_PENDING: {
+    label: "Avaliar fornecedor",
+    prefKey: "evaluationPending",
   },
 };
 
@@ -72,5 +86,7 @@ export function enabledNotificationTypes(
   if (prefs.taxDueIss) types.push("TAX_DUE_ISS");
   if (prefs.taxDueFederal) types.push("TAX_DUE_FEDERAL");
   if (prefs.salicDiligencia) types.push("SALIC_DILIGENCIA");
+  if (prefs.readequadaApplied) types.push("READEQUADA_APPLIED");
+  if (prefs.evaluationPending) types.push("EVALUATION_PENDING");
   return types;
 }

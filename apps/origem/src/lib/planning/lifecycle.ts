@@ -80,6 +80,7 @@ export function importSourceLabel(source: string | null | undefined): string {
   if (source === "SALIC_HOMOLOGADA") return "Planilha do SALIC";
   if (source === "SALIC_READEQUADA") return "Readequação do SALIC";
   if (source === "STATE_FILE") return "Arquivo estadual";
+  if (source === "STATE_MANUAL") return "Rubricas lançadas à mão";
   return "Sem planilha";
 }
 

@@ -273,6 +273,9 @@ model CatalogEngagement {
   ratingComment String?
   delayed     Boolean   @default(false)
   delayDays   Int?
+  /** Avaliação feita após o pagamento (nota, prazo/atraso, comentário). */
+  evaluatedAt   DateTime?
+  evaluatedById String?
   notes       String?
   /** Origem (sempre o Planejamento): PLANNING_NF | PLANNING_RPA | PLANNING_MANUAL | PLANNING_PEDIDO */
   source             String  @default("PLANNING_MANUAL")
@@ -340,6 +343,8 @@ enum AppNotificationType {
   TAX_DUE_ISS
   TAX_DUE_FEDERAL
   SALIC_DILIGENCIA
+  READEQUADA_APPLIED
+  EVALUATION_PENDING
 }
 
 /** Projeto de execução no Planejamento (planilha homologada one-shot). */
@@ -359,8 +364,17 @@ model PlanningProject {
    */
   situacao       String?
   situacaoAt     DateTime?
-  /** Valor captado (Dados do Projeto no SALIC): base do saldo do planejamento. */
+  /** Valor captado: do SALIC no federal; informado à mão no estadual. Base do saldo. */
   valorCaptado   Decimal?  @db.Decimal(14, 2)
+  /** Federal: segue procurando a planilha readequada no SALIC até encontrá-la ou encerrar. */
+  sheetSearchActive      Boolean   @default(true)
+  /** Quando a readequada passou a ser a planilha de trabalho (aviso no projeto). */
+  readequadaAppliedAt    DateTime?
+  readequadaNoticeSeenAt DateTime?
+  /** Encerramento manual (com confirmação dupla); projeto encerrado some do Origem. */
+  closedAt               DateTime?
+  closedById             String?
+  closeReason            String?
   importedAt     DateTime?
   /** SALIC_HOMOLOGADA | STATE_FILE */
   importSource   String?
@@ -390,6 +404,7 @@ model PlanningProject {
   documents       PlanningDocument[]
   pedidos         PlanningPedido[]
   readequacaoDrafts PlanningReadequacaoDraft[]
+  sheetVersions   ProjectBudgetSheetVersion[]
 
   @@unique([workspaceId, accountId, externalCode])
   @@index([workspaceId, updatedAt])
@@ -404,6 +419,23 @@ enum BudgetHierarchyLockLevel {
   STAGE
   CITY
   ITEM
+}
+
+/** Cópia fixa de cada planilha do SALIC que o projeto usou (homologada, readequada). */
+model ProjectBudgetSheetVersion {
+  id                String   @id @default(cuid())
+  planningProjectId String
+  /** HOMOLOGADA | READEQUADA */
+  kind              String
+  fetchedAt         DateTime @default(now())
+  totalApproved     Decimal  @db.Decimal(14, 2)
+  /** HomologatedLine[] como veio do SALIC. */
+  linesJson         Json
+
+  planningProject PlanningProject @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+
+  @@index([planningProjectId, kind])
+  @@map("project_budget_sheet_versions")
 }
 
 model ProjectBudgetSheet {
@@ -691,8 +723,12 @@ model NotificationSettings {
   taxDueIss        Boolean  @default(true)
   /** Aviso de retenções federais — vencimento típico dia 20 do mês seguinte. */
   taxDueFederal    Boolean  @default(true)
-  /** Aviso quando o PRONAC entra em diligência no SALIC. */
+  /** Aviso (da Auditoria) quando o PRONAC entra em diligência no SALIC. */
   salicDiligencia  Boolean  @default(true)
+  /** Aviso quando o projeto passa a usar a planilha readequada. */
+  readequadaApplied Boolean @default(true)
+  /** Lembrete para avaliar o fornecedor depois do pagamento. */
+  evaluationPending Boolean @default(true)
   /** Enviar também por e-mail (Resend) para o e-mail da conta. */
   emailEnabled     Boolean  @default(false)
   /** Quantos dias antes do vencimento gerar/mostrar aviso de pagamento previsto. */

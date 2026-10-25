@@ -104,6 +104,20 @@ export function NotificationSettingsForm({
           label="Diligência no SALIC"
           description="Aviso da Auditoria quando um PRONAC do workspace entrar em diligência."
         />
+
+        <ToggleSwitch
+          name="readequadaApplied"
+          defaultChecked={prefs.readequadaApplied}
+          label="Planilha readequada aplicada"
+          description="Quando o SALIC publica a readequada e o projeto passa a usá-la no lugar da homologada."
+        />
+
+        <ToggleSwitch
+          name="evaluationPending"
+          defaultChecked={prefs.evaluationPending}
+          label="Avaliar fornecedor"
+          description="Lembrete para dar nota e registrar atraso depois que o pagamento é feito."
+        />
       </div>
 
       <div className="border-t border-[var(--border)] pt-4">

@@ -10,9 +10,13 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
 import {
+  canCloseProject,
   canEditRubricas,
   canReadequacao,
 } from "@/lib/planning/acl";
+import { CloseProjectButton } from "@/components/planning/CloseProjectButton";
+import { StateBudgetEditor } from "@/components/planning/StateBudgetEditor";
+import { dismissReadequadaNotice } from "@/lib/planning/project-actions";
 import {
   importSourceLabel,
   isFederalPlanning,
@@ -92,6 +96,20 @@ export default async function PlanningProjectPage({
   const isFederal = isFederalPlanning(project.jurisdiction);
   const allowReadequacao = await canReadequacao();
   const closed = project.lifecycleStatus === "ENCERRADO";
+  const allowClose = !project.closedAt && (await canCloseProject());
+  const [sheetVersionCount, evaluationPending] = await Promise.all([
+    prisma.projectBudgetSheetVersion.count({ where: { planningProjectId: project.id } }),
+    allowClose
+      ? prisma.rubricCommitment.count({
+          where: {
+            planningProjectId: project.id,
+            status: "PAID",
+            engagement: { evaluatedAt: null },
+          },
+        })
+      : Promise.resolve(0),
+  ]);
+  const showReadequadaNotice = Boolean(project.readequadaAppliedAt && !project.readequadaNoticeSeenAt);
 
   const editableLines: EditableRubricLine[] =
     project.sheet && bal
@@ -141,24 +159,54 @@ export default async function PlanningProjectPage({
             <span>
               {jurisdictionLabel(project.jurisdiction)} · {project.account.name}
             </span>
-            {project.importSource ||
-            (isFederal && project.situacao) ? (
-              <FieldHelp
-                text={[
-                  project.importSource
-                    ? `Fonte: ${importSourceLabel(project.importSource)}`
-                    : null,
-                  isFederal && project.situacao
-                    ? `Situação SALIC: ${project.situacao}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              />
+            {project.importSource ? (
+              <FieldHelp text={`Fonte: ${importSourceLabel(project.importSource)}`} />
             ) : null}
           </span>
         }
       />
+
+      {showReadequadaNotice ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
+          <span>
+            Este projeto passou a usar a <strong>planilha readequada</strong> do SALIC em{" "}
+            {project.readequadaAppliedAt!.toLocaleDateString("pt-BR")}. As reservas e pagamentos
+            foram mantidos.
+          </span>
+          <span className="flex items-center gap-2">
+            <Link href={`/planejamento/${project.id}/planilhas`} className="btn btn-ghost">
+              Ver planilha anterior
+            </Link>
+            <form action={dismissReadequadaNotice.bind(null, project.id)}>
+              <button type="submit" className="btn">
+                Entendi
+              </button>
+            </form>
+          </span>
+        </div>
+      ) : null}
+
+      {sheetVersionCount > 0 || allowClose ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {sheetVersionCount > 0 ? (
+            <Link href={`/planejamento/${project.id}/planilhas`} className="btn btn-ghost">
+              Planilhas do SALIC
+            </Link>
+          ) : null}
+          {allowClose ? (
+            <CloseProjectButton
+              projectId={project.id}
+              externalCode={project.externalCode}
+              projectName={project.name || project.externalCode}
+              summary={{
+                openReservations: project.commitments.filter((c) => c.status === "RESERVED").length,
+                nfPending: project.commitments.filter((c) => c.nfPending).length,
+                evaluationPending,
+              }}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       <PlanningProjectActions
         projectId={project.id}
@@ -171,6 +219,35 @@ export default async function PlanningProjectPage({
         editableLines={editableLines}
         totalApproved={project.sheet ? money(project.sheet.totalApproved) : 0}
       />
+
+      {!isFederal ? (
+        <StateBudgetEditor
+          projectId={project.id}
+          uf={project.jurisdiction}
+          canEdit={allowEditRubricas}
+          lines={(project.sheet?.lines || []).map((l) => {
+            const reserved = project.commitments
+              .filter((c) => c.budgetLineId === l.id)
+              .reduce((sum, c) => sum + money(c.amount), 0);
+            return {
+              id: l.id,
+              fonteRecurso: l.fonteRecurso,
+              productName: l.productName,
+              stageName: l.stageName,
+              state: l.state,
+              city: l.city,
+              itemName: l.itemName,
+              unit: l.unit,
+              quantity: money(l.quantity),
+              occurrences: money(l.occurrences),
+              unitPrice: money(l.unitPrice),
+              approvedAmount: money(l.approvedAmount),
+              reserved,
+              inUse: reserved > 0,
+            };
+          })}
+        />
+      ) : null}
 
       {bal && project.sheet ? (
         <>

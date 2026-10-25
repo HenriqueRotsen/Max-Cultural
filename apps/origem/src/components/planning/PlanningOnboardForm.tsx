@@ -30,6 +30,7 @@ export function PlanningOnboardForm({
   const [uf, setUf] = useState("SP");
   const [accountId, setAccountId] = useState("");
   const [projectCode, setProjectCode] = useState("");
+  const [stateName, setStateName] = useState("");
   const [fedState, fedAction, fedPending] = useActionState(
     startPlanningProjectFederal,
     initial,
@@ -134,7 +135,9 @@ export function PlanningOnboardForm({
       ) : (
         <form action={stAction} className="card space-y-4 p-5">
           <p className="text-sm text-[var(--gray-500)]">
-            Envie o arquivo da planilha homologada estadual (xlsx/csv/json) uma única vez.
+            Projeto estadual começa do zero: depois de criar, lance as rubricas (mesma estrutura do
+            federal) e o valor captado no próprio projeto. Se já tiver a planilha num arquivo, pode
+            importar (opcional).
           </p>
           <label className="field">
             <span>UF</span>
@@ -191,18 +194,29 @@ export function PlanningOnboardForm({
               onChange={(e) => setProjectCode(e.target.value)}
             />
           </label>
+          <label className="field">
+            <span>Nome do projeto</span>
+            <input
+              name="projectName"
+              required
+              className="w-full"
+              value={stateName}
+              onChange={(e) => setStateName(e.target.value)}
+            />
+          </label>
           <FluxoContextField
             accountId={accountId}
             projectCode={projectCode}
-            projectNameHint={projectCode}
+            projectNameHint={stateName || projectCode}
             disabled={!accountId || !projectCode.trim()}
+            skipSalic
           />
           <label className="field">
-            <span>Arquivo da planilha homologada</span>
-            <input name="sheetFile" type="file" accept=".xlsx,.xls,.csv,.json" required />
+            <span>Arquivo da planilha (opcional)</span>
+            <input name="sheetFile" type="file" accept=".xlsx,.xls,.csv,.json" />
           </label>
           <button type="submit" className="btn" disabled={pending || !accounts.length}>
-            {pending ? "Importando…" : "Iniciar e importar arquivo"}
+            {pending ? "Criando…" : "Criar projeto estadual"}
           </button>
         </form>
       )}

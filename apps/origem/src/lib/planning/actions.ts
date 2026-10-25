@@ -98,15 +98,28 @@ export async function updatePlanningCaptacao(
     return n;
   };
 
-  // Recebido/Transferido/Captado vêm do SALIC; aqui só editamos rendimentos.
+  // Federal: captado/recebido/transferido vêm do SALIC (só rendimentos aqui).
+  // Estadual: não há site, então tudo é informado à mão.
   const rendimentos = parseMoneyField("rendimentos");
   if (rendimentos != null && Number.isNaN(rendimentos)) {
     return { error: "Valor de rendimentos inválido" };
   }
+  const manual: {
+    valorCaptado?: number | null;
+    captadoRecebido?: number | null;
+    captadoTransferido?: number | null;
+  } = {};
+  if (!isFederalPlanning(project.jurisdiction)) {
+    for (const key of ["valorCaptado", "captadoRecebido", "captadoTransferido"] as const) {
+      const v = parseMoneyField(key);
+      if (v != null && Number.isNaN(v)) return { error: "Valor de captação inválido" };
+      manual[key] = v;
+    }
+  }
 
   await prisma.planningProject.update({
     where: { id: planningProjectId },
-    data: { rendimentos },
+    data: { rendimentos, ...manual },
   });
   revalidatePlanning(planningProjectId);
   return { ok: true };
@@ -1771,6 +1784,8 @@ export async function saveNotificationSettings(
       taxDueIss: formData.get("taxDueIss") === "on",
       taxDueFederal: formData.get("taxDueFederal") === "on",
       salicDiligencia: formData.get("salicDiligencia") === "on",
+      readequadaApplied: formData.get("readequadaApplied") === "on",
+      evaluationPending: formData.get("evaluationPending") === "on",
       emailEnabled: formData.get("emailEnabled") === "on",
       dueSoonDaysAhead,
       nfPendingDaysAfterPaid,
@@ -1783,6 +1798,8 @@ export async function saveNotificationSettings(
       taxDueIss: formData.get("taxDueIss") === "on",
       taxDueFederal: formData.get("taxDueFederal") === "on",
       salicDiligencia: formData.get("salicDiligencia") === "on",
+      readequadaApplied: formData.get("readequadaApplied") === "on",
+      evaluationPending: formData.get("evaluationPending") === "on",
       emailEnabled: formData.get("emailEnabled") === "on",
       dueSoonDaysAhead,
       nfPendingDaysAfterPaid,
@@ -2158,6 +2175,53 @@ export async function refreshPaymentDueNotifications(opts?: {
           body,
           href,
         }).catch(() => false);
+      }
+    }
+  }
+
+  if (prefs.evaluationPending) {
+    // Pago há 2+ dias sem avaliação do fornecedor (nota, prazo/atraso).
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 2);
+    const toEvaluate = await prisma.rubricCommitment.findMany({
+      where: {
+        workspaceId: entitlements.workspaceId,
+        status: "PAID",
+        paidAt: { lte: cutoff },
+        engagement: { evaluatedAt: null },
+        planningProject: { closedAt: null },
+      },
+      include: {
+        planningProject: { select: { externalCode: true } },
+        engagement: {
+          select: { service: { select: { supplier: { select: { name: true } } } } },
+        },
+      },
+      take: 50,
+    });
+    for (const c of toEvaluate) {
+      const href = `/planejamento/compromissos/${c.id}#avaliar`;
+      const existing = await prisma.appNotification.findFirst({
+        where: { workspaceId: entitlements.workspaceId, type: "EVALUATION_PENDING", href },
+        select: { id: true },
+      });
+      if (existing) continue;
+      const supplier = c.engagement.service.supplier.name || "o fornecedor";
+      const title = `Avaliar fornecedor — ${c.planningProject.externalCode}`;
+      const body = `Como foi ${supplier}? Dê uma nota e informe se houve atraso (pagamento de R$ ${Number(c.amount).toFixed(2)}).`;
+      await prisma.appNotification.create({
+        data: {
+          workspaceId: entitlements.workspaceId,
+          userId: session.id,
+          type: "EVALUATION_PENDING",
+          title,
+          body,
+          href,
+          meta: { commitmentId: c.id },
+        },
+      });
+      if (prefs.emailEnabled && session.email) {
+        await sendNotificationEmail({ to: session.email, title, body, href }).catch(() => false);
       }
     }
   }
