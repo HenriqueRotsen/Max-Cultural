@@ -3,33 +3,32 @@ import { prisma } from "@/lib/db";
 import type { SyncOptions } from "@/lib/sync/run";
 
 /**
- * Fila do sync SALIC: auditoria de cada proponente → planejamento/Fluxo daquele
- * proponente → (no fim) espelho do catálogo. Uma etapa por vez (o mesmo usuário
- * SALIC pode atender vários proponentes) e, na Vercel, cada etapa em invocação
- * própria, com o limite de tempo inteiro.
+ * Filas de trabalho com o SALIC, uma etapa por vez (o mesmo usuário SALIC pode
+ * atender vários proponentes) e, na Vercel, cada etapa em invocação própria,
+ * com o limite de tempo inteiro.
+ *
+ * - "sync": Auditoria (espelho do SALIC). Não escreve em nenhum outro módulo.
+ * - "planning": Planejamento do proponente (planilhas, situação, captação),
+ *   pela sessão SALIC do próprio Planejamento — independente da Auditoria.
  */
 export type QueueJob =
   | { kind: "sync"; syncRunId: string; options: SyncOptions }
-  | { kind: "planning"; syncRunId: string; workspaceId: string; accountId: string }
-  | { kind: "catalog"; workspaceId: string };
+  | { kind: "planning"; workspaceId: string; accountId: string };
 
 export function buildSyncQueue(
   jobs: Array<{ run: { id: string }; options: SyncOptions & { salicAccountId: string; workspaceId: string } }>,
 ): QueueJob[] {
-  const queue: QueueJob[] = [];
-  for (const { run, options } of jobs) {
-    queue.push({ kind: "sync", syncRunId: run.id, options });
-    queue.push({
-      kind: "planning",
-      syncRunId: run.id,
-      workspaceId: options.workspaceId,
-      accountId: options.salicAccountId,
-    });
-  }
-  for (const workspaceId of new Set(jobs.map((j) => j.options.workspaceId))) {
-    queue.push({ kind: "catalog", workspaceId });
-  }
-  return queue;
+  return jobs.map(({ run, options }) => ({ kind: "sync", syncRunId: run.id, options }));
+}
+
+/** Uma etapa do Planejamento por proponente ativo dos workspaces Pro. */
+export async function buildPlanningQueue(): Promise<QueueJob[]> {
+  const accounts = await prisma.salicAccount.findMany({
+    where: { active: true, workspace: { plan: "PRO" } },
+    select: { id: true, workspaceId: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return accounts.map((a) => ({ kind: "planning", workspaceId: a.workspaceId, accountId: a.id }));
 }
 
 /** Token das chamadas internas entre etapas (não expõe o segredo bruto). */
@@ -73,36 +72,14 @@ async function handOff(queue: QueueJob[]): Promise<boolean> {
   }
 }
 
-async function appendRunLog(syncRunId: string, message: string) {
-  const run = await prisma.syncRun.findUnique({
-    where: { id: syncRunId },
-    select: { log: true },
-  });
-  if (!run) return;
-  await prisma.syncRun.update({
-    where: { id: syncRunId },
-    data: {
-      log: [run.log, message].filter(Boolean).join("\n"),
-      progressMessage: message,
-    },
-  });
-}
-
 async function runPlanningJob(job: Extract<QueueJob, { kind: "planning" }>) {
-  const run = await prisma.syncRun.findUnique({
-    where: { id: job.syncRunId },
-    select: { status: true },
-  });
-  if (run?.status !== "success" && run?.status !== "partial") return;
-
-  const log = (m: string) => appendRunLog(job.syncRunId, m).catch(() => undefined);
-  await log("Atualizando planejamento e contextos do Fluxo…");
+  const log = async (m: string) => console.log(`[planejamento ${job.accountId}] ${m}`);
   try {
     const { syncPlanningForWorkspace } = await import("@/lib/planning/federal/daily-sync");
     await syncPlanningForWorkspace(job.workspaceId, job.accountId, log);
     await log("Concluído · planejamento atualizado");
   } catch (error) {
-    await log(`Planejamento: falhou (${error instanceof Error ? error.message : String(error)})`);
+    console.error(`[planejamento ${job.accountId}] falhou:`, error);
   }
 }
 
@@ -110,12 +87,8 @@ async function runJob(job: QueueJob) {
   if (job.kind === "sync") {
     const { executeSyncRunSafe } = await import("@/lib/sync/run");
     await executeSyncRunSafe(job.syncRunId, { ...job.options, forceCrawler: true });
-  } else if (job.kind === "planning") {
-    await runPlanningJob(job);
   } else {
-    // Incremental: se o tempo acabar, a próxima rodada continua de onde parou.
-    const { ensureCatalogFromAudit } = await import("@/lib/catalog/from-audit");
-    await ensureCatalogFromAudit(job.workspaceId);
+    await runPlanningJob(job);
   }
 }
 
@@ -129,4 +102,48 @@ export async function runSyncQueue(queue: QueueJob[], { handOffFirst = false } =
     rest = tail;
     if (rest.length > 0 && (await handOff(rest))) return;
   }
+}
+
+/** Pendentes há mais que isso ficaram órfãs: a fila do dia cabe folgada em 1 h. */
+const RESUME_PENDING_AFTER_MS = 60 * 60 * 1000;
+/** Não retoma rodadas antigas — a do dia seguinte já cuida da conta. */
+const RESUME_PENDING_MAX_AGE_MS = 20 * 60 * 60 * 1000;
+
+/**
+ * Retomada da Auditoria: quando uma etapa estoura o tempo, a invocação morre sem
+ * repassar o resto da fila. Recoloca as rodadas que ficaram "pending".
+ * Vazio = nada a fazer ou ainda há rodada em execução.
+ */
+export async function buildResumeQueue(): Promise<QueueJob[]> {
+  const { closeDeadRunningRuns } = await import("@/lib/sync/run");
+
+  await closeDeadRunningRuns();
+  if ((await prisma.syncRun.count({ where: { status: "running" } })) > 0) return [];
+
+  const now = Date.now();
+  const pending = await prisma.syncRun.findMany({
+    where: {
+      status: "pending",
+      salicAccount: { active: true },
+      createdAt: {
+        lt: new Date(now - RESUME_PENDING_AFTER_MS),
+        gt: new Date(now - RESUME_PENDING_MAX_AGE_MS),
+      },
+      // Sync manual de PRONACs específicos não é refeito como conta inteira.
+      NOT: { log: { contains: "PRONAC=" } },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, salicAccountId: true, salicAccount: { select: { workspaceId: true } } },
+  });
+
+  return buildSyncQueue(
+    pending.map((run) => ({
+      run: { id: run.id },
+      options: {
+        salicAccountId: run.salicAccountId!,
+        workspaceId: run.salicAccount!.workspaceId,
+        forceCrawler: true,
+      },
+    })),
+  );
 }

@@ -63,7 +63,6 @@ export default async function CatalogFavoritesPage() {
                   <p className="truncate text-sm text-[var(--gray-500)]">
                     {formatCgccpf(s.cnpj)}
                     {s.city && s.state ? ` · ${s.city}/${s.state}` : ""}
-                    {s.fromAudit ? " · Auditoria" : ""}
                   </p>
                 </Link>
                 <CatalogFavoriteButton supplierId={s.id} favorited />

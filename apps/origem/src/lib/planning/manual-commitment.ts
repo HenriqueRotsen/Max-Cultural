@@ -52,16 +52,15 @@ async function loadProjectForReservation(planningProjectId: string) {
     include: {
       sheet: { include: { lines: true } },
       commitments: { where: { status: { in: ["RESERVED", "PAID"] } } },
-      project: { select: { valorCaptado: true } },
     },
   });
   if (!project?.sheet) return { error: "Projeto sem planilha" as const };
   const valorCaptado =
-    (project.project?.valorCaptado != null
-      ? Number(project.project.valorCaptado)
+    (project.valorCaptado != null
+      ? Number(project.valorCaptado)
       : null) ?? 0;
   const { loadPublishedPaidByLine } = await import(
-    "@/lib/planning/federal/audit-reconcile"
+    "@/lib/planning/federal/published-paid"
   );
   const publishedPaidByLine = await loadPublishedPaidByLine(planningProjectId);
   const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");

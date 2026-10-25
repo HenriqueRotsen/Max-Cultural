@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { getHubSessionPayload, isHubSsoEnabled } from "@/lib/auth/hub";
 import { ensureBootstrapWorkspace } from "@/lib/auth/workspace";
 import { computeProjectBalance } from "@/lib/planning/rubric-balance";
-import { loadPublishedPaidByLineBatch } from "@/lib/planning/federal/audit-reconcile";
+import { loadPublishedPaidByLineBatch } from "@/lib/planning/federal/published-paid";
 import {
   importSourceLabel,
   jurisdictionLabel,
@@ -141,7 +141,8 @@ function toSummary(
     rendimentos?: unknown;
     account: { name: string };
     ruleset: { sourceCode: string; version: string } | null;
-    project: { situacao: string | null; valorCaptado?: unknown } | null;
+    situacao?: string | null;
+    valorCaptado?: unknown;
     sheet: {
       totalApproved: unknown;
       lines: Array<{
@@ -161,7 +162,7 @@ function toSummary(
     ? computeProjectBalance({
         lines: p.sheet.lines,
         commitments: p.commitments,
-        valorCaptado: p.project?.valorCaptado,
+        valorCaptado: p.valorCaptado,
         captadoRecebido: p.captadoRecebido,
         captadoTransferido: p.captadoTransferido,
         rendimentos: p.rendimentos,
@@ -177,7 +178,7 @@ function toSummary(
     lawLabel: p.ruleset?.sourceCode || p.rulesetVersion || "—",
     lifecycleStatus: p.lifecycleStatus,
     lifecycleLabel: lifecycleLabel(p.lifecycleStatus),
-    situacao: p.project?.situacao || null,
+    situacao: p.situacao || null,
     jurisdiction: p.jurisdiction,
     jurisdictionLabel: jurisdictionLabel(p.jurisdiction),
     accountName: p.account.name,
@@ -209,7 +210,6 @@ export async function listHubProjectSummaries(
     include: {
       account: { select: { name: true } },
       ruleset: { select: { sourceCode: true, version: true } },
-      project: { select: { situacao: true, valorCaptado: true } },
       sheet: {
         include: {
           lines: {
@@ -259,7 +259,8 @@ export async function listHubProjectSummaries(
         rendimentos: r.rendimentos,
         account: r.account,
         ruleset: r.ruleset,
-        project: r.project,
+        situacao: r.situacao,
+        valorCaptado: r.valorCaptado,
         sheet: r.sheet
           ? {
               totalApproved: r.sheet.totalApproved,
@@ -284,7 +285,6 @@ export async function getHubProjectBySlug(
     include: {
       account: { select: { name: true } },
       ruleset: { select: { sourceCode: true, version: true } },
-      project: { select: { situacao: true, valorCaptado: true } },
       sheet: {
         include: {
           lines: {
@@ -334,7 +334,8 @@ export async function getHubProjectBySlug(
         rendimentos: r.rendimentos,
         account: r.account,
         ruleset: r.ruleset,
-        project: r.project,
+        situacao: r.situacao,
+        valorCaptado: r.valorCaptado,
         sheet: r.sheet
           ? {
               totalApproved: r.sheet.totalApproved,

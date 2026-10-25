@@ -36,7 +36,7 @@ const fornecedoresLinks = [
 const moduleLinks = [
   { href: "/planejamento", label: "Planejamento", icon: PlanIcon },
   { href: "/contas", label: "Proponentes", icon: BuildingIcon },
-  { href: "/inicio", label: "Auditoria", icon: AuditIcon },
+  { href: "/inicio", label: "Auditoria (antigo Salink)", icon: AuditIcon },
   { href: "/fornecedores", label: "Fornecedores", icon: UsersIcon },
 ];
 
@@ -122,7 +122,7 @@ export function AppSidebar({
           ? { title: "Fornecedores", links: fornecedores }
           : module === "planejamento"
             ? { title: "Planejamento", links: planejamento }
-            : { title: "Auditoria", links: auditoria };
+            : { title: "Auditoria (antigo Salink)", links: auditoria };
 
   return (
     <aside className="shell-sidebar">

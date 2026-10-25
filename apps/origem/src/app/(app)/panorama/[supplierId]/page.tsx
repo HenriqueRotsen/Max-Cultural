@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { getSupplierDetail } from "@/lib/audit";
-import { formatCurrency, formatCgccpf, normalizeCgccpf } from "@/lib/format";
+import { formatCurrency, formatCgccpf } from "@/lib/format";
 import { getWorkspaceContext } from "@/lib/auth/session";
-import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { SupplierPaymentsTable } from "@/components/SupplierPaymentsTable";
@@ -25,7 +24,6 @@ export default async function SupplierDetailPage({
   const accountId = typeof sp.accountId === "string" ? sp.accountId : undefined;
   const pronac = typeof sp.pronac === "string" ? sp.pronac : undefined;
   const fromFornecedores = sp.from === "fornecedores";
-  const fromCatalog = sp.from === "catalog";
   const fromAuditoria = sp.from === "auditoria";
 
   const detail = await getSupplierDetail(supplierId, {
@@ -41,31 +39,21 @@ export default async function SupplierDetailPage({
     reportQs.toString() ? `?${reportQs.toString()}` : ""
   }`;
 
-  const catalog = await prisma.catalogSupplier.findUnique({
-    where: {
-      workspaceId_cnpj: {
-        workspaceId: entitlements.workspaceId,
-        cnpj: normalizeCgccpf(detail.supplier.cgccpf),
-      },
-    },
-    select: { id: true },
-  });
-
   return (
     <div className="space-y-6">
       <div>
         <Link
           href={
-            fromCatalog || fromFornecedores
-              ? "/fornecedores/empresas"
+            fromFornecedores
+              ? "/observados"
               : fromAuditoria
                 ? "/fornecedores-pagos"
                 : "/panorama"
           }
           className="text-sm text-[var(--gray-500)] hover:text-[var(--navy)]"
         >
-          {fromCatalog || fromFornecedores
-            ? "← Voltar ao banco de preços"
+          {fromFornecedores
+            ? "← Voltar aos observados"
             : fromAuditoria
               ? "← Voltar aos fornecedores"
               : "← Voltar ao panorama"}
@@ -74,9 +62,7 @@ export default async function SupplierDetailPage({
 
       <PageHeader
         breadcrumb={
-          fromCatalog
-            ? "Fornecedores › Auditoria › Detalhe"
-            : fromFornecedores
+          fromFornecedores
               ? "Início › Observados › Detalhe"
               : fromAuditoria
                 ? "Auditoria › Fornecedores › Detalhe"
@@ -86,16 +72,6 @@ export default async function SupplierDetailPage({
         description={`CNPJ/CPF ${formatCgccpf(detail.supplier.cgccpf)} · ${formatCurrency(detail.total)} · ${detail.payments.length} pagamentos`}
         actions={
           <>
-            <Link
-              href={
-                catalog
-                  ? `/fornecedores/empresas/${catalog.id}`
-                  : `/fornecedores/empresas?q=${normalizeCgccpf(detail.supplier.cgccpf)}`
-              }
-              className="btn btn-ghost"
-            >
-              Banco de preços
-            </Link>
             <ReportDownloadButton href={reportHref} label="Gerar relatório PDF" />
           </>
         }

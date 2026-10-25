@@ -233,10 +233,6 @@ export async function executeSalicPublishPackage(params: {
     },
   });
 
-  const { linkPlanningEngagementsToAuditPayments } = await import(
-    "@/lib/planning/federal/audit-reconcile"
-  );
-  await linkPlanningEngagementsToAuditPayments(planningProjectId);
 }
 
 export async function markSalicRepublishAfterNfAttach(proofId: string): Promise<boolean> {

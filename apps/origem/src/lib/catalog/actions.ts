@@ -166,13 +166,10 @@ export async function deleteCatalogSupplier(id: string) {
   const ws = await workspaceId();
   const current = await prisma.catalogSupplier.findFirst({
     where: { id, workspaceId: ws },
-    select: { fromAudit: true },
+    select: { id: true },
   });
   if (!current) {
     redirect("/fornecedores/empresas");
-  }
-  if (current.fromAudit) {
-    redirect(`/fornecedores/empresas/${id}`);
   }
   await prisma.catalogSupplier.deleteMany({ where: { id, workspaceId: ws } });
   refreshCatalog();
@@ -328,9 +325,6 @@ export async function deleteCatalogEngagement(id: string) {
     include: { commitment: { select: { id: true } } },
   });
   if (!row) return;
-  if (row.salicPaymentId) {
-    redirect("/fornecedores/contratacoes");
-  }
   if (row.commitment) {
     redirect("/fornecedores/contratacoes");
   }

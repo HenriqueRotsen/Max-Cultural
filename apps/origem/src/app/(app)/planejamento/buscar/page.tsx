@@ -149,7 +149,6 @@ export default async function BuscarSaldoPage({
       },
       include: {
         account: { select: { id: true, name: true } },
-        project: { select: { valorCaptado: true } },
         sheet: { include: { lines: true } },
         commitments: {
           where: { status: { in: ["RESERVED", "PAID"] } },
@@ -204,7 +203,7 @@ export default async function BuscarSaldoPage({
     const bal = computeProjectBalance({
       lines: p.sheet.lines,
       commitments: p.commitments,
-      valorCaptado: p.project?.valorCaptado,
+      valorCaptado: p.valorCaptado,
       captadoRecebido: p.captadoRecebido,
       captadoTransferido: p.captadoTransferido,
       rendimentos: p.rendimentos,

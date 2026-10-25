@@ -58,11 +58,6 @@ export default async function CatalogSupplierDetailPage({
       select: { id: true },
     })) != null;
 
-  const salic = await prisma.supplier.findUnique({
-    where: { cgccpf: supplier.cnpj },
-    select: { id: true },
-  });
-
   const engagementCount = supplier.services.reduce((sum, s) => sum + s._count.engagements, 0);
   const isCnpj = supplier.cnpj.replace(/\D/g, "").length === 14;
   const hasPayment =
@@ -87,7 +82,7 @@ export default async function CatalogSupplierDetailPage({
             />
           </span>
         }
-        description={`${formatCgccpf(supplier.cnpj)}${supplier.city && supplier.state ? ` · ${supplier.city}/${supplier.state}` : ""}${supplier.fromAudit ? " · origem na Auditoria SALIC" : ""}`}
+        description={`${formatCgccpf(supplier.cnpj)}${supplier.city && supplier.state ? ` · ${supplier.city}/${supplier.state}` : ""}`}
         actions={
           <>
             <CatalogFavoriteButton supplierId={supplier.id} favorited={favorited} />
@@ -97,23 +92,16 @@ export default async function CatalogSupplierDetailPage({
             <Link href={`/fornecedores/empresas/${supplier.id}/editar`} className="btn btn-ghost">
               Editar
             </Link>
-            {salic ? (
-              <Link href={`/panorama/${salic.id}?from=catalog`} className="btn btn-ghost">
-                Ver na auditoria
-              </Link>
-            ) : null}
-            {supplier.fromAudit ? null : (
-              <form action={deleteCatalogSupplier.bind(null, supplier.id)}>
-                <ConfirmSubmitButton
-                  className="btn btn-ghost"
-                  message={`Excluir “${supplier.name}”? Serviços e ${engagementCount} contratações vinculadas serão removidos.`}
-                  title="Excluir fornecedor"
-                  confirmLabel="Excluir"
-                >
-                  Excluir
-                </ConfirmSubmitButton>
-              </form>
-            )}
+            <form action={deleteCatalogSupplier.bind(null, supplier.id)}>
+              <ConfirmSubmitButton
+                className="btn btn-ghost"
+                message={`Excluir “${supplier.name}”? Serviços e ${engagementCount} contratações vinculadas serão removidos.`}
+                title="Excluir fornecedor"
+                confirmLabel="Excluir"
+              >
+                Excluir
+              </ConfirmSubmitButton>
+            </form>
           </>
         }
       />

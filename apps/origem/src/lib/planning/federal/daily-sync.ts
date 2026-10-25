@@ -1,108 +1,17 @@
-import { prisma } from "@/lib/db";
-import { classifyLifecycleFromSituacao } from "@/lib/planning/lifecycle";
-import { listPlanningRulesets } from "@/lib/planning/rulesets";
 import { syncCaptacaoForWorkspace } from "@/lib/planning/federal/captacao-salic";
 import { refreshPlanningSheetsForWorkspace } from "@/lib/planning/federal/sync-sheet";
-import { syncFluxoProjeto } from "@/lib/planning/server-utils";
-import { sanitizeSalicText } from "@/lib/salic/text";
 
 /**
- * Leva os projetos da auditoria (já sincronizados do SALIC) para o planejamento:
- * cria os que faltam, espelha em andamento/encerrado e provisiona o contexto no Fluxo.
- */
-export async function onboardPlanningFromAuditoria(
-  workspaceId: string,
-  accountId?: string,
-): Promise<{
-  created: number;
-  updated: number;
-}> {
-  const rulesets = await listPlanningRulesets();
-  const rulesetVersion = rulesets[0]?.version;
-  if (!rulesetVersion) {
-    throw new Error("Nenhuma norma de conformidade ativa para vincular aos projetos.");
-  }
-
-  const auditProjects = await prisma.project.findMany({
-    where: { salicAccount: { workspaceId }, ...(accountId ? { salicAccountId: accountId } : {}) },
-    include: {
-      planningProject: { select: { id: true } },
-      salicAccount: { select: { id: true, name: true } },
-    },
-    orderBy: { pronac: "asc" },
-  });
-
-  let created = 0;
-  let updated = 0;
-
-  for (const p of auditProjects) {
-    const lifecycle =
-      p.lifecycleStatus === "ENCERRADO"
-        ? "ENCERRADO"
-        : classifyLifecycleFromSituacao(p.situacao);
-
-    const cleanName = sanitizeSalicText(p.name) || p.name;
-
-    if (p.planningProject) {
-      await prisma.planningProject.update({
-        where: { id: p.planningProject.id },
-        data: { lifecycleStatus: lifecycle, name: cleanName || undefined },
-      });
-      if (p.lifecycleStatus !== lifecycle) {
-        await prisma.project.update({
-          where: { id: p.id },
-          data: { lifecycleStatus: lifecycle },
-        });
-      }
-      if (cleanName && cleanName !== p.name) {
-        await prisma.project.update({
-          where: { id: p.id },
-          data: { name: cleanName },
-        });
-      }
-      updated += 1;
-    } else {
-      await prisma.planningProject.create({
-        data: {
-          workspaceId,
-          accountId: p.salicAccountId,
-          jurisdiction: "FEDERAL",
-          rulesetVersion,
-          externalCode: p.pronac,
-          name: cleanName,
-          projectId: p.id,
-          lifecycleStatus: lifecycle,
-        },
-      });
-      created += 1;
-    }
-
-    await syncFluxoProjeto({
-      pronac: p.pronac,
-      nome: cleanName || p.pronac,
-      proponente: p.salicAccount.name,
-      bulk: true,
-    });
-  }
-
-  return { created, updated };
-}
-
-/**
- * Etapa de planejamento do sync diário (roda depois da auditoria):
- * onboard → planilha homologada dos projetos em andamento → captação.
+ * Rotina diária do Planejamento, pela sessão SALIC do próprio proponente (não lê a
+ * Auditoria): planilha preferida (readequada → homologada) + situação do projeto
+ * → captação. Projetos novos entram pelo /planejamento/novo.
  */
 export async function syncPlanningForWorkspace(
   workspaceId: string,
   accountId?: string,
   log: (message: string) => Promise<void> = async () => {},
 ) {
-  const onboard = await onboardPlanningFromAuditoria(workspaceId, accountId);
-  await log(
-    `Planejamento: ${onboard.created} projeto(s) novo(s), ${onboard.updated} atualizado(s) · contextos no Fluxo conferidos`,
-  );
-
-  // Reimporta planilha preferida (readequada → homologada) + comprovado local.
+  // Reimporta planilha preferida (readequada → homologada), situação e comprovado.
   const sheets = await refreshPlanningSheetsForWorkspace(workspaceId, accountId);
   await log(
     `Planejamento: ${sheets.refreshed} planilha(s) atualizada(s)` +
@@ -117,5 +26,5 @@ export async function syncPlanningForWorkspace(
       (captacao.errors.length ? ` · ${captacao.errors.slice(0, 3).join(" · ")}` : ""),
   );
 
-  return { onboard, sheets, captacao };
+  return { sheets, captacao };
 }

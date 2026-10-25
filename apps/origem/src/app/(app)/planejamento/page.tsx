@@ -36,12 +36,11 @@ export default async function PlanejamentoIndexPage() {
         where: { status: { in: ["RESERVED", "PAID"] } },
         select: { budgetLineId: true, amount: true, status: true },
       },
-      project: { select: { situacao: true, valorCaptado: true } },
     },
   });
 
   const { loadPublishedPaidByLineBatch } = await import(
-    "@/lib/planning/federal/audit-reconcile"
+    "@/lib/planning/federal/published-paid"
   );
   const publishedByProject = await loadPublishedPaidByLineBatch(
     projects.map((p) => p.id),
@@ -52,7 +51,7 @@ export default async function PlanejamentoIndexPage() {
       ? computeProjectBalance({
           lines: p.sheet.lines,
           commitments: p.commitments,
-          valorCaptado: money(p.project?.valorCaptado),
+          valorCaptado: money(p.valorCaptado),
           captadoRecebido: p.captadoRecebido,
           captadoTransferido: p.captadoTransferido,
           rendimentos: p.rendimentos,
@@ -67,7 +66,7 @@ export default async function PlanejamentoIndexPage() {
       accountName: p.account.name,
       importedAt: p.importedAt?.toISOString() ?? null,
       importSource: p.importSource,
-      situacao: p.project?.situacao ?? null,
+      situacao: p.situacao ?? null,
       lifecycleStatus: p.lifecycleStatus,
       totalApproved: bal?.totalApproved ?? 0,
       totalSaldo: bal?.totalSaldo ?? 0,

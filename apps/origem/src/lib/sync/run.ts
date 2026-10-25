@@ -100,6 +100,19 @@ async function assertSyncStillActive(syncRunId: string) {
 /** Uma execução não passa do limite da função (300 s); acima disso ela morreu. */
 const STALE_RUN_MS = 8 * 60 * 1000;
 
+/** Marca como falha as execuções "running" cuja invocação já morreu. */
+export async function closeDeadRunningRuns() {
+  await prisma.syncRun.updateMany({
+    where: { status: "running", startedAt: { lt: new Date(Date.now() - STALE_RUN_MS) } },
+    data: {
+      status: "error",
+      finishedAt: new Date(),
+      progressMessage: "Falhou",
+      errorMessage: "Interrompida por tempo limite do servidor.",
+    },
+  });
+}
+
 async function closeStaleRuns() {
   await prisma.syncRun.updateMany({
     where: {
@@ -264,24 +277,6 @@ async function accountsForSync(options: SyncOptions) {
   });
 }
 
-async function mirrorCatalogForAccounts(accounts: Array<{ workspaceId: string }>) {
-  const { ensureCatalogFromAudit } = await import("@/lib/catalog/from-audit");
-  const ids = [...new Set(accounts.map((a) => a.workspaceId).filter(Boolean))];
-  for (const workspaceId of ids) {
-    await ensureCatalogFromAudit(workspaceId);
-  }
-}
-
-async function mirrorCatalogForWorkItems(items: WorkItem[]) {
-  const accountIds = [...new Set(items.map((i) => i.accountId))];
-  if (accountIds.length === 0) return;
-  const accounts = await prisma.salicAccount.findMany({
-    where: { id: { in: accountIds } },
-    select: { workspaceId: true },
-  });
-  await mirrorCatalogForAccounts(accounts);
-}
-
 async function buildWorkState(options: SyncOptions): Promise<WorkState> {
   const forceCrawler = options.forceCrawler ?? false;
   const pronacs = (options.pronacs || []).filter(Boolean);
@@ -397,7 +392,7 @@ export async function executeSyncRun(syncRunId: string, options: SyncOptions = {
       errorMessage: hadError && !hadSuccess ? allLogs[allLogs.length - 1] : null,
       workState: null,
     });
-    // Catálogo e planejamento rodam como etapas seguintes da fila (lib/sync/queue).
+    // Só a Auditoria: o Planejamento tem fila própria (lib/sync/queue, cron planning-daily).
   } catch (error) {
     if (error instanceof SyncCancelledError) {
       const current = await prisma.syncRun.findUnique({
@@ -515,7 +510,6 @@ export async function tickSyncRun(syncRunId: string) {
       progressTotal: workState.items.length,
       workState: null,
     });
-    await mirrorCatalogForWorkItems(workState.items);
     return {
       done: true as const,
       syncRun: await prisma.syncRun.findUniqueOrThrow({ where: { id: syncRunId } }),
@@ -571,10 +565,6 @@ export async function tickSyncRun(syncRunId: string) {
       workState: done ? null : workState,
     });
 
-    if (done) {
-      await mirrorCatalogForWorkItems(workState.items);
-    }
-
     return {
       done,
       syncRun: await prisma.syncRun.findUniqueOrThrow({ where: { id: syncRunId } }),
@@ -595,9 +585,6 @@ export async function tickSyncRun(syncRunId: string) {
       log: logs.join("\n"),
       workState: done ? null : workState,
     });
-    if (done) {
-      await mirrorCatalogForWorkItems(workState.items);
-    }
     return {
       done,
       syncRun: await prisma.syncRun.findUniqueOrThrow({ where: { id: syncRunId } }),
