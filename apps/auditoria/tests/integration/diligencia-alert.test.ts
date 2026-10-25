@@ -122,6 +122,25 @@ describe("alerta de diligência da Auditoria (mock Prisma)", () => {
     expect(update.data.status).toBeUndefined();
   });
 
+  it("projeto arquivado por não atender diligência não abre alerta", async () => {
+    const id = await recordSituacaoChange({
+      ...base,
+      previousSituacao: "E30-Análise de resposta de diligência",
+      nextSituacao: "A42-Arquivado - não atendimento à diligência técnica",
+    });
+    expect(id).toBeNull();
+    expect(mocks.alertCreate).not.toHaveBeenCalled();
+  });
+
+  it("análise de resposta de diligência conta como diligência", async () => {
+    const id = await recordSituacaoChange({
+      ...base,
+      previousSituacao: null,
+      nextSituacao: "E30-Análise de resposta de diligência",
+    });
+    expect(id).toBe("al1");
+  });
+
   it("sem diligência: nada acontece", async () => {
     await recordSituacaoChange({ ...base, previousSituacao: null, nextSituacao: "E10 - Em execução" });
     expect(mocks.alertFindFirst).not.toHaveBeenCalled();
