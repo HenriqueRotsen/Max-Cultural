@@ -42,6 +42,7 @@ export default async function ImportarProdutorPage({
     commitments: project.commitments,
     valorCaptado,
     captadoRecebido: project.captadoRecebido,
+    rubricOverrunPct: project.rubricOverrunPct,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
   });

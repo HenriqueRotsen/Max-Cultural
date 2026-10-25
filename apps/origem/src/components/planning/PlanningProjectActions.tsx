@@ -18,6 +18,7 @@ export function PlanningProjectActions({
   expiresAt,
   editableLines,
   totalApproved,
+  rubricOverrunPct = 100,
 }: {
   projectId: string;
   reservationsCount: number;
@@ -28,6 +29,7 @@ export function PlanningProjectActions({
   expiresAt: string | null;
   editableLines: EditableRubricLine[];
   totalApproved: number;
+  rubricOverrunPct?: number;
 }) {
   const [editRubricsOpen, setEditRubricsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -77,6 +79,7 @@ export function PlanningProjectActions({
           planningProjectId={projectId}
           totalApproved={totalApproved}
           lines={editableLines}
+          rubricOverrunPct={rubricOverrunPct}
           open={editRubricsOpen}
           onOpenChange={setEditRubricsOpen}
           hideTrigger

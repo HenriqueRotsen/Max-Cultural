@@ -44,6 +44,8 @@ export type ProjectBalance = {
   pctCaptadoOnly: number;
   operableBase: number;
   valorCaptado: number;
+  /** Quanto a rubrica pode passar do aprovado (com permissão), em %. Padrão 100 (2×). */
+  rubricOverrunPct: number;
   lines: Map<string, LineBalance>;
 };
 
@@ -151,6 +153,8 @@ export function computeProjectBalance(input: {
   publishedPaidByLine?: Map<string, number> | Record<string, number>;
   /** IDs de linhas bloqueadas (cadeado na hierarquia). */
   lockedLineIds?: Set<string> | Iterable<string>;
+  /** Limite do projeto para exceder a rubrica, em %. */
+  rubricOverrunPct?: unknown;
 }): ProjectBalance {
   const nearPct = input.nearPct ?? 0.8;
   const lockedIds =
@@ -252,7 +256,9 @@ export function computeProjectBalance(input: {
   // Saldo do projeto = teto − pago (não a soma dos saldos por rubrica).
   const totalSaldo = roundCents(projectCap - totalPaid);
 
+  const overrun = Number(input.rubricOverrunPct);
   return {
+    rubricOverrunPct: Number.isFinite(overrun) && overrun >= 0 ? overrun : 100,
     totalApproved: roundCents(totalApproved),
     totalAvailableCap: projectCap,
     totalReserved,
@@ -274,7 +280,7 @@ export type ReserveCheckResult =
 /**
  * Reserva:
  * - projeto: nunca além do teto operacional (o que se tem);
- * - rubrica: até o aprovado; com ACL, até 2× (IN atual);
+ * - rubrica: até o aprovado; com ACL, até o excesso definido no projeto;
  * - Administração: sem excesso na rubrica.
  */
 export function canReserveAmount(params: {
@@ -335,11 +341,12 @@ export function canReserveAmount(params: {
     return { ok: true, overflow: false };
   }
 
-  // Overflow ACL (IN): até 2× o aprovado da rubrica; teto do projeto já validado.
-  if (nextLineReserved > line.approved * 2 + 1e-6) {
+  // Overflow com permissão: até o excesso definido no projeto; teto do projeto já validado.
+  const factor = 1 + params.balance.rubricOverrunPct / 100;
+  if (nextLineReserved > line.approved * factor + 1e-6) {
     return {
       ok: false,
-      message: `Excesso acima de 100% da rubrica (máx. R$ ${(line.approved * 2).toFixed(2)})`,
+      message: `Excesso acima de ${params.balance.rubricOverrunPct.toLocaleString("pt-BR")}% da rubrica (máx. R$ ${(line.approved * factor).toFixed(2)})`,
     };
   }
   return { ok: true, overflow: nextLineReserved > line.approved + 1e-6 };

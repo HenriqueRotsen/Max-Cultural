@@ -54,6 +54,7 @@ export default async function PagamentoAntecipadoPage({
     commitments: project.commitments,
     valorCaptado,
     captadoRecebido: project.captadoRecebido,
+    rubricOverrunPct: project.rubricOverrunPct,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     lockedLineIds,

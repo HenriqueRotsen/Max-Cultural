@@ -16,6 +16,8 @@ import {
 } from "@/lib/planning/acl";
 import { CloseProjectButton } from "@/components/planning/CloseProjectButton";
 import { StateBudgetEditor } from "@/components/planning/StateBudgetEditor";
+import { ProjectCapsPanel } from "@/components/planning/ProjectCapsPanel";
+import { projectCapsOf } from "@/lib/planning/project-caps";
 import { dismissReadequadaNotice } from "@/lib/planning/project-actions";
 import {
   importSourceLabel,
@@ -51,6 +53,7 @@ export default async function PlanningProjectPage({
     where: { id, workspaceId: entitlements.workspaceId },
     include: {
       account: { select: { name: true } },
+      ruleset: { select: { sourceCode: true } },
       sheet: { include: { lines: { orderBy: { sortOrder: "asc" } } } },
       commitments: {
         where: { status: { in: ["RESERVED", "PAID"] } },
@@ -86,6 +89,7 @@ export default async function PlanningProjectPage({
         commitments: project.commitments,
         valorCaptado,
         captadoRecebido: project.captadoRecebido,
+        rubricOverrunPct: project.rubricOverrunPct,
         captadoTransferido: project.captadoTransferido,
         rendimentos: project.rendimentos,
         publishedPaidByLine,
@@ -218,6 +222,14 @@ export default async function PlanningProjectPage({
         expiresAt={openDraft?.expiresAt?.toISOString() ?? null}
         editableLines={editableLines}
         totalApproved={project.sheet ? money(project.sheet.totalApproved) : 0}
+        rubricOverrunPct={money(project.rubricOverrunPct)}
+      />
+
+      <ProjectCapsPanel
+        projectId={project.id}
+        caps={projectCapsOf(project)}
+        rulesetLabel={isFederal ? (project.ruleset?.sourceCode ?? null) : null}
+        canEdit={allowEditRubricas}
       />
 
       {!isFederal ? (

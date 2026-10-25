@@ -34,6 +34,7 @@ export function EditRubricsPanel({
   open: controlledOpen,
   onOpenChange,
   hideTrigger = false,
+  rubricOverrunPct = 100,
 }: {
   planningProjectId: string;
   totalApproved: number;
@@ -43,6 +44,8 @@ export function EditRubricsPanel({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
+  /** Excesso permitido na rubrica (limite do projeto), em %. */
+  rubricOverrunPct?: number;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const editing = controlledOpen ?? internalOpen;
@@ -157,8 +160,9 @@ export function EditRubricsPanel({
           ) : null}
 
           <p className="text-xs text-[var(--gray-500)]">
-            Clique no ícone <strong>+</strong> de cada linha para ajustar. Máximo 2× o valor
-            homologado (exceto Administração).
+            Clique no ícone <strong>+</strong> de cada linha para ajustar. Máximo{" "}
+            {rubricOverrunPct.toLocaleString("pt-BR")}% acima do valor homologado (exceto
+            Administração), conforme o limite do projeto.
           </p>
 
           <ul className="space-y-2">
@@ -167,7 +171,7 @@ export function EditRubricsPanel({
               const locked = Boolean(line.locked);
               const max = admin
                 ? round2(line.approvedAmount)
-                : round2(line.homologatedAmount * 2);
+                : round2(line.homologatedAmount * (1 + rubricOverrunPct / 100));
               const min = round2(line.reserved);
               const value = values[line.id] ?? line.approvedAmount;
               const open = Boolean(expanded[line.id]);
@@ -277,8 +281,8 @@ export function EditRubricsPanel({
                         </label>
                       </div>
                       <p className="text-xs text-[var(--gray-500)]">
-                        Mín. {formatCurrency(min)} (reservado) · Máx. {formatCurrency(max)} (2×
-                        homologado)
+                        Mín. {formatCurrency(min)} (reservado) · Máx. {formatCurrency(max)} (+
+                        {rubricOverrunPct.toLocaleString("pt-BR")}% do homologado)
                       </p>
                     </div>
                   ) : null}
