@@ -973,7 +973,6 @@ export async function confirmNfReservation(
       sheet: { include: { lines: true } },
       commitments: { where: { status: { in: ["RESERVED", "PAID"] } } },
       ruleset: true,
-      project: { select: { valorCaptado: true } },
     },
   });
   if (!project?.sheet) return { error: "Projeto sem planilha" };
@@ -1030,12 +1029,12 @@ export async function confirmNfReservation(
   );
 
   const valorCaptado =
-    (project.project?.valorCaptado != null
-      ? Number(project.project.valorCaptado)
+    (project.valorCaptado != null
+      ? Number(project.valorCaptado)
       : null) ?? 0;
 
   const { loadPublishedPaidByLine } = await import(
-    "@/lib/planning/federal/audit-reconcile"
+    "@/lib/planning/federal/published-paid"
   );
   const publishedPaidByLine = await loadPublishedPaidByLine(project.id);
   const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
@@ -1997,7 +1996,6 @@ export async function refreshPaymentDueNotifications(opts?: {
         lifecycleStatus: "EM_ANDAMENTO",
       },
       include: {
-        project: { select: { valorCaptado: true } },
         sheet: {
           include: {
             lines: {
@@ -2025,7 +2023,7 @@ export async function refreshPaymentDueNotifications(opts?: {
       const bal = computeProjectBalance({
         lines: p.sheet.lines,
         commitments: p.commitments,
-        valorCaptado: p.project?.valorCaptado,
+        valorCaptado: p.valorCaptado,
         captadoRecebido: p.captadoRecebido,
         captadoTransferido: p.captadoTransferido,
         rendimentos: p.rendimentos,
@@ -2338,7 +2336,6 @@ export async function startReadequacaoDraft(
     where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
     include: {
       sheet: { include: { lines: { orderBy: { sortOrder: "asc" } } } },
-      project: { select: { valorCaptado: true } },
     },
   });
   if (!project?.sheet) return { error: "Projeto sem planilha" };
@@ -2355,7 +2352,7 @@ export async function startReadequacaoDraft(
   const snap = snapshotFromProject({
     lines: project.sheet.lines,
     totalApproved: project.sheet.totalApproved,
-    valorCaptado: project.project?.valorCaptado,
+    valorCaptado: project.valorCaptado,
     captadoRecebido: project.captadoRecebido,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,

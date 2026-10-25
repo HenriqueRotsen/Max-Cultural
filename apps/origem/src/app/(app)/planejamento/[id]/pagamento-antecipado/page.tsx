@@ -32,7 +32,6 @@ export default async function PagamentoAntecipadoPage({
     where: { id, workspaceId: entitlements.workspaceId },
     include: {
       sheet: { include: { lines: { orderBy: { sortOrder: "asc" } } } },
-      project: { select: { valorCaptado: true } },
       commitments: {
         where: { status: { in: ["RESERVED", "PAID"] } },
         select: { budgetLineId: true, amount: true, status: true },
@@ -42,8 +41,8 @@ export default async function PagamentoAntecipadoPage({
   if (!project?.sheet) notFound();
 
   const valorCaptado =
-    project.project?.valorCaptado != null
-      ? Number(project.project.valorCaptado)
+    project.valorCaptado != null
+      ? Number(project.valorCaptado)
       : 0;
   const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
   const { lockedLineIds } = await loadLockedLineIds(

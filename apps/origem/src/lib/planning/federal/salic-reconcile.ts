@@ -135,14 +135,16 @@ function normItem(name: string | null | undefined) {
 }
 
 /**
- * Recalcula salicComprovado a partir dos Payment já syncados da auditoria.
+ * Recalcula salicComprovado a partir da relação de pagamentos do SALIC
+ * (lida pelo próprio Planejamento — não usa os pagamentos da Auditoria).
  * 1) casa por id_planilha_aprovacao;
  * 2) pagamentos órfãos (ID de planilha antiga) caem no item homônimo,
  *    rateados pelo homologado quando há várias linhas com o mesmo nome.
  * Zera linhas sem match — evita soma inflada de planilha antiga.
  */
-export async function syncSalicComprovadoFromLocalPayments(
+export async function syncSalicComprovadoFromSalicItems(
   planningProjectId: string,
+  items: SalicRelacaoPagamento[],
 ): Promise<{
   updated: number;
   rubrics: number;
@@ -154,7 +156,6 @@ export async function syncSalicComprovadoFromLocalPayments(
   const planning = await prisma.planningProject.findUnique({
     where: { id: planningProjectId },
     select: {
-      projectId: true,
       sheet: {
         include: {
           lines: {
@@ -170,7 +171,7 @@ export async function syncSalicComprovadoFromLocalPayments(
       },
     },
   });
-  if (!planning?.projectId || !planning.sheet) {
+  if (!planning?.sheet) {
     return {
       updated: 0,
       rubrics: 0,
@@ -188,10 +189,11 @@ export async function syncSalicComprovadoFromLocalPayments(
       .filter((id): id is string => Boolean(id)),
   );
 
-  const payments = await prisma.payment.findMany({
-    where: { projectId: planning.projectId },
-    select: { planilhaAprovacaoId: true, amount: true, itemName: true },
-  });
+  const payments = items.map((item) => ({
+    planilhaAprovacaoId: item.planilhaAprovacaoId,
+    amount: item.amount,
+    itemName: item.rubricItem,
+  }));
 
   const byPlanilha = new Map<string, number>();
   const orphanByItem = new Map<string, number>();
@@ -351,15 +353,3 @@ export async function clearPlanningSalicPublishState(
   });
 }
 
-/** Durante sync da auditoria: alinha planejamento vinculado ao projeto SALIC. */
-export async function reconcileLinkedPlanningSalicFromExternalIds(
-  salicProjectId: string,
-  seenExternalIds: Set<string>,
-): Promise<number> {
-  const planning = await prisma.planningProject.findFirst({
-    where: { projectId: salicProjectId },
-    select: { id: true },
-  });
-  if (!planning) return 0;
-  return reconcilePlanningSalicFromExternalIds(planning.id, seenExternalIds);
-}

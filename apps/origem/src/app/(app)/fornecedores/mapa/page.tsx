@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
-import { ensureCatalogSuppliersFromAudit } from "@/lib/catalog/from-audit";
 import { persistCityCoords, countPendingCnpjAddresses } from "@/lib/catalog/geo";
 import { coordsFromSupplier } from "@/lib/catalog/municipio-coords";
 import { PageHeader } from "@/components/ui";
@@ -12,7 +11,6 @@ export const dynamic = "force-dynamic";
 export default async function CatalogMapPage() {
   const { entitlements } = await getWorkspaceContext();
   const ws = entitlements.workspaceId;
-  await ensureCatalogSuppliersFromAudit(ws);
   await persistCityCoords(ws);
 
   const [suppliers, totalCount, pendingCount] = await Promise.all([

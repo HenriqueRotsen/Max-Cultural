@@ -561,16 +561,26 @@ export async function fetchSalicRelacaoPagamentos(params: {
   await withAccountBrowser(account.id, username, password, async (page) => {
     const idPronac = await resolveIdPronac(page, account.cgccpf, params.externalCode);
     await openPrestacaoContasPage(page, idPronac);
-    const rows = await loadSalicRelacaoPagamentoRows(page, idPronac);
-    const seen = new Set<string>();
-    for (const row of rows) {
-      const mapped = mapSalicRelacaoRow(row);
-      if (!mapped || seen.has(mapped.id)) continue;
-      seen.add(mapped.id);
-      items.push(mapped);
-    }
+    items.push(...(await fetchSalicRelacaoPagamentosOnPage(page, idPronac)));
   });
 
+  return items;
+}
+
+/** Relação de pagamentos do PRONAC, numa página já autenticada no SALIC. */
+export async function fetchSalicRelacaoPagamentosOnPage(
+  page: Page,
+  idPronac: number,
+): Promise<SalicRelacaoPagamento[]> {
+  const rows = await loadSalicRelacaoPagamentoRows(page, idPronac);
+  const items: SalicRelacaoPagamento[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const mapped = mapSalicRelacaoRow(row);
+    if (!mapped || seen.has(mapped.id)) continue;
+    seen.add(mapped.id);
+    items.push(mapped);
+  }
   return items;
 }
 

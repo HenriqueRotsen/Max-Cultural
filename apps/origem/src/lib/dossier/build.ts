@@ -94,20 +94,27 @@ export async function buildPronacDossier(params: {
         include: { supplier: true },
         orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
       },
-      planningProject: {
-        include: {
-          sheet: { include: { lines: { orderBy: { sortOrder: "asc" } } } },
-          documents: { orderBy: { createdAt: "asc" } },
-          readequacaoDrafts: {
-            where: { status: "OPEN" },
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
-        },
-      },
     },
   });
   if (!project) throw new Error("Projeto não encontrado para o dossiê");
+
+  // Planejamento não é mais ligado à Auditoria: localiza pelo proponente + PRONAC.
+  const planning = await prisma.planningProject.findFirst({
+    where: {
+      workspaceId: params.workspaceId,
+      accountId: project.salicAccountId,
+      externalCode: project.pronac,
+    },
+    include: {
+      sheet: { include: { lines: { orderBy: { sortOrder: "asc" } } } },
+      documents: { orderBy: { createdAt: "asc" } },
+      readequacaoDrafts: {
+        where: { status: "OPEN" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
 
   const workDir =
     params.outputDir ||
@@ -121,7 +128,6 @@ export async function buildPronacDossier(params: {
   const artifacts: CompressedArtifact[] = [];
   const limitations: string[] = [];
   const account = project.salicAccount;
-  const planning = project.planningProject;
 
   // —— 01 Espelho PRONAC (PDF) ——
   try {

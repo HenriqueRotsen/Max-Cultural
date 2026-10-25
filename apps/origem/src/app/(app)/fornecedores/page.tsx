@@ -64,7 +64,7 @@ export default async function CatalogVisaoGeralPage() {
       <PageHeader
         breadcrumb="Fornecedores › Visão geral"
         title="Banco de preços"
-        description="Resumo do seu banco de preços: quanto já foi gasto com fornecedores, o custo médio de cada contratação e quem atrasa entregas. Os comprovantes de pagamento da Auditoria (SALIC) entram aqui automaticamente como histórico de preços; contratações fora do SALIC podem ser lançadas à mão."
+        description="Resumo do seu banco de preços: quanto já foi gasto com fornecedores, o custo médio de cada contratação e quem atrasa entregas. As contratações entram pelo Planejamento (notas fiscais, RPAs, pedidos e reservas) ou podem ser lançadas à mão."
         actions={
           <>
             <Link href="/fornecedores/empresas/novo" className="btn">
@@ -85,7 +85,7 @@ export default async function CatalogVisaoGeralPage() {
           label="Gasto total"
           value={formatCurrency(totalSpend)}
           hint={`${engagements} contratações registradas`}
-          help="Soma do valor de todas as contratações registradas no banco de preços, desde o início — inclui as importadas dos comprovantes do SALIC e as lançadas manualmente."
+          help="Soma do valor de todas as contratações registradas no banco de preços, desde o início — inclui as que vieram do Planejamento e as lançadas manualmente."
         />
         <StatCard
           label="Custo médio"
@@ -177,7 +177,7 @@ export default async function CatalogVisaoGeralPage() {
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--navy)]">
             Contratações recentes
-            <FieldHelp text="As 8 contratações mais novas. “SALIC” indica que veio de um comprovante de pagamento da Auditoria; “No prazo” ou “Atraso” mostram como foi a entrega nas contratações lançadas manualmente." />
+            <FieldHelp text="As 8 contratações mais novas. “No prazo” ou “Atraso” mostram como foi a entrega." />
           </h2>
           <Link href="/fornecedores/contratacoes" className="text-sm font-semibold text-[var(--gold)] hover:underline">
             Ver todas →
@@ -185,7 +185,7 @@ export default async function CatalogVisaoGeralPage() {
         </div>
         {recent.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-[var(--gray-500)]">
-            Nenhuma contratação ainda. Os comprovantes da Auditoria aparecem aqui após o sync, ou registre uma contratação manual.
+            Nenhuma contratação ainda. Elas aparecem aqui conforme os pagamentos são lançados no Planejamento, ou registre uma contratação manual.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -197,7 +197,7 @@ export default async function CatalogVisaoGeralPage() {
                   <th className="py-3">
                     <span className="inline-flex items-center gap-1">
                       Origem / prazo
-                      <FieldHelp text="SALIC = importada de um comprovante da Auditoria. No prazo / Atraso = situação da entrega informada ao registrar a contratação." />
+                      <FieldHelp text="No prazo / Atraso = situação da entrega informada ao registrar a contratação." />
                     </span>
                   </th>
                   <th className="py-3">
@@ -222,9 +222,7 @@ export default async function CatalogVisaoGeralPage() {
                       </Link>
                     </td>
                     <td className="py-3.5">
-                      {item.salicPaymentId ? (
-                        <span className="text-xs font-semibold text-[var(--navy)]">SALIC</span>
-                      ) : item.delayed ? (
+                      {item.delayed ? (
                         <span className="text-xs font-semibold text-amber-700">Atraso</span>
                       ) : (
                         <span className="text-xs font-semibold text-emerald-700">No prazo</span>

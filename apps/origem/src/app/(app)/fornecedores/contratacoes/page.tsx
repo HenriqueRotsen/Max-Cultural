@@ -102,23 +102,6 @@ export default async function CatalogEngagementsPage({
     },
   });
 
-  const salicPaymentIds = engagements
-    .map((e) => e.salicPaymentId)
-    .filter((id): id is string => Boolean(id));
-  const salicPayments =
-    salicPaymentIds.length > 0
-      ? await prisma.payment.findMany({
-          where: { id: { in: salicPaymentIds } },
-          select: {
-            id: true,
-            project: { select: { pronac: true } },
-          },
-        })
-      : [];
-  const salicPronacByPaymentId = new Map(
-    salicPayments.map((p) => [p.id, p.project.pronac] as const),
-  );
-
   return (
     <div className="space-y-6">
       <PageBackLink href="/fornecedores" label="Voltar ao banco de preços" />
@@ -183,22 +166,13 @@ export default async function CatalogEngagementsPage({
             const docs = resolveEngagementDocuments(e);
             const paid = e.commitment?.status === "PAID";
             const amount = Number(e.commitment?.amount ?? e.price);
-            const projectCode =
-              e.planningProject?.externalCode ||
-              (e.salicPaymentId
-                ? salicPronacByPaymentId.get(e.salicPaymentId) || e.location
-                : null);
-            const lei = e.planningProject
-              ? lawLabel(e.planningProject.jurisdiction)
-              : e.salicPaymentId
-                ? "Lei Federal"
-                : null;
+            const projectCode = e.planningProject?.externalCode || null;
+            const lei = e.planningProject ? lawLabel(e.planningProject.jurisdiction) : null;
             const projectBadge =
               projectCode && lei
                 ? `${projectCode} · ${lei}`
                 : projectCode || lei;
-            const placeLabel =
-              e.salicPaymentId || e.planningProjectId ? null : e.location;
+            const placeLabel = e.planningProjectId ? null : e.location;
 
             return (
               <div key={e.id} className="card flex items-center justify-between gap-4 p-5">

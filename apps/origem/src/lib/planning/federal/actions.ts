@@ -14,7 +14,6 @@ import {
   fetchReadequadaLinesFromSalic,
   fetchSalicProjectPreview,
   HomologadaImportError,
-  linkHomologatedSheetsForOpenProjects,
 } from "@/lib/planning/federal/import-homologada";
 import {
   applyCaptacaoToPlanningProject,
@@ -147,22 +146,6 @@ export async function startPlanningProjectFederal(
     return { error: msg };
   }
 
-  const auditProject = await prisma.project.upsert({
-    where: {
-      salicAccountId_pronac: { salicAccountId: accountId, pronac: externalCode },
-    },
-    create: {
-      salicAccountId: accountId,
-      pronac: externalCode,
-      name: preview.projectName,
-      salicProjectId: preview.idPronacHash,
-    },
-    update: {
-      name: preview.projectName || undefined,
-      salicProjectId: preview.idPronacHash || undefined,
-    },
-  });
-
   const project =
     existing ||
     (await prisma.planningProject.create({
@@ -173,8 +156,7 @@ export async function startPlanningProjectFederal(
         rulesetVersion,
         externalCode,
         name: preview.projectName,
-        projectId: auditProject.id,
-        lifecycleStatus: auditProject.lifecycleStatus || "EM_ANDAMENTO",
+        lifecycleStatus: "EM_ANDAMENTO",
       },
     }));
 
@@ -183,7 +165,6 @@ export async function startPlanningProjectFederal(
       where: { id: existing.id },
       data: {
         name: preview.projectName,
-        projectId: auditProject.id,
         rulesetVersion,
       },
     });
@@ -289,33 +270,6 @@ export async function refreshAllPlanningCaptacaoFromSalic(): Promise<ActionState
     };
   }
 }
-export async function importAuditoriaProjectsToPlanning(): Promise<ActionState> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-
-  let created = 0;
-  let updated = 0;
-  try {
-    const { onboardPlanningFromAuditoria } = await import("@/lib/planning/federal/daily-sync");
-    ({ created, updated } = await onboardPlanningFromAuditoria(entitlements.workspaceId));
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Falha ao importar projetos" };
-  }
-
-  const sheets = await linkHomologatedSheetsForOpenProjects(entitlements.workspaceId);
-
-  revalidatePlanning();
-  return {
-    ok: true,
-    id: `${created}:${updated}:${sheets.linked}:${sheets.skipped}`,
-    error:
-      sheets.errors.length > 0
-        ? sheets.errors.slice(0, 5).join(" · ") +
-          (sheets.errors.length > 5 ? ` · (+${sheets.errors.length - 5})` : "")
-        : undefined,
-  };
-}
-
 /** Confirmação escrita + inicia contagem regressiva de 10s (status AGUARDANDO). */
 export async function beginSalicPublishCountdown(
   planningProjectId: string,
@@ -720,8 +674,6 @@ export async function reconcileSalicPublishState(
     salicCount?: number;
     salicItems?: import("@/lib/planning/federal/salic-reconcile").SalicRelacaoPagamento[];
     comprovadoLinesUpdated?: number;
-    engagementsLinked?: number;
-    auditReport?: import("@/lib/planning/federal/audit-reconcile").AuditPlanningReconcileReport;
   }
 > {
   await requireUser();
@@ -741,14 +693,7 @@ export async function reconcileSalicPublishState(
     const { reconcilePlanningSalicPublishState } = await import(
       "@/lib/planning/federal/salic-reconcile"
     );
-    const {
-      buildAuditPlanningReconcileReport,
-      linkPlanningEngagementsToAuditPayments,
-    } = await import("@/lib/planning/federal/audit-reconcile");
-
     const result = await reconcilePlanningSalicPublishState(project.id);
-    const engagementsLinked = await linkPlanningEngagementsToAuditPayments(project.id);
-    const auditReport = await buildAuditPlanningReconcileReport(project.id);
     revalidatePlanning(project.id);
 
     const base = {
@@ -758,8 +703,6 @@ export async function reconcileSalicPublishState(
       salicCount: result.salicCount,
       salicItems: result.salicItems,
       comprovadoLinesUpdated: result.comprovadoLinesUpdated,
-      engagementsLinked,
-      auditReport,
     };
 
     const notes = [
@@ -768,15 +711,6 @@ export async function reconcileSalicPublishState(
         : result.comprovadoRubrics > 0
           ? `Valores pagos conferidos em ${result.comprovadoRubrics} rubrica(s).`
           : null,
-      engagementsLinked > 0
-        ? `${engagementsLinked} contratação(ões) ligada(s) à auditoria.`
-        : null,
-      auditReport.counts.auditOnly > 0
-        ? `${auditReport.counts.auditOnly} só na auditoria.`
-        : null,
-      auditReport.counts.divergent > 0
-        ? `${auditReport.counts.divergent} divergente(s).`
-        : null,
     ].filter(Boolean);
 
     if (result.cleared > 0) {
@@ -786,7 +720,7 @@ export async function reconcileSalicPublishState(
       };
     }
 
-    if (result.salicCount === 0 && result.checked === 0 && auditReport.rows.length === 0) {
+    if (result.salicCount === 0 && result.checked === 0) {
       return {
         ...base,
         message: "Nenhum comprovante de pagamento encontrado no SALIC para este PRONAC.",
@@ -809,30 +743,6 @@ export async function reconcileSalicPublishState(
       error: error instanceof Error ? error.message : "Falha ao verificar comprovantes no SALIC.",
     };
   }
-}
-
-/** Relatório estático Planejamento × Auditoria (sem abrir o SALIC). */
-export async function getAuditPlanningReconcileReport(
-  planningProjectId: string,
-): Promise<
-  ActionState & {
-    report?: import("@/lib/planning/federal/audit-reconcile").AuditPlanningReconcileReport;
-  }
-> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-  const project = await prisma.planningProject.findFirst({
-    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
-    select: { id: true, jurisdiction: true },
-  });
-  if (!project) return { error: "Projeto não encontrado." };
-  if (!isFederalPlanning(project.jurisdiction)) return federalSalicOnlyError();
-
-  const { buildAuditPlanningReconcileReport, linkPlanningEngagementsToAuditPayments } =
-    await import("@/lib/planning/federal/audit-reconcile");
-  await linkPlanningEngagementsToAuditPayments(project.id);
-  const report = await buildAuditPlanningReconcileReport(project.id);
-  return { ok: true, report };
 }
 
 /** Marca localmente que o comprovante foi removido no portal do SALIC. */
@@ -871,47 +781,6 @@ export async function markSalicProofRemovedLocally(
     ok: true,
     message: "Estado local atualizado — a reserva está pronta para reenvio ao SALIC.",
   };
-}
-
-/** Importa um Payment da auditoria como reserva paga no planejamento. */
-export async function importAuditPaymentToPlanning(
-  planningProjectId: string,
-  paymentId: string,
-): Promise<ActionState> {
-  const session = await requireUser();
-  if (!(await canPublishToSalic())) {
-    return { error: "Sem permissão para importar pagamentos ao planejamento." };
-  }
-  const { entitlements } = await getWorkspaceContext();
-
-  const project = await prisma.planningProject.findFirst({
-    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
-    select: { id: true, jurisdiction: true },
-  });
-  if (!project) return { error: "Projeto não encontrado." };
-  if (!isFederalPlanning(project.jurisdiction)) return federalSalicOnlyError();
-
-  try {
-    const { importAuditPaymentAsPaidCommitment } = await import(
-      "@/lib/planning/federal/import-audit-payment"
-    );
-    const result = await importAuditPaymentAsPaidCommitment({
-      planningProjectId: project.id,
-      paymentId,
-      workspaceId: entitlements.workspaceId,
-      createdById: session.id,
-    });
-    revalidatePlanning(project.id);
-    return {
-      ok: true,
-      id: result.commitmentId,
-      message: "Pagamento importado como reserva paga no planejamento.",
-    };
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : "Falha ao importar pagamento.",
-    };
-  }
 }
 
 export async function startReadequacaoFromSalic(

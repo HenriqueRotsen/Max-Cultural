@@ -10,7 +10,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 37;
+const PRISMA_SCHEMA_VERSION = 38;
 
 function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
@@ -69,14 +69,14 @@ function clientMatchesSchema(client: PrismaClient): boolean {
   if (!models.ObservadoBond) return false;
   if (!models.CatalogSupplier) return false;
   const catalogFields = (models.CatalogSupplier.fields || []).map((f) => f.name);
-  if (!catalogFields.includes("fromAudit")) return false;
+  if (catalogFields.includes("fromAudit")) return false;
   if (!catalogFields.includes("latitude")) return false;
   if (!models.CatalogService) return false;
   const serviceFields = (models.CatalogService.fields || []).map((f) => f.name);
   if (!serviceFields.includes("embeddingUpdatedAt")) return false;
   if (!models.CatalogEngagement) return false;
   const engagementFields = (models.CatalogEngagement.fields || []).map((f) => f.name);
-  if (!engagementFields.includes("salicPaymentId")) return false;
+  if (engagementFields.includes("salicPaymentId")) return false;
   if (!engagementFields.includes("planningProjectId")) return false;
   if (!models.PlanningProject) return false;
   if (!models.ProjectBudgetSheet || !models.ProjectBudgetLine) return false;
@@ -96,6 +96,7 @@ function clientMatchesSchema(client: PrismaClient): boolean {
   const planningFields = (models.PlanningProject.fields || []).map((f) => f.name);
   if (!planningFields.includes("lifecycleStatus")) return false;
   if (!planningFields.includes("salicPublishStatus")) return false;
+  if (!planningFields.includes("situacao") || planningFields.includes("projectId")) return false;
   if (!models.AuditLog) return false;
   return true;
 }

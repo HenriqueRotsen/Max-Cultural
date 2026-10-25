@@ -392,16 +392,6 @@ export async function syncAccountViaCrawler(params: {
         continue;
       }
 
-      const previous = await prisma.project.findUnique({
-        where: {
-          salicAccountId_pronac: {
-            salicAccountId: account.id,
-            pronac: String(listed.Pronac),
-          },
-        },
-        select: { id: true, situacao: true },
-      });
-
       const project = await prisma.project.upsert({
         where: {
           salicAccountId_pronac: {
@@ -426,39 +416,6 @@ export async function syncAccountViaCrawler(params: {
           lastSyncedAt: new Date(),
         },
       });
-
-      // Espelha ciclo de vida no planejamento, se já vinculado
-      await prisma.planningProject.updateMany({
-        where: { projectId: project.id },
-        data: {
-          lifecycleStatus: project.lifecycleStatus,
-          name: listed.NomeProjeto || undefined,
-        },
-      });
-
-      const planning = await prisma.planningProject.findFirst({
-        where: { projectId: project.id },
-        select: { id: true, workspaceId: true, importedAt: true },
-      });
-
-      try {
-        const { notifyDiligenciaIfEntered } = await import(
-          "@/lib/planning/diligencia-notify"
-        );
-        await notifyDiligenciaIfEntered({
-          workspaceId: account.workspaceId,
-          projectId: project.id,
-          pronac: String(listed.Pronac),
-          projectName: listed.NomeProjeto,
-          previousSituacao: previous?.situacao,
-          nextSituacao: listed.Situacao,
-          planningProjectId: planning?.id,
-        });
-      } catch (err) {
-        await push(
-          `PRONAC ${listed.Pronac}: aviso de diligência falhou (${err instanceof Error ? err.message : String(err)})`,
-        );
-      }
 
       // API pública do SALIC é lenta/instável (sobretudo vista da Vercel): consulta
       // curta e, se falhar uma vez, não insiste nos demais projetos desta execução.
@@ -542,63 +499,11 @@ export async function syncAccountViaCrawler(params: {
       );
       paymentsDeleted += removed;
 
-      const { reconcileLinkedPlanningSalicFromExternalIds, syncSalicComprovadoFromRelacaoPagamentos } =
-        await import("@/lib/planning/federal/salic-reconcile");
-      const planningCleared = await reconcileLinkedPlanningSalicFromExternalIds(
-        project.id,
-        seenExternalIds,
-      );
-
-      let comprovadoUpdated = 0;
-      if (planning && rows.length > 0) {
-        const salicItems = rows
-          .filter((row) => row.idComprovantePagamento != null)
-          .map((row) => ({
-            id: String(row.idComprovantePagamento),
-            planilhaAprovacaoId:
-              row.idPlanilhaAprovacao != null ? String(row.idPlanilhaAprovacao) : null,
-            supplierName: row.Fornecedor?.trim() || "Fornecedor",
-            supplierDoc: row.CNPJCPF?.trim() || "",
-            amount: row.vlPagamento ?? 0,
-            paymentDate: row.DtPagamento?.trim() || null,
-            proofNumber: row.nrComprovante?.trim() || null,
-            rubricItem: row.Item?.trim() || null,
-          }));
-        const sync = await syncSalicComprovadoFromRelacaoPagamentos(
-          planning.id,
-          salicItems,
-        );
-        comprovadoUpdated = sync.updated;
-      }
-
-      let sheetMsg = "";
-      if (planning?.importedAt && listed.IdPRONAC) {
-        try {
-          const { syncPlanningSheetOnPage } = await import(
-            "@/lib/planning/federal/sync-sheet"
-          );
-          const sheetSync = await syncPlanningSheetOnPage({
-            page,
-            planningProjectId: planning.id,
-            idPronac: listed.IdPRONAC,
-            idPronacHash: listed.idPronacHash,
-          });
-          if (sheetSync) {
-            sheetMsg = ` · planilha ${sheetSync.importSource === "SALIC_READEQUADA" ? "readequada" : "homologada"} (↑${sheetSync.updated}/+${sheetSync.created})`;
-          }
-        } catch (err) {
-          sheetMsg = ` · planilha: ${err instanceof Error ? err.message : "falha"}`;
-        }
-      }
-
       projectsSynced += 1;
       seenPronacs.add(String(listed.Pronac));
       await push(
         `PRONAC ${listed.Pronac}: ${seenExternalIds.size} comprovantes no SALIC` +
-          (removed ? ` · ${removed} removidos do MAX Origem` : "") +
-          (planningCleared ? ` · ${planningCleared} desvinculado(s) no planejamento` : "") +
-          (comprovadoUpdated ? ` · ${comprovadoUpdated} rubrica(s) com pago atualizado` : "") +
-          sheetMsg,
+          (removed ? ` · ${removed} removidos do MAX Origem` : ""),
       );
     }
 

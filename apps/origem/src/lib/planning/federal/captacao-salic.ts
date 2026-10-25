@@ -13,6 +13,7 @@ import {
   type SalicUiProject,
 } from "@/lib/salic/crawler";
 import { sanitizeSalicText } from "@/lib/salic/text";
+import { applySalicSituacaoToPlanningProject } from "@/lib/planning/federal/situacao-salic";
 import type { Page } from "playwright-core";
 
 export class CaptacaoImportError extends Error {
@@ -149,67 +150,21 @@ export async function fetchCaptacaoFromSalic(params: {
   return result;
 }
 
-/** Persiste captado/recebido/transferido no planejamento (+ Project.valorCaptado). */
+/** Persiste captado/recebido/transferido no próprio planejamento. */
 export async function applyCaptacaoToPlanningProject(params: {
   planningProjectId: string;
   captacao: SalicCaptacaoValues;
 }): Promise<void> {
-  const project = await prisma.planningProject.findUniqueOrThrow({
-    where: { id: params.planningProjectId },
-    select: { id: true, accountId: true, externalCode: true, projectId: true },
-  });
-
   const cleanName = sanitizeSalicText(params.captacao.projectName);
-
   await prisma.planningProject.update({
-    where: { id: project.id },
+    where: { id: params.planningProjectId },
     data: {
+      valorCaptado: params.captacao.vlCaptado,
       captadoRecebido: params.captacao.vlRecebido,
       captadoTransferido: params.captacao.vlTransferido,
       ...(cleanName ? { name: cleanName } : {}),
     },
   });
-
-  if (project.projectId) {
-    await prisma.project.update({
-      where: { id: project.projectId },
-      data: {
-        valorCaptado: params.captacao.vlCaptado,
-        ...(params.captacao.idPronacHash
-          ? { salicProjectId: params.captacao.idPronacHash }
-          : {}),
-        ...(cleanName ? { name: cleanName } : {}),
-        lastSyncedAt: new Date(),
-      },
-    });
-  } else {
-    const audit = await prisma.project.upsert({
-      where: {
-        salicAccountId_pronac: {
-          salicAccountId: project.accountId,
-          pronac: project.externalCode,
-        },
-      },
-      create: {
-        salicAccountId: project.accountId,
-        pronac: project.externalCode,
-        name: cleanName,
-        salicProjectId: params.captacao.idPronacHash,
-        valorCaptado: params.captacao.vlCaptado,
-        lastSyncedAt: new Date(),
-      },
-      update: {
-        valorCaptado: params.captacao.vlCaptado,
-        salicProjectId: params.captacao.idPronacHash || undefined,
-        name: cleanName || undefined,
-        lastSyncedAt: new Date(),
-      },
-    });
-    await prisma.planningProject.update({
-      where: { id: project.id },
-      data: { projectId: audit.id },
-    });
-  }
 }
 
 /**
@@ -294,6 +249,12 @@ export async function syncCaptacaoForWorkspace(
 
         for (const pp of group) {
           const ui = byPronac.get(pp.externalCode);
+          if (ui) {
+            await applySalicSituacaoToPlanningProject({
+              planningProjectId: pp.id,
+              situacao: ui.Situacao,
+            });
+          }
           if (!ui?.idPronacHash) {
             skipped += 1;
             errors.push(

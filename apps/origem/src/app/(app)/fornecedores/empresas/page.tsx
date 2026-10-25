@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCgccpf } from "@/lib/format";
 import { BRAZIL_UF } from "@/lib/catalog/address";
-import { ensureCatalogSuppliersFromAudit } from "@/lib/catalog/from-audit";
 import { PageBackLink, PageHeader } from "@/components/ui";
 import { CatalogStars } from "@/components/catalog/CatalogStars";
 import { CatalogFavoriteButton } from "@/components/catalog/CatalogFavoriteButton";
@@ -32,7 +31,6 @@ export default async function CatalogSuppliersPage({
   const sp = await searchParams;
   const { entitlements } = await getWorkspaceContext();
   const ws = entitlements.workspaceId;
-  await ensureCatalogSuppliersFromAudit(ws);
 
   const q = one(sp.q)?.trim() || "";
   const state = one(sp.state) || "";
@@ -114,7 +112,7 @@ export default async function CatalogSuppliersPage({
       <PageHeader
         breadcrumb="Fornecedores"
         title="Fornecedores"
-        description="Cadastro único por CNPJ/CPF. Inclui automaticamente os fornecedores da Auditoria (SALIC), com serviços e preços dos comprovantes."
+        description="Cadastro único por CNPJ/CPF. Os fornecedores entram pelo Planejamento (notas, pedidos e reservas) ou cadastrados à mão."
         actions={
           <Link href="/fornecedores/empresas/novo" className="btn">
             Novo fornecedor
@@ -188,11 +186,6 @@ export default async function CatalogSuppliersPage({
                 </p>
               </Link>
               <div className="flex shrink-0 items-center gap-3">
-                {s.fromAudit ? (
-                  <span className="rounded-full bg-[var(--navy-soft)] px-3 py-1 text-xs font-semibold text-[var(--navy)]">
-                    Auditoria
-                  </span>
-                ) : null}
                 <CatalogFavoriteButton supplierId={s.id} favorited={favoriteIds.has(s.id)} />
                 <span className="rounded-full bg-[var(--gray-50)] px-3 py-1 text-xs text-[var(--gray-600)]">
                   {s._count.services} {s._count.services === 1 ? "serviço" : "serviços"}

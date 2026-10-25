@@ -3,13 +3,10 @@ export {
   startPlanningProjectFederal,
   refreshPlanningCaptacaoFromSalic,
   refreshAllPlanningCaptacaoFromSalic,
-  importAuditoriaProjectsToPlanning,
   beginSalicPublishCountdown,
   startSalicPublishUpload,
   cancelSalicPublish,
   reconcileSalicPublishState,
-  getAuditPlanningReconcileReport,
-  importAuditPaymentToPlanning,
   startReadequacaoFromSalic,
 } from "@/lib/planning/federal/actions";
 
@@ -27,7 +24,6 @@ export {
   importPreferredSheetForNewProject,
   refreshPlanningSheetsForWorkspace,
   syncPlanningSheetFromSalic,
-  syncPlanningSheetOnPage,
 } from "@/lib/planning/federal/sync-sheet";
 
 export {

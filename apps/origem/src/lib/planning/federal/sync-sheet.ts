@@ -13,7 +13,8 @@ import {
   fetchCaptacaoOnPage,
   type SalicCaptacaoValues,
 } from "@/lib/planning/federal/captacao-salic";
-import { syncSalicComprovadoFromLocalPayments } from "@/lib/planning/federal/salic-reconcile";
+import { syncSalicComprovadoFromSalicItems } from "@/lib/planning/federal/salic-reconcile";
+import { applySalicSituacaoToPlanningProject } from "@/lib/planning/federal/situacao-salic";
 import { budgetLineIdentityKey, moneyN } from "@/lib/planning/readequacao";
 import { persistHomologatedSheet } from "@/lib/planning/persist-sheet";
 import {
@@ -418,7 +419,16 @@ export async function syncPlanningSheetFromSalic(params: {
     }
   }
 
-  await syncSalicComprovadoFromLocalPayments(params.planningProjectId);
+  try {
+    const { fetchSalicRelacaoPagamentos } = await import("@/lib/salic/publish-robot");
+    const items = await fetchSalicRelacaoPagamentos({
+      planningProjectId: params.planningProjectId,
+      externalCode: project.externalCode,
+    });
+    await syncSalicComprovadoFromSalicItems(params.planningProjectId, items);
+  } catch {
+    // comprovado opcional: a planilha já foi atualizada
+  }
 
   return { importSource: preferred.importSource, ...stats };
 }
@@ -499,43 +509,6 @@ export async function importPreferredSheetForNewProject(params: {
   }
 
   return preferred;
-}
-
-/** Sync de planilha durante crawler (página já autenticada). */
-export async function syncPlanningSheetOnPage(params: {
-  page: BrowserPage;
-  planningProjectId: string;
-  idPronac: number | string;
-  idPronacHash?: string | null;
-}): Promise<{
-  importSource: "SALIC_READEQUADA" | "SALIC_HOMOLOGADA";
-  updated: number;
-  created: number;
-  skipped: number;
-} | null> {
-  const preferred = await resolvePreferredSheetOnPage(
-    params.page,
-    params.idPronac,
-    { idPronacHash: params.idPronacHash },
-  );
-  if (!preferred) return null;
-
-  const stats = await applyPlanningSheetFromSalic({
-    planningProjectId: params.planningProjectId,
-    lines: preferred.lines,
-    importSource: preferred.importSource,
-  });
-
-  if (preferred.captacao) {
-    await applyCaptacaoToPlanningProject({
-      planningProjectId: params.planningProjectId,
-      captacao: preferred.captacao,
-    });
-  }
-
-  await syncSalicComprovadoFromLocalPayments(params.planningProjectId);
-
-  return { importSource: preferred.importSource, ...stats };
 }
 
 /**
@@ -711,15 +684,27 @@ export async function refreshPlanningSheetsForWorkspace(
                 where: { id: pp.id },
                 data: { name: cleanName },
               });
-              if (pp.projectId) {
-                await prisma.project.update({
-                  where: { id: pp.projectId },
-                  data: { name: cleanName },
-                });
-              }
             }
 
-            await syncSalicComprovadoFromLocalPayments(pp.id);
+            await applySalicSituacaoToPlanningProject({
+              planningProjectId: pp.id,
+              situacao: listed.Situacao,
+            });
+
+            try {
+              const { fetchSalicRelacaoPagamentosOnPage } = await import(
+                "@/lib/salic/publish-robot"
+              );
+              const items = await fetchSalicRelacaoPagamentosOnPage(
+                page,
+                Number(listed.IdPRONAC),
+              );
+              await syncSalicComprovadoFromSalicItems(pp.id, items);
+            } catch (e) {
+              errors.push(
+                `${pp.externalCode}: comprovado não atualizado (${e instanceof Error ? e.message : "falha"})`,
+              );
+            }
           } catch (e) {
             skipped += 1;
             const msg =

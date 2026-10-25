@@ -94,7 +94,7 @@ export default async function CatalogAnalyticsPage() {
           label="Contratações (12 meses)"
           value={String(total)}
           hint={`${formatCurrency(totalSpend12m)} gastos no período`}
-          help="Quantidade de contratações registradas nos últimos 12 meses — tanto as lançadas manualmente quanto as que vieram dos comprovantes da Auditoria (SALIC)."
+          help="Quantidade de contratações registradas nos últimos 12 meses — tanto as lançadas manualmente quanto as que vieram do Planejamento."
         />
         <StatCard
           label="Taxa de atraso"
@@ -259,8 +259,8 @@ function SectionTitle({
 function EmptyHint() {
   return (
     <p className="mt-3 text-sm text-[var(--gray-500)]">
-      Sem contratações nos últimos 12 meses. Registre uma contratação ou atualize os dados da
-      Auditoria para que os comprovantes do SALIC apareçam aqui.
+      Sem contratações nos últimos 12 meses. Elas aparecem aqui conforme os pagamentos são
+      lançados no Planejamento, ou registre uma contratação manual.
     </p>
   );
 }

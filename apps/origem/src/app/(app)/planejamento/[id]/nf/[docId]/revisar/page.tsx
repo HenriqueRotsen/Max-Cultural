@@ -57,13 +57,12 @@ export default async function RevisarNfPage({
         where: { status: { in: ["RESERVED", "PAID"] } },
         select: { budgetLineId: true, amount: true, status: true },
       },
-      project: { select: { valorCaptado: true } },
     },
   });
   if (!project?.sheet) notFound();
 
   const valorCaptado =
-    project.project?.valorCaptado != null ? Number(project.project.valorCaptado) : 0;
+    project.valorCaptado != null ? Number(project.valorCaptado) : 0;
   const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
   const { lockedLineIds } = await loadLockedLineIds(
     project.sheet.id,

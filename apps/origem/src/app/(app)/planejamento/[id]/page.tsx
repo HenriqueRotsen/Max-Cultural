@@ -5,14 +5,12 @@ import { BudgetTree } from "@/components/planning/BudgetTree";
 import { PlanningProjectActions } from "@/components/planning/PlanningProjectActions";
 import type { EditableRubricLine } from "@/components/planning/EditRubricsPanel";
 import { CaptacaoPanel } from "@/components/planning/CaptacaoPanel";
-import { PlanningAuditReconcilePanel } from "@/components/planning/PlanningAuditReconcilePanel";
 import { PlanningKpiStrip } from "@/components/planning/PlanningKpiStrip";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
 import {
   canEditRubricas,
-  canPublishToSalic,
   canReadequacao,
 } from "@/lib/planning/acl";
 import {
@@ -21,7 +19,7 @@ import {
   jurisdictionLabel,
   lifecycleLabel,
 } from "@/lib/planning/lifecycle";
-import { loadPublishedPaidByLine } from "@/lib/planning/federal/audit-reconcile";
+import { loadPublishedPaidByLine } from "@/lib/planning/federal/published-paid";
 import { computeProjectBalance, isAdminProduct } from "@/lib/planning/rubric-balance";
 import { FieldHelp } from "@/components/FieldHelp";
 import { HELP } from "@/lib/help";
@@ -62,7 +60,6 @@ export default async function PlanningProjectPage({
         },
         orderBy: { createdAt: "desc" },
       },
-      project: { select: { id: true, situacao: true, valorCaptado: true } },
       readequacaoDrafts: {
         where: { status: "OPEN" },
         orderBy: { createdAt: "desc" },
@@ -73,7 +70,7 @@ export default async function PlanningProjectPage({
   });
   if (!project) notFound();
 
-  const valorCaptado = money(project.project?.valorCaptado);
+  const valorCaptado = money(project.valorCaptado);
   const publishedPaidByLine = await loadPublishedPaidByLine(project.id);
   const { loadLockedLineIds } = await import("@/lib/planning/hierarchy-lock-db");
   const lockData = project.sheet
@@ -93,7 +90,6 @@ export default async function PlanningProjectPage({
     : null;
   const allowEditRubricas = await canEditRubricas();
   const isFederal = isFederalPlanning(project.jurisdiction);
-  const allowPublish = isFederal && (await canPublishToSalic());
   const allowReadequacao = await canReadequacao();
   const closed = project.lifecycleStatus === "ENCERRADO";
 
@@ -146,14 +142,14 @@ export default async function PlanningProjectPage({
               {jurisdictionLabel(project.jurisdiction)} · {project.account.name}
             </span>
             {project.importSource ||
-            (isFederal && project.project?.situacao) ? (
+            (isFederal && project.situacao) ? (
               <FieldHelp
                 text={[
                   project.importSource
                     ? `Fonte: ${importSourceLabel(project.importSource)}`
                     : null,
-                  isFederal && project.project?.situacao
-                    ? `Situação SALIC: ${project.project.situacao}`
+                  isFederal && project.situacao
+                    ? `Situação SALIC: ${project.situacao}`
                     : null,
                 ]
                   .filter(Boolean)
@@ -247,13 +243,6 @@ export default async function PlanningProjectPage({
               operableBase={bal.operableBase}
               isFederal={isFederal}
             />
-
-            {allowPublish ? (
-              <PlanningAuditReconcilePanel
-                planningProjectId={project.id}
-                canPublishSalic={allowPublish}
-              />
-            ) : null}
           </div>
         </>
       ) : (

@@ -91,8 +91,8 @@ const MODULES: ModuleCard[] = [
   },
   {
     href: "/inicio",
-    title: "Auditoria",
-    description: "Sync SALIC, panorama por fornecedor e relatório de auditoria.",
+    title: "Auditoria (antigo Salink)",
+    description: "Espelho do SALIC: sync, panorama por fornecedor e relatório de auditoria. Não alimenta os outros módulos.",
     cta: "Abrir",
     theme: {
       topBar: "bg-[linear-gradient(90deg,#2563eb_0%,#0ea5e9_100%)]",
