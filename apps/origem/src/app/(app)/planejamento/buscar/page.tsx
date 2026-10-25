@@ -206,6 +206,7 @@ export default async function BuscarSaldoPage({
       commitments: p.commitments,
       valorCaptado: p.valorCaptado,
       captadoRecebido: p.captadoRecebido,
+      rubricOverrunPct: p.rubricOverrunPct,
       captadoTransferido: p.captadoTransferido,
       rendimentos: p.rendimentos,
     });

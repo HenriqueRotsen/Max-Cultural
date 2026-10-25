@@ -11,6 +11,7 @@ import {
   syncFluxoProjeto,
 } from "@/lib/planning/server-utils";
 import type { ActionState } from "@/lib/planning/action-state";
+import { parseProjectCaps } from "@/lib/planning/project-caps";
 
 export async function startPlanningProjectState(
   _prev: ActionState,
@@ -20,14 +21,16 @@ export async function startPlanningProjectState(
   const { entitlements } = await getWorkspaceContext();
   const accountId = String(formData.get("accountId") || "");
   const externalCode = String(formData.get("externalCode") || "").trim();
-  const rulesetVersion = String(formData.get("rulesetVersion") || "").trim();
+  // Estadual não usa IN: só os limites do projeto.
+  const caps = parseProjectCaps(formData);
+  if ("error" in caps) return { error: caps.error };
   const jurisdiction = String(formData.get("jurisdiction") || "").trim();
   const file = formData.get("sheetFile");
   const projectName = String(formData.get("projectName") || "").trim().slice(0, 300);
   const hasFile = file instanceof File && file.size > 0;
 
-  if (!accountId || !externalCode || !rulesetVersion || !jurisdiction || !projectName) {
-    return { error: "Preencha UF, proponente, norma, código e nome do projeto" };
+  if (!accountId || !externalCode || !jurisdiction || !projectName) {
+    return { error: "Preencha UF, proponente, código e nome do projeto" };
   }
 
   const account = await prisma.salicAccount.findFirst({
@@ -68,17 +71,18 @@ export async function startPlanningProjectState(
         workspaceId: entitlements.workspaceId,
         accountId,
         jurisdiction,
-        rulesetVersion,
+        rulesetVersion: null,
         externalCode,
         name: projectName,
         sheetSearchActive: false,
+        ...caps,
       },
     }));
 
   if (existing) {
     await prisma.planningProject.update({
       where: { id: existing.id },
-      data: { rulesetVersion, jurisdiction, name: projectName, sheetSearchActive: false },
+      data: { rulesetVersion: null, jurisdiction, name: projectName, sheetSearchActive: false, ...caps },
     });
   }
 

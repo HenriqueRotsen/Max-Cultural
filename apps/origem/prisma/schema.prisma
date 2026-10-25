@@ -354,7 +354,14 @@ model PlanningProject {
   accountId      String
   /** FEDERAL ou UF */
   jurisdiction   String
-  rulesetVersion String
+  /** IN de referência (só informativo no federal; estadual não usa). */
+  rulesetVersion String?
+  /** Limites do projeto, em % do valor captado (informados ao começar o projeto). */
+  supplierCapPct   Decimal  @default(20) @db.Decimal(5, 2)
+  /** Proponente + quem tem vínculo com ele (sócio, cônjuge, empresa ligada), somados. */
+  bondCapPct       Decimal  @default(20) @db.Decimal(5, 2)
+  /** Quanto uma rubrica pode passar do aprovado (reserva e remanejamento), com permissão. */
+  rubricOverrunPct Decimal  @default(100) @db.Decimal(6, 2)
   /** PRONAC ou código estadual */
   externalCode   String
   name           String?
@@ -397,7 +404,7 @@ model PlanningProject {
 
   workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   account         SalicAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  ruleset         ComplianceRuleset @relation(fields: [rulesetVersion], references: [version], onDelete: Restrict)
+  ruleset         ComplianceRuleset? @relation(fields: [rulesetVersion], references: [version], onDelete: Restrict)
   sheet           ProjectBudgetSheet?
   commitments     RubricCommitment[]
   engagements     CatalogEngagement[]

@@ -73,6 +73,7 @@ export default async function RevisarNfPage({
     commitments: project.commitments,
     valorCaptado,
     captadoRecebido: project.captadoRecebido,
+    rubricOverrunPct: project.rubricOverrunPct,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     lockedLineIds,

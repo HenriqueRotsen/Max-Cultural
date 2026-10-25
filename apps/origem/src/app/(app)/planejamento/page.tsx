@@ -54,6 +54,7 @@ export default async function PlanejamentoIndexPage() {
           commitments: p.commitments,
           valorCaptado: money(p.valorCaptado),
           captadoRecebido: p.captadoRecebido,
+          rubricOverrunPct: p.rubricOverrunPct,
           captadoTransferido: p.captadoTransferido,
           rendimentos: p.rendimentos,
           publishedPaidByLine: publishedByProject.get(p.id),

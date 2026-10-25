@@ -9,6 +9,7 @@ import {
 } from "@/lib/planning/estadual/actions";
 import type { ActionState } from "@/lib/planning/action-state";
 import { FluxoContextField } from "@/components/planning/FluxoContextField";
+import { ProjectCapsFields } from "@/components/planning/ProjectCapsFields";
 
 type Account = { id: string; name: string; cgccpf: string };
 type Ruleset = { version: string; sourceCode: string; jurisdiction: string };
@@ -44,11 +45,6 @@ export function PlanningOnboardForm({
     () => rulesets.filter((r) => r.jurisdiction === "FEDERAL"),
     [rulesets],
   );
-  const stateRules = useMemo(() => {
-    const exact = rulesets.filter((r) => r.jurisdiction === uf);
-    return exact.length ? exact : federalRules;
-  }, [rulesets, uf, federalRules]);
-
   const err = mode === "FEDERAL" ? fedState.error : stState.error;
   const pending = mode === "FEDERAL" ? fedPending : stPending;
 
@@ -102,9 +98,11 @@ export function PlanningOnboardForm({
               ))}
             </select>
           </label>
+          <ProjectCapsFields />
           <label className="field">
-            <span>Norma / IN</span>
-            <select name="rulesetVersion" required className="w-full" defaultValue={federalRules[0]?.version || ""}>
+            <span>Ano da IN (opcional, só informativo)</span>
+            <select name="rulesetVersion" className="w-full" defaultValue="">
+              <option value="">Não informar</option>
               {federalRules.map((r) => (
                 <option key={r.version} value={r.version}>
                   {r.sourceCode}
@@ -174,16 +172,7 @@ export function PlanningOnboardForm({
               ))}
             </select>
           </label>
-          <label className="field">
-            <span>Norma</span>
-            <select name="rulesetVersion" required className="w-full" defaultValue={stateRules[0]?.version || ""}>
-              {stateRules.map((r) => (
-                <option key={r.version} value={r.version}>
-                  {r.sourceCode} ({r.jurisdiction})
-                </option>
-              ))}
-            </select>
-          </label>
+          <ProjectCapsFields />
           <label className="field">
             <span>Código do projeto</span>
             <input

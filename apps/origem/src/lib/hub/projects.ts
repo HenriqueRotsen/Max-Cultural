@@ -135,7 +135,7 @@ function toSummary(
     jurisdiction: string;
     importSource: string | null;
     updatedAt: Date;
-    rulesetVersion: string;
+    rulesetVersion: string | null;
     captadoRecebido?: unknown;
     captadoTransferido?: unknown;
     rendimentos?: unknown;
@@ -175,7 +175,10 @@ function toSummary(
     id: p.id,
     code: p.externalCode,
     name: p.name || p.externalCode,
-    lawLabel: p.ruleset?.sourceCode || p.rulesetVersion || "—",
+    lawLabel:
+      p.ruleset?.sourceCode ||
+      p.rulesetVersion ||
+      (p.jurisdiction === "FEDERAL" ? "Lei Federal" : `Estadual (${p.jurisdiction})`),
     lifecycleStatus: p.lifecycleStatus,
     lifecycleLabel: lifecycleLabel(p.lifecycleStatus),
     situacao: p.situacao || null,

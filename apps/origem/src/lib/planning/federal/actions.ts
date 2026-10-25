@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { parseProjectCaps } from "@/lib/planning/project-caps";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { canPublishToSalic, canReadequacao } from "@/lib/planning/acl";
@@ -110,10 +111,13 @@ export async function startPlanningProjectFederal(
   const { entitlements } = await getWorkspaceContext();
   const accountId = String(formData.get("accountId") || "");
   const externalCode = String(formData.get("externalCode") || "").trim();
-  const rulesetVersion = String(formData.get("rulesetVersion") || "").trim();
+  // IN é só informativa; os limites vêm do formulário.
+  const rulesetVersion = String(formData.get("rulesetVersion") || "").trim() || null;
+  const caps = parseProjectCaps(formData);
+  if ("error" in caps) return { error: caps.error };
 
-  if (!accountId || !externalCode || !rulesetVersion) {
-    return { error: "Preencha proponente, PRONAC e norma" };
+  if (!accountId || !externalCode) {
+    return { error: "Preencha proponente e PRONAC" };
   }
 
   const account = await prisma.salicAccount.findFirst({
@@ -161,6 +165,7 @@ export async function startPlanningProjectFederal(
         externalCode,
         name: preview.projectName,
         lifecycleStatus: "EM_ANDAMENTO",
+        ...caps,
       },
     }));
 
@@ -170,6 +175,7 @@ export async function startPlanningProjectFederal(
       data: {
         name: preview.projectName,
         rulesetVersion,
+        ...caps,
       },
     });
   }

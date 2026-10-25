@@ -50,8 +50,7 @@ import {
 } from "@/lib/nf/payment-details";
 import { lookupCnpj } from "@/lib/catalog/brasil-api";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
-import { evaluateSupplierLimit } from "@/lib/compliance/rouanet";
-import { toActiveRules } from "@/lib/compliance/rules";
+import { checkProjectCaps, projectCapsOf } from "@/lib/planning/project-caps";
 import {
   READEQUACAO_TTL_MS,
   expireOpenReadequacaoDrafts,
@@ -985,7 +984,6 @@ export async function confirmNfReservation(
     include: {
       sheet: { include: { lines: true } },
       commitments: { where: { status: { in: ["RESERVED", "PAID"] } } },
-      ruleset: true,
     },
   });
   if (!project?.sheet) return { error: "Projeto sem planilha" };
@@ -1061,6 +1059,7 @@ export async function confirmNfReservation(
     commitments: project.commitments,
     valorCaptado,
     captadoRecebido: project.captadoRecebido,
+    rubricOverrunPct: project.rubricOverrunPct,
     captadoTransferido: project.captadoTransferido,
     rendimentos: project.rendimentos,
     publishedPaidByLine,
@@ -1105,31 +1104,44 @@ export async function confirmNfReservation(
     });
   }
 
-  const rules = toActiveRules(project.ruleset);
+  // Limites do próprio projeto (informados ao começar): fornecedor e vínculo.
   const projectTotal =
     valorCaptado > 0 ? valorCaptado : Number(project.sheet.totalApproved);
-  const priorEngagements = await prisma.catalogEngagement.findMany({
+  const accountDoc = normalizeCgccpf(
+    (await prisma.salicAccount.findUnique({ where: { id: project.accountId } }))?.cgccpf || "",
+  );
+  const projectEngagements = await prisma.catalogEngagement.findMany({
     where: {
       planningProjectId: project.id,
-      service: { supplier: { cnpj } },
+      OR: [{ commitment: { is: null } }, { commitment: { status: { not: "CANCELLED" } } }],
     },
-    select: { price: true },
+    select: {
+      price: true,
+      commitment: { select: { hasBond: true } },
+      service: { select: { supplier: { select: { cnpj: true } } } },
+    },
   });
-  const priorSum = priorEngagements.reduce((s, e) => s + Number(e.price), 0);
-  const supplierAlert = evaluateSupplierLimit({
-    pronac: project.externalCode,
-    projectTotal,
-    supplierName,
-    supplierCgccpf: cnpj,
-    amount: priorSum + grossAmount,
-    accountCgccpf: (
-      await prisma.salicAccount.findUnique({ where: { id: project.accountId } })
-    )?.cgccpf,
-    rules,
-  });
-  if (supplierAlert?.level === "critical") {
-    return { error: supplierAlert.title };
+  const isProponent = Boolean(accountDoc) && normalizeCgccpf(cnpj) === accountDoc;
+  const inBondGroup = isProponent || hasBond;
+  let supplierTotalBefore = 0;
+  let bondGroupTotalBefore = 0;
+  for (const e of projectEngagements) {
+    const doc = normalizeCgccpf(e.service.supplier.cnpj);
+    if (doc === normalizeCgccpf(cnpj)) supplierTotalBefore += Number(e.price);
+    if ((accountDoc && doc === accountDoc) || e.commitment?.hasBond) {
+      bondGroupTotalBefore += Number(e.price);
+    }
   }
+  const capError = checkProjectCaps({
+    caps: projectCapsOf(project),
+    projectTotal,
+    amount: grossAmount,
+    supplierTotalBefore,
+    inBondGroup,
+    bondGroupTotalBefore,
+    supplierName,
+  });
+  if (capError) return { error: capError };
 
   // Vencimento = 5º dia útil do mês seguinte à emissão/contratação (hiredAt).
   const hiredAt = hiredAtRaw
@@ -1175,6 +1187,7 @@ export async function confirmNfReservation(
       commitments: freshCommitments,
       valorCaptado,
       captadoRecebido: project.captadoRecebido,
+      rubricOverrunPct: project.rubricOverrunPct,
       captadoTransferido: project.captadoTransferido,
       rendimentos: project.rendimentos,
       publishedPaidByLine,
@@ -2022,6 +2035,7 @@ export async function refreshPaymentDueNotifications(opts?: {
         commitments: p.commitments,
         valorCaptado: p.valorCaptado,
         captadoRecebido: p.captadoRecebido,
+        rubricOverrunPct: p.rubricOverrunPct,
         captadoTransferido: p.captadoTransferido,
         rendimentos: p.rendimentos,
       });
@@ -2294,6 +2308,9 @@ export async function saveRubricReallocation(
   });
 
   const target = Math.round(money(project.sheet.totalApproved) * 100) / 100;
+  // Remanejamento até o excesso definido no projeto (padrão 100% = 2×).
+  const overrunPct = projectCapsOf(project).rubricOverrunPct;
+  const overrunFactor = 1 + overrunPct / 100;
   let sum = 0;
   const updates: Array<{ id: string; approvedAmount: number }> = [];
 
@@ -2314,7 +2331,7 @@ export async function saveRubricReallocation(
     const admin = isAdminProduct(line.productName);
     const max = admin
       ? Math.round(homologated * 100) / 100
-      : Math.round(homologated * 2 * 100) / 100;
+      : Math.round(homologated * overrunFactor * 100) / 100;
 
     if (admin && Math.abs(value - money(line.approvedAmount)) > 0.005) {
       return {
@@ -2330,7 +2347,7 @@ export async function saveRubricReallocation(
       return {
         error: admin
           ? `«${line.itemName}» (Administração) não pode exceder o aprovado`
-          : `«${line.itemName}» ultrapassa 2× o homologado (máx. ${max.toFixed(2)})`,
+          : `«${line.itemName}» passa do limite de ${overrunPct.toLocaleString("pt-BR")}% acima do homologado (máx. ${max.toFixed(2)})`,
       };
     }
     sum += value;

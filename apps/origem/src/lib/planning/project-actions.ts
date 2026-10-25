@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { logPlanningAction } from "@/lib/activity-audit";
-import { canCloseProject } from "@/lib/planning/acl";
+import { canCloseProject, canEditRubricas } from "@/lib/planning/acl";
+import { parseProjectCaps } from "@/lib/planning/project-caps";
 import type { ActionState } from "@/lib/planning/action-state";
 import { revalidatePlanning } from "@/lib/planning/server-utils";
 
@@ -66,4 +67,33 @@ export async function closePlanningProject(
 
   revalidatePlanning(project.id);
   redirect("/planejamento?encerrado=1");
+}
+
+/** Ajusta os limites do projeto (fornecedor, vínculo, excesso na rubrica). */
+export async function updateProjectCaps(
+  planningProjectId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  if (!(await canEditRubricas())) {
+    return { error: "Sem permissão para alterar os limites do projeto." };
+  }
+  const caps = parseProjectCaps(formData);
+  if ("error" in caps) return { error: caps.error };
+  const { entitlements } = await getWorkspaceContext();
+  const updated = await prisma.planningProject.updateMany({
+    where: { id: planningProjectId, workspaceId: entitlements.workspaceId, closedAt: null },
+    data: caps,
+  });
+  if (updated.count === 0) return { error: "Projeto não encontrado." };
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.project_caps_updated",
+    entityType: "PlanningProject",
+    entityId: planningProjectId,
+    meta: caps,
+  });
+  revalidatePlanning(planningProjectId);
+  return { ok: true, message: "Limites atualizados." };
 }
