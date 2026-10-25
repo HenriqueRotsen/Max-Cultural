@@ -1,18 +1,18 @@
-/** Layout HTML de e-mail — marca MAX Origem (Montserrat + roxo). */
+/** Layout HTML de e-mail — marca MAX Auditoria (Montserrat + azul). */
 
-const NAVY = "#4a1d6e";
-const NAVY_SOFT = "#f3eef8";
-const GOLD = "#5b52c9";
-const GOLD_SOFT = "#ebe9f8";
+const NAVY = "#0b2a6b";
+const NAVY_SOFT = "#eef4fd";
+const GOLD = "#1d6fe0";
+const GOLD_SOFT = "#e3eefc";
 const GRAY_600 = "#4b5563";
 const GRAY_500 = "#6b7280";
 const BORDER = "#e8eaef";
 
 export function appBaseUrl() {
   return (
-    process.env.NEXT_PUBLIC_ORIGEM_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3001"
+    "http://localhost:3003"
   ).replace(/\/$/, "");
 }
 
@@ -35,7 +35,7 @@ export function renderBrandedEmail(input: {
   cta?: { href: string; label: string };
 }) {
   const base = appBaseUrl();
-  const logoUrl = `${base}/brand/max-origem.png`;
+  const logoUrl = `${base}/brand/max-auditoria.png`;
   const preheader = input.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(input.preheader)}</div>`
     : "";
@@ -64,7 +64,7 @@ export function renderBrandedEmail(input: {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${BORDER}">
           <tr>
             <td style="background:linear-gradient(135deg,${NAVY_SOFT} 0%,${GOLD_SOFT} 100%);padding:28px 32px 20px;border-bottom:1px solid ${BORDER}">
-              <img src="${escapeAttr(logoUrl)}" alt="MAX Origem" width="180" height="67" style="display:block;height:48px;width:auto;max-width:200px;border:0"/>
+              <img src="${escapeAttr(logoUrl)}" alt="MAX Auditoria" width="180" height="64" style="display:block;height:48px;width:auto;max-width:200px;border:0"/>
             </td>
           </tr>
           <tr>
@@ -85,7 +85,7 @@ export function renderBrandedEmail(input: {
           <tr>
             <td style="padding:16px 32px;background:#fafafa;border-top:1px solid ${BORDER}">
               <p style="margin:0;font-family:Montserrat,Arial,sans-serif;font-size:12px;line-height:1.45;color:${GRAY_500}">
-                MAX Origem · <a href="${escapeAttr(base)}" style="color:${GOLD};text-decoration:none">${escapeHtml(base.replace(/^https?:\/\//, ""))}</a>
+                MAX Auditoria (antigo Salink) · <a href="${escapeAttr(base)}" style="color:${GOLD};text-decoration:none">${escapeHtml(base.replace(/^https?:\/\//, ""))}</a>
               </p>
             </td>
           </tr>

@@ -110,10 +110,10 @@ export default async function ProponentCorporateMapPage({
     <div className="space-y-6">
       <div>
         <Link
-          href="/contas?tab=suas-contas"
+          href="/contas/mapa"
           className="text-sm text-[var(--gray-500)] hover:text-[var(--navy)]"
         >
-          ← Voltar aos proponentes
+          ← Voltar ao mapa societário
         </Link>
       </div>
 

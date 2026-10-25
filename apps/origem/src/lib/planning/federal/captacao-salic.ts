@@ -13,7 +13,6 @@ import {
   type SalicUiProject,
 } from "@/lib/salic/session";
 import { sanitizeSalicText } from "@/lib/salic/text";
-import { applySalicSituacaoToPlanningProject } from "@/lib/planning/federal/situacao-salic";
 import type { Page } from "playwright-core";
 
 export class CaptacaoImportError extends Error {
@@ -249,12 +248,6 @@ export async function syncCaptacaoForWorkspace(
 
         for (const pp of group) {
           const ui = byPronac.get(pp.externalCode);
-          if (ui) {
-            await applySalicSituacaoToPlanningProject({
-              planningProjectId: pp.id,
-              situacao: ui.Situacao,
-            });
-          }
           if (!ui?.idPronacHash) {
             skipped += 1;
             errors.push(

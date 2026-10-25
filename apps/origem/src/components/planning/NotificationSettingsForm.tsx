@@ -102,7 +102,7 @@ export function NotificationSettingsForm({
           name="salicDiligencia"
           defaultChecked={prefs.salicDiligencia}
           label="Diligência no SALIC"
-          description="Aviso quando um PRONAC do workspace entrar em diligência."
+          description="Aviso da Auditoria quando um PRONAC do workspace entrar em diligência."
         />
       </div>
 

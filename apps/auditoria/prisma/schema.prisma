@@ -184,6 +184,7 @@ model SalicAccount {
   corporatePeriods   CorporatePeriod[]
   observadoBonds     ObservadoBond[]
 
+  auditAlerts AuditAlert[]
   @@unique([workspaceId, cgccpf])
   @@index([active])
   @@index([workspaceId])
@@ -254,6 +255,7 @@ model Project {
   salicAccount   SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
   payments       Payment[]
 
+  auditAlerts AuditAlert[]
   @@unique([salicAccountId, pronac])
   @@index([pronac])
   @@index([complianceRulesetId])
@@ -514,3 +516,87 @@ model AuditLog {
   @@map("audit_logs")
   @@schema("origem")
 }
+
+/** Alerta da Auditoria (diligência e outros problemas no espelho do SALIC). */
+model AuditAlert {
+  id             String           @id @default(cuid())
+  workspaceId    String
+  salicAccountId String
+  projectId      String?
+  pronac         String
+  /** DILIGENCIA (outros tipos no futuro) */
+  type           String
+  title          String
+  detail         String           @default("")
+  status         AuditAlertStatus @default(NOVO)
+  detectedAt     DateTime         @default(now())
+  seenAt         DateTime?
+  seenById       String?
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolutionNote String?
+  meta           Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  salicAccount SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status, detectedAt])
+  @@index([salicAccountId, pronac, type])
+  @@map("audit_alerts")
+  @@schema("auditoria")
+}
+
+enum AuditAlertStatus {
+  NOVO
+  VISTO
+  RESOLVIDO
+
+  @@schema("auditoria")
+}
+
+// —— Avisos no sino do MAX Origem (tabelas do Origem; a Auditoria só cria) ——
+
+enum AppNotificationType {
+  PAYMENT_DUE_SOON
+  PAYMENT_OVERDUE
+  RUBRIC_NEAR
+  NF_PENDING
+  TAX_DUE_ISS
+  TAX_DUE_FEDERAL
+  SALIC_DILIGENCIA
+
+  @@schema("origem")
+}
+
+model AppNotification {
+  id           String              @id @default(cuid())
+  workspaceId  String
+  userId       String?
+  type         AppNotificationType
+  title        String
+  body         String
+  href         String?
+  readAt       DateTime?
+  scheduledFor DateTime?
+  meta         Json?
+  createdAt    DateTime            @default(now())
+
+  @@map("app_notifications")
+  @@schema("origem")
+}
+
+/** Preferências de aviso (lidas para respeitar quem desligou diligência / e-mail). */
+model NotificationSettings {
+  id              String  @id @default(cuid())
+  workspaceId     String
+  userId          String
+  salicDiligencia Boolean @default(true)
+  emailEnabled    Boolean @default(false)
+
+  @@unique([workspaceId, userId])
+  @@map("notification_settings")
+  @@schema("origem")
+}
+

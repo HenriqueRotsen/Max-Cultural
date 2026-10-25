@@ -14,6 +14,7 @@ import {
 import type { SalicProduto } from "@/lib/salic/api";
 import { sanitizeSalicText } from "@/lib/salic/text";
 import { classifyLifecycleFromSituacao } from "@/lib/salic/lifecycle";
+import { recordSituacaoChange } from "@/lib/alerts/diligencia";
 
 const SALIC_BASE = "https://salic.cultura.gov.br";
 // Em serverless só /tmp aceita escrita.
@@ -392,6 +393,16 @@ export async function syncAccountViaCrawler(params: {
         continue;
       }
 
+      const previous = await prisma.project.findUnique({
+        where: {
+          salicAccountId_pronac: {
+            salicAccountId: account.id,
+            pronac: String(listed.Pronac),
+          },
+        },
+        select: { situacao: true },
+      });
+
       const project = await prisma.project.upsert({
         where: {
           salicAccountId_pronac: {
@@ -416,6 +427,23 @@ export async function syncAccountViaCrawler(params: {
           lastSyncedAt: new Date(),
         },
       });
+
+      try {
+        const alertId = await recordSituacaoChange({
+          workspaceId: account.workspaceId,
+          salicAccountId: account.id,
+          projectId: project.id,
+          pronac: String(listed.Pronac),
+          projectName: listed.NomeProjeto,
+          previousSituacao: previous?.situacao,
+          nextSituacao: listed.Situacao,
+        });
+        if (alertId) await push(`PRONAC ${listed.Pronac}: alerta de diligência criado`);
+      } catch (err) {
+        await push(
+          `PRONAC ${listed.Pronac}: alerta de diligência falhou (${err instanceof Error ? err.message : String(err)})`,
+        );
+      }
 
       // API pública do SALIC é lenta/instável (sobretudo vista da Vercel): consulta
       // curta e, se falhar uma vez, não insiste nos demais projetos desta execução.
@@ -503,7 +531,7 @@ export async function syncAccountViaCrawler(params: {
       seenPronacs.add(String(listed.Pronac));
       await push(
         `PRONAC ${listed.Pronac}: ${seenExternalIds.size} comprovantes no SALIC` +
-          (removed ? ` · ${removed} removidos do MAX Origem` : ""),
+          (removed ? ` · ${removed} removidos do espelho` : ""),
       );
     }
 

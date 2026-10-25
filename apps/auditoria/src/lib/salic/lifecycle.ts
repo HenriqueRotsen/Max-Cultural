@@ -34,3 +34,9 @@ export function classifyLifecycleFromSituacao(
 
   return "EM_ANDAMENTO";
 }
+
+export function isDiligenciaSituacao(situacao?: string | null): boolean {
+  const s = normalizeSituacao(situacao);
+  if (!s) return false;
+  return /diligenc/.test(s);
+}

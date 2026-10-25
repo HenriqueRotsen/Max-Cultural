@@ -4,6 +4,7 @@ import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
 import { canEnterAuditoria, getHubPermissions } from "@/lib/auth/hub-permissions";
 import { getHubSessionPayload } from "@/lib/auth/hub";
 import { getSessionUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
 import { culturalDeniedUrl } from "@max/auth";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -24,12 +25,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect(culturalDeniedUrl("Sem acesso à Auditoria."));
   }
 
+  const newAlerts = await prisma.auditAlert.count({
+    where: { workspaceId: session.workspace.id, status: "NOVO" },
+  });
+
   return (
     <div className="shell">
       <AppSidebar
         userEmail={session.email}
         isAdmin={session.profile.role === "ADMIN"}
         syncEnabled={session.entitlements.syncEnabled}
+        newAlerts={newAlerts}
       />
       <div className="shell-main">
         <div className="content">{children}</div>

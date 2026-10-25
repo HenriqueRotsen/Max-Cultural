@@ -2,14 +2,14 @@
 @import "leaflet/dist/leaflet.css";
 
 :root {
-  --navy: #4a1d6e;
-  --navy-soft: #f3eef8;
-  --gold: #5b52c9;
-  --gold-ink: #4338a8;
-  --gold-soft: #ebe9f8;
-  --gold-border: #d4cff0;
-  --gold-gradient: linear-gradient(135deg, #6b4fc9 0%, #3b82d6 100%);
-  --gold-gradient-h: linear-gradient(90deg, #6b4fc9 0%, #3b82d6 100%);
+  --navy: #0b2a6b;
+  --navy-soft: #eaf2fd;
+  --gold: #1d6fe0;
+  --gold-ink: #1557b8;
+  --gold-soft: #e3eefc;
+  --gold-border: #c6dbf7;
+  --gold-gradient: linear-gradient(135deg, #0ea5e9 0%, #1d4ed8 100%);
+  --gold-gradient-h: linear-gradient(90deg, #0ea5e9 0%, #1d4ed8 100%);
   --white: #ffffff;
   --black: #0b0f14;
   --gray-50: #f7f8fa;
@@ -20,7 +20,7 @@
   --gray-600: #4b5563;
   --border: #e8eaef;
   --background: #f5f6f8;
-  --foreground: #4a1d6e;
+  --foreground: #0b2a6b;
 }
 
 @theme inline {

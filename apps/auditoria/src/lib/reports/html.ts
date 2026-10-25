@@ -48,7 +48,7 @@ export type ReportFiltersMeta = {
 };
 
 async function loadLogoDataUri() {
-  const file = path.join(process.cwd(), "public/brand/max-origem.png");
+  const file = path.join(process.cwd(), "public/brand/max-auditoria.png");
   const buf = await readFile(file);
   return `data:image/png;base64,${buf.toString("base64")}`;
 }
@@ -389,7 +389,7 @@ function shellHtml(params: {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="max-origem-generated-at" content="${escapeHtml(generatedAt)}" />
+  <meta name="max-auditoria-generated-at" content="${escapeHtml(generatedAt)}" />
   <title>${escapeHtml(params.title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

@@ -22,6 +22,7 @@ export function AppSidebar({
   fluxoFormulariosOnly,
   origemUrl,
   fluxoUrl,
+  auditoriaUrl,
 }: {
   userEmail?: string;
   canProjetos?: boolean;
@@ -34,6 +35,8 @@ export function AppSidebar({
   fluxoFormulariosOnly?: boolean;
   origemUrl?: string;
   fluxoUrl?: string;
+  /** App MAX Auditoria (antigo Salink); vazio = sem atalho. */
+  auditoriaUrl?: string;
 }) {
   const pathname = usePathname();
   const visible = hubLinks.filter((l) => {
@@ -49,7 +52,8 @@ export function AppSidebar({
   const fluxoHref = fluxoFormulariosOnly
     ? `${fluxoBase}/dashboard/formularios`
     : `${fluxoBase}/dashboard`;
-  const showProducts = Boolean(canOrigem || canFluxo);
+  const auditoriaHref = auditoriaUrl ? `${auditoriaUrl.replace(/\/$/, "")}/inicio` : "";
+  const showProducts = Boolean(canOrigem || canFluxo || auditoriaHref);
 
   return (
     <aside className="shell-sidebar">
@@ -113,6 +117,22 @@ export function AppSidebar({
                 <img
                   src="/brand/max-fluxo.png"
                   alt="MAX Fluxo"
+                  className="h-7 w-auto max-w-[9rem] object-contain object-left"
+                />
+              </a>
+            ) : null}
+            {auditoriaHref ? (
+              <a
+                href={auditoriaHref}
+                className="mt-1 flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+                style={{
+                  background: "linear-gradient(165deg, #eff6ff 0%, #fff 70%)",
+                  boxShadow: "0 0 0 1px #93c5fd55",
+                }}
+              >
+                <img
+                  src="/brand/max-auditoria.png"
+                  alt="MAX Auditoria"
                   className="h-7 w-auto max-w-[9rem] object-contain object-left"
                 />
               </a>
