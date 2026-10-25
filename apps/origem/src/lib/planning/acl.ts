@@ -22,6 +22,10 @@ export async function canExceedRubric(): Promise<boolean> {
   return canHubScreen("origem.planejamento.exceder_rubrica");
 }
 
+export async function canCloseProject(): Promise<boolean> {
+  return canHubScreen("origem.planejamento.encerrar");
+}
+
 export async function canEditRubricas(): Promise<boolean> {
   return canHubScreen("origem.planejamento.editar_rubricas");
 }

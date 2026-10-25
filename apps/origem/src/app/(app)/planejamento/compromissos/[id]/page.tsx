@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui";
 import { DeleteNfButton } from "@/components/planning/DeleteNfButton";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
+import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -331,6 +332,23 @@ export default async function CompromissoPage({
             />
           )}
         </div>
+
+        {commitment.status === "PAID" ? (
+          <div id="avaliar" className="card space-y-3 p-5">
+            <h2 className="font-semibold text-[var(--navy)]">Avaliar fornecedor</h2>
+            <SupplierEvaluationForm
+              commitmentId={commitment.id}
+              supplierName={commitment.engagement.service.supplier.name}
+              initial={{
+                rating: commitment.engagement.rating,
+                delayed: commitment.engagement.delayed,
+                delayDays: commitment.engagement.delayDays,
+                comment: commitment.engagement.ratingComment,
+                evaluatedAt: commitment.engagement.evaluatedAt?.toISOString() ?? null,
+              }}
+            />
+          </div>
+        ) : null}
 
         <div className="card space-y-3 p-5">
           <h2 className="font-semibold text-[var(--navy)]">

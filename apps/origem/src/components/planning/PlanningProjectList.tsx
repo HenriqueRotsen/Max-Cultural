@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { jurisdictionLabel, projectListBucket } from "@/lib/planning/lifecycle";
+import { jurisdictionLabel } from "@/lib/planning/lifecycle";
 
 export type PlanningProjectCard = {
   id: string;
@@ -21,7 +21,6 @@ export type PlanningProjectCard = {
 };
 
 type SortKey = "name" | "code" | "approved" | "balance" | "imported";
-type LifecycleFilter = "execucao" | "prestacao" | "encerrado" | "all";
 
 function norm(s: string) {
   return s
@@ -173,18 +172,14 @@ function ProjectListCard({
 export function PlanningProjectList({ projects }: { projects: PlanningProjectCard[] }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("name");
-  const [lifecycle, setLifecycle] = useState<LifecycleFilter>("execucao");
   const [jurisdiction, setJurisdiction] = useState<string>("all");
 
   const filtered = useMemo(() => {
     const q = norm(query.trim());
     let list = projects.filter((p) => {
-      const bucket = projectListBucket({
-        lifecycleStatus: p.lifecycleStatus,
-        situacao: p.situacao,
-      });
-      if (lifecycle !== "all" && bucket !== lifecycle) return false;
-      if (jurisdiction !== "all" && p.jurisdiction !== jurisdiction) return false;
+      // Estadual guarda a UF em jurisdiction (ex.: "SP").
+      if (jurisdiction === "FEDERAL" && p.jurisdiction !== "FEDERAL") return false;
+      if (jurisdiction === "ESTADUAL" && p.jurisdiction === "FEDERAL") return false;
       if (!q) return true;
       const hay = norm(
         [p.externalCode, p.name || "", p.accountName, p.situacao || ""].join(" "),
@@ -211,35 +206,13 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
       }
     });
     return list;
-  }, [projects, query, sort, lifecycle, jurisdiction]);
-
-  const execucaoCount = projects.filter(
-    (p) =>
-      projectListBucket({
-        lifecycleStatus: p.lifecycleStatus,
-        situacao: p.situacao,
-      }) === "execucao",
-  ).length;
-  const prestacaoCount = projects.filter(
-    (p) =>
-      projectListBucket({
-        lifecycleStatus: p.lifecycleStatus,
-        situacao: p.situacao,
-      }) === "prestacao",
-  ).length;
-  const encerradoCount = projects.filter(
-    (p) =>
-      projectListBucket({
-        lifecycleStatus: p.lifecycleStatus,
-        situacao: p.situacao,
-      }) === "encerrado",
-  ).length;
+  }, [projects, query, sort, jurisdiction]);
 
   if (projects.length === 0) {
     return (
       <div className="card space-y-3 px-5 py-12 text-center">
         <p className="text-sm text-[var(--gray-500)]">
-          Nenhum projeto no planejamento. Inicie um novo com a planilha homologada.
+          Nenhum projeto ativo no planejamento. Comece um projeto federal (planilha do SALIC) ou estadual (rubricas lançadas à mão).
         </p>
         <Link href="/planejamento/novo" className="btn inline-flex">
           Começar projeto
@@ -259,15 +232,6 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
             onChange={(e) => setQuery(e.target.value)}
             placeholder="PRONAC, nome, proponente…"
           />
-        </label>
-        <label className="field min-w-[10rem]">
-          <span className="text-xs text-[var(--gray-500)]">Situação</span>
-          <select value={lifecycle} onChange={(e) => setLifecycle(e.target.value as LifecycleFilter)}>
-            <option value="execucao">Em execução ({execucaoCount})</option>
-            <option value="prestacao">Prestação / consulta ({prestacaoCount})</option>
-            <option value="encerrado">Encerrados ({encerradoCount})</option>
-            <option value="all">Todos ({projects.length})</option>
-          </select>
         </label>
         <label className="field min-w-[10rem]">
           <span className="text-xs text-[var(--gray-500)]">Esfera</span>
@@ -306,12 +270,7 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
               situacao={p.situacao}
               totalApproved={p.totalApproved}
               totalSaldo={p.totalSaldo}
-              muted={
-                projectListBucket({
-                  lifecycleStatus: p.lifecycleStatus,
-                  situacao: p.situacao,
-                }) !== "execucao"
-              }
+              muted={false}
             />
           ))}
         </div>

@@ -1,14 +1,19 @@
 import { prisma } from "@/lib/db";
 
+/** Contratação de reserva cancelada (pedido desfeito) não entra nas médias. */
+const NOT_CANCELLED = {
+  OR: [{ commitment: { is: null } }, { commitment: { status: { not: "CANCELLED" as const } } }],
+};
+
 export async function recomputeServiceStats(serviceId: string) {
   const [rated, priced] = await Promise.all([
     prisma.catalogEngagement.aggregate({
-      where: { serviceId, rating: { not: null } },
+      where: { serviceId, rating: { not: null }, ...NOT_CANCELLED },
       _avg: { rating: true },
       _count: { rating: true },
     }),
     prisma.catalogEngagement.aggregate({
-      where: { serviceId },
+      where: { serviceId, ...NOT_CANCELLED },
       _avg: { price: true },
     }),
   ]);
@@ -38,7 +43,7 @@ export async function recomputeSupplierStats(supplierId: string) {
   }
 
   const agg = await prisma.catalogEngagement.aggregate({
-    where: { serviceId: { in: ids }, rating: { not: null } },
+    where: { serviceId: { in: ids }, rating: { not: null }, ...NOT_CANCELLED },
     _avg: { rating: true },
     _count: { rating: true },
   });

@@ -60,6 +60,8 @@ describe("getNotificationPrefs (integração mock Prisma)", () => {
       taxDueIss: true,
       taxDueFederal: true,
       salicDiligencia: true,
+      readequadaApplied: true,
+      evaluationPending: true,
       emailEnabled: true,
       dueSoonDaysAhead: 10,
       nfPendingDaysAfterPaid: 7,

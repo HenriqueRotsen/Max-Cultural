@@ -39,6 +39,7 @@ export default async function ContasAPagarPage({
     where: {
       workspaceId: entitlements.workspaceId,
       status: "RESERVED",
+      planningProject: { closedAt: null },
     },
     include: {
       planningProject: { select: { id: true, externalCode: true, name: true } },

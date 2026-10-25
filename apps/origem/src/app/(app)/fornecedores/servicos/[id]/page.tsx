@@ -110,12 +110,6 @@ export default async function CatalogServiceDetailPage({
         description={`${service.supplier.name}${service.category ? ` · ${getCategoryLabel(service.category)}` : ""}${service.defaultPriceUnit ? ` · ${getPriceUnitLabel(service.defaultPriceUnit)}` : ""}`}
         actions={
           <>
-            <Link
-              href={`/fornecedores/contratacoes/novo?serviceId=${service.id}`}
-              className="btn"
-            >
-              Nova contratação
-            </Link>
             <Link href={`/fornecedores/empresas/${service.supplierId}`} className="btn btn-ghost">
               Ver fornecedor
             </Link>

@@ -10,6 +10,8 @@ type Props = {
   projectCode: string;
   projectNameHint?: string;
   disabled?: boolean;
+  /** Projeto estadual: não consulta o SALIC para achar o nome. */
+  skipSalic?: boolean;
 };
 
 export function FluxoContextField({
@@ -17,6 +19,7 @@ export function FluxoContextField({
   projectCode,
   projectNameHint,
   disabled,
+  skipSalic,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [projectName, setProjectName] = useState("");
@@ -52,6 +55,7 @@ export function FluxoContextField({
           accountId,
           code,
           projectNameHint,
+          { skipSalic },
         );
         if (!result.ok) {
           setError(result.error);
@@ -77,7 +81,7 @@ export function FluxoContextField({
     }, 400);
 
     return () => window.clearTimeout(timer);
-  }, [accountId, projectCode, projectNameHint, disabled]);
+  }, [accountId, projectCode, projectNameHint, disabled, skipSalic]);
 
   if (!projectCode.trim()) return null;
 

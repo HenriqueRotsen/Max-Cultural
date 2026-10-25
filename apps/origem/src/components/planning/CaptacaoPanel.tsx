@@ -82,42 +82,74 @@ export function CaptacaoPanel({
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
             {refreshState.ok
               ? "Captação atualizada do SALIC."
-              : "Rendimentos salvos."}
+              : isFederal
+                ? "Rendimentos salvos."
+                : "Captação salva."}
           </p>
         ) : null}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <form action={saveFormAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="field">
-            <FieldLabel help={HELP.valorCaptado}>Valor captado</FieldLabel>
-            <input
-              className="w-full"
-              value={formatMoney(valorCaptado)}
-              readOnly
-              disabled
-            />
+            <FieldLabel htmlFor="valorCaptado" help={HELP.valorCaptado}>
+              Valor captado
+            </FieldLabel>
+            {isFederal ? (
+              <input className="w-full" value={formatMoney(valorCaptado)} readOnly disabled />
+            ) : (
+              <input
+                id="valorCaptado"
+                name="valorCaptado"
+                className="w-full"
+                defaultValue={moneyInput(valorCaptado)}
+                placeholder="0,00"
+              />
+            )}
           </div>
           <div className="field">
-            <FieldLabel help="Recursos recebidos de outros projetos (SALIC — Captação de recursos).">
+            <FieldLabel
+              htmlFor="captadoRecebido"
+              help={
+                isFederal
+                  ? "Recursos recebidos de outros projetos (SALIC — Captação de recursos)."
+                  : "Recursos recebidos de outros projetos (informe à mão)."
+              }
+            >
               Recebido
             </FieldLabel>
-            <input
-              className="w-full"
-              value={formatMoney(captadoRecebido)}
-              readOnly
-              disabled
-            />
+            {isFederal ? (
+              <input className="w-full" value={formatMoney(captadoRecebido)} readOnly disabled />
+            ) : (
+              <input
+                id="captadoRecebido"
+                name="captadoRecebido"
+                className="w-full"
+                defaultValue={moneyInput(captadoRecebido)}
+                placeholder="0,00"
+              />
+            )}
           </div>
           <div className="field">
-            <FieldLabel help="Recursos transferidos para outros projetos (SALIC — Captação de recursos).">
+            <FieldLabel
+              htmlFor="captadoTransferido"
+              help={
+                isFederal
+                  ? "Recursos transferidos para outros projetos (SALIC — Captação de recursos)."
+                  : "Recursos transferidos para outros projetos (informe à mão)."
+              }
+            >
               Transferido
             </FieldLabel>
-            <input
-              className="w-full"
-              value={formatMoney(captadoTransferido)}
-              readOnly
-              disabled
-            />
+            {isFederal ? (
+              <input className="w-full" value={formatMoney(captadoTransferido)} readOnly disabled />
+            ) : (
+              <input
+                id="captadoTransferido"
+                name="captadoTransferido"
+                className="w-full"
+                defaultValue={moneyInput(captadoTransferido)}
+                placeholder="0,00"
+              />
+            )}
           </div>
-          <form action={saveFormAction} className="contents">
             <div className="field">
               <FieldLabel
                 htmlFor="rendimentos"
@@ -135,7 +167,7 @@ export function CaptacaoPanel({
             </div>
             <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-4">
               <button type="submit" className="btn" disabled={savePending}>
-                {savePending ? "Salvando…" : "Salvar rendimentos"}
+                {savePending ? "Salvando…" : isFederal ? "Salvar rendimentos" : "Salvar captação"}
               </button>
               {isFederal ? (
                 <button
@@ -157,8 +189,7 @@ export function CaptacaoPanel({
                 </button>
               ) : null}
             </div>
-          </form>
-        </div>
+        </form>
       </div>
     </details>
   );

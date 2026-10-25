@@ -108,12 +108,7 @@ export default async function CatalogEngagementsPage({
       <PageHeader
         breadcrumb="Fornecedores › Contratações"
         title="Contratações"
-        description="Histórico de serviços, valores pagos e arquivos originais."
-        actions={
-          <Link href="/fornecedores/contratacoes/novo" className="btn">
-            Nova contratação
-          </Link>
-        }
+        description="Histórico de serviços, valores pagos e arquivos originais. As contratações entram pelos pagamentos do Planejamento, com a avaliação feita depois de pagar."
       />
 
       <form className="card flex flex-wrap items-end gap-3 p-4">
@@ -155,10 +150,8 @@ export default async function CatalogEngagementsPage({
 
       {total === 0 ? (
         <div className="card px-5 py-12 text-center text-sm text-[var(--gray-500)]">
-          Nenhuma contratação encontrada.{" "}
-          <Link href="/fornecedores/contratacoes/novo" className="font-semibold text-[var(--gold)] hover:underline">
-            Registrar
-          </Link>
+          Nenhuma contratação encontrada. Elas aparecem conforme os pagamentos são lançados no
+          Planejamento.
         </div>
       ) : (
         <div className="space-y-3">

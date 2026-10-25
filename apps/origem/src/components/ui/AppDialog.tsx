@@ -14,7 +14,7 @@ function useEscape(onClose: () => void, enabled = true) {
   }, [onClose, enabled]);
 }
 
-function DialogShell({
+export function DialogShell({
   open,
   onClose,
   children,

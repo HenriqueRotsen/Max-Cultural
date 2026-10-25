@@ -73,9 +73,6 @@ export default async function CatalogVisaoGeralPage() {
             <Link href="/fornecedores/mapa" className="btn btn-ghost">
               Mapa
             </Link>
-            <Link href="/fornecedores/contratacoes/novo" className="btn btn-ghost">
-              Nova contratação
-            </Link>
           </>
         }
       />

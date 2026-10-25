@@ -9,11 +9,7 @@ import { lookupCep, lookupCnpj } from "@/lib/catalog/brasil-api";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
 import { resolveCnaeDescription } from "@/lib/catalog/cnae-lookup";
 import { parseServiceCategory } from "@/lib/catalog/categories";
-import {
-  computeTotal,
-  isPriceUnit,
-  parsePriceUnit,
-} from "@/lib/catalog/price-units";
+import { parsePriceUnit } from "@/lib/catalog/price-units";
 import { recomputeServiceStats, recomputeSupplierStats } from "@/lib/catalog/ratings";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -29,13 +25,6 @@ async function workspaceId() {
 function empty(value: FormDataEntryValue | null) {
   const s = String(value || "").trim();
   return s || null;
-}
-
-function parseMoney(raw: string): number {
-  const s = String(raw || "").trim();
-  if (!s) return NaN;
-  if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", "."));
-  return Number(s);
 }
 
 function refreshCatalog() {
@@ -252,70 +241,6 @@ export async function deleteCatalogService(id: string) {
   await recomputeSupplierStats(row.supplierId);
   refreshCatalog();
   redirect("/fornecedores/servicos");
-}
-
-export async function upsertCatalogEngagement(
-  _prev: CatalogActionState,
-  formData: FormData,
-): Promise<CatalogActionState> {
-  const ws = await workspaceId();
-  const id = empty(formData.get("id"));
-  const serviceId = String(formData.get("serviceId") || "");
-  const service = await prisma.catalogService.findFirst({
-    where: { id: serviceId, supplier: { workspaceId: ws } },
-  });
-  if (!service) return { error: "Serviço inválido." };
-
-  const priceUnit = parsePriceUnit(String(formData.get("priceUnit") || "closed"));
-  if (!priceUnit || !isPriceUnit(priceUnit)) return { error: "Unidade de preço inválida." };
-
-  let quantity = Number(String(formData.get("quantity") || "1").replace(",", "."));
-  if (priceUnit === "closed") quantity = 1;
-  if (!Number.isFinite(quantity) || quantity <= 0) return { error: "Quantidade inválida." };
-
-  let unitPrice = parseMoney(String(formData.get("unitPrice") || ""));
-  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-    const total = parseMoney(String(formData.get("price") || ""));
-    if (!Number.isFinite(total) || total < 0) return { error: "Preço inválido." };
-    unitPrice = priceUnit === "closed" ? total : total / quantity;
-  }
-  const price = computeTotal(unitPrice, quantity);
-  const hiredAtRaw = String(formData.get("hiredAt") || "");
-  const hiredAt = hiredAtRaw ? new Date(`${hiredAtRaw}T12:00:00`) : new Date();
-  if (Number.isNaN(hiredAt.getTime())) return { error: "Data da contratação inválida." };
-
-  const ratingRaw = String(formData.get("rating") || "");
-  const rating = ratingRaw ? Number(ratingRaw) : null;
-  const delayed = formData.get("delayed") === "1";
-
-  const payload = {
-    workspaceId: ws,
-    serviceId,
-    price,
-    unitPrice,
-    quantity,
-    priceUnit,
-    hiredAt,
-    location: empty(formData.get("location")),
-    notes: empty(formData.get("notes")),
-    rating: rating && rating >= 1 && rating <= 5 ? rating : null,
-    ratingComment: empty(formData.get("ratingComment")),
-    delayed,
-    delayDays: delayed ? Number(formData.get("delayDays") || 0) || null : null,
-  };
-
-  if (id) {
-    await prisma.catalogEngagement.updateMany({
-      where: { id, workspaceId: ws },
-      data: payload,
-    });
-  } else {
-    await prisma.catalogEngagement.create({ data: payload });
-  }
-  await recomputeServiceStats(serviceId);
-  await recomputeSupplierStats(service.supplierId);
-  refreshCatalog();
-  redirect("/fornecedores/contratacoes");
 }
 
 export async function deleteCatalogEngagement(id: string) {

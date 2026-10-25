@@ -205,6 +205,7 @@ export async function listHubProjectSummaries(
     where: {
       workspaceId,
       lifecycleStatus: "EM_ANDAMENTO",
+      closedAt: null,
     },
     orderBy: [{ name: "asc" }, { externalCode: "asc" }],
     include: {
@@ -281,7 +282,7 @@ export async function getHubProjectBySlug(
   slug: string,
 ): Promise<HubProjectSummary | null> {
   const rows = await prisma.planningProject.findMany({
-    where: { workspaceId },
+    where: { workspaceId, closedAt: null },
     include: {
       account: { select: { name: true } },
       ruleset: { select: { sourceCode: true, version: true } },
