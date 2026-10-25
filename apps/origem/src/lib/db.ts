@@ -10,7 +10,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 38;
+const PRISMA_SCHEMA_VERSION = 39;
 
 function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
@@ -49,8 +49,8 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-/** Detecta DMMF antigo após migrações do mapa. */
-function clientMatchesSchema(client: PrismaClient): boolean {
+/** Detecta client gerado antes de uma migração (DMMF antigo em `next dev`). */
+export function clientMatchesSchema(client: PrismaClient): boolean {
   const models = (
     client as unknown as {
       _runtimeDataModel?: {
@@ -58,46 +58,33 @@ function clientMatchesSchema(client: PrismaClient): boolean {
       };
     }
   )._runtimeDataModel?.models;
-  if (!models?.Supplier || !models?.SalicAccount) return false;
-  const supplierFields = (models.Supplier.fields || []).map((f) => f.name);
-  const accountFields = (models.SalicAccount.fields || []).map((f) => f.name);
-  if (supplierFields.includes("foundedAt")) return false;
-  if (!accountFields.includes("foundedAt")) return false;
-  if (!accountFields.includes("institutionalMap")) return false;
-  if (!models.CorporatePeriod) return false;
-  if (!models.CorporatePeriodMember) return false;
-  if (!models.ObservadoBond) return false;
-  if (!models.CatalogSupplier) return false;
-  const catalogFields = (models.CatalogSupplier.fields || []).map((f) => f.name);
-  if (catalogFields.includes("fromAudit")) return false;
-  if (!catalogFields.includes("latitude")) return false;
-  if (!models.CatalogService) return false;
-  const serviceFields = (models.CatalogService.fields || []).map((f) => f.name);
-  if (!serviceFields.includes("embeddingUpdatedAt")) return false;
-  if (!models.CatalogEngagement) return false;
-  const engagementFields = (models.CatalogEngagement.fields || []).map((f) => f.name);
-  if (engagementFields.includes("salicPaymentId")) return false;
-  if (!engagementFields.includes("planningProjectId")) return false;
-  if (!models.PlanningProject) return false;
-  if (!models.ProjectBudgetSheet || !models.ProjectBudgetLine) return false;
-  const budgetLineFields = (models.ProjectBudgetLine.fields || []).map((f) => f.name);
-  if (!budgetLineFields.includes("homologatedAmount")) return false;
-  if (!models.RubricCommitment) return false;
-  const commitmentFields = (models.RubricCommitment.fields || []).map((f) => f.name);
-  if (!commitmentFields.includes("pedidoId")) return false;
-  if (!models.PlanningPedido) return false;
-  if (!models.PlanningDocument) return false;
-  if (!models.AppNotification) return false;
-  if (!models.NotificationSettings) return false;
-  if (models.PlanProposal || models.PlanBudgetStage) return false;
-  const projectFields = (models.Project.fields || []).map((f) => f.name);
-  if (!projectFields.includes("situacao")) return false;
-  if (!projectFields.includes("lifecycleStatus")) return false;
-  const planningFields = (models.PlanningProject.fields || []).map((f) => f.name);
-  if (!planningFields.includes("lifecycleStatus")) return false;
-  if (!planningFields.includes("salicPublishStatus")) return false;
-  if (!planningFields.includes("situacao") || planningFields.includes("projectId")) return false;
-  if (!models.AuditLog) return false;
+  if (!models) return false;
+  const fields = (model: string) => new Set((models[model]?.fields || []).map((f) => f.name));
+  // Tabelas da Auditoria (Project, Payment, Supplier…) vivem no app MAX Auditoria.
+  if (models.Supplier || models.Project || models.Payment) return false;
+  const account = fields("SalicAccount");
+  if (!account.has("foundedAt") || !account.has("institutionalMap")) return false;
+  const catalog = fields("CatalogSupplier");
+  if (!catalog.has("latitude") || catalog.has("fromAudit")) return false;
+  if (!fields("CatalogService").has("embeddingUpdatedAt")) return false;
+  const engagement = fields("CatalogEngagement");
+  if (!engagement.has("planningProjectId") || engagement.has("salicPaymentId")) return false;
+  if (!fields("ProjectBudgetLine").has("homologatedAmount")) return false;
+  if (!fields("RubricCommitment").has("pedidoId")) return false;
+  const planning = fields("PlanningProject");
+  if (!planning.has("salicPublishStatus") || !planning.has("situacao") || planning.has("projectId")) {
+    return false;
+  }
+  for (const model of [
+    "ProjectBudgetSheet",
+    "PlanningPedido",
+    "PlanningDocument",
+    "AppNotification",
+    "NotificationSettings",
+    "AuditLog",
+  ]) {
+    if (!models[model]) return false;
+  }
   return true;
 }
 
