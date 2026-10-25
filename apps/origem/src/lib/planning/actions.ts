@@ -1319,26 +1319,6 @@ export async function confirmNfReservation(
       },
     });
 
-    if (hasBond) {
-      await tx.observadoBond.upsert({
-        where: {
-          salicAccountId_cgccpf_rulesetVersion: {
-            salicAccountId: project.accountId,
-            cgccpf: cnpj,
-            rulesetVersion: project.rulesetVersion,
-          },
-        },
-        create: {
-          workspaceId: entitlements.workspaceId,
-          salicAccountId: project.accountId,
-          cgccpf: cnpj,
-          rulesetVersion: project.rulesetVersion,
-          enabled: true,
-        },
-        update: { enabled: true },
-      });
-    }
-
     const taxSummary = taxDueSummaryFromCompetence(hiredAt, taxesFromForm);
     const href = `/planejamento/compromissos/${primaryCommitmentId}`;
 

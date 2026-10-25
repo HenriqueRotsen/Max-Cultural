@@ -136,30 +136,18 @@ Acesso: permissão `auditoria.app` no hub (na transição o app também aceita `
 - Origem/Fluxo enviam via `POST /api/audit` (Bearer / `x-max-session`).
 - Fluxo mantém cópia local em `/dashboard/acesso/auditoria` (legado; nav IAM oculta por padrão).
 
-## 5. Virada da Auditoria (antigo Salink) para app próprio
+## 5. Auditoria (antigo Salink) — app próprio
 
-A Auditoria é o espelho do SALIC e **não alimenta** Planejamento nem Fornecedores
-(isolado desde o PR "Isolar a Auditoria"). O app `apps/auditoria` já existe; até a
-virada ele lê as mesmas tabelas do schema `origem` e o Origem continua com as telas
-e o cron de sync.
+A Auditoria é o espelho do SALIC e **não alimenta** Planejamento nem Fornecedores.
+Roda no app `apps/auditoria` (`https://auditoria.maxcultural.com.br`, projeto Vercel
+`max-auditoria`), com os crons de sync (`sync-salic` + `sync-resume`).
 
-Passos (quem tem acesso à Vercel/DNS):
-
-1. Vercel → novo projeto do repo, Root Directory `apps/auditoria`, Install `cd ../.. && npm ci`,
-   envs da tabela acima.
-2. DNS: CNAME `auditoria.maxcultural.com.br` → Vercel; domínio no projeto.
-3. `NEXT_PUBLIC_AUDITORIA_URL` no Cultural e no Origem (o card aparece no hub).
-4. No hub, dar `auditoria.app` aos papéis que usam a Auditoria.
-
-Depois disso (PR de virada, código + banco):
-
-- Tabelas da Auditoria → schema `auditoria` (`ALTER TABLE ... SET SCHEMA`, mantém dados):
-  `Project`, `Payment`, `Supplier`, `SyncRun`, `WatchedSupplier`, `ObservadoBond`,
-  `RelatedParty`, `CorporatePeriod`, `CorporatePeriodMember`, `NormDocumentSnapshot`.
-  Proponentes (`SalicAccount`), `Workspace`, `AppUser` e `ComplianceRuleset` ficam no `origem`
-  (compartilhados) — Prisma `multiSchema` no app Auditoria.
-- Crons `sync-salic` + `sync-resume` saem do `apps/origem/vercel.json` e entram no
-  `apps/auditoria/vercel.json`.
-- Origem remove as telas/libs da Auditoria (`/inicio`, `/panorama`, `/auditoria`,
-  `/fornecedores-pagos`, `/observados`, `/contas/mapa`) e passa a linkar para o app novo.
-
+- Tabelas da Auditoria no schema `auditoria` (`Project`, `Payment`, `Supplier`, `SyncRun`,
+  `WatchedSupplier`, `ObservadoBond`, `RelatedParty`, `CorporatePeriod`,
+  `CorporatePeriodMember`, `NormDocumentSnapshot`) — movidas pela migration
+  `20261025010000_move_audit_to_auditoria_schema` do Origem.
+- Proponentes (`SalicAccount`), `Workspace`, `AppUser`, `ComplianceRuleset` e os enums
+  ficam em `origem` (compartilhados). Cadastro de proponentes: MAX Origem `/contas`.
+- O app Auditoria não roda migrations; o Origem continua dono da pasta de migrations.
+- Links antigos do Origem (`/inicio`, `/panorama`, `/auditoria`, `/fornecedores-pagos`,
+  `/observados`, `/contas/mapa`) redirecionam para o app Auditoria.

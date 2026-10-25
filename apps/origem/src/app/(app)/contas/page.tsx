@@ -9,7 +9,6 @@ import { AccountEditor } from "@/components/AccountEditor";
 import { CreateAccountForm } from "@/components/CreateAccountForm";
 import { FieldHelp } from "@/components/FieldHelp";
 import { PageHeader } from "@/components/ui";
-import { SyncSection } from "@/components/SyncSection";
 import { HELP } from "@/lib/help";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +23,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
       where: { workspaceId: entitlements.workspaceId },
       orderBy: { name: "asc" },
       include: {
-        _count: { select: { projects: true } },
+        _count: { select: { planningProjects: true } },
       },
     }),
     getActiveRules(),
@@ -32,9 +31,10 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
   ]);
 
   const atLimit = accounts.length >= entitlements.maxAccounts;
+  const auditoriaUrl = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
   const tab =
-    tabParam === "nova" || tabParam === "suas-contas" || tabParam === "atualizacao"
+    tabParam === "nova" || tabParam === "suas-contas"
       ? tabParam
       : accounts.length > 0
         ? "suas-contas"
@@ -78,12 +78,9 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
             Novo proponente
           </Link>
         )}
-        <Link
-          href="/contas?tab=atualizacao"
-          aria-current={tab === "atualizacao" ? "page" : undefined}
-        >
-          Atualização SALIC
-        </Link>
+        {auditoriaUrl ? (
+          <a href={`${auditoriaUrl}/atualizacao`}>Atualização SALIC (Auditoria) ↗</a>
+        ) : null}
       </nav>
 
       {error && (
@@ -117,12 +114,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
         </div>
       )}
 
-      {tab === "atualizacao" ? (
-        <SyncSection
-          workspaceId={entitlements.workspaceId}
-          syncEnabled={entitlements.syncEnabled}
-        />
-      ) : tab === "nova" ? (
+      {tab === "nova" ? (
         atLimit ? (
           <div className="card p-5 text-sm text-[var(--gray-600)]">
             {accountLimitMessage(entitlements.maxAccounts)}
@@ -154,7 +146,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
                   extraPronacs: account.extraPronacs,
                   personType: account.personType,
                   active: account.active,
-                  projectCount: account._count.projects,
+                  projectCount: account._count.planningProjects,
                   institutionalMap: account.institutionalMap,
                 }}
               />

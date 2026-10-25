@@ -22,7 +22,7 @@ export async function notifyDiligenciaIfEntered(params: {
 
   const href = params.planningProjectId
     ? `/planejamento/${params.planningProjectId}`
-    : `/panorama/pronac?q=${encodeURIComponent(params.pronac)}`;
+    : "/planejamento";
   const title = `Diligência — PRONAC ${params.pronac}`;
   const body = params.projectName
     ? `${params.projectName}: situação no SALIC passou a diligência (${params.nextSituacao || "diligenciado"}).`

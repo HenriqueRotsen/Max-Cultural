@@ -22,7 +22,7 @@ import {
   listProjectsUi,
   listProponentesUi,
   withAccountBrowser,
-} from "@/lib/salic/crawler";
+} from "@/lib/salic/session";
 import { decryptCredential, normalizeCgccpf } from "@/lib/crypto";
 import { sanitizeSalicText } from "@/lib/salic/text";
 

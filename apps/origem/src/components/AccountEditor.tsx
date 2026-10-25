@@ -51,7 +51,10 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {showMapa ? (
-            <Link href={`/contas/mapa/${account.id}`} className="btn btn-ghost">
+            <Link
+              href={`${(process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "")}/contas/mapa/${account.id}`}
+              className="btn btn-ghost"
+            >
               {mapLabel}
             </Link>
           ) : null}

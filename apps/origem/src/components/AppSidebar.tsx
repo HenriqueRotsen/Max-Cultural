@@ -9,18 +9,11 @@ const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000"
   "",
 );
 
-const auditoriaLinks = [
-  { href: "/inicio", label: "Início", icon: HomeIcon },
-  { href: "/panorama", label: "Panorama", icon: ChartIcon },
-  { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon },
-  { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon },
-  { href: "/fornecedores-pagos", label: "Fornecedores", icon: PackageIcon },
-  { href: "/observados", label: "Observados", icon: UsersIcon },
-];
+/** App próprio da Auditoria (antigo Salink): espelho do SALIC, fora do Origem. */
+const AUDITORIA_URL = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
 
 const proponentesLinks = [
   { href: "/contas", label: "Proponentes", icon: BuildingIcon },
-  { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon },
 ];
 
 const fornecedoresLinks = [
@@ -36,7 +29,7 @@ const fornecedoresLinks = [
 const moduleLinks = [
   { href: "/planejamento", label: "Planejamento", icon: PlanIcon },
   { href: "/contas", label: "Proponentes", icon: BuildingIcon },
-  { href: "/inicio", label: "Auditoria (antigo Salink)", icon: AuditIcon },
+  { href: `${AUDITORIA_URL}/inicio`, label: "Auditoria (antigo Salink) ↗", icon: AuditIcon },
   { href: "/fornecedores", label: "Fornecedores", icon: UsersIcon },
 ];
 
@@ -49,7 +42,7 @@ const planejamentoLinks = [
 
 export function origemNavModule(
   pathname: string,
-): "home" | "auditoria" | "fornecedores" | "planejamento" | "proponentes" {
+): "home" | "fornecedores" | "planejamento" | "proponentes" {
   if (pathname === "/painel") return "home";
   if (pathname === "/contas" || pathname.startsWith("/contas/")) {
     return "proponentes";
@@ -60,25 +53,18 @@ export function origemNavModule(
   if (pathname === "/planejamento" || pathname.startsWith("/planejamento/")) {
     return "planejamento";
   }
-  return "auditoria";
+  return "home";
 }
 
 function linkActive(pathname: string, href: string) {
-  if (href === "/inicio") return pathname === "/inicio";
   if (href === "/fornecedores") {
     return pathname === "/fornecedores";
   }
   if (href === "/planejamento") {
     return pathname === "/planejamento";
   }
-  if (href === "/panorama") {
-    return pathname === "/panorama" || /^\/panorama\/(?!pronac(?:\/|$))/.test(pathname);
-  }
   if (href === "/contas") {
     return pathname === "/contas";
-  }
-  if (href === "/contas/mapa") {
-    return pathname === "/contas/mapa" || pathname.startsWith("/contas/mapa/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -101,14 +87,15 @@ export function AppSidebar({
     allowedScreens.includes("*") ||
     allowedScreens.includes(screen);
 
-  const auditoria = auditoriaLinks.filter(() => allow("origem.auditoria"));
   const proponentes = !allow("origem.proponentes") ? [] : proponentesLinks;
   const fornecedores = allow("origem.fornecedores") ? fornecedoresLinks : [];
   const planejamento = allow("origem.planejamento") ? planejamentoLinks : [];
   const modules = moduleLinks.filter((l) => {
     if (l.href === "/planejamento") return allow("origem.planejamento");
     if (l.href === "/contas") return allow("origem.proponentes");
-    if (l.href === "/inicio") return allow("origem.auditoria");
+    if (l.href.endsWith("/inicio")) {
+      return Boolean(AUDITORIA_URL) && (allow("origem.auditoria") || allow("auditoria.app"));
+    }
     if (l.href === "/fornecedores") return allow("origem.fornecedores");
     return true;
   });
@@ -122,7 +109,7 @@ export function AppSidebar({
           ? { title: "Fornecedores", links: fornecedores }
           : module === "planejamento"
             ? { title: "Planejamento", links: planejamento }
-            : { title: "Auditoria (antigo Salink)", links: auditoria };
+            : { title: "Módulos", links: modules };
 
   return (
     <aside className="shell-sidebar">
@@ -304,15 +291,6 @@ function SearchBalanceIcon({ active }: { active?: boolean }) {
         strokeWidth="1.7"
         strokeLinecap="round"
       />
-    </svg>
-  );
-}
-
-function PronacIcon({ active }: { active?: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="4" y="4" width="16" height="16" rx="3" stroke={stroke(active)} strokeWidth="1.7" />
-      <path d="M8 9h8M8 12h8M8 15h5" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }

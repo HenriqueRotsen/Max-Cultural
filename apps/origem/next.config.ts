@@ -33,6 +33,25 @@ const nextConfig: NextConfig = {
       "../../node_modules/playwright-core/**",
     ],
   },
+  // Telas da Auditoria (antigo Salink) foram para o app próprio: links antigos seguem para lá.
+  async redirects() {
+    const auditoria = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
+    if (!auditoria) return [];
+    return [
+      "/inicio",
+      "/panorama/:path*",
+      "/auditoria",
+      "/fornecedores-pagos",
+      "/observados",
+      "/comparar",
+      "/sync",
+      "/contas/mapa/:path*",
+    ].map((source) => ({
+      source,
+      destination: `${auditoria}${source}`,
+      permanent: false,
+    }));
+  },
   async headers() {
     return [
       {
