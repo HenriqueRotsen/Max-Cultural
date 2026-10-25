@@ -49,24 +49,25 @@ cd ../fluxo && npx prisma migrate deploy && npm run db:seed-auth
 
 Bootstrap admin: `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` no seed do Cultural.
 
-## 3. Vercel (3 projetos, mesmo repo)
+## 3. Vercel (4 projetos, mesmo repo)
 
 Para cada projeto:
 
-- **Root Directory:** `apps/cultural` | `apps/origem` | `apps/fluxo`
+- **Root Directory:** `apps/cultural` | `apps/origem` | `apps/fluxo` | `apps/auditoria`
 - **Install Command:** `cd ../.. && npm ci` (ou `npm install` na raiz do monorepo)
 - **Build Command:** default do app (`prisma generate && next build`)
 - **Não** rode migrate no build
 
-### Envs comuns (iguais nos 3)
+### Envs comuns (iguais nos 4)
 
 | Var | Valor teste |
 |-----|-------------|
-| `AUTH_SECRET` | mesmo segredo longo nos 3 |
+| `AUTH_SECRET` | mesmo segredo longo nos 4 |
 | `AUTH_COOKIE_DOMAIN` | `.maxcultural.com.br` |
 | `NEXT_PUBLIC_CULTURAL_URL` | `https://maxcultural.com.br` |
 | `NEXT_PUBLIC_ORIGEM_URL` | `https://origem.maxcultural.com.br` |
 | `NEXT_PUBLIC_FLUXO_URL` | `https://fluxo.maxcultural.com.br` |
+| `NEXT_PUBLIC_AUDITORIA_URL` | `https://auditoria.maxcultural.com.br` (vazio = card escondido no hub) |
 
 ### Cultural
 
@@ -108,6 +109,19 @@ Storage: ver [`docs/supabase-storage.md`](./supabase-storage.md). Após deploy, 
 | `AUTH_2FA_DISABLED` | `true` (login fica no Cultural; ignore no Fluxo) |
 | `BOOTSTRAP_ADMIN_*` | seed-auth local |
 
+### Auditoria (antigo Salink)
+
+| Var | Nota |
+|-----|------|
+| `DATABASE_URL` / `DIRECT_URL` | até a virada: **iguais às do Origem** (`schema=origem`) |
+| `CREDENTIALS_SECRET` | **o mesmo do Origem** (lê o login SALIC dos proponentes compartilhados) |
+| `SYNC_MODE` / `SYNC_CONCURRENCY` | `chunked` / `2` |
+| `CRON_SECRET` | Bearer de `/api/cron/sync-salic` e `/api/cron/sync-resume` |
+| `NEXT_PUBLIC_SITE_URL` | `https://auditoria.maxcultural.com.br` |
+| `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` | iguais ao Origem |
+
+Acesso: permissão `auditoria.app` no hub (na transição o app também aceita `origem.auditoria`).
+
 ## 4. Smoke test
 
 1. Login no Cultural → cookie abre Origem e Fluxo sem re-login.
@@ -121,3 +135,31 @@ Storage: ver [`docs/supabase-storage.md`](./supabase-storage.md). Após deploy, 
 - Fonte da verdade: **Cultural `/logs`** (+ CSV).
 - Origem/Fluxo enviam via `POST /api/audit` (Bearer / `x-max-session`).
 - Fluxo mantém cópia local em `/dashboard/acesso/auditoria` (legado; nav IAM oculta por padrão).
+
+## 5. Virada da Auditoria (antigo Salink) para app próprio
+
+A Auditoria é o espelho do SALIC e **não alimenta** Planejamento nem Fornecedores
+(isolado desde o PR "Isolar a Auditoria"). O app `apps/auditoria` já existe; até a
+virada ele lê as mesmas tabelas do schema `origem` e o Origem continua com as telas
+e o cron de sync.
+
+Passos (quem tem acesso à Vercel/DNS):
+
+1. Vercel → novo projeto do repo, Root Directory `apps/auditoria`, Install `cd ../.. && npm ci`,
+   envs da tabela acima.
+2. DNS: CNAME `auditoria.maxcultural.com.br` → Vercel; domínio no projeto.
+3. `NEXT_PUBLIC_AUDITORIA_URL` no Cultural e no Origem (o card aparece no hub).
+4. No hub, dar `auditoria.app` aos papéis que usam a Auditoria.
+
+Depois disso (PR de virada, código + banco):
+
+- Tabelas da Auditoria → schema `auditoria` (`ALTER TABLE ... SET SCHEMA`, mantém dados):
+  `Project`, `Payment`, `Supplier`, `SyncRun`, `WatchedSupplier`, `ObservadoBond`,
+  `RelatedParty`, `CorporatePeriod`, `CorporatePeriodMember`, `NormDocumentSnapshot`.
+  Proponentes (`SalicAccount`), `Workspace`, `AppUser` e `ComplianceRuleset` ficam no `origem`
+  (compartilhados) — Prisma `multiSchema` no app Auditoria.
+- Crons `sync-salic` + `sync-resume` saem do `apps/origem/vercel.json` e entram no
+  `apps/auditoria/vercel.json`.
+- Origem remove as telas/libs da Auditoria (`/inicio`, `/panorama`, `/auditoria`,
+  `/fornecedores-pagos`, `/observados`, `/contas/mapa`) e passa a linkar para o app novo.
+

@@ -57,6 +57,7 @@ export function auditScreenLabel(screen: string): string {
   if (!screen) return "—";
   if (screen.startsWith("origem.")) return screen.replace(/^origem\./, "Origem · ");
   if (screen.startsWith("fluxo.")) return screen.replace(/^fluxo\./, "Fluxo · ");
+  if (screen.startsWith("auditoria.")) return screen.replace(/^auditoria\./, "Auditoria · ");
   if (screen.startsWith("cultural.")) return screen.replace(/^cultural\./, "Cultural · ");
   return screen;
 }

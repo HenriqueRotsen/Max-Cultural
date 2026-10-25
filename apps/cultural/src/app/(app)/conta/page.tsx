@@ -23,6 +23,7 @@ export default async function ContaPage() {
   const apps = [
     can(user, "origem.app", "view") ? "MAX Origem" : null,
     can(user, "fluxo.app", "view") ? "MAX Fluxo" : null,
+    can(user, "auditoria.app", "view") ? "MAX Auditoria (antigo Salink)" : null,
   ].filter(Boolean);
 
   return (

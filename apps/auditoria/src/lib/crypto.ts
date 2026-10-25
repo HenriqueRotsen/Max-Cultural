@@ -1,0 +1,123 @@
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import {
+  formatCgccpf,
+  formatCurrency,
+  formatDate,
+  normalizeCgccpf,
+} from "@/lib/format";
+
+export {
+  formatCgccpf,
+  formatCurrency,
+  formatDate,
+  normalizeCgccpf,
+};
+
+const ALGO = "aes-256-gcm";
+const AUTH_TAG_LENGTH = 16;
+const IV_LENGTH = 12;
+
+function getKey() {
+  const secret = process.env.CREDENTIALS_SECRET;
+  if (!secret) {
+    throw new Error("CREDENTIALS_SECRET is not set");
+  }
+  return scryptSync(secret, "salink-salt", 32);
+}
+
+/** Payload AES-256-GCM no formato iv:tag:ciphertext (base64). */
+export function looksEncrypted(payload: string): boolean {
+  const parts = payload.split(":");
+  if (parts.length !== 3) return false;
+  const [ivB64, tagB64, dataB64] = parts;
+  if (!ivB64 || !tagB64 || !dataB64) return false;
+  try {
+    const iv = Buffer.from(ivB64, "base64");
+    const tag = Buffer.from(tagB64, "base64");
+    const data = Buffer.from(dataB64, "base64");
+    return (
+      iv.length === IV_LENGTH &&
+      tag.length === AUTH_TAG_LENGTH &&
+      data.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function encryptSecret(plain: string): string {
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv(ALGO, getKey(), iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
+  const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
+}
+
+export function decryptSecret(payload: string): string {
+  const [ivB64, tagB64, dataB64] = payload.split(":");
+  if (!ivB64 || !tagB64 || !dataB64) {
+    throw new Error("Invalid encrypted payload");
+  }
+  const iv = Buffer.from(ivB64, "base64");
+  const tag = Buffer.from(tagB64, "base64");
+  if (iv.length !== IV_LENGTH || tag.length !== AUTH_TAG_LENGTH) {
+    throw new Error("Invalid encrypted payload");
+  }
+  const decipher = createDecipheriv(ALGO, getKey(), iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(dataB64, "base64")),
+    decipher.final(),
+  ]);
+  return decrypted.toString("utf8");
+}
+
+/**
+ * Descriptografa credencial. Aceita valor legado em texto puro
+ * (usuários salvos antes da criptografia do login).
+ * Se CREDENTIALS_SECRET mudou (ou o payload está corrompido), retorna null
+ * em vez de derrubar a página — o usuário precisa cadastrar de novo.
+ */
+export function decryptCredential(payload: string | null | undefined): string | null {
+  if (!payload) return null;
+  if (!looksEncrypted(payload)) return payload;
+  try {
+    return decryptSecret(payload);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      message.includes("Unable to authenticate data") ||
+      message.includes("Unsupported state") ||
+      message.includes("Invalid encrypted payload") ||
+      message.includes("CREDENTIALS_SECRET is not set")
+    ) {
+      console.error(
+        "[crypto] Falha ao descriptografar credencial (CREDENTIALS_SECRET diferente ou payload inválido).",
+      );
+      return null;
+    }
+    throw err;
+  }
+}
+
+/** true se o payload parece cifrado mas não abre com o secret atual. */
+export function isCredentialUnreadable(payload: string | null | undefined): boolean {
+  if (!payload || !looksEncrypted(payload)) return false;
+  try {
+    decryptSecret(payload);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/** Criptografa login/senha para armazenamento em repouso. */
+export function encryptCredential(plain: string | null | undefined): string | null {
+  const value = plain?.trim();
+  if (!value) return null;
+  return encryptSecret(value);
+}

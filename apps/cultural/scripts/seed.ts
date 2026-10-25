@@ -88,7 +88,8 @@ async function main() {
       id === "cultural.home" ||
       id === "cultural.projetos" ||
       id.startsWith("origem.") ||
-      id.startsWith("fluxo.")
+      id.startsWith("fluxo.") ||
+      id.startsWith("auditoria.")
     );
   });
 

@@ -14,6 +14,11 @@ export default async function HomePage() {
     const fluxo = (process.env.NEXT_PUBLIC_FLUXO_URL || "http://localhost:3002").replace(/\/$/, "");
     const showOrigem = can(user, "origem.app", "view");
     const showFluxo = can(user, "fluxo.app", "view");
+    // Card só aparece quando o app Auditoria já tem URL configurada (projeto na Vercel).
+    const auditoria = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
+    const showAuditoria =
+      Boolean(auditoria) &&
+      (can(user, "auditoria.app", "view") || can(user, "origem.auditoria", "view"));
     // Professor (ou só app Fluxo, sem operação): entra nas respostas, não na base.
     const fluxoFormulariosOnly =
       user.role.name === "Professor" ||
@@ -81,7 +86,7 @@ export default async function HomePage() {
                     className="mb-4 h-12 w-auto max-w-[220px] object-contain object-left"
                   />
                   <p className="text-sm text-[var(--gray-600)]">
-                    Auditoria SALIC e banco de fornecedores.
+                    Planejamento, proponentes e banco de fornecedores.
                   </p>
                 </a>
               ) : null}
@@ -108,7 +113,29 @@ export default async function HomePage() {
                   </p>
                 </a>
               ) : null}
-              {!showOrigem && !showFluxo ? (
+              {showAuditoria ? (
+                <a
+                  href={`${auditoria}/inicio`}
+                  className="card p-5 transition hover:shadow-md"
+                  style={{
+                    borderColor: "#93c5fd",
+                    background:
+                      "linear-gradient(165deg, #eff6ff 0%, #fff 42%, #fff 100%)",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 0 0 1px #93c5fd33",
+                  }}
+                >
+                  <p className="mb-4 text-2xl font-extrabold tracking-tight text-[var(--navy)]">
+                    MAX <span className="text-[#2563eb]">Auditoria</span>
+                    <span className="ml-2 align-middle text-xs font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+                      antigo Salink
+                    </span>
+                  </p>
+                  <p className="text-sm text-[var(--gray-600)]">
+                    Espelho do SALIC: pagamentos, fornecedores pagos e relatórios de auditoria.
+                  </p>
+                </a>
+              ) : null}
+              {!showOrigem && !showFluxo && !showAuditoria ? (
                 <p className="text-sm text-[var(--gray-500)]">
                   Seu papel ainda não libera Origem nem Fluxo. Fale com o administrador.
                 </p>

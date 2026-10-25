@@ -28,6 +28,7 @@ const APPS = {
       NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
       NEXT_PUBLIC_ORIGEM_URL: "http://localhost:3001",
       NEXT_PUBLIC_FLUXO_URL: "http://localhost:3002",
+      NEXT_PUBLIC_AUDITORIA_URL: "http://localhost:3003",
       NEXT_PUBLIC_CULTURAL_URL: "http://localhost:3000",
       NEXT_PUBLIC_RECAPTCHA_ENABLED: "false",
       // Senha previsível só no Postgres local (backup remoto em .env.local.remote).
@@ -46,6 +47,18 @@ const APPS = {
       NEXT_PUBLIC_FLUXO_URL: "http://localhost:3002",
       SALINK_DEV_OPEN: "0",
       SALINK_DEMO: "0",
+    },
+  },
+  // Auditoria (antigo Salink): até a virada lê o mesmo banco/schema do Origem.
+  auditoria: {
+    dir: resolve(root, "apps/auditoria"),
+    local: {
+      DATABASE_URL: "postgresql://salink:salink@localhost:5433/salink?schema=public",
+      DIRECT_URL: "postgresql://salink:salink@localhost:5433/salink?schema=public",
+      AUTH_COOKIE_DOMAIN: "",
+      NEXT_PUBLIC_CULTURAL_URL: "http://localhost:3000",
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3003",
+      NEXT_PUBLIC_ORIGEM_URL: "http://localhost:3001",
     },
   },
   fluxo: {
@@ -119,6 +132,7 @@ for (const [name, cfg] of Object.entries(APPS)) {
       "NEXT_PUBLIC_SITE_URL",
       "NEXT_PUBLIC_ORIGEM_URL",
       "NEXT_PUBLIC_FLUXO_URL",
+      "NEXT_PUBLIC_AUDITORIA_URL",
       "NEXT_PUBLIC_CULTURAL_URL",
       "NEXT_PUBLIC_APP_URL",
       "NEXT_PUBLIC_SUPABASE_URL",
