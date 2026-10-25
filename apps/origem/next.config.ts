@@ -48,7 +48,7 @@ const nextConfig: NextConfig = {
       "/contas/mapa/:path*",
     ].map((source) => ({
       source,
-      destination: `${auditoria}${source.replace("/:path*", "/:path*")}`,
+      destination: `${auditoria}${source}`,
       permanent: false,
     }));
   },
