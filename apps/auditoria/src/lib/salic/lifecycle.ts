@@ -35,8 +35,13 @@ export function classifyLifecycleFromSituacao(
   return "EM_ANDAMENTO";
 }
 
+/**
+ * Projeto ativo em diligência (ex.: "E37 - Diligência", "E30 - Análise de resposta de
+ * diligência"). Situações de encerramento que só citam diligência ("A42 - Arquivado -
+ * não atendimento à diligência técnica") não contam.
+ */
 export function isDiligenciaSituacao(situacao?: string | null): boolean {
   const s = normalizeSituacao(situacao);
-  if (!s) return false;
-  return /diligenc/.test(s);
+  if (!s || !/diligenc/.test(s)) return false;
+  return classifyLifecycleFromSituacao(situacao) !== "ENCERRADO";
 }
