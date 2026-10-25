@@ -18,7 +18,7 @@ import {
   withAccountBrowser,
   listProponentesUi,
   listProjectsUi,
-} from "@/lib/salic/crawler";
+} from "@/lib/salic/session";
 import {
   buildSalicComprovantePayload,
   type SalicComprovantePayload,

@@ -43,7 +43,7 @@ function createPrismaClient() {
   // falham com "relation does not exist" e quebram /fornecedores.
   const pool = new Pool({
     connectionString,
-    ...(schema ? { options: `-c search_path=${schema},public` } : {}),
+    ...(schema ? { options: `-c search_path=auditoria,${schema},public` } : {}),
   });
   const adapter = new PrismaPg(pool, schema ? { schema } : undefined);
   return new PrismaClient({ adapter });

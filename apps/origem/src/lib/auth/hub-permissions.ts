@@ -168,14 +168,6 @@ export function hubScreenForPath(pathname: string): string | null {
   if (pathname.startsWith("/planejamento")) return "origem.planejamento";
   if (pathname.startsWith("/contas")) return "origem.proponentes";
   if (pathname.startsWith("/fornecedores")) return "origem.fornecedores";
-  if (
-    pathname.startsWith("/inicio") ||
-    pathname.startsWith("/panorama") ||
-    pathname.startsWith("/auditoria") ||
-    pathname.startsWith("/sync") ||
-    pathname.startsWith("/observados")
-  ) {
-    return "origem.auditoria";
-  }
+  // Auditoria (antigo Salink) é app próprio: as rotas antigas redirecionam para lá.
   return null;
 }

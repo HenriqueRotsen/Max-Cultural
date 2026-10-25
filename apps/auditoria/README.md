@@ -14,12 +14,19 @@ são populados só pelo que é lançado neles.
 
 ## Banco
 
-Até a virada, lê as **mesmas tabelas do schema `origem`** e não tem migrations
-próprias (quem migra é o MAX Origem). Na virada, as tabelas da Auditoria vão para
-o schema `auditoria` — passo a passo em `docs/deploy-teste.md` (seção Auditoria).
+Mesmo Postgres dos outros apps, com Prisma `multiSchema`:
+
+- `auditoria`: espelho do SALIC (`Project`, `Payment`, `Supplier`, `SyncRun`,
+  observados, partes relacionadas, quadro societário, snapshots de norma).
+- `origem` (compartilhado, só leitura na prática): proponentes (`SalicAccount`),
+  `Workspace`, `AppUser`, `ComplianceRuleset`, `audit_logs` e os enums.
+
+O app **não roda migrations** (o `schema.prisma` daqui não conhece as tabelas do
+Planejamento, que vivem no schema `origem`). As migrations continuam na pasta do
+MAX Origem — a da virada é `20261025010000_move_audit_to_auditoria_schema`.
 
 ## Sync
 
+- Cron diário `/api/cron/sync-salic` (08:00 BRT) + retomada `/api/cron/sync-resume`
+  (4× ao dia) para contas que ficaram na fila.
 - `/atualizacao`: acompanha e dispara a atualização manual.
-- Crons (`/api/cron/sync-salic`, `/api/cron/sync-resume`) entram no `vercel.json`
-  só na virada, para não sincronizar em dobro com o MAX Origem.

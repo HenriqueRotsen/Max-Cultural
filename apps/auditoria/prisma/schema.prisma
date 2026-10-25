@@ -5,11 +5,16 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Espelho do SALIC em "auditoria"; proponentes/workspace/usuários/normas
+  // (compartilhados com o MAX Origem) e enums ficam em "origem".
+  schemas  = ["auditoria", "origem"]
 }
 
 enum PaymentSource {
   api
   crawler
+
+  @@schema("origem")
 }
 
 enum SyncRunStatus {
@@ -18,12 +23,16 @@ enum SyncRunStatus {
   success
   error
   partial
+
+  @@schema("origem")
 }
 
 enum PersonType {
   PJ
   PF
   MEI
+
+  @@schema("origem")
 }
 
 enum RelatedPartyRelation {
@@ -52,6 +61,8 @@ enum RelatedPartyRelation {
   SAME_ADDRESS
   /** Legado — tratado como sem vínculo na UI */
   OTHER
+
+  @@schema("origem")
 }
 
 enum RulesetStatus {
@@ -59,22 +70,30 @@ enum RulesetStatus {
   draft
   superseded
   archived
+
+  @@schema("origem")
 }
 
 enum RulesetSource {
   ai
   manual
   default
+
+  @@schema("origem")
 }
 
 enum AppUserRole {
   ADMIN
   USER
+
+  @@schema("origem")
 }
 
 enum AppPlan {
   ESSENTIAL
   PRO
+
+  @@schema("origem")
 }
 
 /** Espaço do cliente: plano, limite de contas e dados isolados. */
@@ -98,6 +117,7 @@ model Workspace {
   observadoBonds   ObservadoBond[]
 
   @@index([plan])
+  @@schema("origem")
 }
 
 /** Perfil do usuário autenticado (Supabase Auth). */
@@ -130,6 +150,7 @@ model AppUser {
   @@index([role])
   @@index([active])
   @@index([workspaceId])
+  @@schema("origem")
 }
 
 model SalicAccount {
@@ -166,6 +187,7 @@ model SalicAccount {
   @@unique([workspaceId, cgccpf])
   @@index([active])
   @@index([workspaceId])
+  @@schema("origem")
 }
 
 /**
@@ -197,6 +219,7 @@ model RelatedParty {
 
   @@unique([salicAccountId, cgccpf])
   @@index([cgccpf])
+  @@schema("auditoria")
 }
 
 model Project {
@@ -235,18 +258,23 @@ model Project {
   @@index([pronac])
   @@index([complianceRulesetId])
   @@index([lifecycleStatus])
+  @@schema("auditoria")
 }
 
 enum DatePrecision {
   DAY
   MONTH
   YEAR
+
+  @@schema("origem")
 }
 
 enum CorporateRole {
   PARTNER
   ADMINISTRATOR
   BOTH
+
+  @@schema("origem")
 }
 
 model Supplier {
@@ -263,6 +291,7 @@ model Supplier {
 
   @@unique([cgccpf])
   @@index([name])
+  @@schema("auditoria")
 }
 
 model CorporatePeriod {
@@ -285,6 +314,7 @@ model CorporatePeriod {
 
   @@index([salicAccountId])
   @@index([validFrom])
+  @@schema("auditoria")
 }
 
 model CorporatePeriodMember {
@@ -306,6 +336,7 @@ model CorporatePeriodMember {
 
   @@index([periodId])
   @@index([cgccpf])
+  @@schema("auditoria")
 }
 
 model Payment {
@@ -336,6 +367,7 @@ model Payment {
   @@index([supplierId])
   @@index([projectId])
   @@index([paymentDate])
+  @@schema("auditoria")
 }
 
 /** Lista de observação do workspace — vínculo art. 23 fica em ObservadoBond. */
@@ -355,6 +387,7 @@ model WatchedSupplier {
   @@index([cgccpf])
   @@index([nameQuery])
   @@index([workspaceId])
+  @@schema("auditoria")
 }
 
 /**
@@ -378,6 +411,7 @@ model ObservadoBond {
   @@index([workspaceId])
   @@index([cgccpf])
   @@index([rulesetVersion])
+  @@schema("auditoria")
 }
 
 model SyncRun {
@@ -402,12 +436,15 @@ model SyncRun {
 
   @@index([status])
   @@index([createdAt])
+  @@schema("auditoria")
 }
 
 enum RulesetKind {
   AUDIT_CAPS
   PLANNING
   BOTH
+
+  @@schema("origem")
 }
 
 /** Pacote operacional de tetos (histórico + vigente) — federal e estadual */
@@ -440,6 +477,7 @@ model ComplianceRuleset {
   @@index([kind])
   @@index([effectiveFrom])
   @@index([createdAt])
+  @@schema("origem")
 }
 
 /** Snapshot do texto oficial baixado do gov.br */
@@ -455,6 +493,7 @@ model NormDocumentSnapshot {
 
   @@index([contentHash])
   @@index([fetchedAt])
+  @@schema("auditoria")
 }
 
 /** Trilha de atividade (quem fez o quê) — distinto da Auditoria SALIC. */
@@ -473,4 +512,5 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+  @@schema("origem")
 }

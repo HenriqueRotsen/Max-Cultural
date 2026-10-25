@@ -6,7 +6,7 @@ import {
   listProponentesUi,
   withAccountBrowser,
   type SalicUiProject,
-} from "@/lib/salic/crawler";
+} from "@/lib/salic/session";
 import {
   flattenHomologatedPlanilha,
   type HomologatedLine,

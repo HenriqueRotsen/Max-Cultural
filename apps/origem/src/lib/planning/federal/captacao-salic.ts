@@ -11,7 +11,7 @@ import {
   listProponentesUi,
   withAccountBrowser,
   type SalicUiProject,
-} from "@/lib/salic/crawler";
+} from "@/lib/salic/session";
 import { sanitizeSalicText } from "@/lib/salic/text";
 import { applySalicSituacaoToPlanningProject } from "@/lib/planning/federal/situacao-salic";
 import type { Page } from "playwright-core";

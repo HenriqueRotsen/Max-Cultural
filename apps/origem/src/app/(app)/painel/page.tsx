@@ -25,6 +25,8 @@ type ModuleCard = {
   icon: ReactNode;
 };
 
+const AUDITORIA_URL = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
+
 const MODULES: ModuleCard[] = [
   {
     href: "/planejamento",
@@ -90,9 +92,9 @@ const MODULES: ModuleCard[] = [
     ),
   },
   {
-    href: "/inicio",
+    href: `${AUDITORIA_URL}/inicio`,
     title: "Auditoria (antigo Salink)",
-    description: "Espelho do SALIC: sync, panorama por fornecedor e relatório de auditoria. Não alimenta os outros módulos.",
+    description: "App próprio, espelho do SALIC: sync, panorama por fornecedor e relatório de auditoria. Não alimenta os outros módulos.",
     cta: "Abrir",
     theme: {
       topBar: "bg-[linear-gradient(90deg,#2563eb_0%,#0ea5e9_100%)]",
@@ -168,11 +170,11 @@ export default function ModulesPage() {
       <PageHeader
         breadcrumb="MAX Origem"
         title="Escolha o módulo"
-        description="Proponentes, planejamento de rubricas, auditoria SALIC e banco de preços — no mesmo acesso."
+        description="Proponentes, planejamento de rubricas e banco de preços. A Auditoria (antigo Salink) abre no app próprio."
       />
 
       <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {MODULES.map((mod) => (
+        {MODULES.filter((mod) => AUDITORIA_URL || !mod.href.endsWith("/inicio")).map((mod) => (
           <Link
             key={mod.href}
             href={mod.href}
