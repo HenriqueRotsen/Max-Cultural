@@ -19,6 +19,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     "",
   );
 
+
+  const auditoriaUrl =
+    (can(user, "auditoria.app", "view") || can(user, "origem.auditoria", "view")) &&
+    process.env.NEXT_PUBLIC_AUDITORIA_URL
+      ? process.env.NEXT_PUBLIC_AUDITORIA_URL.replace(/\/$/, "")
+      : "";
+
   return (
     <div className="shell">
       <Suspense fallback={null}>
@@ -39,6 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }
         origemUrl={origemUrl}
         fluxoUrl={fluxoUrl}
+        auditoriaUrl={auditoriaUrl}
       />
       <div className="shell-main">
         <div className="content">{children}</div>

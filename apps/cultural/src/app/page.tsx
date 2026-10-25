@@ -44,6 +44,7 @@ export default async function HomePage() {
           fluxoFormulariosOnly={fluxoFormulariosOnly}
           origemUrl={origem}
           fluxoUrl={fluxo}
+          auditoriaUrl={showAuditoria ? auditoria : ""}
         />
         <div className="shell-main">
           <div className="content space-y-6">
@@ -124,12 +125,11 @@ export default async function HomePage() {
                     boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 0 0 1px #93c5fd33",
                   }}
                 >
-                  <p className="mb-4 text-2xl font-extrabold tracking-tight text-[var(--navy)]">
-                    MAX <span className="text-[#2563eb]">Auditoria</span>
-                    <span className="ml-2 align-middle text-xs font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
-                      antigo Salink
-                    </span>
-                  </p>
+                  <img
+                    src="/brand/max-auditoria.png"
+                    alt="MAX Auditoria (antigo Salink)"
+                    className="mb-4 h-12 w-auto max-w-[220px] object-contain object-left"
+                  />
                   <p className="text-sm text-[var(--gray-600)]">
                     Espelho do SALIC: pagamentos, fornecedores pagos e relatórios de auditoria.
                   </p>

@@ -14,7 +14,6 @@ import {
   type SalicCaptacaoValues,
 } from "@/lib/planning/federal/captacao-salic";
 import { syncSalicComprovadoFromSalicItems } from "@/lib/planning/federal/salic-reconcile";
-import { applySalicSituacaoToPlanningProject } from "@/lib/planning/federal/situacao-salic";
 import { budgetLineIdentityKey, moneyN } from "@/lib/planning/readequacao";
 import { persistHomologatedSheet } from "@/lib/planning/persist-sheet";
 import {
@@ -685,11 +684,6 @@ export async function refreshPlanningSheetsForWorkspace(
                 data: { name: cleanName },
               });
             }
-
-            await applySalicSituacaoToPlanningProject({
-              planningProjectId: pp.id,
-              situacao: listed.Situacao,
-            });
 
             try {
               const { fetchSalicRelacaoPagamentosOnPage } = await import(

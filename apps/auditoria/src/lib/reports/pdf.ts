@@ -45,7 +45,7 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
     });
 
     const fromMeta = await page
-      .locator('meta[name="max-origem-generated-at"]')
+      .locator('meta[name="max-auditoria-generated-at"]')
       .getAttribute("content")
       .catch(() => null);
     const generatedAt = fromMeta || formatPdfTimestamp();

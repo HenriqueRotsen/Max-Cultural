@@ -11,6 +11,7 @@ const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000"
 
 const auditoriaLinks = [
   { href: "/inicio", label: "Início", icon: HomeIcon },
+  { href: "/alertas", label: "Alertas", icon: AlertIcon },
   { href: "/panorama", label: "Panorama", icon: ChartIcon },
   { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon },
   { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon },
@@ -31,13 +32,18 @@ function linkActive(pathname: string, href: string) {
 export function AppSidebar({
   userEmail,
   syncEnabled = true,
+  newAlerts = 0,
 }: {
   userEmail?: string;
   isAdmin?: boolean;
   syncEnabled?: boolean;
+  /** Alertas ainda não vistos (contador no menu). */
+  newAlerts?: number;
 }) {
   const pathname = usePathname();
-  const links = auditoriaLinks.filter((l) => syncEnabled || l.href !== "/atualizacao");
+  const links = auditoriaLinks
+    .filter((l) => syncEnabled || l.href !== "/atualizacao")
+    .map((l) => (l.href === "/alertas" ? { ...l, badge: newAlerts } : l));
   const nav = { title: "Auditoria (antigo Salink)", links };
 
   return (
@@ -108,7 +114,7 @@ function NavGroup({
   pathname,
 }: {
   title: string;
-  links: { href: string; label: string; icon: typeof HomeIcon }[];
+  links: { href: string; label: string; icon: typeof HomeIcon; badge?: number }[];
   pathname: string;
 }) {
   return (
@@ -130,7 +136,12 @@ function NavGroup({
             }`}
           >
             <Icon active={active} />
-            {link.label}
+            <span className="flex-1">{link.label}</span>
+            {link.badge ? (
+              <span className="rounded-full bg-[#dc2626] px-2 py-0.5 text-[11px] font-semibold text-white">
+                {link.badge > 99 ? "99+" : link.badge}
+              </span>
+            ) : null}
           </Link>
         );
       })}
@@ -139,7 +150,7 @@ function NavGroup({
 }
 
 function stroke(active?: boolean, gold?: boolean) {
-  if (active) return gold ? "#5b52c9" : "#4a1d6e";
+  if (active) return gold ? "#1d6fe0" : "#0b2a6b";
   return "#6b7280";
 }
 
@@ -261,6 +272,20 @@ function SyncIcon({ active }: { active?: boolean }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function AlertIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 4a5 5 0 0 0-5 5v3.2L5.4 15a1 1 0 0 0 .9 1.5h11.4a1 1 0 0 0 .9-1.5L17 12.2V9a5 5 0 0 0-5-5Z"
+        stroke={stroke(active)}
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M10 19a2 2 0 0 0 4 0" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }

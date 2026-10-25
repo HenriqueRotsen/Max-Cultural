@@ -12,7 +12,7 @@ const STATUS_LABEL: Record<CompareRow["status"], string> = {
   ok: "Bate",
   diff: "Diferença",
   missing_in_system: "Só na planilha",
-  missing_in_sheet: "Só no MAX Origem",
+  missing_in_sheet: "Só no MAX Auditoria",
 };
 
 function statusBadgeClass(status: CompareRow["status"]) {
@@ -95,7 +95,7 @@ export function ProjectSheetComparePanel() {
           />
         </div>
         <button type="submit" className="btn" disabled={pending}>
-          {pending ? "Comparando…" : "Comparar com o MAX Origem"}
+          {pending ? "Comparando…" : "Comparar com o MAX Auditoria"}
         </button>
         {error ? (
           <p className="text-sm text-[#b42318]" role="alert">
@@ -108,7 +108,7 @@ export function ProjectSheetComparePanel() {
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Stat label="Na planilha" value={String(result.summary.sheetCount)} />
-            <Stat label="No MAX Origem" value={String(result.summary.systemCount)} />
+            <Stat label="No MAX Auditoria" value={String(result.summary.systemCount)} />
             <Stat label="Batem" value={String(result.summary.ok)} tone="ok" />
             <Stat
               label="Com diferença"
@@ -121,7 +121,7 @@ export function ProjectSheetComparePanel() {
               tone={result.summary.missingInSystem ? "warn" : undefined}
             />
             <Stat
-              label="Só no MAX Origem"
+              label="Só no MAX Auditoria"
               value={String(result.summary.missingInSheet)}
               tone={result.summary.missingInSheet ? "muted" : undefined}
             />
@@ -139,7 +139,7 @@ export function ProjectSheetComparePanel() {
                 <thead>
                   <tr>
                     <th>Planilha</th>
-                    <th>MAX Origem</th>
+                    <th>MAX Auditoria</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -174,7 +174,7 @@ export function ProjectSheetComparePanel() {
                   <option value="all">Todos</option>
                   <option value="diff">Com diferença</option>
                   <option value="missing_in_system">Só na planilha</option>
-                  <option value="missing_in_sheet">Só no MAX Origem</option>
+                  <option value="missing_in_sheet">Só no MAX Auditoria</option>
                   <option value="ok">Batem</option>
                 </select>
               </div>
@@ -190,7 +190,7 @@ export function ProjectSheetComparePanel() {
                     <th>Projeto (planilha)</th>
                     <th>Proponente</th>
                     <th>Captado planilha</th>
-                    <th>Captado MAX Origem</th>
+                    <th>Captado MAX Auditoria</th>
                     <th>IN</th>
                   </tr>
                 </thead>
@@ -263,7 +263,7 @@ export function ProjectSheetComparePanel() {
                                     <tr>
                                       <th>Campo</th>
                                       <th>Planilha</th>
-                                      <th>MAX Origem</th>
+                                      <th>MAX Auditoria</th>
                                       <th>Resultado</th>
                                     </tr>
                                   </thead>
@@ -284,7 +284,7 @@ export function ProjectSheetComparePanel() {
                                                 ? "Diferente"
                                                 : f.status === "sheet_only"
                                                   ? "Só planilha"
-                                                  : "Só MAX Origem"}
+                                                  : "Só MAX Auditoria"}
                                           </td>
                                         </tr>
                                       ))}

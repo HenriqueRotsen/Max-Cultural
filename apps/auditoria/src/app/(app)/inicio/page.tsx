@@ -12,7 +12,7 @@ export default async function HomePage() {
   const ws = entitlements.workspaceId;
   const projectFilter = { salicAccount: { workspaceId: ws } };
 
-  const [accounts, paymentsAgg, watched, lastSync, projects] = await Promise.all([
+  const [accounts, paymentsAgg, watched, lastSync, projects, openAlerts] = await Promise.all([
     prisma.salicAccount.count({ where: { active: true, workspaceId: ws } }),
     prisma.payment.aggregate({
       where: { project: projectFilter },
@@ -30,6 +30,7 @@ export default async function HomePage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.project.count({ where: projectFilter }),
+    prisma.auditAlert.count({ where: { workspaceId: ws, status: { in: ["NOVO", "VISTO"] } } }),
   ]);
 
   const total = Number(paymentsAgg._sum.amount || 0);
@@ -48,11 +49,11 @@ export default async function HomePage() {
       <PageHeader
         breadcrumb="Auditoria › Início"
         title="Visão geral"
-        description="Acompanhe gastos por fornecedor nos projetos culturais das suas empresas."
+        description="Espelho do SALIC: acompanhe os gastos por fornecedor e os alertas dos projetos culturais das suas empresas."
         actions={
           <>
             {entitlements.syncEnabled && (
-              <Link href="/contas?tab=atualizacao" className="btn">
+              <Link href="/atualizacao" className="btn">
                 Atualizar dados
               </Link>
             )}
@@ -62,6 +63,21 @@ export default async function HomePage() {
           </>
         }
       />
+
+      {openAlerts > 0 ? (
+        <Link
+          href="/alertas"
+          className="flex items-center justify-between gap-3 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-5 py-4 text-sm text-[#991b1b] hover:shadow-sm"
+        >
+          <span>
+            <strong>
+              {openAlerts} alerta{openAlerts === 1 ? "" : "s"} em aberto
+            </strong>{" "}
+            — projetos em diligência ou outros problemas encontrados no SALIC.
+          </span>
+          <span className="font-semibold">Ver alertas →</span>
+        </Link>
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -105,9 +121,9 @@ export default async function HomePage() {
                 text: "Concentração, maiores fornecedores e projetos em destaque.",
               },
               {
-                href: "/contas?tab=atualizacao",
+                href: "/atualizacao",
                 title: "Atualizar",
-                text: "Busca projetos e pagamentos no SALIC para o MAX Origem.",
+                text: "Busca projetos e pagamentos no SALIC para o espelho da Auditoria.",
               },
               {
                 href: "/fornecedores-pagos",
