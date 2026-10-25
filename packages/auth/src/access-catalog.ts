@@ -6,6 +6,7 @@ export type AccessProductGroup =
   | "Cultural"
   | "Origem"
   | "Fluxo"
+  | "Auditoria"
   | "Produtos";
 
 export type AccessCatalogEntry = {
@@ -16,7 +17,7 @@ export type AccessCatalogEntry = {
   /** Agrupamento na UI de papéis. */
   group: AccessProductGroup;
   /** Produto ao qual a tela/capacidade pertence (para acordeão). */
-  product?: "cultural" | "origem" | "fluxo";
+  product?: "cultural" | "origem" | "fluxo" | "auditoria";
   /** Tela ou produto pai (capacidades exigem screen; screens exigem product). */
   parentId?: string;
 };
@@ -97,6 +98,15 @@ export const ACCESS_CATALOG = [
     kind: "product",
     group: "Produtos",
     product: "fluxo",
+  },
+  {
+    id: "auditoria.app",
+    label: "MAX Auditoria (antigo Salink)",
+    description:
+      "Entrar na Auditoria: espelho do SALIC, panorama, observados e relatórios. Não altera os outros módulos.",
+    kind: "product",
+    group: "Produtos",
+    product: "auditoria",
   },
 
   // —— Origem telas ——
@@ -265,7 +275,7 @@ export function childrenOf(parentId: string): AccessCatalogEntry[] {
 }
 
 export function productSections(): Array<{
-  product: "cultural" | "origem" | "fluxo";
+  product: "cultural" | "origem" | "fluxo" | "auditoria";
   label: string;
   productId?: AccessPermissionId;
   entries: AccessCatalogEntry[];
@@ -290,6 +300,14 @@ export function productSections(): Array<{
       productId: "fluxo.app",
       entries: ACCESS_CATALOG.filter(
         (e) => e.product === "fluxo" && e.id !== "fluxo.app",
+      ),
+    },
+    {
+      product: "auditoria",
+      label: "MAX Auditoria (antigo Salink)",
+      productId: "auditoria.app",
+      entries: ACCESS_CATALOG.filter(
+        (e) => e.product === "auditoria" && e.id !== "auditoria.app",
       ),
     },
   ];

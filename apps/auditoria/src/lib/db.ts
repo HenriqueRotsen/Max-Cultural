@@ -1,0 +1,126 @@
+import { config } from "dotenv";
+import { resolve } from "node:path";
+import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+  prismaSchemaVersion: number | undefined;
+};
+
+/** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
+const PRISMA_SCHEMA_VERSION = 38;
+
+function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).searchParams.get("schema") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function createPrismaClient() {
+  if (process.env.NODE_ENV !== "production") {
+    config({ path: resolve(process.cwd(), ".env.local"), override: true });
+  }
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+  if (/supabase\.co|pooler\.supabase/i.test(connectionString)) {
+    console.warn(
+      "[origem] DATABASE_URL aponta para Supabase em desenvolvimento. Rode: npm run db:use-local",
+    );
+  }
+  const schema = schemaFromDatabaseUrl(connectionString);
+  if (schema && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
+    throw new Error(`Invalid Postgres schema name: ${schema}`);
+  }
+  // O adapter só qualifica SQL gerado pelo Prisma. $queryRaw / $executeRaw
+  // precisam do search_path — sem isso, tabelas do schema (ex.: origem.catalog_*)
+  // falham com "relation does not exist" e quebram /fornecedores.
+  const pool = new Pool({
+    connectionString,
+    ...(schema ? { options: `-c search_path=${schema},public` } : {}),
+  });
+  const adapter = new PrismaPg(pool, schema ? { schema } : undefined);
+  return new PrismaClient({ adapter });
+}
+
+/** Detecta DMMF antigo após migrações do mapa. */
+function clientMatchesSchema(client: PrismaClient): boolean {
+  const models = (
+    client as unknown as {
+      _runtimeDataModel?: {
+        models?: Record<string, { fields?: Array<{ name: string }> }>;
+      };
+    }
+  )._runtimeDataModel?.models;
+  if (!models?.Supplier || !models?.SalicAccount) return false;
+  const supplierFields = (models.Supplier.fields || []).map((f) => f.name);
+  const accountFields = (models.SalicAccount.fields || []).map((f) => f.name);
+  if (supplierFields.includes("foundedAt")) return false;
+  if (!accountFields.includes("foundedAt")) return false;
+  if (!accountFields.includes("institutionalMap")) return false;
+  if (!models.CorporatePeriod) return false;
+  if (!models.CorporatePeriodMember) return false;
+  if (!models.ObservadoBond) return false;
+  if (!models.CatalogSupplier) return false;
+  const catalogFields = (models.CatalogSupplier.fields || []).map((f) => f.name);
+  if (catalogFields.includes("fromAudit")) return false;
+  if (!catalogFields.includes("latitude")) return false;
+  if (!models.CatalogService) return false;
+  const serviceFields = (models.CatalogService.fields || []).map((f) => f.name);
+  if (!serviceFields.includes("embeddingUpdatedAt")) return false;
+  if (!models.CatalogEngagement) return false;
+  const engagementFields = (models.CatalogEngagement.fields || []).map((f) => f.name);
+  if (engagementFields.includes("salicPaymentId")) return false;
+  if (!engagementFields.includes("planningProjectId")) return false;
+  if (!models.PlanningProject) return false;
+  if (!models.ProjectBudgetSheet || !models.ProjectBudgetLine) return false;
+  const budgetLineFields = (models.ProjectBudgetLine.fields || []).map((f) => f.name);
+  if (!budgetLineFields.includes("homologatedAmount")) return false;
+  if (!models.RubricCommitment) return false;
+  const commitmentFields = (models.RubricCommitment.fields || []).map((f) => f.name);
+  if (!commitmentFields.includes("pedidoId")) return false;
+  if (!models.PlanningPedido) return false;
+  if (!models.PlanningDocument) return false;
+  if (!models.AppNotification) return false;
+  if (!models.NotificationSettings) return false;
+  if (models.PlanProposal || models.PlanBudgetStage) return false;
+  const projectFields = (models.Project.fields || []).map((f) => f.name);
+  if (!projectFields.includes("situacao")) return false;
+  if (!projectFields.includes("lifecycleStatus")) return false;
+  const planningFields = (models.PlanningProject.fields || []).map((f) => f.name);
+  if (!planningFields.includes("lifecycleStatus")) return false;
+  if (!planningFields.includes("salicPublishStatus")) return false;
+  if (!planningFields.includes("situacao") || planningFields.includes("projectId")) return false;
+  if (!models.AuditLog) return false;
+  return true;
+}
+
+function getClient(): PrismaClient {
+  const stale =
+    !globalForPrisma.prisma ||
+    globalForPrisma.prismaSchemaVersion !== PRISMA_SCHEMA_VERSION ||
+    typeof (globalForPrisma.prisma as { workspace?: unknown }).workspace ===
+      "undefined" ||
+    !clientMatchesSchema(globalForPrisma.prisma);
+
+  if (stale) {
+    globalForPrisma.prisma = createPrismaClient();
+    globalForPrisma.prismaSchemaVersion = PRISMA_SCHEMA_VERSION;
+  }
+
+  return globalForPrisma.prisma!;
+}
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getClient();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

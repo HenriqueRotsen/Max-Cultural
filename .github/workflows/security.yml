@@ -26,6 +26,9 @@ jobs:
       - name: ESLint Fluxo
         run: npm run lint -w max-fluxo --if-present
         continue-on-error: true
+      - name: ESLint Auditoria
+        run: npm run lint -w max-auditoria --if-present
+        continue-on-error: true
 
   gitleaks:
     runs-on: ubuntu-latest

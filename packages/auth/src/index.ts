@@ -473,16 +473,32 @@ export function safeContinueUrl(raw: string | null | undefined, fallback = "/"):
   if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
   try {
     const url = new URL(raw);
-    const allowed = [
+    if (url.protocol !== "https:" && url.protocol !== "http:") return fallback;
+    const allowedOrigins = [
       process.env.NEXT_PUBLIC_ORIGEM_URL,
       process.env.NEXT_PUBLIC_FLUXO_URL,
+      process.env.NEXT_PUBLIC_AUDITORIA_URL,
       process.env.NEXT_PUBLIC_SITE_URL,
       process.env.NEXT_PUBLIC_CULTURAL_URL,
     ]
       .filter(Boolean)
-      .map((value) => String(value).replace(/\/$/, ""));
-    if (allowed.some((base) => raw.startsWith(base))) return raw;
-    if (url.hostname.endsWith("maxcultural.com.br")) return raw;
+      .map((value) => {
+        try {
+          return new URL(String(value)).origin;
+        } catch {
+          return null;
+        }
+      })
+      .filter((origin): origin is string => Boolean(origin));
+    // Compara a origem inteira: "https://origem.maxcultural.com.br.evil.com" não passa.
+    if (allowedOrigins.includes(url.origin)) return raw;
+    const host = url.hostname.toLowerCase();
+    if (
+      url.protocol === "https:" &&
+      (host === "maxcultural.com.br" || host.endsWith(".maxcultural.com.br"))
+    ) {
+      return raw;
+    }
   } catch {
     return fallback;
   }
