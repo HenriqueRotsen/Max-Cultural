@@ -13,11 +13,11 @@ const montserrat = Montserrat({
 
 export const metadata: Metadata = {
   title: {
-    default: "MAX Origem — Criação · Planejamento · Auditoria",
+    default: "MAX Origem — Criação · Planejamento · Fornecedores",
     template: "%s · MAX Origem",
   },
   description:
-    "Auditoria SALIC e banco de fornecedores — criação, planejamento e conformidade.",
+    "Planejamento de projetos culturais, proponentes e banco de fornecedores.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

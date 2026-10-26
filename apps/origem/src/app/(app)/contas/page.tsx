@@ -31,7 +31,6 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
   ]);
 
   const atLimit = accounts.length >= entitlements.maxAccounts;
-  const auditoriaUrl = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
   const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
   const tab =
     tabParam === "nova" || tabParam === "suas-contas"
@@ -78,9 +77,6 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
             Novo proponente
           </Link>
         )}
-        {auditoriaUrl ? (
-          <a href={`${auditoriaUrl}/atualizacao`}>Atualização SALIC (Auditoria) ↗</a>
-        ) : null}
       </nav>
 
       {error && (

@@ -10,8 +10,6 @@ const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000"
   "",
 );
 
-/** App próprio da Auditoria (antigo Salink): espelho do SALIC, fora do Origem. */
-const AUDITORIA_URL = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
 
 const proponentesLinks = [
   { href: "/contas", label: "Proponentes", icon: BuildingIcon },
@@ -30,7 +28,6 @@ const fornecedoresLinks = [
 const moduleLinks = [
   { href: "/planejamento", label: "Planejamento", icon: PlanIcon },
   { href: "/contas", label: "Proponentes", icon: BuildingIcon },
-  { href: `${AUDITORIA_URL}/inicio`, label: "Auditoria (antigo Salink) ↗", icon: AuditIcon },
   { href: "/fornecedores", label: "Fornecedores", icon: UsersIcon },
 ];
 
@@ -94,9 +91,6 @@ export function AppSidebar({
   const modules = moduleLinks.filter((l) => {
     if (l.href === "/planejamento") return allow("origem.planejamento");
     if (l.href === "/contas") return allow("origem.proponentes");
-    if (l.href.endsWith("/inicio")) {
-      return Boolean(AUDITORIA_URL) && (allow("origem.auditoria") || allow("auditoria.app"));
-    }
     if (l.href === "/fornecedores") return allow("origem.fornecedores");
     return true;
   });
@@ -118,10 +112,9 @@ export function AppSidebar({
     const active = linkActive(pathname, link.href);
     return {
       href: link.href,
-      label: link.label.replace(" (antigo Salink) ↗", ""),
+      label: link.label,
       icon: <Icon active={active} />,
       active,
-      external: /^https?:/.test(link.href),
     };
   });
 
@@ -313,21 +306,6 @@ function SearchBalanceIcon({ active }: { active?: boolean }) {
         strokeWidth="1.7"
         strokeLinecap="round"
       />
-    </svg>
-  );
-}
-
-function AuditIcon({ active }: { active?: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-        stroke={stroke(active)}
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path d="M14 3v5h5" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinejoin="round" />
-      <path d="M8 12h8M8 15h8M8 18h5" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }

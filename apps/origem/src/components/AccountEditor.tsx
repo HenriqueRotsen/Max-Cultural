@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   clearAccountPassword,
   deleteAccount,
@@ -30,11 +29,6 @@ type AccountEditorProps = {
 
 export function AccountEditor({ account, syncEnabled = true }: AccountEditorProps) {
   const [editingPassword, setEditingPassword] = useState(false);
-  const digits = account.cgccpf.replace(/\D/g, "");
-  const showMapa = digits.length === 14 || account.personType === "PJ";
-  const mapLabel = account.institutionalMap
-    ? "Mapa organizacional"
-    : "Mapa societário";
 
   return (
     <div id={`account-${account.id}`} className="card overflow-hidden">
@@ -50,14 +44,6 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {showMapa ? (
-            <Link
-              href={`${(process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "")}/contas/mapa/${account.id}`}
-              className="btn btn-ghost"
-            >
-              {mapLabel}
-            </Link>
-          ) : null}
           {syncEnabled && (
             <span className={`badge ${account.hasPassword ? "badge-success" : "badge-muted"}`}>
               {account.hasPassword ? "Senha salva" : "Sem senha"}

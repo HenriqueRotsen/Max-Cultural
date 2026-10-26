@@ -25,7 +25,6 @@ type ModuleCard = {
   icon: ReactNode;
 };
 
-const AUDITORIA_URL = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
 
 const MODULES: ModuleCard[] = [
   {
@@ -92,40 +91,6 @@ const MODULES: ModuleCard[] = [
     ),
   },
   {
-    href: `${AUDITORIA_URL}/inicio`,
-    title: "Auditoria (antigo Salink)",
-    description: "App próprio, espelho do SALIC: sync, panorama por fornecedor e relatório de auditoria. Não alimenta os outros módulos.",
-    cta: "Abrir",
-    theme: {
-      topBar: "bg-[linear-gradient(90deg,#2563eb_0%,#0ea5e9_100%)]",
-      cardGlow: "bg-[radial-gradient(circle_at_top_right,rgba(37,99,235,0.12),transparent_58%)]",
-      iconBg: "bg-[linear-gradient(135deg,#e8f2ff_0%,#dbeafe_100%)]",
-      iconRing: "ring-[#bfdbfe]",
-      iconColor: "text-[#1d4ed8]",
-      ctaBg: "bg-[#e8f2ff]",
-      ctaHover: "group-hover:bg-[linear-gradient(90deg,#2563eb_0%,#0ea5e9_100%)]",
-      ctaText: "text-[#2563eb] group-hover:text-white",
-      hoverBorder: "hover:border-[#93c5fd]",
-    },
-    icon: (
-      <>
-        <path
-          d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M14 3v5h5M8 12h8M8 15h8M8 18h5"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          className="opacity-70"
-        />
-      </>
-    ),
-  },
-  {
     href: "/fornecedores",
     title: "Fornecedores",
     description:
@@ -170,11 +135,11 @@ export default function ModulesPage() {
       <PageHeader
         breadcrumb="MAX Origem"
         title="Escolha o módulo"
-        description="Proponentes, planejamento de rubricas e banco de preços. A Auditoria (antigo Salink) abre no app próprio."
+        description="Proponentes, planejamento de rubricas e banco de preços."
       />
 
-      <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {MODULES.filter((mod) => AUDITORIA_URL || !mod.href.endsWith("/inicio")).map((mod) => (
+      <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        {MODULES.map((mod) => (
           <Link
             key={mod.href}
             href={mod.href}
