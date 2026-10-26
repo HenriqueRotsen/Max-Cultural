@@ -11,7 +11,12 @@ import {
 } from "@/lib/salic/api";
 import { getSyncConcurrency, mapPool } from "@/lib/salic/concurrency";
 import { ProdutosCache } from "@/lib/salic/produtos-cache";
-import { sanitizeSalicText } from "@/lib/salic/text";
+import { fixSalicEncoding, sanitizeSalicText } from "@/lib/salic/text";
+
+/** Texto livre do SALIC com a codificação corrigida (mantém quebras de linha). */
+function salicTextOrNull(value?: string | null) {
+  return value ? fixSalicEncoding(value) : null;
+}
 
 export type ProgressFn = (
   message: string,
@@ -96,9 +101,9 @@ async function upsertPaymentFromProduto(params: {
       : null;
 
   const data = {
-    itemName: produto.nome || null,
+    itemName: salicTextOrNull(produto.nome),
     documentType: produto.tipo_documento || null,
-    documentNumber: produto.nr_comprovante || null,
+    documentNumber: salicTextOrNull(produto.nr_comprovante),
     paymentDate: parseSalicDate(produto.data_pagamento),
     approvalDate: parseSalicDate(produto.data_aprovacao),
     paymentMethod: produto.tipo_forma_pagamento || null,
@@ -106,7 +111,7 @@ async function upsertPaymentFromProduto(params: {
     amount: produto.valor_pagamento ?? 0,
     fileId: produto.id_arquivo != null ? String(produto.id_arquivo) : null,
     fileName: produto.nm_arquivo || null,
-    justification: produto.justificativa || null,
+    justification: salicTextOrNull(produto.justificativa),
     planilhaAprovacaoId:
       produto.id_planilha_aprovacao != null
         ? String(produto.id_planilha_aprovacao)
@@ -226,7 +231,7 @@ async function persistProdutosForPronac(params: {
   await mapPool(list, concurrency, async (fornecedor) => {
     const supplier = await upsertSupplier({
       cgccpf: fornecedor.cgccpf,
-      name: fornecedor.nome,
+      name: fornecedor.nome && fixSalicEncoding(fornecedor.nome),
       email: fornecedor.email,
       salicId: fornecedor.salicId,
     });

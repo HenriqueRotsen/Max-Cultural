@@ -413,14 +413,14 @@ export async function syncAccountViaCrawler(params: {
         create: {
           salicAccountId: account.id,
           pronac: String(listed.Pronac),
-          name: listed.NomeProjeto || null,
+          name: sanitizeSalicText(listed.NomeProjeto) || null,
           salicProjectId: listed.idPronacHash,
           situacao: listed.Situacao || null,
           lifecycleStatus: classifyLifecycleFromSituacao(listed.Situacao),
           lastSyncedAt: new Date(),
         },
         update: {
-          name: listed.NomeProjeto || undefined,
+          name: sanitizeSalicText(listed.NomeProjeto),
           salicProjectId: listed.idPronacHash,
           situacao: listed.Situacao || null,
           lifecycleStatus: classifyLifecycleFromSituacao(listed.Situacao),
@@ -434,7 +434,7 @@ export async function syncAccountViaCrawler(params: {
           salicAccountId: account.id,
           projectId: project.id,
           pronac: String(listed.Pronac),
-          projectName: listed.NomeProjeto,
+          projectName: sanitizeSalicText(listed.NomeProjeto),
           previousSituacao: previous?.situacao,
           nextSituacao: listed.Situacao,
         });
