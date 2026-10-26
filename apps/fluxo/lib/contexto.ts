@@ -74,7 +74,7 @@ export type ContextoInput = {
 export type ProjetoInput = {
   contextoId: string;
   nome: string;
-  pronac: string;
+  pronac?: string;
   proponente?: string;
   ano?: string;
 };

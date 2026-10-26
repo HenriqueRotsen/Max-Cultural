@@ -97,10 +97,9 @@ export default async function ContextosPage({
           Contexto → Projeto → Oficina
         </h1>
         <p className="text-sm text-muted-foreground">
-          Contextos e oficinas são cadastrados aqui. Projetos iniciados no MAX Origem
-          são vinculados automaticamente ao contexto inferido pelo nome (ex.: &quot;Arte em
-          cores 7&quot; → contexto &quot;Arte em cores&quot;). Só é possível excluir itens sem
-          dados vinculados.
+          Contextos, projetos e oficinas são cadastrados aqui (ou direto na importação e
+          na criação de formulários). Cada oficina informa onde acontece: online e/ou
+          os territórios presenciais. Só é possível excluir itens sem dados vinculados.
         </p>
       </div>
 

@@ -29,7 +29,30 @@ import {
   listContextosSelectAction,
   listOficinasSelectAction,
   listProjetosSelectAction,
+  upsertOficinaTerritorioAliasAction,
 } from "@/app/actions/contextos";
+import {
+  NovoContextoButton,
+  NovoProjetoButton,
+  oficinaDtoToOption,
+  oficinaOndeLabel,
+  oficinaSemTerritorio,
+} from "@/components/admin/hierarchy-quick-create";
+import {
+  OficinaModalidadeFields,
+  emptyOficinaModalidade,
+  territoriosPayload,
+} from "@/components/admin/oficina-modalidade-fields";
+import { ImportTerritorioCard } from "@/components/admin/import-territorio-card";
+import {
+  applyTerritorioToContext,
+  distinctTerritorioValues,
+  initialTerritorioState,
+  territorioAliasesFromState,
+  territorioOpcoes,
+  territorioPendencia,
+  type TerritorioImportState,
+} from "@/lib/import-territorio";
 import type {
   ContextoSelectOption,
   OficinaSelectOption,
@@ -165,6 +188,9 @@ export function ImportWizard() {
   );
 
   const [newOficinaNome, setNewOficinaNome] = useState("");
+  const [newOficinaModalidade, setNewOficinaModalidade] = useState(
+    emptyOficinaModalidade,
+  );
 
   const [contextos, setContextos] = useState<ContextoSelectOption[]>([]);
   const [projetos, setProjetos] = useState<ProjetoSelectOption[]>([]);
@@ -178,6 +204,7 @@ export function ImportWizard() {
     selContextoId && selProjetoId && selOficinaId,
   );
   const canRegister = !missingProjeto && needCreateOficina;
+  const selOficina = oficinas.find((o) => o.id === selOficinaId);
 
   const [context, setContext] = useState<HierarquiaBatch>({
     contextoId: "",
@@ -301,6 +328,45 @@ export function ImportWizard() {
     }
     return out;
   }, [fullMapping, selectedSources]);
+
+  const territorioSources = useMemo(
+    () =>
+      Object.entries(activeMapping)
+        .filter(([, target]) => target === "Territorio")
+        .map(([source]) => source),
+    [activeMapping],
+  );
+  const territorioPlanilha = useMemo(
+    () => distinctTerritorioValues(rawRows, territorioSources),
+    [rawRows, territorioSources],
+  );
+  const territorioOpts = useMemo(
+    () => territorioOpcoes(context.oficinaTerritorioCatalog),
+    [context.oficinaTerritorioCatalog],
+  );
+  const [territorioState, setTerritorioState] = useState<TerritorioImportState>({
+    modo: "lote",
+    lote: "",
+    mapa: {},
+  });
+  // Recalcula a sugestão quando muda a oficina ou as colunas de território.
+  const territorioKey = `${context.id_oficina}|${territorioSources.join("|")}`;
+  const [territorioKeySeen, setTerritorioKeySeen] = useState("");
+  if (step === "columns" && territorioKey !== territorioKeySeen) {
+    setTerritorioKeySeen(territorioKey);
+    setTerritorioState(
+      initialTerritorioState(
+        context.oficinaTerritorioCatalog,
+        territorioPlanilha.values,
+      ),
+    );
+  }
+  const territorioPend = territorioPendencia(
+    territorioState,
+    territorioOpts,
+    territorioPlanilha.values,
+    territorioPlanilha.blankCount,
+  );
 
   const selectedTargets = useMemo(
     () => new Set(Object.values(activeMapping)),
@@ -470,7 +536,7 @@ export function ImportWizard() {
     }
   }
 
-  async function runValueFormatting() {
+  async function runValueFormatting(batchContext: HierarquiaBatch = context) {
     if (Object.keys(activeMapping).length === 0) {
       toast.error("Selecione ao menos uma coluna");
       return false;
@@ -484,7 +550,7 @@ export function ImportWizard() {
         const result = await processMappedRowsAction({
           rawRows,
           mapping: activeMapping,
-          context,
+          context: batchContext,
           offset,
         });
         collected.push(...result.rows);
@@ -514,7 +580,9 @@ export function ImportWizard() {
         );
       }
 
-      setPreviewRows(deduped.length ? deduped : [emptySigaCulturalRow(context)]);
+      setPreviewRows(
+        deduped.length ? deduped : [emptySigaCulturalRow(batchContext)],
+      );
       setAiValueColumns(new Set(Object.values(activeMapping)));
       return true;
     } catch (error) {
@@ -574,6 +642,12 @@ export function ImportWizard() {
         toast.error("Oficina inválida");
         return;
       }
+      if (oficinaSemTerritorio(found)) {
+        toast.error(
+          "Esta oficina não tem território. Edite a oficina em Contextos e informe onde ela acontece.",
+        );
+        return;
+      }
       const batch = await enrichContextCatalog(oficinaSelectToBatch(found));
       setContext(batch);
       await proceedAfterHierarchy();
@@ -586,7 +660,7 @@ export function ImportWizard() {
           missingContexto
             ? "Selecione um contexto"
             : missingProjeto
-              ? "Selecione um projeto. Projetos são criados no MAX Origem."
+              ? "Selecione ou cadastre um projeto."
               : "Selecione contexto, projeto e oficina",
         );
         return;
@@ -597,7 +671,7 @@ export function ImportWizard() {
 
     if (missingProjeto) {
       toast.error(
-        "Selecione um projeto antes de cadastrar a oficina. Projetos vêm do MAX Origem.",
+        "Selecione um projeto antes de cadastrar a oficina.",
       );
       return;
     }
@@ -610,6 +684,9 @@ export function ImportWizard() {
       const createdOf = await createOficinaAction({
         projetoId: selProjetoId,
         nome: newOficinaNome,
+        ofereceOnline: newOficinaModalidade.ofereceOnline,
+        oferecePresencial: newOficinaModalidade.oferecePresencial,
+        territorios: territoriosPayload(newOficinaModalidade),
       });
       if (!createdOf.ok) {
         toast.error(createdOf.error);
@@ -619,7 +696,9 @@ export function ImportWizard() {
       setSelContextoId(createdOf.oficina.contextoId);
       setSelProjetoId(createdOf.oficina.projetoId);
       setSelOficinaId(createdOf.oficina.id);
+      setOficinas((prev) => [oficinaDtoToOption(createdOf.oficina), ...prev]);
       setNewOficinaNome("");
+      setNewOficinaModalidade(emptyOficinaModalidade());
       toast.success("Oficina cadastrada");
       router.refresh();
       await proceedAfterHierarchy();
@@ -639,8 +718,41 @@ export function ImportWizard() {
       );
       return;
     }
+    if (territorioPend) {
+      toast.error(territorioPend);
+      return;
+    }
+    const catalog = context.oficinaTerritorioCatalog;
+    if (catalog) {
+      const aliases = territorioAliasesFromState(
+        territorioState,
+        catalog,
+        territorioPlanilha.values,
+      );
+      const results = await Promise.all(
+        aliases.map((a) =>
+          upsertOficinaTerritorioAliasAction({
+            oficinaId: context.id_oficina,
+            raw: a.raw,
+            online: a.online,
+            oficinaTerritorioId: a.oficinaTerritorioId,
+          }).catch(() => ({ ok: false as const, error: "" })),
+        ),
+      );
+      if (results.some((r) => !r.ok)) {
+        toast.warning(
+          "Não foi possível salvar algumas ligações de território; elas valem só para este lote.",
+        );
+      }
+    }
+    const batch = applyTerritorioToContext(
+      context,
+      territorioState,
+      territorioPlanilha.values,
+    );
+    setContext(batch);
     setStep("preview");
-    const ok = await runValueFormatting();
+    const ok = await runValueFormatting(batch);
     if (!ok) setStep("columns");
   }
 
@@ -872,8 +984,8 @@ export function ImportWizard() {
           <CardHeader className="rounded-none border-b border-[var(--border)] bg-gradient-to-br from-[var(--navy-soft)] to-transparent py-4">
             <CardTitle className="text-xl">Contexto → Projeto → Oficina</CardTitle>
             <CardDescription>
-              Selecione o que já existe. Projetos do MAX Origem já aparecem no contexto
-              inferido pelo nome. O que ficar em branco será cadastrado ao continuar.
+              Selecione o que já existe ou cadastre contexto, projeto e oficina. A
+              oficina informa onde acontece (online e/ou territórios).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 pt-6">
@@ -905,7 +1017,16 @@ export function ImportWizard() {
                 </p>
               ) : null}
               <div className="space-y-2">
-                <Label>Contexto</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Contexto</Label>
+                  <NovoContextoButton
+                    disabled={hierarchyLoading}
+                    onCreated={(c) => {
+                      setContextos((prev) => [c, ...prev]);
+                      applyContextoPick(c.id);
+                    }}
+                  />
+                </div>
                 <Select
                   value={selContextoId || undefined}
                   onValueChange={(v) => applyContextoPick(v)}
@@ -930,7 +1051,20 @@ export function ImportWizard() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Projeto</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Projeto</Label>
+                  <NovoProjetoButton
+                    contextoId={selContextoId}
+                    disabled={hierarchyLoading}
+                    onCreated={(p) => {
+                      setProjetos((prev) => [
+                        { id: p.id, nome: p.nome, pronac: p.pronac, contextoId: p.contextoId },
+                        ...prev,
+                      ]);
+                      applyProjeto(p.id);
+                    }}
+                  />
+                </div>
                 <Select
                   value={selProjetoId || undefined}
                   onValueChange={(v) => applyProjeto(v)}
@@ -957,11 +1091,6 @@ export function ImportWizard() {
                     ))}
                   </SelectContent>
                 </Select>
-                {!missingContexto ? (
-                  <p className="text-xs text-muted-foreground">
-                    Projetos vêm do MAX Origem; aqui só é possível selecionar.
-                  </p>
-                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Oficina</Label>
@@ -989,6 +1118,23 @@ export function ImportWizard() {
                     ))}
                   </SelectContent>
                 </Select>
+                {selOficina ? (
+                  oficinaSemTerritorio(selOficina) ? (
+                    <p className="text-xs text-destructive">
+                      Sem território cadastrado.{" "}
+                      <Link
+                        href="/dashboard/contextos?tab=oficinas"
+                        className="underline underline-offset-2"
+                      >
+                        Editar oficina
+                      </Link>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Onde: {oficinaOndeLabel(selOficina)}
+                    </p>
+                  )
+                ) : null}
               </div>
             </div>
 
@@ -996,7 +1142,7 @@ export function ImportWizard() {
               <p className="text-sm text-muted-foreground">
                 {[
                   missingContexto ? "selecionar contexto" : null,
-                  missingProjeto ? "selecionar projeto (MAX Origem)" : null,
+                  missingProjeto ? "selecionar ou cadastrar projeto" : null,
                   !missingProjeto && needCreateOficina
                     ? "cadastrar ou selecionar oficina"
                     : null,
@@ -1037,6 +1183,10 @@ export function ImportWizard() {
                     onChange={(e) => setNewOficinaNome(e.target.value)}
                   />
                 </div>
+                <OficinaModalidadeFields
+                  value={newOficinaModalidade}
+                  onChange={setNewOficinaModalidade}
+                />
               </div>
             ) : null}
 
@@ -1272,6 +1422,15 @@ export function ImportWizard() {
               </Table>
             </div>
 
+            <ImportTerritorioCard
+              opcoes={territorioOpts}
+              values={territorioPlanilha.values}
+              blankCount={territorioPlanilha.blankCount}
+              state={territorioState}
+              onChange={setTerritorioState}
+              pendencia={territorioPend}
+            />
+
             <div className="flex justify-between gap-2">
               <Button type="button" variant="outline" onClick={() => setStep("context")}>
                 Voltar
@@ -1280,7 +1439,12 @@ export function ImportWizard() {
                 type="button"
                 size="lg"
                 onClick={handleColumnsNext}
-                disabled={busy || selectedSources.size === 0 || missingRequired.length > 0}
+                disabled={
+                  busy ||
+                  selectedSources.size === 0 ||
+                  missingRequired.length > 0 ||
+                  Boolean(territorioPend)
+                }
               >
                 Continuar
               </Button>

@@ -8,6 +8,7 @@ import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   createContextoAction,
   createOficinaAction,
+  createProjetoAction,
   deleteContextoAction,
   deleteOficinaAction,
   deleteProjetoAction,
@@ -32,7 +33,6 @@ import type {
 } from "@/lib/contexto";
 import { ListPager } from "@/components/admin/list-pager";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { SortableTableHead } from "@/components/sortable-table-head";
+import { OficinaModalidadeFields } from "@/components/admin/oficina-modalidade-fields";
 
 type Tab = "contextos" | "projetos" | "oficinas";
 
@@ -276,6 +277,18 @@ export function ContextosManager({
     });
   }
 
+  function openCreateProj() {
+    setProjEditId(null);
+    setProjForm({
+      contextoId: "",
+      nome: "",
+      pronac: "",
+      proponente: "",
+      ano: String(new Date().getFullYear()),
+    });
+    setProjOpen(true);
+  }
+
   function openEditProj(p: ProjetoDTO) {
     setProjEditId(p.id);
     setProjForm({
@@ -289,8 +302,18 @@ export function ContextosManager({
   }
 
   async function saveProj() {
-    if (!projEditId) return;
     startTransition(async () => {
+      if (!projEditId) {
+        const r = await createProjetoAction(projForm);
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        toast.success("Projeto criado");
+        setProjOpen(false);
+        router.push(listHref({ tab: "projetos", q: r.projeto.nome, page: 1 }));
+        return;
+      }
       const r = await updateProjetoAction(projEditId, projForm);
       if (!r.ok) {
         toast.error(r.error);
@@ -432,13 +455,14 @@ export function ContextosManager({
             </Link>
           ))}
         </div>
-        {canCreate && tab !== "projetos" ? (
+        {canCreate ? (
           <Button
             type="button"
             size="sm"
             className="gap-1.5"
             onClick={() => {
               if (tab === "contextos") openCreateCtx();
+              else if (tab === "projetos") openCreateProj();
               else if (tab === "oficinas") void openCreateOf();
             }}
           >
@@ -622,7 +646,7 @@ export function ContextosManager({
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
                 {q
                   ? "Nenhum projeto encontrado para esta busca."
-                  : "Nenhum projeto ainda. Inicie um projeto no MAX Origem ou cadastre via importação de planilha."}
+                  : "Nenhum projeto ainda. Use “Novo” para cadastrar, ou crie pela importação ou pelos formulários."}
               </li>
             ) : (
               projetos.map((p) => (
@@ -650,7 +674,7 @@ export function ContextosManager({
                       {p.nome}
                     </Link>
                     <div className="text-xs text-muted-foreground">
-                      PRONAC {p.pronac}
+                      {p.pronac ? `PRONAC ${p.pronac}` : "Sem PRONAC"}
                       {p.ano ? ` · ${p.ano}` : ""} · {p.oficinasCount} oficina(s)
                       {p.inscricoesCount > 0
                         ? ` · ${p.inscricoesCount} inscrição(ões)`
@@ -864,9 +888,11 @@ export function ContextosManager({
       <Dialog open={projOpen} onOpenChange={setProjOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar projeto</DialogTitle>
+            <DialogTitle>{projEditId ? "Editar projeto" : "Novo projeto"}</DialogTitle>
             <DialogDescription>
-              Mova o projeto para outro contexto (programa) ou ajuste metadados.
+              {projEditId
+                ? "Mova o projeto para outro contexto (programa) ou ajuste metadados."
+                : "Escolha o contexto (programa) e informe os dados do projeto."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
@@ -912,7 +938,7 @@ export function ContextosManager({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>PRONAC</Label>
+              <Label>PRONAC (opcional)</Label>
               <Input
                 value={projForm.pronac}
                 onChange={(e) =>
@@ -1034,165 +1060,10 @@ export function ContextosManager({
                 placeholder="Ex.: Oficina de IA"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Modalidade</Label>
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={ofForm.ofereceOnline}
-                    onCheckedChange={(v) =>
-                      setOfForm((f) => ({
-                        ...f,
-                        ofereceOnline: v === true,
-                      }))
-                    }
-                  />
-                  Online
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={ofForm.oferecePresencial}
-                    onCheckedChange={(v) => {
-                      const on = v === true;
-                      setOfForm((f) => ({
-                        ...f,
-                        oferecePresencial: on,
-                        territorios:
-                          on && f.territorios.length === 0
-                            ? [
-                                {
-                                  key: crypto.randomUUID(),
-                                  nome: "",
-                                  cidade: "",
-                                  estado: "",
-                                },
-                              ]
-                            : f.territorios,
-                      }));
-                    }}
-                  />
-                  Presencial
-                </label>
-              </div>
-            </div>
-            {ofForm.oferecePresencial && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>Territórios presenciais</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setOfForm((f) => ({
-                        ...f,
-                        territorios: [
-                          ...f.territorios,
-                          {
-                            key: crypto.randomUUID(),
-                            nome: "",
-                            cidade: "",
-                            estado: "",
-                          },
-                        ],
-                      }))
-                    }
-                  >
-                    <Plus className="size-3.5" />
-                    Adicionar
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Cidade e UF são obrigatórios. Comunidade/território é opcional.
-                </p>
-                <div className="grid gap-3">
-                  {ofForm.territorios.map((t, idx) => (
-                    <div
-                      key={t.key}
-                      className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_1fr_4rem_auto]"
-                    >
-                      <div className="space-y-1">
-                        <Label className="text-xs">Cidade</Label>
-                        <Input
-                          value={t.cidade}
-                          onChange={(e) =>
-                            setOfForm((f) => ({
-                              ...f,
-                              territorios: f.territorios.map((row, i) =>
-                                i === idx
-                                  ? { ...row, cidade: e.target.value }
-                                  : row,
-                              ),
-                            }))
-                          }
-                          placeholder="Imperatriz"
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-1">
-                        <Label className="text-xs">Comunidade (opc.)</Label>
-                        <Input
-                          value={t.nome}
-                          onChange={(e) =>
-                            setOfForm((f) => ({
-                              ...f,
-                              territorios: f.territorios.map((row, i) =>
-                                i === idx
-                                  ? { ...row, nome: e.target.value }
-                                  : row,
-                              ),
-                            }))
-                          }
-                          placeholder="Quilombo X"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">UF</Label>
-                        <Input
-                          value={t.estado}
-                          maxLength={2}
-                          onChange={(e) =>
-                            setOfForm((f) => ({
-                              ...f,
-                              territorios: f.territorios.map((row, i) =>
-                                i === idx
-                                  ? {
-                                      ...row,
-                                      estado: e.target.value
-                                        .toUpperCase()
-                                        .replace(/[^A-Z]/g, "")
-                                        .slice(0, 2),
-                                    }
-                                  : row,
-                              ),
-                            }))
-                          }
-                          placeholder="MA"
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={ofForm.territorios.length <= 1}
-                          onClick={() =>
-                            setOfForm((f) => ({
-                              ...f,
-                              territorios: f.territorios.filter(
-                                (_, i) => i !== idx,
-                              ),
-                            }))
-                          }
-                          aria-label="Remover território"
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <OficinaModalidadeFields
+              value={ofForm}
+              onChange={(next) => setOfForm((f) => ({ ...f, ...next }))}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOfOpen(false)}>

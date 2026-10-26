@@ -1,5 +1,4 @@
 export {
-  previewPlanningProjectContext,
   startPlanningProjectFederal,
   refreshPlanningCaptacaoFromSalic,
   refreshAllPlanningCaptacaoFromSalic,

@@ -19,8 +19,6 @@
     "db:local:up": "DOCKER_HOST=unix:///var/run/docker.sock docker compose -f ../cultural/docker-compose.yml up -d postgres",
     "db:use-local": "node scripts/switch-db-env.mjs local",
     "db:use-remote": "node scripts/switch-db-env.mjs remote",
-    "sync:origem-planning": "tsx scripts/sync-origem-planning.ts",
-    "repair:projeto-contextos": "tsx scripts/repair-projeto-contextos.ts",
     "strip:string-fields": "tsx scripts/strip-string-fields.ts"
   },
   "dependencies": {
