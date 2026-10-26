@@ -73,6 +73,7 @@ export default async function PapeisPage({
         {roles.length === 0 ? (
           <p className="px-5 py-8 text-sm text-[var(--gray-500)]">Nenhum papel cadastrado.</p>
         ) : (
+<div className="table-wrap">
           <table className="data w-full text-sm">
             <thead>
               <tr>
@@ -121,6 +122,7 @@ export default async function PapeisPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>

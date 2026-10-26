@@ -1,0 +1,146 @@
+/*
+ * Navegação mobile compartilhada pelos apps MAX (até 900px):
+ * barra fixa no rodapé + menu lateral (drawer) com o menu completo.
+ * Cores vêm das variáveis de cada app, com fallback.
+ */
+.mx-mobile-only {
+  display: none;
+}
+
+.mx-mnav,
+.mx-mnav-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mx-mobile-only {
+    display: flex;
+  }
+
+  .mx-desktop-only {
+    display: none !important;
+  }
+
+  .mx-mnav {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 40;
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.35rem 0.4rem calc(0.35rem + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border, #e5e7eb);
+    box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.06);
+  }
+
+  .mx-mnav__item {
+    position: relative;
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    min-height: 3rem;
+    padding: 0.3rem 0.2rem;
+    border: 0;
+    border-radius: 0.8rem;
+    background: transparent;
+    color: var(--gray-500, #6b7280);
+    font: inherit;
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1.1;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mx-mnav__item[data-active="true"] {
+    background: var(--navy-soft, #f3eefc);
+    color: var(--navy, #4a1d6e);
+  }
+
+  .mx-mnav__icon {
+    display: flex;
+    height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mx-mnav__icon svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .mx-mnav__label {
+    max-width: 100%;
+    letter-spacing: -0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mx-mnav__badge {
+    position: absolute;
+    top: 0.15rem;
+    left: calc(50% + 0.35rem);
+    min-width: 1.05rem;
+    height: 1.05rem;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.62rem;
+    line-height: 1.05rem;
+    text-align: center;
+  }
+
+  .mx-mnav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: block;
+    border: 0;
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(2px);
+  }
+
+  /* Menu completo vira drawer à esquerda. */
+  [data-mx-drawer] {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    z-index: 50 !important;
+    width: min(86vw, 300px) !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    overflow-y: auto;
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+    border-right: 1px solid var(--border, #e5e7eb);
+    border-bottom: 0 !important;
+    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.25);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  [data-mx-drawer][data-open="true"] {
+    transform: none;
+  }
+
+  /* Espaço para a barra do rodapé não cobrir o conteúdo. */
+  [data-mx-main] {
+    padding-bottom: calc(4.4rem + env(safe-area-inset-bottom));
+  }
+
+  body[data-mx-menu-open] {
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-mx-drawer] {
+    transition: none;
+  }
+}

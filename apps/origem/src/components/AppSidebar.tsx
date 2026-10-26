@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MobileBottomNav, useMobileMenu } from "@max/mobile-nav";
 import { MaxOrigemLogo } from "@/components/MaxOrigemLogo";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
@@ -111,8 +112,22 @@ export function AppSidebar({
             ? { title: "Planejamento", links: planejamento }
             : { title: "Módulos", links: modules };
 
+  const menu = useMobileMenu(pathname);
+  const mobileItems = nav.links.map((link) => {
+    const Icon = link.icon;
+    const active = linkActive(pathname, link.href);
+    return {
+      href: link.href,
+      label: link.label.replace(" (antigo Salink) ↗", ""),
+      icon: <Icon active={active} />,
+      active,
+      external: /^https?:/.test(link.href),
+    };
+  });
+
   return (
-    <aside className="shell-sidebar">
+    <>
+    <aside className="shell-sidebar" data-mx-drawer data-open={menu.open ? "true" : undefined}>
       <div className="flex items-center px-5 py-5">
         <Link href="/painel" className="block">
           <MaxOrigemLogo />
@@ -178,6 +193,12 @@ export function AppSidebar({
         </div>
       </nav>
     </aside>
+    <MobileBottomNav
+      items={mobileItems}
+      menuOpen={menu.open}
+      onMenuToggle={menu.toggle}
+    />
+    </>
   );
 }
 

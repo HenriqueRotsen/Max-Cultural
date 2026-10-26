@@ -136,15 +136,15 @@ export function NovoProjetoButton({
         Novo projeto
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Novo projeto</DialogTitle>
             <DialogDescription>
               O projeto fica dentro do contexto selecionado.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Nome do projeto</Label>
               <Input
                 value={form.nome}
@@ -152,20 +152,20 @@ export function NovoProjetoButton({
                 placeholder="Ex.: Arte em Rede 1ª Edição"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>PRONAC (opcional)</Label>
-              <Input
-                value={form.pronac}
-                onChange={(e) => setForm((f) => ({ ...f, pronac: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Proponente</Label>
               <Input
                 value={form.proponente}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, proponente: e.target.value }))
                 }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>PRONAC (opcional)</Label>
+              <Input
+                value={form.pronac}
+                onChange={(e) => setForm((f) => ({ ...f, pronac: e.target.value }))}
               />
             </div>
             <div className="space-y-1.5">

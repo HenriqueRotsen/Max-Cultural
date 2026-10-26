@@ -37,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         syncEnabled={session.entitlements.syncEnabled}
         newAlerts={newAlerts}
       />
-      <div className="shell-main">
+      <div className="shell-main" data-mx-main>
         <div className="content">{children}</div>
       </div>
     </div>

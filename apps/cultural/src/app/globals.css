@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@max/mobile-nav/src/mobile-nav.css";
 
 :root {
   --navy: #c2410c;
@@ -550,13 +551,13 @@ table.data tbody tr.row-expand-child-last > td:last-child {
     flex-direction: column;
   }
 
-  .shell-sidebar {
-    position: relative;
-    width: 100%;
-    height: auto;
-    max-height: none;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+  /* No celular o menu vira drawer (data-mx-drawer) e a navegação fica no rodapé. */
+  .shell-main {
+    min-height: 100dvh;
+  }
+
+  .content {
+    padding: 1rem;
   }
 }
 

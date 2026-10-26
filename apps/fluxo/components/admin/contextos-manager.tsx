@@ -43,15 +43,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { SortableTableHead } from "@/components/sortable-table-head";
+import { SearchSelect } from "@/components/ui/search-select";
 import { OficinaModalidadeFields } from "@/components/admin/oficina-modalidade-fields";
 
 type Tab = "contextos" | "projetos" | "oficinas";
@@ -150,16 +144,23 @@ export function ContextosManager({
     };
   }, [projOpen, projCtxSearch]);
 
+  const [ofCtxSearch, setOfCtxSearch] = useState("");
   useEffect(() => {
     if (!ofOpen) return;
     let cancelled = false;
-    void listContextosSelectAction({ editableOnly: true }).then((rows) => {
-      if (!cancelled) setOfContextos(rows);
-    });
+    const timer = window.setTimeout(() => {
+      void listContextosSelectAction({
+        q: ofCtxSearch,
+        editableOnly: true,
+      }).then((rows) => {
+        if (!cancelled) setOfContextos(rows);
+      });
+    }, 200);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [ofOpen]);
+  }, [ofOpen, ofCtxSearch]);
 
   useEffect(() => {
     if (!ofOpen || !ofForm.contextoId) {
@@ -886,7 +887,7 @@ export function ContextosManager({
       </Dialog>
 
       <Dialog open={projOpen} onOpenChange={setProjOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{projEditId ? "Editar projeto" : "Novo projeto"}</DialogTitle>
             <DialogDescription>
@@ -895,39 +896,25 @@ export function ContextosManager({
                 : "Escolha o contexto (programa) e informe os dados do projeto."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Contexto</Label>
-              <Input
-                value={projCtxSearch}
-                placeholder="Buscar contexto…"
-                onChange={(e) => setProjCtxSearch(e.target.value)}
-              />
-              <Select
-                value={projForm.contextoId || undefined}
+              <SearchSelect
+                value={projForm.contextoId}
+                options={projContextos.map((c) => ({
+                  value: c.id,
+                  label: c.nome.trim() || "(sem nome)",
+                }))}
                 onValueChange={(v) =>
-                  setProjForm((f) => ({ ...f, contextoId: v ?? "" }))
+                  setProjForm((f) => ({ ...f, contextoId: v }))
                 }
-                items={Object.fromEntries(
-                  projContextos.map((c) => [
-                    c.id,
-                    c.nome.trim() || "(sem nome)",
-                  ]),
-                )}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projContextos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome || "(sem nome)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onSearch={setProjCtxSearch}
+                placeholder="Selecione o contexto"
+                searchPlaceholder="Buscar contexto…"
+                emptyText="Nenhum contexto encontrado."
+              />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Nome do projeto</Label>
               <Input
                 value={projForm.nome}
@@ -937,21 +924,22 @@ export function ContextosManager({
                 placeholder="Ex.: Arte em Rede 1ª Edição"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>PRONAC (opcional)</Label>
-              <Input
-                value={projForm.pronac}
-                onChange={(e) =>
-                  setProjForm((f) => ({ ...f, pronac: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Proponente</Label>
               <Input
                 value={projForm.proponente}
                 onChange={(e) =>
                   setProjForm((f) => ({ ...f, proponente: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>PRONAC (opcional)</Label>
+              <Input
+                value={projForm.pronac}
+                inputMode="numeric"
+                onChange={(e) =>
+                  setProjForm((f) => ({ ...f, pronac: e.target.value }))
                 }
               />
             </div>
@@ -982,7 +970,7 @@ export function ContextosManager({
       </Dialog>
 
       <Dialog open={ofOpen} onOpenChange={setOfOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {ofEditId ? "Editar oficina" : "Nova oficina"}
@@ -991,64 +979,45 @@ export function ContextosManager({
               A oficina pode ser online e/ou presencial (com um ou mais territórios).
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div className="space-y-1.5">
-              <Label>Contexto</Label>
-              <Select
-                value={ofForm.contextoId || undefined}
-                onValueChange={(v) => {
-                  const contextoId = v ?? "";
-                  setOfForm((f) => ({
-                    ...f,
-                    contextoId,
-                    projetoId: "",
-                  }));
-                }}
-                items={Object.fromEntries(
-                  ofContextos.map((c) => [
-                    c.id,
-                    c.nome.trim() || "(sem nome)",
-                  ]),
-                )}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ofContextos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome || "(sem nome)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Projeto</Label>
-              <Select
-                value={ofForm.projetoId || undefined}
-                onValueChange={(v) =>
-                  setOfForm((f) => ({ ...f, projetoId: v ?? "" }))
-                }
-                disabled={!ofForm.contextoId}
-                items={Object.fromEntries(
-                  ofProjetos.map((p) => [
-                    p.id,
-                    p.pronac ? `${p.nome} · ${p.pronac}` : p.nome,
-                  ]),
-                )}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ofProjetos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.pronac ? `${p.nome} · ${p.pronac}` : p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Contexto</Label>
+                <SearchSelect
+                  value={ofForm.contextoId}
+                  options={ofContextos.map((c) => ({
+                    value: c.id,
+                    label: c.nome.trim() || "(sem nome)",
+                  }))}
+                  onValueChange={(contextoId) =>
+                    setOfForm((f) => ({ ...f, contextoId, projetoId: "" }))
+                  }
+                  onSearch={setOfCtxSearch}
+                  placeholder="Selecione o contexto"
+                  searchPlaceholder="Buscar contexto…"
+                  emptyText="Nenhum contexto encontrado."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Projeto</Label>
+                <SearchSelect
+                  value={ofForm.projetoId}
+                  options={ofProjetos.map((p) => ({
+                    value: p.id,
+                    label: p.nome,
+                    hint: p.pronac ? `PRONAC ${p.pronac}` : undefined,
+                  }))}
+                  onValueChange={(projetoId) =>
+                    setOfForm((f) => ({ ...f, projetoId }))
+                  }
+                  disabled={!ofForm.contextoId}
+                  placeholder={
+                    ofForm.contextoId ? "Selecione o projeto" : "Escolha o contexto antes"
+                  }
+                  searchPlaceholder="Buscar projeto ou PRONAC…"
+                  emptyText="Nenhum projeto encontrado."
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Nome da oficina</Label>

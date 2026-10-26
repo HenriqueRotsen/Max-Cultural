@@ -43,6 +43,7 @@ import {
   emptyOficinaModalidade,
   territoriosPayload,
 } from "@/components/admin/oficina-modalidade-fields";
+import { SearchSelect } from "@/components/ui/search-select";
 import { ImportTerritorioCard } from "@/components/admin/import-territorio-card";
 import {
   applyTerritorioToContext,
@@ -118,13 +119,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 type Step = "upload" | "context" | "columns" | "preview";
@@ -276,32 +270,8 @@ export function ImportWizard() {
     };
   }, [step, selProjetoId]);
 
-  const contextoSelectItems = useMemo(
-    () =>
-      Object.fromEntries(
-        contextos.map((c) => [c.id, c.nome.trim() || "(sem nome)"]),
-      ),
-    [contextos],
-  );
 
-  const projetoSelectItems = useMemo(
-    () =>
-      Object.fromEntries(
-        projetosFiltrados.map((p) => [
-          p.id,
-          p.pronac ? `${p.nome} · ${p.pronac}` : p.nome,
-        ]),
-      ),
-    [projetosFiltrados],
-  );
 
-  const oficinaSelectItems = useMemo(
-    () => ({
-      __blank__: "Cadastrar Novo",
-      ...Object.fromEntries(oficinasFiltradas.map((o) => [o.id, o.nome])),
-    }),
-    [oficinasFiltradas],
-  );
 
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
@@ -831,15 +801,18 @@ export function ImportWizard() {
   return (
     <div className="space-y-6">
       <nav className="rounded-2xl border border-[var(--border)] bg-white/70 p-4 shadow-sm backdrop-blur">
-        <ol className="grid gap-3 sm:grid-cols-4">
+        <ol className="grid grid-cols-4 gap-2 sm:gap-3">
           {STEPS.map((s, i) => {
             const active = i === stepIndex;
             const done = i < stepIndex;
             return (
-              <li key={s.id} className="relative flex items-start gap-3">
+              <li
+                key={s.id}
+                className="relative flex flex-col items-center gap-1.5 text-center sm:flex-row sm:items-start sm:gap-3 sm:text-left"
+              >
                 <div
                   className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition",
+                    "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition sm:size-10",
                     active && "bg-brand text-white shadow-md shadow-brand/20",
                     done && "bg-brand-soft text-brand-deep",
                     !active && !done && "bg-[var(--gray-100)] text-[var(--gray-400)]",
@@ -850,13 +823,13 @@ export function ImportWizard() {
                 <div className="min-w-0 pt-0.5">
                   <div
                     className={cn(
-                      "text-sm font-medium",
+                      "text-xs font-medium sm:text-sm",
                       active ? "text-brand-deep" : "text-[var(--gray-500)]",
                     )}
                   >
                     {s.label}
                   </div>
-                  <div className="text-xs text-muted-foreground">{s.hint}</div>
+                  <div className="hidden text-xs text-muted-foreground sm:block">{s.hint}</div>
                 </div>
               </li>
             );
@@ -1027,28 +1000,18 @@ export function ImportWizard() {
                     }}
                   />
                 </div>
-                <Select
-                  value={selContextoId || undefined}
+                <SearchSelect
+                  value={selContextoId}
+                  options={contextos.map((c) => ({
+                    value: c.id,
+                    label: c.nome.trim() || "(sem nome)",
+                  }))}
                   onValueChange={(v) => applyContextoPick(v)}
-                  items={contextoSelectItems}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue
-                      placeholder={
-                        contextos.length === 0
-                          ? "Nenhum contexto"
-                          : "Selecione…"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contextos.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome.trim() || "(sem nome)"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  disabled={hierarchyLoading}
+                  placeholder={contextos.length === 0 ? "Nenhum contexto" : "Selecione…"}
+                  searchPlaceholder="Buscar contexto…"
+                  emptyText="Nenhum contexto encontrado."
+                />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -1065,59 +1028,44 @@ export function ImportWizard() {
                     }}
                   />
                 </div>
-                <Select
-                  value={selProjetoId || undefined}
+                <SearchSelect
+                  value={selProjetoId}
+                  options={projetosFiltrados.map((p) => ({
+                    value: p.id,
+                    label: p.nome,
+                    hint: p.pronac ? `PRONAC ${p.pronac}` : undefined,
+                  }))}
                   onValueChange={(v) => applyProjeto(v)}
-                  disabled={missingContexto}
-                  items={projetoSelectItems}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue
-                      placeholder={
-                        missingContexto
-                          ? "Selecione o contexto primeiro"
-                          : projetosFiltrados.length === 0
-                            ? "Nenhum projeto neste contexto"
-                            : "Selecione…"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projetosFiltrados.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nome}
-                        {p.pronac ? ` · ${p.pronac}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  disabled={missingContexto || hierarchyLoading}
+                  placeholder={
+                    missingContexto
+                      ? "Selecione o contexto primeiro"
+                      : projetosFiltrados.length === 0
+                        ? "Nenhum projeto neste contexto"
+                        : "Selecione…"
+                  }
+                  searchPlaceholder="Buscar projeto ou PRONAC…"
+                  emptyText="Nenhum projeto encontrado."
+                />
               </div>
               <div className="space-y-2">
                 <Label>Oficina</Label>
-                <Select
+                <SearchSelect
                   value={selOficinaId || "__blank__"}
+                  options={[
+                    { value: "__blank__", label: "+ Cadastrar nova oficina" },
+                    ...oficinasFiltradas.map((o) => ({
+                      value: o.id,
+                      label: o.nome,
+                      hint: oficinaOndeLabel(o) || undefined,
+                    })),
+                  ]}
                   onValueChange={(v) => applyOficina(v)}
-                  disabled={missingProjeto}
-                  items={oficinaSelectItems}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue
-                      placeholder={
-                        missingProjeto
-                          ? "Selecione o projeto primeiro"
-                          : "Cadastrar Novo"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__blank__">Cadastrar Novo</SelectItem>
-                    {oficinasFiltradas.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>
-                        {o.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  disabled={missingProjeto || hierarchyLoading}
+                  placeholder={missingProjeto ? "Selecione o projeto primeiro" : "Selecione…"}
+                  searchPlaceholder="Buscar oficina ou cidade…"
+                  emptyText="Nenhuma oficina encontrada."
+                />
                 {selOficina ? (
                   oficinaSemTerritorio(selOficina) ? (
                     <p className="text-xs text-destructive">

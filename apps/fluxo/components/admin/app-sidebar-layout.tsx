@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,7 +9,6 @@ import {
   FolderTree,
   LogOut,
   MapPinned,
-  Menu,
   ScrollText,
   Shield,
   Upload,
@@ -19,9 +18,10 @@ import {
   LayoutDashboard,
   X,
 } from "lucide-react";
+import { MobileBottomNav, useMobileMenu } from "@max/mobile-nav";
 import { BrandLogo } from "@/components/brand-logo";
 import { PageBackLink } from "@/components/page-back-link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { resolveBackFallback } from "@/lib/nav-back";
 import { cn } from "@/lib/utils";
 
@@ -157,6 +157,36 @@ function filterGroups(permissions: string[] | null): NavGroup[] {
       return itemAllowed(item.permission, permissions);
     }),
   })).filter((group) => group.items.length > 0);
+}
+
+/** Ordem dos atalhos no rodapé do celular (até 4; o resto fica no menu). */
+const MOBILE_PRIORITY = [
+  "/dashboard",
+  "/dashboard/contextos",
+  "/dashboard/formularios",
+  "/dashboard/importar",
+  "/dashboard/analise",
+  "/pessoa",
+  "/territorio",
+];
+
+function mobileNavItems(permissions: string[] | null, pathname: string) {
+  const items = filterGroups(permissions).flatMap((g) => g.items);
+  const rank = (href: string) => {
+    const i = MOBILE_PRIORITY.indexOf(href);
+    return i === -1 ? MOBILE_PRIORITY.length : i;
+  };
+  return [...items]
+    .sort((a, b) => rank(a.href) - rank(b.href))
+    .map((item) => {
+      const Icon = item.icon;
+      return {
+        href: item.href,
+        label: item.label,
+        icon: <Icon className="size-5" />,
+        active: item.match(pathname),
+      };
+    });
 }
 
 function SidebarNav({
@@ -314,25 +344,14 @@ export function AppSidebarLayout({
   contentClassName,
 }: AppSidebarLayoutProps) {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const menu = useMobileMenu(pathname);
+  const mobileOpen = menu.open;
+  const setMobileOpen = menu.setOpen;
   const autoBack = resolveBackFallback(pathname);
   const back =
     backHref != null
       ? { href: backHref, label: backLabel ?? "Voltar" }
       : autoBack;
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [mobileOpen]);
 
   return (
     <div className="min-h-screen bg-[#f5f6f8]">
@@ -374,18 +393,9 @@ export function AppSidebarLayout({
         </div>
       ) : null}
 
-      <div className="md:pl-[240px]">
-        {/* Só no mobile: abrir o menu lateral */}
-        <div className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-brand/10 bg-white/70 px-4 backdrop-blur-md md:hidden">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-label="Abrir menu"
-            onClick={() => setMobileOpen(true)}
-          >
-            <Menu className="size-4" />
-          </Button>
+      <div className="pb-[calc(4.4rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-[240px]">
+        {/* Só no mobile: voltar/logo e ações; o menu fica no rodapé */}
+        <div className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-brand/10 bg-white/80 px-4 backdrop-blur-md md:hidden">
           {back ? (
             <PageBackLink href={back.href} label={back.label} className="-ml-1" />
           ) : (
@@ -422,6 +432,14 @@ export function AppSidebarLayout({
           ) : null}
           {children}
         </main>
+      </div>
+
+      <div className="md:hidden">
+        <MobileBottomNav
+          items={mobileNavItems(permissions, pathname)}
+          menuOpen={mobileOpen}
+          onMenuToggle={menu.toggle}
+        />
       </div>
     </div>
   );

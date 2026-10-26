@@ -1,0 +1,11 @@
+{
+  "name": "@max/mobile-nav",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "peerDependencies": {
+    "next": "*",
+    "react": "*"
+  }
+}

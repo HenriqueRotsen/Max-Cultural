@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AppSidebar } from "@/components/AppSidebar";
+import { MaxOrigemLogo } from "@/components/MaxOrigemLogo";
 import { NotificationBell } from "@/components/planning/NotificationBell";
 import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
 import {
@@ -47,7 +49,10 @@ async function TopBar({
         });
 
   return (
-    <div className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2">
+    <div className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-4 py-2 sm:px-6">
+      <Link href="/painel" className="mx-mobile-only mr-auto" aria-label="Início">
+        <MaxOrigemLogo className="max-h-8" />
+      </Link>
       <NotificationBell
         items={notifications.map((n) => ({
           id: n.id,
@@ -125,7 +130,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         syncEnabled={session.entitlements.syncEnabled}
         allowedScreens={allowedScreens}
       />
-      <div className="shell-main">
+      <div className="shell-main" data-mx-main>
         <Suspense fallback={<TopBarFallback />}>
           <TopBar
             workspaceId={session.workspace.id}

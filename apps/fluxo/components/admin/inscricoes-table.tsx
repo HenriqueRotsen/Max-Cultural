@@ -143,7 +143,8 @@ export function InscricoesTable({
   const [editing, setEditing] = useState<Row | null>(null);
   const [extended, setExtended] = useState<Row | null>(null);
   const [q, setQ] = useState(searchParams.get("q") ?? "");
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  // null = padrão: abertos no desktop, recolhidos no celular (só CSS, sem hidratação divergente).
+  const [filtersOpen, setFiltersOpen] = useState<boolean | null>(null);
 
   const filterSelectItems = useMemo(
     () => ({
@@ -293,7 +294,11 @@ export function InscricoesTable({
               variant="outline"
               size="sm"
               className="gap-1.5"
-              onClick={() => setFiltersOpen((v) => !v)}
+              onClick={() =>
+                setFiltersOpen((v) =>
+                  v === null ? !window.matchMedia("(min-width: 768px)").matches : !v,
+                )
+              }
             >
               <SlidersHorizontal className="size-3.5" />
               Filtros
@@ -316,8 +321,13 @@ export function InscricoesTable({
           </div>
         </div>
 
-        {filtersOpen ? (
-          <div className="mt-4 grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filtersOpen !== false ? (
+          <div
+            className={cn(
+              "mt-4 gap-3 border-t border-border/60 pt-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+              filtersOpen === null ? "hidden md:grid" : "grid",
+            )}
+          >
             <div className="space-y-1.5">
               <Label className="text-xs">Projeto</Label>
               <Select

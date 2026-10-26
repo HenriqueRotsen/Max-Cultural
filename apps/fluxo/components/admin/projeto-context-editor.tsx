@@ -8,15 +8,8 @@ import {
   moveProjetoContextoAction,
 } from "@/app/actions/contextos";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 
 type Props = {
   projetoId: string;
@@ -110,24 +103,16 @@ export function ProjetoContextEditor({
       }
     >
       <Label htmlFor={`ctx-move-${projetoId}`}>Mover para contexto</Label>
-      <Input
+      <SearchSelect
         id={`ctx-move-${projetoId}`}
-        value={q}
-        placeholder="Buscar contexto…"
-        onChange={(e) => setQ(e.target.value)}
+        value={selectedId}
+        options={options.map((c) => ({ value: c.id, label: c.nome || "(sem nome)" }))}
+        onValueChange={setSelectedId}
+        onSearch={setQ}
+        placeholder="Selecione o contexto"
+        searchPlaceholder="Buscar contexto…"
+        emptyText="Nenhum contexto encontrado."
       />
-      <Select value={selectedId} onValueChange={(v) => setSelectedId(v ?? "")}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Selecione o contexto" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.nome || "(sem nome)"}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" disabled={pending} onClick={save}>
           {pending ? "Salvando…" : "Salvar contexto"}
