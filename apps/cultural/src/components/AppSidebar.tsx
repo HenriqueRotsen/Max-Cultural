@@ -2,7 +2,30 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  FolderIcon,
+  HomeIcon,
+  ListIcon,
+  MobileBottomNav,
+  ShieldIcon,
+  UsersIcon,
+  useMobileMenu,
+} from "@max/mobile-nav";
 import { MaxCulturalLogo } from "@/components/BrandLogo";
+
+const MOBILE_ICONS: Record<string, () => React.ReactNode> = {
+  "/": HomeIcon,
+  "/projetos": FolderIcon,
+  "/usuarios": UsersIcon,
+  "/papeis": ShieldIcon,
+  "/logs": ListIcon,
+};
+
+function hubLinkActive(pathname: string, href: string) {
+  return href === "/"
+    ? pathname === "/"
+    : pathname === href || pathname.startsWith(`${href}/`);
+}
 
 const hubLinks = [
   { href: "/", label: "Início" },
@@ -55,8 +78,25 @@ export function AppSidebar({
   const auditoriaHref = auditoriaUrl ? `${auditoriaUrl.replace(/\/$/, "")}/inicio` : "";
   const showProducts = Boolean(canOrigem || canFluxo || auditoriaHref);
 
+  const menu = useMobileMenu(pathname);
+  const mobileItems = visible.map((link) => {
+    const Icon = MOBILE_ICONS[link.href] ?? HomeIcon;
+    return {
+      href: link.href,
+      label: link.label,
+      icon: <Icon />,
+      active: hubLinkActive(pathname, link.href),
+    };
+  });
+
   return (
-    <aside className="shell-sidebar">
+    <>
+    <header className="mx-mobile-only items-center border-b border-[var(--border)] bg-white px-4 py-2">
+      <Link href="/" aria-label="Início">
+        <MaxCulturalLogo className="max-h-8" />
+      </Link>
+    </header>
+    <aside className="shell-sidebar" data-mx-drawer data-open={menu.open ? "true" : undefined}>
       <div className="flex items-center px-5 py-5">
         <MaxCulturalLogo />
       </div>
@@ -65,10 +105,7 @@ export function AppSidebar({
           Acesso
         </p>
         {visible.map((link) => {
-          const active =
-            link.href === "/"
-              ? pathname === "/"
-              : pathname === link.href || pathname.startsWith(`${link.href}/`);
+          const active = hubLinkActive(pathname, link.href);
           return (
             <Link
               key={link.href}
@@ -162,5 +199,7 @@ export function AppSidebar({
         </a>
       </div>
     </aside>
+    <MobileBottomNav items={mobileItems} menuOpen={menu.open} onMenuToggle={menu.toggle} />
+    </>
   );
 }

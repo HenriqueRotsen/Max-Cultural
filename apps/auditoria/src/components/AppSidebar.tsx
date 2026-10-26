@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MobileBottomNav, useMobileMenu } from "@max/mobile-nav";
 import { MaxAuditoriaLogo } from "@/components/MaxAuditoriaLogo";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
@@ -46,8 +47,37 @@ export function AppSidebar({
     .map((l) => (l.href === "/alertas" ? { ...l, badge: newAlerts } : l));
   const nav = { title: "Auditoria (antigo Salink)", links };
 
+  const menu = useMobileMenu(pathname);
+  // Rodapé no celular: o essencial; o resto fica no menu.
+  const mobileHrefs = ["/inicio", "/alertas", "/panorama", "/panorama/pronac"];
+  const mobileItems = links
+    .filter((l) => mobileHrefs.includes(l.href))
+    .map((link) => {
+      const Icon = link.icon;
+      const active = linkActive(pathname, link.href);
+      return {
+        href: link.href,
+        label: link.label,
+        icon: <Icon active={active} />,
+        active,
+        badge: "badge" in link ? link.badge : undefined,
+      };
+    });
+
   return (
-    <aside className="shell-sidebar">
+    <>
+    <header className="mx-mobile-only items-center border-b border-[var(--border)] bg-white px-4 py-2">
+      <Link href="/inicio" aria-label="Início">
+        <img
+          src="/brand/max-auditoria.png"
+          alt="MAX Auditoria"
+          width={1200}
+          height={454}
+          className="h-8 w-auto object-contain"
+        />
+      </Link>
+    </header>
+    <aside className="shell-sidebar" data-mx-drawer data-open={menu.open ? "true" : undefined}>
       <div className="flex items-center px-5 py-5">
         <Link href="/inicio" className="block">
           <MaxAuditoriaLogo />
@@ -105,6 +135,12 @@ export function AppSidebar({
         </div>
       </nav>
     </aside>
+    <MobileBottomNav
+      items={mobileItems}
+      menuOpen={menu.open}
+      onMenuToggle={menu.toggle}
+    />
+    </>
   );
 }
 

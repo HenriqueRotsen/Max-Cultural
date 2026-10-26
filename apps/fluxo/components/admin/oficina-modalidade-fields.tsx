@@ -5,6 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchSelect } from "@/components/ui/search-select";
+
+const UF_OPTIONS = (
+  [
+    ["AC", "Acre"], ["AL", "Alagoas"], ["AP", "Amapá"], ["AM", "Amazonas"],
+    ["BA", "Bahia"], ["CE", "Ceará"], ["DF", "Distrito Federal"],
+    ["ES", "Espírito Santo"], ["GO", "Goiás"], ["MA", "Maranhão"],
+    ["MT", "Mato Grosso"], ["MS", "Mato Grosso do Sul"], ["MG", "Minas Gerais"],
+    ["PA", "Pará"], ["PB", "Paraíba"], ["PR", "Paraná"], ["PE", "Pernambuco"],
+    ["PI", "Piauí"], ["RJ", "Rio de Janeiro"], ["RN", "Rio Grande do Norte"],
+    ["RS", "Rio Grande do Sul"], ["RO", "Rondônia"], ["RR", "Roraima"],
+    ["SC", "Santa Catarina"], ["SP", "São Paulo"], ["SE", "Sergipe"],
+    ["TO", "Tocantins"],
+  ] as const
+).map(([value, nome]) => ({ value, label: value, hint: nome }));
 
 export type TerritorioRow = {
   key: string;
@@ -115,11 +130,11 @@ export function OficinaModalidadeFields({
             Onde a oficina acontece. Cidade e UF são obrigatórios;
             comunidade/território é opcional.
           </p>
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {value.territorios.map((t, idx) => (
               <div
                 key={t.key}
-                className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_1fr_4rem_auto]"
+                className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2 rounded-md border p-2.5 sm:grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,1fr)_auto] sm:items-end"
               >
                 <div className="space-y-1">
                   <Label className="text-xs">Cidade</Label>
@@ -129,31 +144,27 @@ export function OficinaModalidadeFields({
                     placeholder="Imperatriz"
                   />
                 </div>
-                <div className="space-y-1 sm:col-span-1">
-                  <Label className="text-xs">Comunidade (opc.)</Label>
-                  <Input
-                    value={t.nome}
-                    onChange={(e) => setRow(idx, { nome: e.target.value })}
-                    placeholder="Quilombo X"
-                  />
-                </div>
                 <div className="space-y-1">
                   <Label className="text-xs">UF</Label>
-                  <Input
+                  <SearchSelect
                     value={t.estado}
-                    maxLength={2}
-                    onChange={(e) =>
-                      setRow(idx, {
-                        estado: e.target.value
-                          .toUpperCase()
-                          .replace(/[^A-Z]/g, "")
-                          .slice(0, 2),
-                      })
-                    }
-                    placeholder="MA"
+                    options={UF_OPTIONS}
+                    onValueChange={(estado) => setRow(idx, { estado })}
+                    placeholder="UF"
+                    searchPlaceholder="Buscar estado…"
+                    aria-label="UF"
+                    showHintInTrigger={false}
                   />
                 </div>
-                <div className="flex items-end">
+                <div className="col-span-2 flex items-end gap-2 sm:col-span-2">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <Label className="text-xs">Comunidade (opcional)</Label>
+                    <Input
+                      value={t.nome}
+                      onChange={(e) => setRow(idx, { nome: e.target.value })}
+                      placeholder="Quilombo X"
+                    />
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"

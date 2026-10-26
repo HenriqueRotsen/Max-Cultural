@@ -91,7 +91,7 @@ export function AuditoriaReportForm({
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="data">
           <thead>
             <tr>

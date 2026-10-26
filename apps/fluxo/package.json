@@ -25,6 +25,7 @@
     "@base-ui/react": "^1.9.0",
     "@e965/xlsx": "0.20.3",
     "@max/auth": "*",
+    "@max/mobile-nav": "*",
     "@max/security-headers": "*",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",

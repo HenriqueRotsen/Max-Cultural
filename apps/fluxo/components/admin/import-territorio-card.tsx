@@ -2,13 +2,7 @@
 
 import { MapPin } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
 import type {
   TerritorioImportState,
@@ -27,22 +21,14 @@ function OpcaoSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <Select
-      value={value || undefined}
-      onValueChange={(v) => onChange(v ?? "")}
-      items={Object.fromEntries(opcoes.map((o) => [o, o]))}
-    >
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {opcoes.map((o) => (
-          <SelectItem key={o} value={o}>
-            {o}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <SearchSelect
+      value={value}
+      options={opcoes.map((o) => ({ value: o, label: o }))}
+      onValueChange={onChange}
+      placeholder={placeholder}
+      searchPlaceholder="Buscar território…"
+      emptyText="Nenhum território encontrado."
+    />
   );
 }
 

@@ -48,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         fluxoUrl={fluxoUrl}
         auditoriaUrl={auditoriaUrl}
       />
-      <div className="shell-main">
+      <div className="shell-main" data-mx-main>
         <div className="content">{children}</div>
       </div>
     </div>

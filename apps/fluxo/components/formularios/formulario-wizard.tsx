@@ -27,6 +27,7 @@ import {
   emptyOficinaModalidade,
   territoriosPayload,
 } from "@/components/admin/oficina-modalidade-fields";
+import { SearchSelect } from "@/components/ui/search-select";
 import { CampoEditor } from "@/components/formularios/campo-editor";
 import { CapaField } from "@/components/formularios/capa-field";
 import {
@@ -37,13 +38,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { FormularioCampoDraft } from "@/lib/formularios/types";
 import type {
@@ -109,32 +103,8 @@ export function FormularioWizard({ professorUsers }: Props) {
     ? oficinaSemTerritorio(selOficina)
     : false;
 
-  const contextoSelectItems = useMemo(
-    () =>
-      Object.fromEntries(
-        contextos.map((c) => [c.id, c.nome.trim() || "(sem nome)"]),
-      ),
-    [contextos],
-  );
 
-  const projetoSelectItems = useMemo(
-    () =>
-      Object.fromEntries(
-        projetos.map((p) => [
-          p.id,
-          p.pronac ? `${p.nome} · ${p.pronac}` : p.nome,
-        ]),
-      ),
-    [projetos],
-  );
 
-  const oficinaSelectItems = useMemo(
-    () => ({
-      __blank__: "Cadastrar Novo",
-      ...Object.fromEntries(oficinas.map((o) => [o.id, o.nome])),
-    }),
-    [oficinas],
-  );
 
   const oficinaLabel = useMemo(() => {
     const o = oficinas.find((x) => x.id === selOficinaId);
@@ -375,7 +345,7 @@ export function FormularioWizard({ professorUsers }: Props) {
 
   return (
     <div className="space-y-6">
-      <ol className="flex flex-wrap gap-2">
+      <ol className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
         {STEPS.map((s, i) => {
           const active = s.id === step;
           const done = i < stepIndex;
@@ -383,7 +353,7 @@ export function FormularioWizard({ professorUsers }: Props) {
             <li
               key={s.id}
               className={cn(
-                "rounded-lg border px-3 py-2 text-sm",
+                "min-w-0 rounded-lg border px-2.5 py-2 text-xs sm:px-3 sm:text-sm",
                 active && "border-brand-deep bg-brand-deep/5 text-brand-deep",
                 done && !active && "border-border bg-muted/30 text-muted-foreground",
                 !active && !done && "border-border/60 text-muted-foreground",
@@ -392,7 +362,7 @@ export function FormularioWizard({ professorUsers }: Props) {
               <span className="font-medium">
                 {i + 1}. {s.label}
               </span>
-              <span className="ml-2 text-xs opacity-80">{s.hint}</span>
+              <span className="ml-2 hidden text-xs opacity-80 sm:inline">{s.hint}</span>
             </li>
           );
         })}
@@ -471,29 +441,18 @@ export function FormularioWizard({ professorUsers }: Props) {
                   }}
                 />
               </div>
-              <Select
-                value={selContextoId || undefined}
+              <SearchSelect
+                value={selContextoId}
+                options={contextos.map((c) => ({
+                  value: c.id,
+                  label: c.nome.trim() || "(sem nome)",
+                }))}
                 onValueChange={(v) => applyContextoPick(v)}
                 disabled={hierarchyLoading}
-                items={contextoSelectItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={
-                      contextos.length === 0
-                        ? "Nenhum contexto"
-                        : "Selecione…"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {contextos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome.trim() || "(sem nome)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={contextos.length === 0 ? "Nenhum contexto" : "Selecione…"}
+                searchPlaceholder="Buscar contexto…"
+                emptyText="Nenhum contexto encontrado."
+              />
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-2">
@@ -510,58 +469,44 @@ export function FormularioWizard({ professorUsers }: Props) {
                   }}
                 />
               </div>
-              <Select
-                value={selProjetoId || undefined}
+              <SearchSelect
+                value={selProjetoId}
+                options={projetos.map((p) => ({
+                  value: p.id,
+                  label: p.nome,
+                  hint: p.pronac ? `PRONAC ${p.pronac}` : undefined,
+                }))}
                 onValueChange={(v) => applyProjeto(v)}
                 disabled={missingContexto || hierarchyLoading}
-                items={projetoSelectItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={
-                      missingContexto
-                        ? "Selecione o contexto primeiro"
-                        : projetos.length === 0
-                          ? "Nenhum projeto neste contexto"
-                          : "Selecione…"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {projetos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.pronac ? `${p.nome} · ${p.pronac}` : p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={
+                  missingContexto
+                    ? "Selecione o contexto primeiro"
+                    : projetos.length === 0
+                      ? "Nenhum projeto neste contexto"
+                      : "Selecione…"
+                }
+                searchPlaceholder="Buscar projeto ou PRONAC…"
+                emptyText="Nenhum projeto encontrado."
+              />
             </div>
             <div className="space-y-1">
               <Label>Oficina *</Label>
-              <Select
+              <SearchSelect
                 value={selOficinaId || "__blank__"}
+                options={[
+                  { value: "__blank__", label: "+ Cadastrar nova oficina" },
+                  ...oficinas.map((o) => ({
+                    value: o.id,
+                    label: o.nome,
+                    hint: oficinaOndeLabel(o) || undefined,
+                  })),
+                ]}
                 onValueChange={(v) => applyOficina(v)}
                 disabled={missingProjeto || hierarchyLoading}
-                items={oficinaSelectItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={
-                      missingProjeto
-                        ? "Selecione o projeto primeiro"
-                        : "Cadastrar Novo"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__blank__">Cadastrar Novo</SelectItem>
-                  {oficinas.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={missingProjeto ? "Selecione o projeto primeiro" : "Selecione…"}
+                searchPlaceholder="Buscar oficina ou cidade…"
+                emptyText="Nenhuma oficina encontrada."
+              />
               {selOficina ? (
                 selOficinaSemTerritorio ? (
                   <p className="text-xs text-destructive">
