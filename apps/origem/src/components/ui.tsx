@@ -30,7 +30,7 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-[18rem] max-[900px]:pr-10">
         {backHref ? (
           <div className="mb-2">
             <PageBackLink href={backHref} label={backLabel} />
