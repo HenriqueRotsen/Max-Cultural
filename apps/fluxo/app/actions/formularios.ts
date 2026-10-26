@@ -371,8 +371,16 @@ export async function createFormularioAction(input: {
     throw new Error("Oficina fora do seu escopo de dados.");
   }
 
-  const oficina = await prisma.oficina.findUnique({ where: { id: input.oficinaId } });
+  const oficina = await prisma.oficina.findUnique({
+    where: { id: input.oficinaId },
+    include: { _count: { select: { territorios: true } } },
+  });
   if (!oficina) throw new Error("Oficina não encontrada");
+  if (!oficina.ofereceOnline && oficina._count.territorios === 0) {
+    throw new Error(
+      "Informe onde a oficina acontece (online ou território presencial) antes de criar o formulário.",
+    );
+  }
 
   const titulo = input.titulo.trim();
   if (!titulo) throw new Error("Título obrigatório");

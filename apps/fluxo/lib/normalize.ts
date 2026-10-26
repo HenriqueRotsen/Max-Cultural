@@ -855,7 +855,14 @@ export function normalizeRow(
   let estadoNorm = "";
   let territorioNorm = "";
 
-  const territorioRaw = String(merged.Territorio ?? "").trim();
+  let territorioRaw = String(merged.Territorio ?? "").trim();
+  const territorioLote = String(context?.territorioLote ?? "").trim();
+  if (
+    territorioLote &&
+    (context?.territorioLoteModo !== "vazios" || !territorioRaw)
+  ) {
+    territorioRaw = territorioLote;
+  }
   if (territorioRaw && catalog) {
     const parsed = parseTerritorioInscricao(territorioRaw, catalog);
     if (parsed.matched || parsed.online) {

@@ -15,6 +15,18 @@ import {
   getFormularioModeloByTipoAction,
   setOficinaProfessoresAction,
 } from "@/app/actions/formularios";
+import {
+  NovoContextoButton,
+  NovoProjetoButton,
+  oficinaDtoToOption,
+  oficinaOndeLabel,
+  oficinaSemTerritorio,
+} from "@/components/admin/hierarchy-quick-create";
+import {
+  OficinaModalidadeFields,
+  emptyOficinaModalidade,
+  territoriosPayload,
+} from "@/components/admin/oficina-modalidade-fields";
 import { CampoEditor } from "@/components/formularios/campo-editor";
 import { CapaField } from "@/components/formularios/capa-field";
 import {
@@ -72,6 +84,9 @@ export function FormularioWizard({ professorUsers }: Props) {
     "select",
   );
   const [newOficinaNome, setNewOficinaNome] = useState("");
+  const [newOficinaModalidade, setNewOficinaModalidade] = useState(
+    emptyOficinaModalidade,
+  );
 
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -89,6 +104,10 @@ export function FormularioWizard({ professorUsers }: Props) {
   const needCreateOficina = !selOficinaId;
   const hierarchyComplete = Boolean(selContextoId && selProjetoId && selOficinaId);
   const canRegister = !missingProjeto && needCreateOficina;
+  const selOficina = oficinas.find((o) => o.id === selOficinaId);
+  const selOficinaSemTerritorio = selOficina
+    ? oficinaSemTerritorio(selOficina)
+    : false;
 
   const contextoSelectItems = useMemo(
     () =>
@@ -245,6 +264,12 @@ export function FormularioWizard({ professorUsers }: Props) {
     start(async () => {
       try {
         if (hierarchyComplete && hierarchyPhase === "select") {
+          if (selOficinaSemTerritorio) {
+            toast.error(
+              "Esta oficina não tem território. Edite a oficina em Contextos e informe onde ela acontece.",
+            );
+            return;
+          }
           await proceedToCampos();
           return;
         }
@@ -255,7 +280,7 @@ export function FormularioWizard({ professorUsers }: Props) {
               missingContexto
                 ? "Selecione um contexto"
                 : missingProjeto
-                  ? "Selecione um projeto. Projetos são criados no MAX Origem."
+                  ? "Selecione ou cadastre um projeto."
                   : "Selecione contexto, projeto e oficina",
             );
             return;
@@ -266,7 +291,7 @@ export function FormularioWizard({ professorUsers }: Props) {
 
         if (missingProjeto) {
           toast.error(
-            "Selecione um projeto antes de cadastrar a oficina. Projetos vêm do MAX Origem.",
+            "Selecione um projeto antes de cadastrar a oficina.",
           );
           return;
         }
@@ -278,29 +303,20 @@ export function FormularioWizard({ professorUsers }: Props) {
         const createdOf = await createOficinaAction({
           projetoId: selProjetoId,
           nome: newOficinaNome,
+          ofereceOnline: newOficinaModalidade.ofereceOnline,
+          oferecePresencial: newOficinaModalidade.oferecePresencial,
+          territorios: territoriosPayload(newOficinaModalidade),
         });
         if (!createdOf.ok) {
           toast.error(createdOf.error);
           return;
         }
-        setOficinas((prev) => [
-          {
-            id: createdOf.oficina.id,
-            nome: createdOf.oficina.nome,
-            projetoId: createdOf.oficina.projetoId,
-            projetoNome: createdOf.oficina.projetoNome,
-            contextoId: createdOf.oficina.contextoId,
-            contextoNome: createdOf.oficina.contextoNome,
-            pronac: createdOf.oficina.pronac,
-            proponente: createdOf.oficina.proponente,
-            ano: createdOf.oficina.ano,
-          },
-          ...prev,
-        ]);
+        setOficinas((prev) => [oficinaDtoToOption(createdOf.oficina), ...prev]);
         setSelContextoId(createdOf.oficina.contextoId);
         setSelProjetoId(createdOf.oficina.projetoId);
         setSelOficinaId(createdOf.oficina.id);
         setNewOficinaNome("");
+        setNewOficinaModalidade(emptyOficinaModalidade());
         toast.success("Oficina cadastrada");
         router.refresh();
         await proceedToCampos();
@@ -389,8 +405,8 @@ export function FormularioWizard({ professorUsers }: Props) {
               Hierarquia e modelo
             </h2>
             <p className="text-sm text-muted-foreground">
-              Escolha contexto → projeto → oficina e o modelo base. Só a
-              oficina pode ser cadastrada aqui.
+              Escolha ou cadastre contexto → projeto → oficina e o modelo base.
+              A oficina informa onde acontece (online e/ou territórios).
             </p>
           </div>
 
@@ -445,7 +461,16 @@ export function FormularioWizard({ professorUsers }: Props) {
               </p>
             ) : null}
             <div className="space-y-1">
-              <Label>Contexto *</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Contexto *</Label>
+                <NovoContextoButton
+                  disabled={hierarchyLoading}
+                  onCreated={(c) => {
+                    setContextos((prev) => [c, ...prev]);
+                    applyContextoPick(c.id);
+                  }}
+                />
+              </div>
               <Select
                 value={selContextoId || undefined}
                 onValueChange={(v) => applyContextoPick(v)}
@@ -471,7 +496,20 @@ export function FormularioWizard({ professorUsers }: Props) {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Projeto *</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Projeto *</Label>
+                <NovoProjetoButton
+                  contextoId={selContextoId}
+                  disabled={hierarchyLoading}
+                  onCreated={(p) => {
+                    setProjetos((prev) => [
+                      { id: p.id, nome: p.nome, pronac: p.pronac, contextoId: p.contextoId },
+                      ...prev,
+                    ]);
+                    applyProjeto(p.id);
+                  }}
+                />
+              </div>
               <Select
                 value={selProjetoId || undefined}
                 onValueChange={(v) => applyProjeto(v)}
@@ -497,11 +535,6 @@ export function FormularioWizard({ professorUsers }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-              {!missingContexto ? (
-                <p className="text-xs text-muted-foreground">
-                  Projetos vêm do MAX Origem; aqui só é possível selecionar.
-                </p>
-              ) : null}
             </div>
             <div className="space-y-1">
               <Label>Oficina *</Label>
@@ -529,6 +562,23 @@ export function FormularioWizard({ professorUsers }: Props) {
                   ))}
                 </SelectContent>
               </Select>
+              {selOficina ? (
+                selOficinaSemTerritorio ? (
+                  <p className="text-xs text-destructive">
+                    Sem território cadastrado.{" "}
+                    <Link
+                      href="/dashboard/contextos?tab=oficinas"
+                      className="underline underline-offset-2"
+                    >
+                      Editar oficina
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Onde: {oficinaOndeLabel(selOficina)}
+                  </p>
+                )
+              ) : null}
             </div>
           </div>
 
@@ -536,7 +586,7 @@ export function FormularioWizard({ professorUsers }: Props) {
             <p className="text-sm text-muted-foreground">
               {[
                 missingContexto ? "selecionar contexto" : null,
-                missingProjeto ? "selecionar projeto (MAX Origem)" : null,
+                missingProjeto ? "selecionar ou cadastrar projeto" : null,
                 !missingProjeto && needCreateOficina
                   ? "cadastrar ou selecionar oficina"
                   : null,
@@ -562,6 +612,10 @@ export function FormularioWizard({ professorUsers }: Props) {
                   onChange={(e) => setNewOficinaNome(e.target.value)}
                 />
               </div>
+              <OficinaModalidadeFields
+                value={newOficinaModalidade}
+                onChange={setNewOficinaModalidade}
+              />
             </div>
           ) : null}
 

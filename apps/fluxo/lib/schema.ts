@@ -112,6 +112,12 @@ export type BatchContext = {
   Nome_projeto: string;
   Identificacao_ano_projeto: string;
   Nome_oficina?: string;
+  /**
+   * Território escolhido para o lote (rótulo do catálogo: "Online" ou "Cidade/UF · nome").
+   * "todos": vale para todas as linhas; "vazios": só onde a planilha não traz território.
+   */
+  territorioLote?: string;
+  territorioLoteModo?: "todos" | "vazios";
   /** Catálogo da oficina para casar coluna de território no import. */
   oficinaTerritorioCatalog?: {
     ofereceOnline: boolean;

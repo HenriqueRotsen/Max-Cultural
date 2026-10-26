@@ -7,8 +7,6 @@ import { persistHomologatedSheet } from "@/lib/planning/persist-sheet";
 import { parseStateHomologatedFile } from "@/lib/planning/estadual/state-file";
 import {
   revalidatePlanning,
-  readFluxoContextFromForm,
-  syncFluxoProjeto,
 } from "@/lib/planning/server-utils";
 import type { ActionState } from "@/lib/planning/action-state";
 import { parseProjectCaps } from "@/lib/planning/project-caps";
@@ -93,14 +91,6 @@ export async function startPlanningProjectState(
     sourceFilename: hasFile ? file.name : null,
     importSource: hasFile ? "STATE_FILE" : "STATE_MANUAL",
   });
-
-  const fluxoErr = await syncFluxoProjeto({
-    pronac: externalCode,
-    nome: project.name || externalCode,
-    proponente: account.name,
-    ...readFluxoContextFromForm(formData),
-  });
-  if (fluxoErr) return { error: fluxoErr };
 
   revalidatePlanning(project.id);
   redirect(`/planejamento/${project.id}`);

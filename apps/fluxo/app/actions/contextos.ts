@@ -11,7 +11,7 @@ import type {
   ProjetoDTO,
   ProjetoInput,
 } from "@/lib/contexto";
-import { nextIdOficina } from "@/lib/ids";
+import { nextIdOficina, nextIdProjeto } from "@/lib/ids";
 import { normalizeAnoProjeto, normalizeUf } from "@/lib/normalize";
 import { normalizeTerritorioRawKey } from "@/lib/oficina-territorio";
 import { prisma } from "@/lib/prisma";
@@ -1007,12 +1007,58 @@ export async function deleteContextoAction(
 }
 
 export async function createProjetoAction(
-  _input: ProjetoInput,
+  input: ProjetoInput,
 ): Promise<{ ok: true; projeto: ProjetoDTO } | { ok: false; error: string }> {
+  const actor = await requireAnyPermission([
+    "contextos:create",
+    "import:write",
+  ]);
+  const nome = (input.nome ?? "").trim();
+  if (!input.contextoId?.trim()) return { ok: false, error: "Selecione um contexto." };
+  if (!nome) return { ok: false, error: "Informe o nome do projeto." };
+  const ano = normalizeAnoProjeto(input.ano ?? "");
+  if (ano && !/^\d{4}$/.test(ano)) {
+    return { ok: false, error: "O ano deve ter 4 dígitos (ex.: 2025)." };
+  }
+  const ctx = await prisma.contexto.findUnique({ where: { id: input.contextoId } });
+  if (!ctx) return { ok: false, error: "Contexto não encontrado." };
+  const allowed = await assertDataAccess(
+    actor.id,
+    { contextoId: input.contextoId },
+    { write: true },
+  );
+  if (!allowed) {
+    return {
+      ok: false,
+      error: "Você precisa de acesso de edição neste contexto para cadastrar projetos.",
+    };
+  }
+
+  const id = await nextIdProjeto();
+  const created = await prisma.projeto.create({
+    data: {
+      id,
+      nome,
+      pronac: (input.pronac ?? "").trim(),
+      proponente: (input.proponente ?? "").trim(),
+      ano,
+      contextoId: input.contextoId,
+    },
+    include: {
+      contexto: { select: { nome: true } },
+      _count: { select: { oficinas: true } },
+    },
+  });
+  await writeAuditLog({
+    actorUserId: actor.id,
+    action: "projeto.created",
+    entityType: "Projeto",
+    entityId: created.id,
+    meta: { nome: created.nome, contextoId: created.contextoId },
+  });
   return {
-    ok: false,
-    error:
-      "Projetos são criados automaticamente pelo MAX Origem. Aqui você pode cadastrar contextos e oficinas, ou editar o contexto de um projeto existente.",
+    ok: true,
+    projeto: toProjetoDto(created, 0, { hasEditorAccess: true, canEdit: true, canDelete: true }),
   };
 }
 
@@ -1028,7 +1074,6 @@ export async function updateProjetoAction(
   const existing = await prisma.projeto.findUnique({ where: { id } });
   if (!existing) return { ok: false, error: "Projeto não encontrado." };
   if (!input.nome.trim()) return { ok: false, error: "Informe o nome do projeto." };
-  if (!input.pronac.trim()) return { ok: false, error: "Informe o PRONAC." };
   const ano = normalizeAnoProjeto(input.ano ?? "");
   if (ano && !/^\d{4}$/.test(ano)) {
     return { ok: false, error: "O ano deve ter 4 dígitos (ex.: 2025)." };
@@ -1062,7 +1107,7 @@ export async function updateProjetoAction(
     where: { id },
     data: {
       nome: input.nome.trim(),
-      pronac: input.pronac.trim(),
+      pronac: (input.pronac ?? "").trim(),
       proponente: (input.proponente ?? "").trim(),
       ano,
       contextoId: input.contextoId,
@@ -1238,20 +1283,12 @@ export async function createOficinaAction(
     input.oferecePresencial === undefined
       ? !ofereceOnline
       : Boolean(input.oferecePresencial);
-  // Import wizard cria só com nome: default presencial sem território ainda
-  // (libera cadastro rápido; UI de contextos exige território se presencial).
-  const skipTerritorioCheck =
-    input.territorios === undefined && input.oferecePresencial === undefined;
-  if (!skipTerritorioCheck) {
-    const modalidadeError = validateOficinaModalidade({
-      ...input,
-      ofereceOnline,
-      oferecePresencial,
-    });
-    if (modalidadeError) return { ok: false, error: modalidadeError };
-  } else if (!ofereceOnline && !oferecePresencial) {
-    return { ok: false, error: "Marque ao menos Online ou Presencial." };
-  }
+  const modalidadeError = validateOficinaModalidade({
+    ...input,
+    ofereceOnline,
+    oferecePresencial,
+  });
+  if (modalidadeError) return { ok: false, error: modalidadeError };
 
   const projeto = await prisma.projeto.findUnique({
     where: { id: input.projetoId },
@@ -1282,17 +1319,15 @@ export async function createOficinaAction(
       nome: input.nome.trim(),
       projetoId: input.projetoId,
       ofereceOnline,
-      oferecePresencial: skipTerritorioCheck ? true : oferecePresencial,
+      oferecePresencial,
     },
     include: OFICINA_INCLUDE,
   });
-  if (!skipTerritorioCheck) {
-    await replaceOficinaTerritorios(created.id, {
-      ...input,
-      ofereceOnline,
-      oferecePresencial,
-    });
-  }
+  await replaceOficinaTerritorios(created.id, {
+    ...input,
+    ofereceOnline,
+    oferecePresencial,
+  });
   const withTerr = await prisma.oficina.findUnique({
     where: { id: created.id },
     include: OFICINA_INCLUDE,

@@ -8,7 +8,6 @@ import {
   startPlanningProjectState,
 } from "@/lib/planning/estadual/actions";
 import type { ActionState } from "@/lib/planning/action-state";
-import { FluxoContextField } from "@/components/planning/FluxoContextField";
 import { ProjectCapsFields } from "@/components/planning/ProjectCapsFields";
 
 type Account = { id: string; name: string; cgccpf: string };
@@ -121,11 +120,6 @@ export function PlanningOnboardForm({
               onChange={(e) => setProjectCode(e.target.value)}
             />
           </label>
-          <FluxoContextField
-            accountId={accountId}
-            projectCode={projectCode}
-            disabled={!accountId || !projectCode.trim()}
-          />
           <button type="submit" className="btn" disabled={pending || !accounts.length}>
             {pending ? "Importando do SALIC…" : "Iniciar e importar planilha"}
           </button>
@@ -193,13 +187,6 @@ export function PlanningOnboardForm({
               onChange={(e) => setStateName(e.target.value)}
             />
           </label>
-          <FluxoContextField
-            accountId={accountId}
-            projectCode={projectCode}
-            projectNameHint={stateName || projectCode}
-            disabled={!accountId || !projectCode.trim()}
-            skipSalic
-          />
           <label className="field">
             <span>Arquivo da planilha (opcional)</span>
             <input name="sheetFile" type="file" accept=".xlsx,.xls,.csv,.json" />

@@ -8,10 +8,6 @@ import { canPublishToSalic, canReadequacao } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import {
-  resolveFluxoContexto,
-  type FluxoContextResolve,
-} from "@/lib/fluxo/provision-projeto";
-import {
   fetchReadequadaLinesFromSalic,
   fetchSalicProjectPreview,
   HomologadaImportError,
@@ -22,11 +18,7 @@ import {
   fetchCaptacaoFromSalic,
   syncCaptacaoForWorkspace,
 } from "@/lib/planning/federal/captacao-salic";
-import {
-  revalidatePlanning,
-  readFluxoContextFromForm,
-  syncFluxoProjeto,
-} from "@/lib/planning/server-utils";
+import { revalidatePlanning } from "@/lib/planning/server-utils";
 import {
   buildSalicPublishPackages,
   executeSalicPublishPackage,
@@ -51,58 +43,6 @@ function normalizeConfirmName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-export async function previewPlanningProjectContext(
-  accountId: string,
-  pronac: string,
-  projectNameHint?: string,
-  opts?: { skipSalic?: boolean },
-): Promise<
-  | {
-      ok: true;
-      projectName: string;
-      resolve: FluxoContextResolve;
-    }
-  | { ok: false; error: string }
-> {
-  await requireUser();
-  const { entitlements } = await getWorkspaceContext();
-  const code = pronac.trim();
-  if (!code) return { ok: false, error: "Informe o código do projeto" };
-
-  let projectName = projectNameHint?.trim() || code;
-
-  if (accountId) {
-    const account = await prisma.salicAccount.findFirst({
-      where: { id: accountId, workspaceId: entitlements.workspaceId },
-    });
-    if (!account) return { ok: false, error: "Proponente inválido" };
-  }
-  // Estadual não tem SALIC: o nome vem do que a pessoa digitou.
-  if (accountId && !opts?.skipSalic) {
-    try {
-      const preview = await fetchSalicProjectPreview({
-        accountId,
-        pronac: code,
-      });
-      if (preview.projectName) projectName = preview.projectName;
-    } catch (e) {
-      const msg =
-        e instanceof HomologadaImportError
-          ? e.message
-          : e instanceof Error
-            ? e.message
-            : "Falha ao consultar SALIC";
-      return { ok: false, error: msg };
-    }
-  }
-
-  const resolve = await resolveFluxoContexto(projectName);
-  if (!resolve) {
-    return { ok: false, error: "Não foi possível consultar contextos no Fluxo." };
-  }
-
-  return { ok: true, projectName, resolve };
-}
 export async function startPlanningProjectFederal(
   _prev: ActionState,
   formData: FormData,
@@ -206,14 +146,6 @@ export async function startPlanningProjectFederal(
       data: { name: preferred.projectName },
     });
   }
-
-  const fluxoErr = await syncFluxoProjeto({
-    pronac: externalCode,
-    nome: preferred.projectName || preview.projectName || externalCode,
-    proponente: account.name,
-    ...readFluxoContextFromForm(formData),
-  });
-  if (fluxoErr) return { error: fluxoErr };
 
   revalidatePlanning(project.id);
   redirect(`/planejamento/${project.id}`);

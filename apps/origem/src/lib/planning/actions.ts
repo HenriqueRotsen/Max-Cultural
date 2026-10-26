@@ -9,11 +9,6 @@ import { canDeleteNf, canEditRubricas, canExceedRubric, canReadequacao } from "@
 import { logPlanningAction } from "@/lib/activity-audit";
 import { listPlanningRulesets } from "@/lib/planning/rulesets";
 import {
-  listFluxoContextos,
-  type FluxoContextoOption,
-  type FluxoContextResolve,
-} from "@/lib/fluxo/provision-projeto";
-import {
   canReserveAmount,
   computeProjectBalance,
   isAdminProduct,
@@ -65,17 +60,6 @@ import { revalidatePlanning } from "@/lib/planning/server-utils";
 
 export type { ActionState } from "@/lib/planning/action-state";
 import type { ActionState } from "@/lib/planning/action-state";
-
-export type { FluxoContextResolve } from "@/lib/fluxo/provision-projeto";
-
-export async function listFluxoContextosAction(
-  q?: string,
-): Promise<FluxoContextoOption[]> {
-  await requireUser();
-  return listFluxoContextos(q);
-}
-
-
 
 export async function updatePlanningCaptacao(
   planningProjectId: string,
