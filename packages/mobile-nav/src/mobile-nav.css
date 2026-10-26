@@ -200,13 +200,14 @@
     color: var(--gray-500, #6b7280);
     font-size: 0.75rem;
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* Quebra só entre palavras: rótulo longo vai para a linha de baixo, sem "…". */
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: normal;
   }
 
   /* Título do cartão: primeira coluna com texto, sem rótulo. */
-  table[data-mx-cards] > * > tr > [data-mx-title] {
+  table[data-mx-cards] > * > tr > :is(td, th)[data-mx-title] {
     order: -1;
     display: block !important;
     padding-bottom: 0.3rem !important;
@@ -215,17 +216,18 @@
     font-size: 0.95rem;
   }
 
-  table[data-mx-cards] > * > tr > [data-mx-title]::before {
+  table[data-mx-cards] > * > tr > :is(td, th)[data-mx-title]::before {
     display: none;
   }
 
   /* Sem rótulo (ações, caixas, linhas de grupo): alinhado à esquerda. */
-  table[data-mx-cards] > * > tr > [data-label=""]:not([data-mx-title]) {
+  table[data-mx-cards] > * > tr > :is(td, th)[data-label=""]:not([data-mx-title]) {
     justify-content: flex-start;
     flex-wrap: wrap;
     text-align: left !important;
   }
 
+  table[data-mx-cards] > * > tr > :is(td, th)[data-mx-blank],
   table[data-mx-cards] > * > tr > :is(td, th):empty {
     display: none !important;
   }

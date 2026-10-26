@@ -57,7 +57,7 @@ export function MobileTableCards() {
         if (!headRow) continue;
         const labels: string[] = [];
         for (const th of headRow.cells) {
-          const text = (th.textContent ?? "").replace(/\s+/g, " ").trim();
+          const text = headerLabel(th);
           for (let i = 0; i < (th.colSpan || 1); i++) labels.push(text);
         }
         if (!table.hasAttribute("data-mx-cards")) table.setAttribute("data-mx-cards", "");
@@ -73,6 +73,12 @@ export function MobileTableCards() {
               if (isTitle) titled = true;
               if (isTitle !== cell.hasAttribute("data-mx-title")) {
                 cell.toggleAttribute("data-mx-title", isTitle);
+              }
+              const blank =
+                (cell.textContent ?? "").trim() === "" &&
+                !cell.querySelector("button, a, input, select, textarea, img, svg");
+              if (blank !== cell.hasAttribute("data-mx-blank")) {
+                cell.toggleAttribute("data-mx-blank", blank);
               }
               col += cell.colSpan || 1;
             }
@@ -92,6 +98,20 @@ export function MobileTableCards() {
     };
   }, []);
   return null;
+}
+
+/** Texto do cabeçalho sem botões de ajuda ("?"), tooltips e textos ocultos. */
+function headerLabel(th: HTMLTableCellElement) {
+  const clone = th.cloneNode(true) as HTMLElement;
+  clone
+    .querySelectorAll('[role="tooltip"], [aria-hidden="true"], .sr-only, svg')
+    .forEach((el) => el.remove());
+  // Botões de ajuda ("?"); botões de ordenação mantêm o nome da coluna.
+  clone.querySelectorAll("button").forEach((el) => {
+    const label = `${el.getAttribute("aria-label") ?? ""} ${el.getAttribute("title") ?? ""}`;
+    if ((el.textContent ?? "").trim() === "?" || /ajuda|help/i.test(label)) el.remove();
+  });
+  return (clone.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
 /** Até 4 atalhos + "Menu"; quando há mais, o resto fica no menu lateral. */
