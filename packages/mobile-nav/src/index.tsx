@@ -41,6 +41,59 @@ export function useMobileMenu(pathname: string) {
   };
 }
 
+/**
+ * No celular, toda <table> vira lista de cartões (CSS em mobile-nav.css): a primeira
+ * coluna com texto é o título do cartão e as demais aparecem como "rótulo: valor".
+ * Aqui só copiamos o texto do cabeçalho para `data-label` de cada célula; tabelas
+ * de edição (planilhas) ficam como estão com `data-mx-keep-table`.
+ */
+export function MobileTableCards() {
+  useEffect(() => {
+    let raf = 0;
+    const apply = () => {
+      for (const table of document.querySelectorAll("table")) {
+        if (table.closest("[data-mx-keep-table]")) continue;
+        const headRow = table.tHead?.rows[table.tHead.rows.length - 1];
+        if (!headRow) continue;
+        const labels: string[] = [];
+        for (const th of headRow.cells) {
+          const text = (th.textContent ?? "").replace(/\s+/g, " ").trim();
+          for (let i = 0; i < (th.colSpan || 1); i++) labels.push(text);
+        }
+        if (!table.hasAttribute("data-mx-cards")) table.setAttribute("data-mx-cards", "");
+        const sections = [...table.tBodies, ...(table.tFoot ? [table.tFoot] : [])];
+        for (const section of sections) {
+          for (const row of section.rows) {
+            let col = 0;
+            let titled = false;
+            for (const cell of row.cells) {
+              const label = row.cells.length === 1 || cell.colSpan > 1 ? "" : (labels[col] ?? "");
+              if (cell.getAttribute("data-label") !== label) cell.setAttribute("data-label", label);
+              const isTitle = !titled && label !== "" && (cell.textContent ?? "").trim() !== "";
+              if (isTitle) titled = true;
+              if (isTitle !== cell.hasAttribute("data-mx-title")) {
+                cell.toggleAttribute("data-mx-title", isTitle);
+              }
+              col += cell.colSpan || 1;
+            }
+          }
+        }
+      }
+    };
+    apply();
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(apply);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+  return null;
+}
+
 /** Até 4 atalhos + "Menu"; quando há mais, o resto fica no menu lateral. */
 export function MobileBottomNav({
   items,

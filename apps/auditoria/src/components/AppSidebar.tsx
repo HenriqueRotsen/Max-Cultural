@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MobileBottomNav, useMobileMenu } from "@max/mobile-nav";
+import { MobileBottomNav, MobileTableCards, useMobileMenu } from "@max/mobile-nav";
 import { MaxAuditoriaLogo } from "@/components/MaxAuditoriaLogo";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
@@ -66,17 +66,6 @@ export function AppSidebar({
 
   return (
     <>
-    <header className="mx-mobile-only items-center border-b border-[var(--border)] bg-white px-4 py-2">
-      <Link href="/inicio" aria-label="Início">
-        <img
-          src="/brand/max-auditoria.png"
-          alt="MAX Auditoria"
-          width={1200}
-          height={454}
-          className="h-8 w-auto object-contain"
-        />
-      </Link>
-    </header>
     <aside className="shell-sidebar" data-mx-drawer data-open={menu.open ? "true" : undefined}>
       <div className="flex items-center px-5 py-5">
         <Link href="/inicio" className="block">
@@ -140,6 +129,7 @@ export function AppSidebar({
       menuOpen={menu.open}
       onMenuToggle={menu.toggle}
     />
+    <MobileTableCards />
     </>
   );
 }

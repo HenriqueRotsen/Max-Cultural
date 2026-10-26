@@ -530,7 +530,8 @@ export function InscricoesTable({
 
       {/* Tabela reduzida — colunas extras só em telas maiores; o resto fica no expandido */}
       <div className="overflow-hidden rounded-xl border border-brand/10 bg-white/90 shadow-sm">
-        <Table>
+        {/* Já tem layout próprio no celular (linha expansível): não vira cartão. */}
+        <Table data-mx-keep-table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-10" />

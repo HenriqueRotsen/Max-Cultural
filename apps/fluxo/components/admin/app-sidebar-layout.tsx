@@ -18,7 +18,7 @@ import {
   LayoutDashboard,
   X,
 } from "lucide-react";
-import { MobileBottomNav, useMobileMenu } from "@max/mobile-nav";
+import { MobileBottomNav, MobileTableCards, useMobileMenu } from "@max/mobile-nav";
 import { BrandLogo } from "@/components/brand-logo";
 import { PageBackLink } from "@/components/page-back-link";
 import { buttonVariants } from "@/components/ui/button";
@@ -394,26 +394,8 @@ export function AppSidebarLayout({
       ) : null}
 
       <div className="pb-[calc(4.4rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-[240px]">
-        {/* Só no mobile: voltar/logo e ações; o menu fica no rodapé */}
-        <div className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-brand/10 bg-white/80 px-4 backdrop-blur-md md:hidden">
-          {back ? (
-            <PageBackLink href={back.href} label={back.label} className="-ml-1" />
-          ) : (
-            <BrandLogo />
-          )}
-          {actions ? (
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              {actions}
-            </div>
-          ) : back ? (
-            <div className="ml-auto">
-              <BrandLogo className="scale-90" />
-            </div>
-          ) : null}
-        </div>
-
         {actions ? (
-          <div className="hidden justify-end px-4 pt-6 sm:px-6 md:flex">
+          <div className="flex justify-end px-4 pt-4 sm:px-6 md:pt-6">
             <div className="flex shrink-0 items-center gap-2">{actions}</div>
           </div>
         ) : null}
@@ -426,7 +408,7 @@ export function AppSidebarLayout({
           )}
         >
           {back ? (
-            <div className="mb-4 hidden md:block">
+            <div className="mb-4">
               <PageBackLink href={back.href} label={back.label} />
             </div>
           ) : null}
@@ -441,6 +423,7 @@ export function AppSidebarLayout({
           onMenuToggle={menu.toggle}
         />
       </div>
+      <MobileTableCards />
     </div>
   );
 }

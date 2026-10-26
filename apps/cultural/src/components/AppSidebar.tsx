@@ -7,6 +7,7 @@ import {
   HomeIcon,
   ListIcon,
   MobileBottomNav,
+  MobileTableCards,
   ShieldIcon,
   UsersIcon,
   useMobileMenu,
@@ -91,11 +92,6 @@ export function AppSidebar({
 
   return (
     <>
-    <header className="mx-mobile-only items-center border-b border-[var(--border)] bg-white px-4 py-2">
-      <Link href="/" aria-label="Início">
-        <MaxCulturalLogo className="max-h-8" />
-      </Link>
-    </header>
     <aside className="shell-sidebar" data-mx-drawer data-open={menu.open ? "true" : undefined}>
       <div className="flex items-center px-5 py-5">
         <MaxCulturalLogo />
@@ -200,6 +196,7 @@ export function AppSidebar({
       </div>
     </aside>
     <MobileBottomNav items={mobileItems} menuOpen={menu.open} onMenuToggle={menu.toggle} />
+    <MobileTableCards />
     </>
   );
 }

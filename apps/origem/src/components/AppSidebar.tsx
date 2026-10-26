@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MobileBottomNav, useMobileMenu } from "@max/mobile-nav";
+import { MobileBottomNav, MobileTableCards, useMobileMenu } from "@max/mobile-nav";
 import { MaxOrigemLogo } from "@/components/MaxOrigemLogo";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
@@ -198,6 +198,7 @@ export function AppSidebar({
       menuOpen={menu.open}
       onMenuToggle={menu.toggle}
     />
+    <MobileTableCards />
     </>
   );
 }

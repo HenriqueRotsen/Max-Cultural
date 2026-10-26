@@ -1,9 +1,7 @@
 import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { AppSidebar } from "@/components/AppSidebar";
-import { MaxOrigemLogo } from "@/components/MaxOrigemLogo";
 import { NotificationBell } from "@/components/planning/NotificationBell";
 import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
 import {
@@ -49,10 +47,8 @@ async function TopBar({
         });
 
   return (
-    <div className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-4 py-2 sm:px-6">
-      <Link href="/painel" className="mx-mobile-only mr-auto" aria-label="Início">
-        <MaxOrigemLogo className="max-h-8" />
-      </Link>
+    // Celular: sem barra de topo — o sino flutua no canto do conteúdo.
+    <div className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2 max-[900px]:absolute max-[900px]:top-2 max-[900px]:right-2 max-[900px]:z-20 max-[900px]:border-0 max-[900px]:p-0">
       <NotificationBell
         items={notifications.map((n) => ({
           id: n.id,
@@ -71,7 +67,7 @@ async function TopBar({
 function TopBarFallback() {
   return (
     <div
-      className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2"
+      className="flex items-center justify-end gap-3 border-b border-[var(--border)] px-6 py-2 max-[900px]:hidden"
       style={{ minHeight: 44 }}
       aria-hidden
     />
@@ -130,7 +126,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         syncEnabled={session.entitlements.syncEnabled}
         allowedScreens={allowedScreens}
       />
-      <div className="shell-main" data-mx-main>
+      <div className="shell-main relative" data-mx-main>
         <Suspense fallback={<TopBarFallback />}>
           <TopBar
             workspaceId={session.workspace.id}
