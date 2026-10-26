@@ -1527,7 +1527,7 @@ export function ImportWizard() {
                 </Button>
               }
             >
-              <SheetTable>
+              <SheetTable data-mx-keep-table>
                 <SheetThead>
                   <tr>
                     <SheetTh sticky className="w-12">
@@ -1709,7 +1709,7 @@ export function ImportWizard() {
                 onPageChange={previewSheet.setPage}
                 onPageSizeChange={previewSheet.setPageSize}
               >
-                <SheetTable>
+                <SheetTable data-mx-keep-table>
                   <SheetThead>
                     <tr>
                       <SheetTh sticky className="w-12">
