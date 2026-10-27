@@ -93,7 +93,8 @@ export async function buildResumeQueue(): Promise<QueueJob[]> {
   const pending = await prisma.syncRun.findMany({
     where: {
       status: "pending",
-      salicAccount: { active: true },
+      // Retomada automática respeita a atualização desligada no workspace.
+      salicAccount: { active: true, workspace: { salicAutoSync: true } },
       createdAt: {
         lt: new Date(now - RESUME_PENDING_AFTER_MS),
         gt: new Date(now - RESUME_PENDING_MAX_AGE_MS),

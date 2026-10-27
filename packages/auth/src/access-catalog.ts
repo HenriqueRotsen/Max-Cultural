@@ -197,6 +197,28 @@ export const ACCESS_CATALOG = [
     parentId: "origem.planejamento",
   },
 
+  // —— Auditoria ——
+  {
+    id: "auditoria.atualizacao",
+    label: "Atualização SALIC",
+    description:
+      "Ver o status e disparar a atualização com o SALIC (quem entra na Auditoria já vê).",
+    kind: "screen",
+    group: "Auditoria",
+    product: "auditoria",
+    parentId: "auditoria.app",
+  },
+  {
+    id: "auditoria.atualizacao.desativar",
+    label: "Desativar atualização automática",
+    description:
+      "Desliga (ou religa) a atualização diária com o SALIC — confirmação dupla.",
+    kind: "capability",
+    group: "Auditoria",
+    product: "auditoria",
+    parentId: "auditoria.atualizacao",
+  },
+
   // —— Fluxo ——
   {
     id: "fluxo.operacao",

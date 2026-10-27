@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FieldLabel } from "@/components/FieldHelp";
+import { AutoSyncControl, type AutoSyncInfo } from "@/components/AutoSyncControl";
 import { SyncHistoryTable } from "@/components/SyncHistoryTable";
-import { formatCgccpf } from "@/lib/format";
-import { HELP } from "@/lib/help";
 
 type SyncRunDto = {
   id: string;
@@ -21,12 +19,6 @@ type SyncRunDto = {
   forceCrawler: boolean;
   workState: { cursor?: number; items?: unknown[] } | null;
   salicAccount: { name: string; cgccpf: string } | null;
-};
-
-type AccountOption = {
-  id: string;
-  name: string;
-  cgccpf: string;
 };
 
 function statusBadge(status: string) {
@@ -59,6 +51,16 @@ function serializeRun(run: SyncRunDto): SyncRunDto {
   };
 }
 
+function formatWhen(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function placeholderRun(partial: {
   id: string;
   status?: string;
@@ -85,11 +87,15 @@ function placeholderRun(partial: {
 }
 
 export function SyncPanel({
-  accounts,
+  accountCount,
+  autoSync,
+  canManage,
   initialRecent = [],
   initialActive = null,
 }: {
-  accounts: AccountOption[];
+  accountCount: number;
+  autoSync: AutoSyncInfo;
+  canManage: boolean;
   initialRecent?: SyncRunDto[];
   initialActive?: SyncRunDto | null;
 }) {
@@ -101,8 +107,6 @@ export function SyncPanel({
     initialRecent.map(serializeRun),
   );
   const [error, setError] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState("");
-  const [pronac, setPronac] = useState("");
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/sync/status", { cache: "no-store" });
@@ -166,23 +170,12 @@ export function SyncPanel({
     setError(null);
     setStarting(true);
 
-    const selectedAccount = accountId
-      ? accounts.find((a) => a.id === accountId) || null
-      : null;
-    const pronacs = pronac
-      .split(/[\s,;]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
     // Mostra progresso imediatamente (antes da resposta da API)
     setActive(
       placeholderRun({
         id: "local-starting",
         forceCrawler: true,
         progressMessage: "Enviando pedido de atualização…",
-        salicAccount: selectedAccount
-          ? { name: selectedAccount.name, cgccpf: selectedAccount.cgccpf }
-          : null,
       }),
     );
 
@@ -190,11 +183,7 @@ export function SyncPanel({
       const res = await fetch("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountId: accountId || undefined,
-          forceCrawler: true,
-          pronacs: pronacs.length ? pronacs : undefined,
-        }),
+        body: JSON.stringify({ forceCrawler: true }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -219,9 +208,6 @@ export function SyncPanel({
             status: data.status || "pending",
             forceCrawler: true,
             progressMessage: "Na fila…",
-            salicAccount: selectedAccount
-              ? { name: selectedAccount.name, cgccpf: selectedAccount.cgccpf }
-              : null,
           }),
         );
       }
@@ -279,85 +265,42 @@ export function SyncPanel({
   const percent =
     active && active.progressTotal > 0
       ? Math.min(100, Math.round((active.progressCurrent / active.progressTotal) * 100))
-      : busy
-        ? undefined
-        : 0;
+      : undefined;
+  const last = recent.find((r) => r.status !== "running" && r.status !== "pending") || null;
 
   return (
     <div className="space-y-6">
-      <div className="card grid gap-4 p-5 md:grid-cols-2">
-        <div className="field">
-          <FieldLabel htmlFor="accountId" help={HELP.syncAccount}>
-            Conta
-          </FieldLabel>
-          <select
-            id="accountId"
-            value={accountId}
-            disabled={busy}
-            onChange={(e) => setAccountId(e.target.value)}
-          >
-            <option value="">Todas com atualização ligada</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} ({formatCgccpf(a.cgccpf)})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <FieldLabel htmlFor="pronac" help={HELP.syncPronac}>
-            Só um projeto (PRONAC)
-          </FieldLabel>
-          <input
-            id="pronac"
-            value={pronac}
-            placeholder="Ex.: 153774 — escolha também a conta"
-            disabled={busy}
-            onChange={(e) => setPronac(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (!busy) void startUpdate();
-              }
-            }}
-          />
-        </div>
-        <div className="md:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] px-4 py-3 text-sm text-[var(--gray-600)]">
-          <strong>Atualização automática todo dia às 8h.</strong> Busca no SALIC os projetos e
-          pagamentos (auditoria), leva os projetos para o planejamento com o status em
-          andamento/encerrado, cria os contextos no Fluxo e atualiza planilha e captação. Use o
-          botão abaixo para atualizar agora. Usa a <strong>área logada do SALIC</strong>: cadastre
-          usuário e senha no proponente.
-        </div>
-        <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="btn btn-gold"
-            disabled={busy}
-            onClick={() => void startUpdate()}
-          >
-            {busy ? "Atualização em andamento…" : "Atualizar dados agora"}
-          </button>
-          {canCancel && (
-            <button type="button" className="btn btn-ghost" onClick={() => void cancelActive()}>
-              Cancelar atualização
-            </button>
-          )}
-          {error && <p className="text-sm text-[#8a4b12]">{error}</p>}
-        </div>
-      </div>
-
-      <section className="card p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-[var(--navy)]">Progresso</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {(active || starting) && (
-              <span className={`badge ${statusBadge(active?.status || "pending")}`}>
-                {starting && !isRunning
-                  ? "Iniciando"
-                  : statusLabel(active?.status || "pending")}
+      <section className="card space-y-4 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1 basis-[16rem]">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-[var(--navy)]">
+                Atualização automática
+              </h2>
+              <span className={`badge ${autoSync.enabled ? "badge-success" : "badge-warn"}`}>
+                {autoSync.enabled ? "Ligada" : "Desligada"}
               </span>
-            )}
+            </div>
+            <p className="mt-1 text-sm text-[var(--gray-500)]">
+              {autoSync.enabled
+                ? `Todo dia às 8h, para ${accountCount} proponente${accountCount === 1 ? "" : "s"}.`
+                : `Desligada${autoSync.changedAt ? ` em ${formatWhen(autoSync.changedAt)}` : ""}${
+                    autoSync.changedBy ? ` por ${autoSync.changedBy}` : ""
+                  }. Só atualiza quando alguém clicar em “Atualizar agora”.`}
+            </p>
+            {!autoSync.enabled && autoSync.note ? (
+              <p className="mt-1 text-sm text-[var(--gray-600)]">Motivo: {autoSync.note}</p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-gold"
+              disabled={busy || accountCount === 0}
+              onClick={() => void startUpdate()}
+            >
+              {busy ? "Atualizando…" : "Atualizar agora"}
+            </button>
             {canCancel && (
               <button type="button" className="btn btn-ghost" onClick={() => void cancelActive()}>
                 Cancelar
@@ -366,82 +309,58 @@ export function SyncPanel({
           </div>
         </div>
 
-        {active || starting ? (
-          <>
-            <p className="text-sm text-[var(--gray-600)]">
-              {active?.salicAccount?.name ||
-                (accountId
-                  ? accounts.find((a) => a.id === accountId)?.name
-                  : null) ||
-                "Todas as contas"}
-              {" · área logada do SALIC"}
-            </p>
-            <p className="mt-2 text-sm font-medium text-[var(--navy)]">
-              {active?.progressMessage || "Iniciando…"}
-            </p>
-
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--gray-100)]">
+        {busy ? (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-medium text-[var(--navy)]">
+                {active?.progressMessage || "Iniciando…"}
+              </span>
+              <span className="text-[var(--gray-500)]">
+                {active?.projectsSynced ?? 0} projeto(s) · {active?.paymentsUpserted ?? 0}{" "}
+                pagamento(s)
+              </span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--gray-100)]">
               <div
                 className="h-full rounded-full accent-bar transition-all duration-500"
                 style={{
-                  width:
-                    percent == null
-                      ? busy
-                        ? "35%"
-                        : "0%"
-                      : `${percent}%`,
-                  ...(percent == null && busy
-                    ? { animation: "pulse 1.4s ease-in-out infinite" }
-                    : {}),
+                  width: percent == null ? "35%" : `${percent}%`,
+                  ...(percent == null ? { animation: "pulse 1.4s ease-in-out infinite" } : {}),
                 }}
               />
             </div>
-
-            <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--gray-500)]">
-              <span>
-                Projetos:{" "}
-                <strong className="text-[var(--navy)]">{active?.projectsSynced ?? 0}</strong>
-                {active && active.progressTotal > 0 ? ` / ${active.progressTotal}` : ""}
-              </span>
-              <span>
-                Pagamentos:{" "}
-                <strong className="text-[var(--navy)]">{active?.paymentsUpserted ?? 0}</strong>
-              </span>
-              {active && active.progressTotal > 0 && (
-                <span>
-                  Etapa: {active.progressCurrent}/{active.progressTotal}
-                  {percent != null ? ` (${percent}%)` : ""}
-                </span>
-              )}
-            </div>
-
-            {active?.log && (
-              <pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-[var(--gray-50)] p-3 text-xs text-[var(--gray-500)] whitespace-pre-wrap">
-                {active.log.split("\n").slice(-12).join("\n")}
-              </pre>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-[var(--gray-500)]">Nenhuma atualização em andamento.</p>
-        )}
-      </section>
-
-      <section className="card p-5" id="historico-atualizacoes">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-[var(--navy)]">
-              Histórico de atualizações
-            </h2>
-            <p className="mt-0.5 text-xs text-[var(--gray-500)]">
-              Últimas sincronizações com o SALIC ({recent.length} no histórico recente).
-            </p>
           </div>
-          <button type="button" className="btn btn-ghost" onClick={() => void refresh()}>
-            Atualizar lista
-          </button>
-        </div>
-        <SyncHistoryTable recent={recent} />
+        ) : last ? (
+          <p className="text-sm text-[var(--gray-600)]">
+            Última atualização: <strong className="text-[var(--navy)]">{formatWhen(last.finishedAt || last.createdAt)}</strong>
+            {" · "}
+            <span className={`badge ${statusBadge(last.status)}`}>{statusLabel(last.status)}</span>
+            {" · "}
+            {last.projectsSynced} projeto(s), {last.paymentsUpserted} pagamento(s)
+          </p>
+        ) : (
+          <p className="text-sm text-[var(--gray-500)]">Ainda não houve atualização.</p>
+        )}
+
+        {accountCount === 0 ? (
+          <p className="text-sm text-[#8a4b12]">
+            Nenhum proponente cadastrado. Cadastre no MAX Origem › Proponentes (com usuário e
+            senha do SALIC).
+          </p>
+        ) : null}
+        {error && <p className="text-sm text-[#8a4b12]">{error}</p>}
       </section>
+
+      <details className="card p-5" id="historico-atualizacoes">
+        <summary className="cursor-pointer text-base font-semibold text-[var(--navy)]">
+          Histórico ({Math.min(recent.length, 20)} mais recentes)
+        </summary>
+        <div className="mt-4">
+          <SyncHistoryTable recent={recent.slice(0, 20)} />
+        </div>
+      </details>
+
+      {canManage ? <AutoSyncControl autoSync={autoSync} /> : null}
     </div>
   );
 }

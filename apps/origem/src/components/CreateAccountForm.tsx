@@ -185,12 +185,6 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
             </div>
           </>
         ) : null}
-        <div className="field md:col-span-2">
-          <FieldLabel htmlFor="extraPronacs" help={HELP.extraPronacs}>
-            Projetos extras (PRONAC)
-          </FieldLabel>
-          <input id="extraPronacs" name="extraPronacs" placeholder="153774, 193461" />
-        </div>
         <div className="md:col-span-2">
           <button type="submit" className="btn" disabled={pending}>
             Adicionar conta

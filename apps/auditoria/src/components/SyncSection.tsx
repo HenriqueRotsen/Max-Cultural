@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { syncBlockedMessage } from "@/lib/auth/entitlements";
 import { SyncPanel } from "@/components/SyncPanel";
+import { hasHubPermission } from "@/lib/auth/hub-permissions";
+import { AUTO_SYNC_PERMISSION } from "@/lib/sync/auto-sync-shared";
 
 function serializeRun(run: {
   id: string;
@@ -60,12 +62,18 @@ export async function SyncSection({
   const workspaceRuns = {
     OR: [{ salicAccount: { workspaceId } }, { salicAccountId: null }],
   };
-  const [accounts, active, recent] = await Promise.all([
-    prisma.salicAccount.findMany({
-      where: { active: true, workspaceId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, cgccpf: true },
+  const [accountCount, workspace, canManage, active, recent] = await Promise.all([
+    prisma.salicAccount.count({ where: { active: true, workspaceId } }),
+    prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: {
+        salicAutoSync: true,
+        salicAutoSyncChangedAt: true,
+        salicAutoSyncChangedById: true,
+        salicAutoSyncNote: true,
+      },
     }),
+    hasHubPermission(AUTO_SYNC_PERMISSION),
     prisma.syncRun.findFirst({
       where: { status: { in: ["pending", "running"] }, ...workspaceRuns },
       orderBy: { createdAt: "desc" },
@@ -74,14 +82,28 @@ export async function SyncSection({
     prisma.syncRun.findMany({
       where: workspaceRuns,
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: 20,
       include: { salicAccount: { select: { name: true, cgccpf: true } } },
     }),
   ]);
 
+  const changedBy = workspace?.salicAutoSyncChangedById
+    ? await prisma.appUser.findUnique({
+        where: { id: workspace.salicAutoSyncChangedById },
+        select: { email: true },
+      })
+    : null;
+
   return (
     <SyncPanel
-      accounts={accounts}
+      accountCount={accountCount}
+      canManage={canManage}
+      autoSync={{
+        enabled: workspace?.salicAutoSync ?? true,
+        changedAt: workspace?.salicAutoSyncChangedAt?.toISOString() ?? null,
+        changedBy: changedBy?.email ?? null,
+        note: workspace?.salicAutoSyncNote ?? null,
+      }}
       initialActive={active ? serializeRun(active) : null}
       initialRecent={recent.map(serializeRun)}
     />

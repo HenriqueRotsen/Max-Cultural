@@ -139,9 +139,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Searc
                   cgccpf: formatCgccpf(account.cgccpf),
                   salicUsername: decryptCredential(account.salicUsernameEnc),
                   hasPassword: Boolean(account.salicPasswordEnc),
-                  extraPronacs: account.extraPronacs,
                   personType: account.personType,
-                  active: account.active,
                   projectCount: account._count.planningProjects,
                   institutionalMap: account.institutionalMap,
                 }}

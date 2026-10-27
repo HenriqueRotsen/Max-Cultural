@@ -6,7 +6,7 @@ import {
   deleteAccount,
   updateAccount,
 } from "@/lib/actions";
-import { FieldHelp, FieldLabel } from "@/components/FieldHelp";
+import { FieldLabel } from "@/components/FieldHelp";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { formatCgccpf } from "@/lib/format";
 import { HELP } from "@/lib/help";
@@ -19,9 +19,7 @@ type AccountEditorProps = {
     cgccpf: string;
     salicUsername: string | null;
     hasPassword: boolean;
-    extraPronacs: string | null;
     personType: "PJ" | "PF" | "MEI";
-    active: boolean;
     projectCount: number;
     institutionalMap?: boolean;
   };
@@ -49,15 +47,6 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
               {account.hasPassword ? "Senha salva" : "Sem senha"}
             </span>
           )}
-          <span className={`badge ${account.active ? "badge-success" : "badge-muted"}`}>
-            {syncEnabled
-              ? account.active
-                ? "Atualização ligada"
-                : "Atualização pausada"
-              : account.active
-                ? "Ativa"
-                : "Inativa"}
-          </span>
         </div>
       </div>
 
@@ -164,26 +153,7 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
             </>
           ) : null}
 
-          <div className="field md:col-span-2">
-            <FieldLabel htmlFor={`extra-${account.id}`} help={HELP.extraPronacs}>
-              Projetos extras (PRONAC)
-            </FieldLabel>
-            <input
-              id={`extra-${account.id}`}
-              name="extraPronacs"
-              defaultValue={account.extraPronacs || ""}
-              placeholder="153774, 193461"
-            />
-          </div>
-
-          <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
-            <label className="inline-flex items-center gap-2 text-sm text-[var(--gray-600)]">
-              <input type="checkbox" name="active" defaultChecked={account.active} />
-              <span className="inline-flex items-center gap-1.5 font-medium">
-                {syncEnabled ? "Incluir na atualização" : "Conta ativa"}
-                {syncEnabled && <FieldHelp text={HELP.active} />}
-              </span>
-            </label>
+          <div className="md:col-span-2 flex flex-wrap items-center justify-end gap-3">
             <ConfirmSubmitButton
               className="btn"
               title="Salvar alterações"
