@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { prisma } from "@/lib/db";
 import { enqueueAccountSyncs } from "@/lib/sync/run";
 import { buildSyncQueue, runSyncQueue } from "@/lib/sync/queue";
 
@@ -15,7 +16,7 @@ function assertCronAuth(request: Request): boolean {
 
 /**
  * Cron diário (08:00 BRT = 11:00 UTC): sincroniza os proponentes Pro com o SALIC
- * (uma invocação por conta) e, ao fim de cada uma, atualiza planejamento e Fluxo.
+ * (uma invocação por conta), salvo workspaces com a atualização automática desligada.
  * Auth: Authorization: Bearer $CRON_SECRET
  */
 export async function GET(request: Request) {
@@ -24,6 +25,13 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Atualização automática desligada (Auditoria › Atualizar SALIC) em todos os workspaces.
+    const enabled = await prisma.workspace.count({
+      where: { plan: "PRO", salicAutoSync: true },
+    });
+    if (enabled === 0) {
+      return NextResponse.json({ ok: true, skipped: "atualização automática desligada" });
+    }
     const jobs = await enqueueAccountSyncs({ forceCrawler: true });
     const dispatch = () => runSyncQueue(buildSyncQueue(jobs), { handOffFirst: true });
     if (process.env.VERCEL) after(dispatch);

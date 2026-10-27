@@ -14,9 +14,7 @@ const accountSchema = z.object({
   cgccpf: z.string().min(11, "Informe CPF ou CNPJ"),
   salicUsername: z.string().optional(),
   salicPassword: z.string().optional(),
-  extraPronacs: z.string().optional(),
   personType: z.enum(["PJ", "PF", "MEI"]).optional(),
-  active: z.boolean().optional(),
 });
 
 function parseAccountForm(formData: FormData, syncEnabled: boolean) {
@@ -30,12 +28,7 @@ function parseAccountForm(formData: FormData, syncEnabled: boolean) {
     salicPassword: syncEnabled
       ? String(formData.get("salicPassword") || "") || undefined
       : undefined,
-    extraPronacs: String(formData.get("extraPronacs") || "") || undefined,
     personType: personTypeRaw === "PF" || personTypeRaw === "MEI" ? personTypeRaw : "PJ",
-    active:
-      formData.get("active") === "on" ||
-      formData.get("active") === "true" ||
-      formData.get("active") !== "false",
   });
 }
 
@@ -83,7 +76,6 @@ async function createAccountInner(formData: FormData) {
         salicPasswordEnc: entitlements.syncEnabled
           ? encryptCredential(parsed.salicPassword)
           : null,
-        extraPronacs: parsed.extraPronacs || null,
         personType: parsed.personType || "PJ",
         active: true,
         workspaceId: entitlements.workspaceId,
@@ -128,9 +120,9 @@ export async function updateAccount(id: string, formData: FormData) {
       data: {
         name: parsed.name,
         cgccpf: normalizeCgccpf(parsed.cgccpf),
-        extraPronacs: parsed.extraPronacs || null,
         personType: parsed.personType || "PJ",
-        active: formData.get("active") === "on" || formData.get("active") === "true",
+        // Atualização com o SALIC vale para todos os proponentes (sem pausa por conta).
+        active: true,
         ...(entitlements.syncEnabled
           ? {
               salicUsernameEnc: encryptCredential(parsed.salicUsername),

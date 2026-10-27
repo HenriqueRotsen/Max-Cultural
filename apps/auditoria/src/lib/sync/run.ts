@@ -270,8 +270,9 @@ async function accountsForSync(options: SyncOptions) {
       active: true,
       ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
       ...(options.salicAccountId ? { id: options.salicAccountId } : {}),
+      // Execução automática (cron): só workspaces Pro com a atualização ligada.
       ...(!options.workspaceId && !options.salicAccountId
-        ? { workspace: { plan: "PRO" as const } }
+        ? { workspace: { plan: "PRO" as const, salicAutoSync: true } }
         : {}),
     },
   });

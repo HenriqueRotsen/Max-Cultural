@@ -108,6 +108,12 @@ model Workspace {
    * { [rulesetVersion]: RelationKind[] }
    */
   relationBondOverrides Json?
+  /** Atualização automática diária com o SALIC (desligar exige capacidade + confirmação dupla). */
+  salicAutoSync            Boolean   @default(true)
+  salicAutoSyncChangedAt   DateTime?
+  salicAutoSyncChangedById String?
+  /** Motivo informado ao desligar/religar. */
+  salicAutoSyncNote        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

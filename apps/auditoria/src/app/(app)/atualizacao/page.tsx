@@ -11,7 +11,7 @@ export default async function AtualizacaoPage() {
       <PageHeader
         breadcrumb="Auditoria › Atualizar SALIC"
         title="Atualizar com o SALIC"
-        description="Traz do SALIC os projetos e pagamentos de cada proponente para o espelho da Auditoria. Roda sozinho todo dia; aqui você acompanha ou dispara uma atualização. Os proponentes são cadastrados no MAX Origem."
+        description="Traz do SALIC os projetos e pagamentos de todos os proponentes cadastrados no MAX Origem."
       />
       <SyncSection
         workspaceId={entitlements.workspaceId}
