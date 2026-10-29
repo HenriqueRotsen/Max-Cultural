@@ -35,8 +35,12 @@ function resolveDatabaseUrl() {
   return url;
 }
 
+/** Schemas renomeados (Origem → Financeiro, Fluxo → Indicadores); URLs antigas continuam valendo. */
+const RENAMED_SCHEMAS: Record<string, string> = { origem: "financeiro", fluxo: "indicadores" };
+
 function createPrismaClient(connectionString: string) {
-  const schema = new URL(connectionString).searchParams.get("schema") ?? undefined;
+  const rawSchema = new URL(connectionString).searchParams.get("schema") ?? undefined;
+  const schema = rawSchema ? (RENAMED_SCHEMAS[rawSchema] ?? rawSchema) : undefined;
   if (schema && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
     throw new Error(`Invalid Postgres schema name: ${schema}`);
   }

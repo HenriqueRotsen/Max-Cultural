@@ -12,10 +12,14 @@ const globalForPrisma = globalThis as unknown as {
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
 const PRISMA_SCHEMA_VERSION = 39;
 
+/** Schemas renomeados (Origem → Financeiro, Fluxo → Indicadores); URLs antigas continuam valendo. */
+const RENAMED_SCHEMAS: Record<string, string> = { origem: "financeiro", fluxo: "indicadores" };
+
 function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
   try {
-    return new URL(url).searchParams.get("schema") ?? undefined;
+    const schema = new URL(url).searchParams.get("schema") ?? undefined;
+    return schema ? (RENAMED_SCHEMAS[schema] ?? schema) : undefined;
   } catch {
     return undefined;
   }
