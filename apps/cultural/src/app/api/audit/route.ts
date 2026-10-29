@@ -19,7 +19,7 @@ function asString(value: unknown, max = 200): string {
 }
 
 /**
- * Ingestão de auditoria dos satélites (Origem / Fluxo).
+ * Ingestão de auditoria dos satélites (Financeiro / Indicadores).
  * Auth: cookie max_session ou Bearer / x-max-session (mesmo padrão de /api/session/permissions).
  */
 export async function POST(request: Request) {

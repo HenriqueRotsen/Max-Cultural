@@ -344,7 +344,7 @@ export function SyncPanel({
 
         {accountCount === 0 ? (
           <p className="text-sm text-[#8a4b12]">
-            Nenhum proponente cadastrado. Cadastre no MAX Origem › Proponentes (com usuário e
+            Nenhum proponente cadastrado. Cadastre no MAX Financeiro › Proponentes (com usuário e
             senha do SALIC).
           </p>
         ) : null}

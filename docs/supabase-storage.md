@@ -6,16 +6,16 @@ Os arquivos do MAX passam a ser gravados no **Supabase Storage** (plano Pro: 100
 
 | Bucket | Visibilidade | Uso |
 |--------|--------------|-----|
-| `max-docs` | **privado** | NF, RPA, comprovantes de pagamento, merges SALIC (Origem) |
-| `max-public` | **público** | Capas de formulários (Fluxo) |
+| `max-docs` | **privado** | NF, RPA, comprovantes de pagamento, merges SALIC (Financeiro) |
+| `max-public` | **público** | Capas de formulários (Indicadores) |
 
 Os buckets são criados automaticamente no primeiro upload (service role), ou rode:
 
 ```bash
-cd apps/origem && npx tsx scripts/ensure-storage-buckets.ts
+cd apps/financeiro && npx tsx scripts/ensure-storage-buckets.ts
 ```
 
-## Variáveis (Origem + Fluxo)
+## Variáveis (Financeiro + Indicadores)
 
 Já usadas:
 
@@ -44,4 +44,4 @@ Opcionais:
 - `sb://max-docs/planning/{workspaceId}/…` (novo)
 - path absoluto local legado (`/…/uploads/planning/…`) — ainda lido
 
-Capas no Fluxo gravam a **URL pública** `https://…supabase.co/storage/v1/object/public/max-public/…`.
+Capas no Indicadores gravam a **URL pública** `https://…supabase.co/storage/v1/object/public/max-public/…`.

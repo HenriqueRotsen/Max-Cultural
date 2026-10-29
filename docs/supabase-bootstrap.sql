@@ -3,14 +3,14 @@
 --
 -- Schemas:
 --   public  → MAX Cultural (hub IAM + audit_logs central)
---   origem  → MAX Origem
---   fluxo   → MAX Fluxo
+--   origem  → MAX Financeiro
+--   fluxo   → MAX Indicadores
 --   auditoria → MAX Auditoria (antigo Salink) — usado a partir da virada (docs/deploy-teste.md §5)
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
-CREATE SCHEMA IF NOT EXISTS origem;
-CREATE SCHEMA IF NOT EXISTS fluxo;
+CREATE SCHEMA IF NOT EXISTS financeiro;
+CREATE SCHEMA IF NOT EXISTS indicadores;
 CREATE SCHEMA IF NOT EXISTS auditoria;
 
 -- Opcional: garantir search_path padrão (apps usam ?schema= na connection string)

@@ -21,8 +21,8 @@ export default async function ContaPage() {
       : "Pendente";
 
   const apps = [
-    can(user, "origem.app", "view") ? "MAX Origem" : null,
-    can(user, "fluxo.app", "view") ? "MAX Fluxo" : null,
+    can(user, "financeiro.app", "view") ? "MAX Financeiro" : null,
+    can(user, "indicadores.app", "view") ? "MAX Indicadores" : null,
     can(user, "auditoria.app", "view") ? "MAX Auditoria (antigo Salink)" : null,
   ].filter(Boolean);
 

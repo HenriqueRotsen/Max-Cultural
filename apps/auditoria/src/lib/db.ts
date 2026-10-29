@@ -12,10 +12,14 @@ const globalForPrisma = globalThis as unknown as {
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
 const PRISMA_SCHEMA_VERSION = 39;
 
+/** Schemas renomeados (Origem → Financeiro, Fluxo → Indicadores); URLs antigas continuam valendo. */
+const RENAMED_SCHEMAS: Record<string, string> = { origem: "financeiro", fluxo: "indicadores" };
+
 function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
   try {
-    return new URL(url).searchParams.get("schema") ?? undefined;
+    const schema = new URL(url).searchParams.get("schema") ?? undefined;
+    return schema ? (RENAMED_SCHEMAS[schema] ?? schema) : undefined;
   } catch {
     return undefined;
   }
@@ -31,7 +35,7 @@ function createPrismaClient() {
   }
   if (/supabase\.co|pooler\.supabase/i.test(connectionString)) {
     console.warn(
-      "[origem] DATABASE_URL aponta para Supabase em desenvolvimento. Rode: npm run db:use-local",
+      "[auditoria] DATABASE_URL aponta para Supabase em desenvolvimento. Rode: npm run db:use-local",
     );
   }
   const schema = schemaFromDatabaseUrl(connectionString);
@@ -39,7 +43,7 @@ function createPrismaClient() {
     throw new Error(`Invalid Postgres schema name: ${schema}`);
   }
   // O adapter só qualifica SQL gerado pelo Prisma. $queryRaw / $executeRaw
-  // precisam do search_path — sem isso, tabelas do schema (ex.: origem.catalog_*)
+  // precisam do search_path — sem isso, tabelas do schema (ex.: financeiro.catalog_*)
   // falham com "relation does not exist" e quebram /fornecedores.
   const pool = new Pool({
     connectionString,
@@ -60,7 +64,7 @@ export function clientMatchesSchema(client: PrismaClient): boolean {
   )._runtimeDataModel?.models;
   if (!models) return false;
   const fields = (model: string) => new Set((models[model]?.fields || []).map((f) => f.name));
-  // Planejamento e Fornecedores são do MAX Origem — não existem neste client.
+  // Planejamento e Fornecedores são do MAX Financeiro — não existem neste client.
   if (models.PlanningProject || models.CatalogSupplier) return false;
   const account = fields("SalicAccount");
   if (!account.has("foundedAt") || !account.has("institutionalMap")) return false;

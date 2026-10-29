@@ -41,11 +41,11 @@ export function AppSidebar({
   canUsers,
   canRoles,
   canLogs,
-  canOrigem,
-  canFluxo,
-  fluxoFormulariosOnly,
-  origemUrl,
-  fluxoUrl,
+  canFinanceiro,
+  canIndicadores,
+  indicadoresFormulariosOnly,
+  financeiroUrl,
+  indicadoresUrl,
   auditoriaUrl,
 }: {
   userEmail?: string;
@@ -53,12 +53,12 @@ export function AppSidebar({
   canUsers?: boolean;
   canRoles?: boolean;
   canLogs?: boolean;
-  canOrigem?: boolean;
-  canFluxo?: boolean;
+  canFinanceiro?: boolean;
+  canIndicadores?: boolean;
   /** Papel Professor: só avaliação de formulários. */
-  fluxoFormulariosOnly?: boolean;
-  origemUrl?: string;
-  fluxoUrl?: string;
+  indicadoresFormulariosOnly?: boolean;
+  financeiroUrl?: string;
+  indicadoresUrl?: string;
   /** App MAX Auditoria (antigo Salink); vazio = sem atalho. */
   auditoriaUrl?: string;
 }) {
@@ -71,13 +71,13 @@ export function AppSidebar({
     return true;
   });
 
-  const origemHref = `${(origemUrl || "http://localhost:3001").replace(/\/$/, "")}/painel`;
-  const fluxoBase = (fluxoUrl || "http://localhost:3002").replace(/\/$/, "");
-  const fluxoHref = fluxoFormulariosOnly
-    ? `${fluxoBase}/dashboard/formularios`
-    : `${fluxoBase}/dashboard`;
+  const financeiroHref = `${(financeiroUrl || "http://localhost:3001").replace(/\/$/, "")}/painel`;
+  const indicadoresBase = (indicadoresUrl || "http://localhost:3002").replace(/\/$/, "");
+  const indicadoresHref = indicadoresFormulariosOnly
+    ? `${indicadoresBase}/dashboard/formularios`
+    : `${indicadoresBase}/dashboard`;
   const auditoriaHref = auditoriaUrl ? `${auditoriaUrl.replace(/\/$/, "")}/inicio` : "";
-  const showProducts = Boolean(canOrigem || canFluxo || auditoriaHref);
+  const showProducts = Boolean(canFinanceiro || canIndicadores || auditoriaHref);
 
   const menu = useMobileMenu(pathname);
   const mobileItems = visible.map((link) => {
@@ -122,9 +122,9 @@ export function AppSidebar({
             <p className="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
               Produtos
             </p>
-            {canOrigem ? (
+            {canFinanceiro ? (
               <a
-                href={origemHref}
+                href={financeiroHref}
                 className="flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
                 style={{
                   background: "linear-gradient(165deg, #f5f3ff 0%, #fff 70%)",
@@ -132,15 +132,15 @@ export function AppSidebar({
                 }}
               >
                 <img
-                  src="/brand/max-origem.png"
-                  alt="MAX Origem"
+                  src="/brand/max-financeiro.png"
+                  alt="MAX Financeiro"
                   className="h-7 w-auto max-w-[9rem] object-contain object-left"
                 />
               </a>
             ) : null}
-            {canFluxo ? (
+            {canIndicadores ? (
               <a
-                href={fluxoHref}
+                href={indicadoresHref}
                 className="mt-1 flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
                 style={{
                   background: "linear-gradient(165deg, #f0fdfa 0%, #fff 70%)",
@@ -148,8 +148,8 @@ export function AppSidebar({
                 }}
               >
                 <img
-                  src="/brand/max-fluxo.png"
-                  alt="MAX Fluxo"
+                  src="/brand/max-indicadores.png"
+                  alt="MAX Indicadores"
                   className="h-7 w-auto max-w-[9rem] object-contain object-left"
                 />
               </a>

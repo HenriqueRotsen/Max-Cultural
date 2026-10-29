@@ -175,7 +175,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     const user = await loadSessionUser(fromCookie);
     if (user) return user;
   }
-  // Satélites (Origem/Fluxo) chamam APIs do hub via fetch server-side;
+  // Satélites (Financeiro/Indicadores) chamam APIs do hub via fetch server-side;
   // o header Cookie é "forbidden" no fetch do Node — usam x-max-session / Bearer.
   // Também cobre cookie presente mas inválido (sessionVersion) + Bearer fresco.
   try {
@@ -234,12 +234,12 @@ export function can(user: SessionUser, screen: string, action: "view" | "edit") 
   return Boolean(perm?.canEdit);
 }
 
-/** Hub de projetos: tela dedicada ou qualquer acesso ao Origem. */
+/** Hub de projetos: tela dedicada ou qualquer acesso ao Financeiro. */
 export function canViewProjetos(user: SessionUser) {
   return (
     can(user, "cultural.projetos", "view") ||
-    can(user, "origem.app", "view") ||
-    can(user, "origem.planejamento", "view")
+    can(user, "financeiro.app", "view") ||
+    can(user, "financeiro.planejamento", "view")
   );
 }
 

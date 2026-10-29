@@ -1,6 +1,6 @@
 "use server";
 
-/** Ações da Auditoria. Proponentes são cadastrados no MAX Origem (aqui só leitura). */
+/** Ações da Auditoria. Proponentes são cadastrados no MAX Financeiro (aqui só leitura). */
 
 import { revalidatePath } from "next/cache";
 import { relationGeneratesBond } from "@/lib/compliance/defaults";

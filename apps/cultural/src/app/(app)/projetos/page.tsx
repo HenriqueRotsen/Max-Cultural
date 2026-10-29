@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { fetchHubProjects } from "@/lib/origem-projects";
+import { fetchHubProjects } from "@/lib/financeiro-projects";
 
 export const metadata = { title: "Projetos" };
 export const dynamic = "force-dynamic";

@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 
 /**
  * Validação leve de sessão (HMAC + sessionVersion no banco).
- * Usado por Origem/Fluxo para invalidar cookie quando o admin
+ * Usado por Financeiro/Indicadores para invalidar cookie quando o admin
  * altera papel/permissões (sessionVersion++).
  */
 export async function GET() {

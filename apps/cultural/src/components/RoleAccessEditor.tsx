@@ -25,8 +25,8 @@ export function RoleAccessEditor({
   const [granted, setGranted] = useState(() => new Set(initialGranted));
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({
     cultural: true,
-    origem: true,
-    fluxo: true,
+    financeiro: true,
+    indicadores: true,
   });
   const sections = useMemo(() => productSections(), []);
 

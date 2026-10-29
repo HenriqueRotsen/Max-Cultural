@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     default: "MAX Cultural",
     template: "%s · MAX Cultural",
   },
-  description: "Hub de acesso à suíte MAX — Origem e Fluxo, com login e 2FA.",
+  description: "Hub de acesso à suíte MAX — Financeiro e Indicadores, com login e 2FA.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

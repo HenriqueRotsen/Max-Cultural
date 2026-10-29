@@ -3,7 +3,7 @@ import { safeContinueUrl } from "@max/auth";
 
 describe("safeContinueUrl (redirect após login)", () => {
   beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_ORIGEM_URL", "https://origem.maxcultural.com.br");
+    vi.stubEnv("NEXT_PUBLIC_FINANCEIRO_URL", "https://financeiro.maxcultural.com.br");
     vi.stubEnv("NEXT_PUBLIC_AUDITORIA_URL", "http://localhost:3003");
   });
   afterEach(() => {
@@ -12,8 +12,8 @@ describe("safeContinueUrl (redirect após login)", () => {
 
   it("aceita caminho relativo e apps conhecidos", () => {
     expect(safeContinueUrl("/inicio")).toBe("/inicio");
-    expect(safeContinueUrl("https://origem.maxcultural.com.br/planejamento")).toBe(
-      "https://origem.maxcultural.com.br/planejamento",
+    expect(safeContinueUrl("https://financeiro.maxcultural.com.br/planejamento")).toBe(
+      "https://financeiro.maxcultural.com.br/planejamento",
     );
     expect(safeContinueUrl("http://localhost:3003/inicio")).toBe("http://localhost:3003/inicio");
     expect(safeContinueUrl("https://auditoria.maxcultural.com.br/inicio")).toBe(
@@ -22,7 +22,7 @@ describe("safeContinueUrl (redirect após login)", () => {
   });
 
   it("recusa domínio que só começa igual a um app conhecido", () => {
-    expect(safeContinueUrl("https://origem.maxcultural.com.br.evil.com/x", "/")).toBe("/");
+    expect(safeContinueUrl("https://financeiro.maxcultural.com.br.evil.com/x", "/")).toBe("/");
     expect(safeContinueUrl("http://localhost:3003.evil.com/x", "/")).toBe("/");
   });
 

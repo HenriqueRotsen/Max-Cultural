@@ -3,13 +3,13 @@
 export const HELP = {
   // Contas
   cgccpf:
-    "Número do CNPJ (empresa) ou CPF (pessoa) do proponente cultural. Ao sair do campo, o MAX Origem tenta buscar o nome automaticamente.",
+    "Número do CNPJ (empresa) ou CPF (pessoa) do proponente cultural. Ao sair do campo, o MAX Financeiro tenta buscar o nome automaticamente.",
   personType:
     "Empresa (PJ) pode receber até 20% do valor do projeto. Pessoa física ou MEI pode receber até 30%. Isso vem da regra oficial de fomento cultural.",
   salicUser:
-    "Usuário do SALIC (login próprio do sistema, não o Gov.br). Guardado criptografado no MAX Origem. Não muda nada no site oficial.",
+    "Usuário do SALIC (login próprio do sistema, não o Gov.br). Guardado criptografado no MAX Financeiro. Não muda nada no site oficial.",
   salicPass:
-    "Senha do SALIC (a do sistema, não a do Gov.br), criptografada no MAX Origem. Serve para atualizar pela área logada. Não altera a senha no site oficial.",
+    "Senha do SALIC (a do sistema, não a do Gov.br), criptografada no MAX Financeiro. Serve para atualizar pela área logada. Não altera a senha no site oficial.",
   extraPronacs:
     "Códigos de projetos (PRONAC) que às vezes não aparecem sozinhos na lista da empresa. Digite separados por vírgula, por exemplo: 153774, 193461.",
   active:
@@ -21,7 +21,7 @@ export const HELP = {
 
   // Atualizar dados
   syncAccount:
-    "Escolha uma empresa ou deixe em “todas”. O MAX Origem busca os projetos e pagamentos dessa(s) conta(s).",
+    "Escolha uma empresa ou deixe em “todas”. O MAX Financeiro busca os projetos e pagamentos dessa(s) conta(s).",
   syncPronac:
     "Se quiser atualizar só um projeto, digite o número do PRONAC. Nesse caso, escolha também a conta da empresa.",
   forceCrawler:
@@ -33,7 +33,7 @@ export const HELP = {
   watchedCgccpf:
     "CNPJ ou CPF de quem você quer acompanhar de perto. Com CNPJ o nome costuma preencher sozinho; com CPF às vezes é preciso digitar.",
   watchedName:
-    "Nome do fornecedor como aparece nos pagamentos. Ajuda o MAX Origem a encontrá-lo nas listas.",
+    "Nome do fornecedor como aparece nos pagamentos. Ajuda o MAX Financeiro a encontrá-lo nas listas.",
   watchedLabel:
     "Apelido só para você, por exemplo “Produtora X”. Facilita reconhecer na lista.",
   watchedOnly:
@@ -69,7 +69,7 @@ export const HELP = {
   totalObservados:
     "Soma dos pagamentos só aos fornecedores que você marcou para acompanhar — os % usam captado e comprovado.",
   pendingNorm:
-    "O governo publicou uma mudança nas regras. O MAX Origem guardou a nova versão para revisão antes de usá-la nos avisos.",
+    "O governo publicou uma mudança nas regras. O MAX Financeiro guardou a nova versão para revisão antes de usá-la nos avisos.",
 
   // Planejamento / disponível
   planningDisponivel:

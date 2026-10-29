@@ -638,7 +638,7 @@ function shellHtml(params: {
   <div class="page">
     <header class="header">
       <div>
-        <img class="logo" src="${params.logoDataUri}" alt="MAX Origem" />
+        <img class="logo" src="${params.logoDataUri}" alt="MAX Financeiro" />
         <p class="eyebrow" style="margin-top:14px">Relatório de auditoria</p>
         <h1>${escapeHtml(params.title)}</h1>
         <p class="subtitle">${escapeHtml(params.subtitle)}</p>
@@ -646,7 +646,7 @@ function shellHtml(params: {
       <div class="meta">
         <div><strong>Gerado em</strong></div>
         <div class="timestamp">${escapeHtml(generatedAt)}</div>
-        <div style="margin-top:10px">MAX Origem · Auditoria & Gestão</div>
+        <div style="margin-top:10px">MAX Financeiro · Auditoria & Gestão</div>
       </div>
     </header>
 
@@ -663,7 +663,7 @@ function shellHtml(params: {
     ${params.body}
 
     <footer class="footer">
-      <span>Documento gerado automaticamente pelo MAX Origem para apoio à auditoria de gastos SALIC.</span>
+      <span>Documento gerado automaticamente pelo MAX Financeiro para apoio à auditoria de gastos SALIC.</span>
       <span>Gerado em ${escapeHtml(generatedAt)}</span>
     </footer>
   </div>

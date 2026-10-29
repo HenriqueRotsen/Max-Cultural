@@ -3,11 +3,11 @@
 import { redirect } from "next/navigation";
 import { culturalHubUrl } from "@max/auth";
 import { isAuthEnabled } from "@/lib/auth/config";
-import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
+import { financeiroHubLoginUrl, financeiroHubLogoutUrl } from "@/lib/auth/hub";
 import { createClient } from "@/lib/supabase/server";
 
 export async function signIn() {
-  redirect(origemHubLoginUrl("/inicio"));
+  redirect(financeiroHubLoginUrl("/inicio"));
 }
 
 export async function signOut() {
@@ -19,15 +19,15 @@ export async function signOut() {
       // Hub SSO manda; limpeza local do Supabase é best-effort.
     }
   }
-  redirect(origemHubLogoutUrl());
+  redirect(financeiroHubLogoutUrl());
 }
 
-/** Auth/senha só no MAX Cultural — Origem não envia e-mail de conta. */
+/** Auth/senha só no MAX Cultural — a Auditoria não envia e-mail de conta. */
 export async function requestPasswordReset() {
   redirect(`${culturalHubUrl()}/login/recuperar`);
 }
 
 /** Auth/senha só no MAX Cultural. */
 export async function updatePassword() {
-  redirect(origemHubLoginUrl("/inicio"));
+  redirect(financeiroHubLoginUrl("/inicio"));
 }

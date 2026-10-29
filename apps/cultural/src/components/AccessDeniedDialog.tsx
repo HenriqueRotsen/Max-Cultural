@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-/** Mostra modal quando satélites (Origem/Fluxo) devolvem o usuário com ?error=. */
+/** Mostra modal quando satélites (Financeiro/Indicadores) devolvem o usuário com ?error=. */
 export function AccessDeniedDialog() {
   const params = useSearchParams();
   const router = useRouter();

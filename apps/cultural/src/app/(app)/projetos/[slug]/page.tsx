@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { FluxoPanel, OrigemPanel } from "@/components/projetos/ProductPanels";
+import { IndicadoresPanel, FinanceiroPanel } from "@/components/projetos/ProductPanels";
 import { getSessionUser } from "@/lib/auth";
-import { fetchFluxoByPronac } from "@/lib/fluxo-projects";
-import { fetchHubProject } from "@/lib/origem-projects";
+import { fetchIndicadoresByPronac } from "@/lib/indicadores-projects";
+import { fetchHubProject } from "@/lib/financeiro-projects";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +41,13 @@ export default async function ProjetoSlugPage({
     notFound();
   }
 
-  const fluxoResult = await fetchFluxoByPronac(project.code);
+  const indicadoresResult = await fetchIndicadoresByPronac(project.code);
   const closed = project.lifecycleStatus === "ENCERRADO";
-  const origem = (process.env.NEXT_PUBLIC_ORIGEM_URL || "http://localhost:3001").replace(
+  const financeiro = (process.env.NEXT_PUBLIC_FINANCEIRO_URL || "http://localhost:3001").replace(
     /\/$/,
     "",
   );
-  const fluxoBase = (process.env.NEXT_PUBLIC_FLUXO_URL || "http://localhost:3002").replace(
+  const indicadoresBase = (process.env.NEXT_PUBLIC_INDICADORES_URL || "http://localhost:3002").replace(
     /\/$/,
     "",
   );
@@ -80,11 +80,11 @@ export default async function ProjetoSlugPage({
       </div>
 
       <div className="grid items-stretch gap-4 lg:grid-cols-2">
-        <OrigemPanel project={project} origemBase={origem} />
-        <FluxoPanel
-          fluxo={fluxoResult.data}
-          error={fluxoResult.error}
-          fluxoBase={fluxoBase}
+        <FinanceiroPanel project={project} financeiroBase={financeiro} />
+        <IndicadoresPanel
+          indicadores={indicadoresResult.data}
+          error={indicadoresResult.error}
+          indicadoresBase={indicadoresBase}
         />
       </div>
     </div>

@@ -1,12 +1,13 @@
-/** Sessão HMAC compartilhada entre Cultural, Origem e Fluxo. */
+/** Sessão HMAC compartilhada entre Cultural, Financeiro e Indicadores. */
 
 export {
   ACCESS_CATALOG,
   ACCESS_PERMISSION_IDS,
   ACCESS_BY_ID,
-  ORIGEM_PRIVILEGED_CAPABILITIES,
-  HUB_TO_FLUXO_PERMISSIONS,
+  FINANCEIRO_PRIVILEGED_CAPABILITIES,
+  HUB_TO_INDICADORES_PERMISSIONS,
   isAccessPermissionId,
+  normalizeLegacyAccessId,
   childrenOf,
   productSections,
   grantedIdsFromRoleRows,
@@ -17,6 +18,7 @@ export {
   type AccessCatalogEntry,
   type AccessPermissionId,
 } from "./access-catalog";
+import { normalizeLegacyAccessId } from "./access-catalog";
 
 
 export const AUTH_COOKIE = "max_session";
@@ -30,7 +32,7 @@ function cookieDomain(): string | undefined {
     .replace(/^["']|["']$/g, "")
     .replace(/^\./, "");
   if (fromEnv) return fromEnv;
-  // Produção sem env: domínio compartilhado Cultural/Origem/Fluxo.
+  // Produção sem env: domínio compartilhado Cultural/Financeiro/Indicadores.
   if (process.env.VERCEL || process.env.NODE_ENV === "production") {
     return "maxcultural.com.br";
   }
@@ -157,7 +159,7 @@ function decodeEmail(value: string | undefined): string | undefined {
  * Cookie SSO compartilhado: `u3:userId:version:issuedAt:email:grants`.
  * E-mail e grants em base64url — o valor nunca contém "%", senão o parser
  * de cookies do Next decodifica e a assinatura deixa de bater nos satélites.
- * Os grants viajam no cookie para Origem/Fluxo não consultarem o hub a cada página.
+ * Os grants viajam no cookie para Financeiro/Indicadores não consultarem o hub a cada página.
  */
 export async function createSessionToken(input: {
   userId: string;
@@ -232,7 +234,7 @@ export async function parseSessionToken(
     let permissions: string[] = [];
     try {
       const raw = parts[5] ? b64urlDecode(parts[5]) : "";
-      permissions = raw ? raw.split(",").filter(Boolean) : [];
+      permissions = raw ? raw.split(",").filter(Boolean).map(normalizeLegacyAccessId) : [];
     } catch {
       return null;
     }
@@ -467,7 +469,7 @@ export function culturalDeniedUrl(message: string) {
   return url.toString();
 }
 
-/** Destino pós-login do hub (path relativo ou URL absoluta de Origem/Fluxo/Cultural). */
+/** Destino pós-login do hub (path relativo ou URL absoluta de Financeiro/Indicadores/Cultural). */
 export function safeContinueUrl(raw: string | null | undefined, fallback = "/"): string {
   if (!raw) return fallback;
   if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
@@ -475,8 +477,8 @@ export function safeContinueUrl(raw: string | null | undefined, fallback = "/"):
     const url = new URL(raw);
     if (url.protocol !== "https:" && url.protocol !== "http:") return fallback;
     const allowedOrigins = [
-      process.env.NEXT_PUBLIC_ORIGEM_URL,
-      process.env.NEXT_PUBLIC_FLUXO_URL,
+      process.env.NEXT_PUBLIC_FINANCEIRO_URL,
+      process.env.NEXT_PUBLIC_INDICADORES_URL,
       process.env.NEXT_PUBLIC_AUDITORIA_URL,
       process.env.NEXT_PUBLIC_SITE_URL,
       process.env.NEXT_PUBLIC_CULTURAL_URL,
@@ -490,7 +492,7 @@ export function safeContinueUrl(raw: string | null | undefined, fallback = "/"):
         }
       })
       .filter((origin): origin is string => Boolean(origin));
-    // Compara a origem inteira: "https://origem.maxcultural.com.br.evil.com" não passa.
+    // Compara a origem inteira: "https://financeiro.maxcultural.com.br.evil.com" não passa.
     if (allowedOrigins.includes(url.origin)) return raw;
     const host = url.hostname.toLowerCase();
     if (

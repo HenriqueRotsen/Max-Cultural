@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import {
   ACCESS_PERMISSION_IDS,
   ACCESS_BY_ID,
-  ORIGEM_PRIVILEGED_CAPABILITIES,
+  FINANCEIRO_PRIVILEGED_CAPABILITIES,
 } from "@max/auth";
 import { PROTECTED_SUPERADMIN_EMAIL } from "../src/lib/protected-superadmin";
 
@@ -30,7 +30,7 @@ async function main() {
     update: {},
     create: {
       name: "Operador",
-      description: "Origem e Fluxo operacionais, sem IAM nem capacidades privilegiadas",
+      description: "Financeiro e Indicadores operacionais, sem IAM nem capacidades privilegiadas",
       isSystem: true,
     },
   });
@@ -39,13 +39,13 @@ async function main() {
     where: { name: "Professor" },
     update: {
       description:
-        "MAX Fluxo: somente avaliação de respostas das oficinas atribuídas",
+        "MAX Indicadores: somente avaliação de respostas das oficinas atribuídas",
       isSystem: true,
     },
     create: {
       name: "Professor",
       description:
-        "MAX Fluxo: somente avaliação de respostas das oficinas atribuídas",
+        "MAX Indicadores: somente avaliação de respostas das oficinas atribuídas",
       isSystem: true,
     },
   });
@@ -63,7 +63,7 @@ async function main() {
     },
   });
 
-  const privileged = new Set<string>(ORIGEM_PRIVILEGED_CAPABILITIES);
+  const privileged = new Set<string>(FINANCEIRO_PRIVILEGED_CAPABILITIES);
 
   for (const roleId of [adminRole.id, superRole.id]) {
     await prisma.rolePermission.deleteMany({ where: { roleId } });
@@ -87,8 +87,8 @@ async function main() {
     return (
       id === "cultural.home" ||
       id === "cultural.projetos" ||
-      id.startsWith("origem.") ||
-      id.startsWith("fluxo.") ||
+      id.startsWith("financeiro.") ||
+      id.startsWith("indicadores.") ||
       id.startsWith("auditoria.")
     );
   });
@@ -104,7 +104,7 @@ async function main() {
     })),
   });
 
-  const professorIds = ["cultural.home", "fluxo.app", "fluxo.formularios"] as const;
+  const professorIds = ["cultural.home", "indicadores.app", "indicadores.formularios"] as const;
   await prisma.rolePermission.deleteMany({ where: { roleId: professorRole.id } });
   await prisma.rolePermission.createMany({
     data: professorIds.map((screen) => ({

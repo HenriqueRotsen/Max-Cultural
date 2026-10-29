@@ -1,6 +1,6 @@
 /**
  * Seed mínimo e seguro para produção: só cria/atualiza o papel Professor
- * e a tela fluxo.formularios. Não mexe em usuários, senhas nem outros papéis.
+ * e a tela indicadores.formularios. Não mexe em usuários, senhas nem outros papéis.
  *
  * Uso (com DATABASE_URL de produção no ambiente):
  *   npx tsx scripts/seed-professor-role.ts
@@ -12,7 +12,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { ACCESS_BY_ID } from "@max/auth";
 
-const PROFESSOR_SCREENS = ["cultural.home", "fluxo.app", "fluxo.formularios"] as const;
+const PROFESSOR_SCREENS = ["cultural.home", "indicadores.app", "indicadores.formularios"] as const;
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -36,13 +36,13 @@ async function main() {
       where: { name: "Professor" },
       update: {
         description:
-          "MAX Fluxo: somente avaliação de respostas das oficinas atribuídas",
+          "MAX Indicadores: somente avaliação de respostas das oficinas atribuídas",
         isSystem: true,
       },
       create: {
         name: "Professor",
         description:
-          "MAX Fluxo: somente avaliação de respostas das oficinas atribuídas",
+          "MAX Indicadores: somente avaliação de respostas das oficinas atribuídas",
         isSystem: true,
       },
     });

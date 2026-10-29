@@ -6,15 +6,15 @@ generator client {
 datasource db {
   provider = "postgresql"
   // Espelho do SALIC em "auditoria"; proponentes/workspace/usuários/normas
-  // (compartilhados com o MAX Origem) e enums ficam em "origem".
-  schemas  = ["auditoria", "origem"]
+  // (compartilhados com o MAX Financeiro) e enums ficam em "financeiro".
+  schemas  = ["auditoria", "financeiro"]
 }
 
 enum PaymentSource {
   api
   crawler
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum SyncRunStatus {
@@ -24,7 +24,7 @@ enum SyncRunStatus {
   error
   partial
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum PersonType {
@@ -32,7 +32,7 @@ enum PersonType {
   PF
   MEI
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum RelatedPartyRelation {
@@ -62,7 +62,7 @@ enum RelatedPartyRelation {
   /** Legado — tratado como sem vínculo na UI */
   OTHER
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum RulesetStatus {
@@ -71,7 +71,7 @@ enum RulesetStatus {
   superseded
   archived
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum RulesetSource {
@@ -79,21 +79,21 @@ enum RulesetSource {
   manual
   default
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum AppUserRole {
   ADMIN
   USER
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum AppPlan {
   ESSENTIAL
   PRO
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 /** Espaço do cliente: plano, limite de contas e dados isolados. */
@@ -123,7 +123,7 @@ model Workspace {
   observadoBonds   ObservadoBond[]
 
   @@index([plan])
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 /** Perfil do usuário autenticado (Supabase Auth). */
@@ -156,7 +156,7 @@ model AppUser {
   @@index([role])
   @@index([active])
   @@index([workspaceId])
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 model SalicAccount {
@@ -194,7 +194,7 @@ model SalicAccount {
   @@unique([workspaceId, cgccpf])
   @@index([active])
   @@index([workspaceId])
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 /**
@@ -274,7 +274,7 @@ enum DatePrecision {
   MONTH
   YEAR
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 enum CorporateRole {
@@ -282,7 +282,7 @@ enum CorporateRole {
   ADMINISTRATOR
   BOTH
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 model Supplier {
@@ -452,7 +452,7 @@ enum RulesetKind {
   PLANNING
   BOTH
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 /** Pacote operacional de tetos (histórico + vigente) — federal e estadual */
@@ -485,7 +485,7 @@ model ComplianceRuleset {
   @@index([kind])
   @@index([effectiveFrom])
   @@index([createdAt])
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 /** Snapshot do texto oficial baixado do gov.br */
@@ -520,7 +520,7 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 /** Alerta da Auditoria (diligência e outros problemas no espelho do SALIC). */
@@ -562,7 +562,7 @@ enum AuditAlertStatus {
   @@schema("auditoria")
 }
 
-// —— Avisos no sino do MAX Origem (tabelas do Origem; a Auditoria só cria) ——
+// —— Avisos no sino do MAX Financeiro (tabelas do Financeiro; a Auditoria só cria) ——
 
 enum AppNotificationType {
   PAYMENT_DUE_SOON
@@ -575,7 +575,7 @@ enum AppNotificationType {
   READEQUADA_APPLIED
   EVALUATION_PENDING
 
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 model AppNotification {
@@ -592,7 +592,7 @@ model AppNotification {
   createdAt    DateTime            @default(now())
 
   @@map("app_notifications")
-  @@schema("origem")
+  @@schema("financeiro")
 }
 
 /** Preferências de aviso (lidas para respeitar quem desligou diligência / e-mail). */
@@ -605,6 +605,6 @@ model NotificationSettings {
 
   @@unique([workspaceId, userId])
   @@map("notification_settings")
-  @@schema("origem")
+  @@schema("financeiro")
 }
 

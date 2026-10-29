@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Aponta Cultural / Origem / Fluxo para Postgres local (dev) ou restaura o remoto.
+ * Aponta Cultural / Financeiro / Indicadores para Postgres local (dev) ou restaura o remoto.
  *
  *   node scripts/dev-use-local-db.mjs local
  *   node scripts/dev-use-local-db.mjs remote
@@ -26,8 +26,8 @@ const APPS = {
       AUTH_2FA_DISABLED: "true",
       AUTH_EMAIL_SIMULATE: "true",
       NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
-      NEXT_PUBLIC_ORIGEM_URL: "http://localhost:3001",
-      NEXT_PUBLIC_FLUXO_URL: "http://localhost:3002",
+      NEXT_PUBLIC_FINANCEIRO_URL: "http://localhost:3001",
+      NEXT_PUBLIC_INDICADORES_URL: "http://localhost:3002",
       NEXT_PUBLIC_AUDITORIA_URL: "http://localhost:3003",
       NEXT_PUBLIC_CULTURAL_URL: "http://localhost:3000",
       NEXT_PUBLIC_RECAPTCHA_ENABLED: "false",
@@ -36,20 +36,20 @@ const APPS = {
       DEMO_PASSWORD: "LocalDemo123!",
     },
   },
-  origem: {
-    dir: resolve(root, "apps/origem"),
+  financeiro: {
+    dir: resolve(root, "apps/financeiro"),
     local: {
       DATABASE_URL: "postgresql://salink:salink@localhost:5433/salink?schema=public",
       DIRECT_URL: "postgresql://salink:salink@localhost:5433/salink?schema=public",
       AUTH_COOKIE_DOMAIN: "",
       NEXT_PUBLIC_CULTURAL_URL: "http://localhost:3000",
       NEXT_PUBLIC_SITE_URL: "http://localhost:3001",
-      NEXT_PUBLIC_FLUXO_URL: "http://localhost:3002",
+      NEXT_PUBLIC_INDICADORES_URL: "http://localhost:3002",
       SALINK_DEV_OPEN: "0",
       SALINK_DEMO: "0",
     },
   },
-  // Auditoria (antigo Salink): até a virada lê o mesmo banco/schema do Origem.
+  // Auditoria (antigo Salink): até a virada lê o mesmo banco/schema do Financeiro.
   auditoria: {
     dir: resolve(root, "apps/auditoria"),
     local: {
@@ -58,16 +58,16 @@ const APPS = {
       AUTH_COOKIE_DOMAIN: "",
       NEXT_PUBLIC_CULTURAL_URL: "http://localhost:3000",
       NEXT_PUBLIC_SITE_URL: "http://localhost:3003",
-      NEXT_PUBLIC_ORIGEM_URL: "http://localhost:3001",
+      NEXT_PUBLIC_FINANCEIRO_URL: "http://localhost:3001",
     },
   },
-  fluxo: {
-    dir: resolve(root, "apps/fluxo"),
+  indicadores: {
+    dir: resolve(root, "apps/indicadores"),
     local: {
       DATABASE_URL:
-        "postgresql://postgres:postgres@localhost:5436/max_cultural?schema=fluxo",
+        "postgresql://postgres:postgres@localhost:5436/max_cultural?schema=indicadores",
       DIRECT_URL:
-        "postgresql://postgres:postgres@localhost:5436/max_cultural?schema=fluxo",
+        "postgresql://postgres:postgres@localhost:5436/max_cultural?schema=indicadores",
       AUTH_COOKIE_DOMAIN: "",
       AUTH_EMAIL_SIMULATE: "true",
       AUTH_2FA_DISABLED: "true",
@@ -130,8 +130,8 @@ for (const [name, cfg] of Object.entries(APPS)) {
       "AUTH_2FA_DISABLED",
       "AUTH_EMAIL_SIMULATE",
       "NEXT_PUBLIC_SITE_URL",
-      "NEXT_PUBLIC_ORIGEM_URL",
-      "NEXT_PUBLIC_FLUXO_URL",
+      "NEXT_PUBLIC_FINANCEIRO_URL",
+      "NEXT_PUBLIC_INDICADORES_URL",
       "NEXT_PUBLIC_AUDITORIA_URL",
       "NEXT_PUBLIC_CULTURAL_URL",
       "NEXT_PUBLIC_APP_URL",
@@ -153,12 +153,12 @@ if (mode === "local") {
 Próximos passos:
   # bancos
   DOCKER_HOST=unix:///var/run/docker.sock docker compose -f apps/cultural/docker-compose.yml up -d
-  DOCKER_HOST=unix:///var/run/docker.sock docker compose -f apps/origem/docker-compose.yml up -d
+  DOCKER_HOST=unix:///var/run/docker.sock docker compose -f apps/financeiro/docker-compose.yml up -d
 
   # schema + demo
   npm run db:migrate:cultural && npm run db:seed:cultural
-  npm run db:migrate:origem && npm run db:seed -w max-origem
-  npm run db:migrate:fluxo && npm run db:seed-auth -w max-fluxo && npm run db:seed-demo -w max-fluxo
+  npm run db:migrate:financeiro && npm run db:seed -w max-financeiro
+  npm run db:migrate:indicadores && npm run db:seed-auth -w max-indicadores && npm run db:seed-demo -w max-indicadores
 
   unset DATABASE_URL DIRECT_URL
 `);
