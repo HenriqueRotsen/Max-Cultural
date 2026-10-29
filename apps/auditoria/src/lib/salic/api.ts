@@ -117,7 +117,7 @@ async function salicFetch<T>(
         Accept: "application/json",
         "Content-Type": "application/json",
         "User-Agent":
-          "Mozilla/5.0 (compatible; MaxOrigemAuditor/1.0; +https://localhost)",
+          "Mozilla/5.0 (compatible; MaxFinanceiroAuditor/1.0; +https://localhost)",
       },
       // Server Actions: next.revalidate dispara erros internos do Next (#441)
       // se forem engolidos em try/catch. Preferir cache: 'no-store'.

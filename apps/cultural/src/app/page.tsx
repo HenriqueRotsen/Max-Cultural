@@ -10,24 +10,24 @@ export default async function HomePage() {
   if (user) {
     if (needsPasswordChange(user)) redirect("/onboarding/senha");
 
-    const origem = (process.env.NEXT_PUBLIC_ORIGEM_URL || "http://localhost:3001").replace(/\/$/, "");
-    const fluxo = (process.env.NEXT_PUBLIC_FLUXO_URL || "http://localhost:3002").replace(/\/$/, "");
-    const showOrigem = can(user, "origem.app", "view");
-    const showFluxo = can(user, "fluxo.app", "view");
+    const financeiro = (process.env.NEXT_PUBLIC_FINANCEIRO_URL || "http://localhost:3001").replace(/\/$/, "");
+    const indicadores = (process.env.NEXT_PUBLIC_INDICADORES_URL || "http://localhost:3002").replace(/\/$/, "");
+    const showFinanceiro = can(user, "financeiro.app", "view");
+    const showIndicadores = can(user, "indicadores.app", "view");
     // Card só aparece quando o app Auditoria já tem URL configurada (projeto na Vercel).
     const auditoria = (process.env.NEXT_PUBLIC_AUDITORIA_URL || "").replace(/\/$/, "");
     const showAuditoria =
       Boolean(auditoria) &&
-      (can(user, "auditoria.app", "view") || can(user, "origem.auditoria", "view"));
-    // Professor (ou só app Fluxo, sem operação): entra nas respostas, não na base.
-    const fluxoFormulariosOnly =
+      (can(user, "auditoria.app", "view") || can(user, "financeiro.auditoria", "view"));
+    // Professor (ou só app Indicadores, sem operação): entra nas respostas, não na base.
+    const indicadoresFormulariosOnly =
       user.role.name === "Professor" ||
-      (can(user, "fluxo.app", "view") &&
-        !can(user, "fluxo.operacao", "view") &&
-        !can(user, "fluxo.consultas", "view"));
-    const fluxoHref = fluxoFormulariosOnly
-      ? `${fluxo}/dashboard/formularios`
-      : `${fluxo}/dashboard`;
+      (can(user, "indicadores.app", "view") &&
+        !can(user, "indicadores.operacao", "view") &&
+        !can(user, "indicadores.consultas", "view"));
+    const indicadoresHref = indicadoresFormulariosOnly
+      ? `${indicadores}/dashboard/formularios`
+      : `${indicadores}/dashboard`;
 
     return (
       <div className="shell">
@@ -39,11 +39,11 @@ export default async function HomePage() {
           canUsers={can(user, "cultural.usuarios", "view")}
           canRoles={can(user, "cultural.papeis", "view")}
           canLogs={can(user, "cultural.logs", "view")}
-          canOrigem={showOrigem}
-          canFluxo={showFluxo}
-          fluxoFormulariosOnly={fluxoFormulariosOnly}
-          origemUrl={origem}
-          fluxoUrl={fluxo}
+          canFinanceiro={showFinanceiro}
+          canIndicadores={showIndicadores}
+          indicadoresFormulariosOnly={indicadoresFormulariosOnly}
+          financeiroUrl={financeiro}
+          indicadoresUrl={indicadores}
           auditoriaUrl={showAuditoria ? auditoria : ""}
         />
         <div className="shell-main">
@@ -70,9 +70,9 @@ export default async function HomePage() {
               </p>
             </Link>
             <div className="grid gap-4 sm:grid-cols-2">
-              {showOrigem ? (
+              {showFinanceiro ? (
                 <a
-                  href={`${origem}/painel`}
+                  href={`${financeiro}/painel`}
                   className="card p-5 transition hover:shadow-md"
                   style={{
                     borderColor: "#c4b5fd",
@@ -82,8 +82,8 @@ export default async function HomePage() {
                   }}
                 >
                   <img
-                    src="/brand/max-origem.png"
-                    alt="MAX Origem"
+                    src="/brand/max-financeiro.png"
+                    alt="MAX Financeiro"
                     className="mb-4 h-12 w-auto max-w-[220px] object-contain object-left"
                   />
                   <p className="text-sm text-[var(--gray-600)]">
@@ -91,9 +91,9 @@ export default async function HomePage() {
                   </p>
                 </a>
               ) : null}
-              {showFluxo ? (
+              {showIndicadores ? (
                 <a
-                  href={fluxoHref}
+                  href={indicadoresHref}
                   className="card p-5 transition hover:shadow-md"
                   style={{
                     borderColor: "#5eead4",
@@ -103,12 +103,12 @@ export default async function HomePage() {
                   }}
                 >
                   <img
-                    src="/brand/max-fluxo.png"
-                    alt="MAX Fluxo"
+                    src="/brand/max-indicadores.png"
+                    alt="MAX Indicadores"
                     className="mb-4 h-12 w-auto max-w-[220px] object-contain object-left"
                   />
                   <p className="text-sm text-[var(--gray-600)]">
-                    {fluxoFormulariosOnly
+                    {indicadoresFormulariosOnly
                       ? "Avaliação das respostas das suas oficinas."
                       : "Inscrições, análise e território."}
                   </p>
@@ -135,9 +135,9 @@ export default async function HomePage() {
                   </p>
                 </a>
               ) : null}
-              {!showOrigem && !showFluxo && !showAuditoria ? (
+              {!showFinanceiro && !showIndicadores && !showAuditoria ? (
                 <p className="text-sm text-[var(--gray-500)]">
-                  Seu papel ainda não libera Origem nem Fluxo. Fale com o administrador.
+                  Seu papel ainda não libera Financeiro nem Indicadores. Fale com o administrador.
                 </p>
               ) : null}
             </div>

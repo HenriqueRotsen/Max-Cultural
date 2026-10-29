@@ -91,7 +91,7 @@ describe("auth ACL helpers", () => {
       canViewProjetos(
         user({
           permissions: [
-            { screen: "origem.planejamento", canView: true, canEdit: false },
+            { screen: "financeiro.planejamento", canView: true, canEdit: false },
           ],
         }),
       ),

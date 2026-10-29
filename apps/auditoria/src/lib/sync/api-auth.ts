@@ -4,7 +4,7 @@ import { AUTH_COOKIE, parseSessionToken } from "@max/auth";
 import { getSessionUser } from "@/lib/auth/session";
 
 /**
- * Autentica rotas de sync: sessão Origem/hub OU header interno SYNC_INTERNAL_SECRET.
+ * Autentica rotas de sync: sessão Financeiro/hub OU header interno SYNC_INTERNAL_SECRET.
  */
 export async function assertSyncApiAuth(request: Request): Promise<NextResponse | null> {
   const secret = (process.env.SYNC_INTERNAL_SECRET || "").trim();

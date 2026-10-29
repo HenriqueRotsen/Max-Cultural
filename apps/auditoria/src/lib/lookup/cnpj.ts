@@ -74,7 +74,7 @@ function mapQualification(qual: string): "PARTNER" | "ADMINISTRATOR" | "BOTH" {
 
 const FETCH_HEADERS = {
   Accept: "application/json",
-  "User-Agent": "MaxOrigemAuditor/1.0",
+  "User-Agent": "MaxFinanceiroAuditor/1.0",
 } as const;
 
 async function fetchCnpjBrasilApi(cnpj: string): Promise<CnpjCompanyResult | null> {

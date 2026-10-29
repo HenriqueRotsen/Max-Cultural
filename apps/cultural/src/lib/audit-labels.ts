@@ -42,10 +42,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "oficina.created": "Oficina criada",
   "oficina.updated": "Oficina atualizada",
   "oficina.deleted": "Oficina excluída",
-  "user.created": "Usuário criado (Fluxo)",
-  "user.updated": "Usuário atualizado (Fluxo)",
-  "role.created": "Papel criado (Fluxo)",
-  "role.updated": "Papel atualizado (Fluxo)",
+  "user.created": "Usuário criado (Indicadores)",
+  "user.updated": "Usuário atualizado (Indicadores)",
+  "role.created": "Papel criado (Indicadores)",
+  "role.updated": "Papel atualizado (Indicadores)",
   "audit.exported": "Exportação de auditoria",
 };
 
@@ -55,8 +55,8 @@ export function auditActionLabel(action: string): string {
 
 export function auditScreenLabel(screen: string): string {
   if (!screen) return "—";
-  if (screen.startsWith("origem.")) return screen.replace(/^origem\./, "Origem · ");
-  if (screen.startsWith("fluxo.")) return screen.replace(/^fluxo\./, "Fluxo · ");
+  if (screen.startsWith("financeiro.")) return screen.replace(/^financeiro\./, "Financeiro · ");
+  if (screen.startsWith("indicadores.")) return screen.replace(/^indicadores\./, "Indicadores · ");
   if (screen.startsWith("auditoria.")) return screen.replace(/^auditoria\./, "Auditoria · ");
   if (screen.startsWith("cultural.")) return screen.replace(/^cultural\./, "Cultural · ");
   return screen;

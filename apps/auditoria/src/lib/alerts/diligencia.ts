@@ -84,7 +84,7 @@ export async function recordSituacaoChange(params: {
   return alert.id;
 }
 
-/** Sino do MAX Origem + e-mail, respeitando as preferências de cada usuário. */
+/** Sino do MAX Financeiro + e-mail, respeitando as preferências de cada usuário. */
 async function notifyAlert(params: {
   workspaceId: string;
   alertId: string;

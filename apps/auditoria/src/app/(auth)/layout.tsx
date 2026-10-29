@@ -1,11 +1,11 @@
-import { origemHubLoginUrl } from "@/lib/auth/hub";
+import { financeiroHubLoginUrl } from "@/lib/auth/hub";
 import { MaxAuditoriaLogo } from "@/components/MaxAuditoriaLogo";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <a href={origemHubLoginUrl("/inicio")} className="mb-6 inline-block">
+        <a href={financeiroHubLoginUrl("/inicio")} className="mb-6 inline-block">
           <MaxAuditoriaLogo />
         </a>
         {children}

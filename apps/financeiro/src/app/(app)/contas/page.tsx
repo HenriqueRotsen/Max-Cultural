@@ -1,0 +1,153 @@
+import Link from "next/link";
+import { prisma } from "@/lib/db";
+import { decryptCredential } from "@/lib/crypto";
+import { formatCgccpf } from "@/lib/format";
+import { getActiveRules, getPendingRulesetReview } from "@/lib/compliance/rules";
+import { getWorkspaceContext } from "@/lib/auth/session";
+import { accountLimitMessage } from "@/lib/auth/entitlements";
+import { AccountEditor } from "@/components/AccountEditor";
+import { CreateAccountForm } from "@/components/CreateAccountForm";
+import { FieldHelp } from "@/components/FieldHelp";
+import { PageHeader } from "@/components/ui";
+import { HELP } from "@/lib/help";
+
+export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function ContasPage({ searchParams }: { searchParams: SearchParams }) {
+  const sp = await searchParams;
+  const { entitlements } = await getWorkspaceContext();
+  const [accounts, rules, pendingReview] = await Promise.all([
+    prisma.salicAccount.findMany({
+      where: { workspaceId: entitlements.workspaceId },
+      orderBy: { name: "asc" },
+      include: {
+        _count: { select: { planningProjects: true } },
+      },
+    }),
+    getActiveRules(),
+    getPendingRulesetReview(),
+  ]);
+
+  const atLimit = accounts.length >= entitlements.maxAccounts;
+  const tabParam = typeof sp.tab === "string" ? sp.tab : undefined;
+  const tab =
+    tabParam === "nova" || tabParam === "suas-contas"
+      ? tabParam
+      : accounts.length > 0
+        ? "suas-contas"
+        : "nova";
+
+  const created = sp.created === "1";
+  const updated = sp.updated === "1";
+  const passwordCleared = sp.passwordCleared === "1";
+  const error = typeof sp.error === "string" ? sp.error : null;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumb="Proponentes"
+        title="Proponentes SALIC"
+        description={`Contas vinculadas aos proponentes no SALIC. Regras: ${rules.sourceCode}.`}
+      />
+
+      {pendingReview && (
+        <div
+          className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]"
+          role="status"
+        >
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            As regras oficiais mudaram ({pendingReview.sourceCode} · {pendingReview.version}).
+            Revise os percentuais antes de usá-las nos avisos.
+            <FieldHelp text={HELP.pendingNorm} />
+          </span>
+        </div>
+      )}
+
+      <nav className="accounts-tabs" aria-label="Abas de proponentes">
+        <Link
+          href="/contas?tab=suas-contas"
+          aria-current={tab === "suas-contas" ? "page" : undefined}
+        >
+          Seus proponentes{accounts.length > 0 ? ` (${accounts.length})` : ""}
+        </Link>
+        {!atLimit && (
+          <Link href="/contas?tab=nova" aria-current={tab === "nova" ? "page" : undefined}>
+            Novo proponente
+          </Link>
+        )}
+      </nav>
+
+      {error && (
+        <div className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-sm text-[var(--navy)]">
+          {error}
+        </div>
+      )}
+
+      {created && (
+        <div
+          className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]"
+          role="status"
+        >
+          Proponente cadastrado com sucesso. Ele já aparece em <strong>Seus proponentes</strong>.
+        </div>
+      )}
+      {updated && (
+        <div
+          className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]"
+          role="status"
+        >
+          Proponente atualizado com sucesso.
+        </div>
+      )}
+      {passwordCleared && (
+        <div
+          className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm text-[var(--navy)]"
+          role="status"
+        >
+          Senha removida do MAX Financeiro. Para atualizar pela área logada do SALIC, cadastre a senha de novo.
+        </div>
+      )}
+
+      {tab === "nova" ? (
+        atLimit ? (
+          <div className="card p-5 text-sm text-[var(--gray-600)]">
+            {accountLimitMessage(entitlements.maxAccounts)}
+          </div>
+        ) : (
+          <CreateAccountForm syncEnabled={entitlements.syncEnabled} />
+        )
+      ) : (
+        <div className="space-y-4">
+          {accounts.length === 0 ? (
+            <div className="card p-5 text-sm text-[var(--gray-500)]">
+              Nenhuma conta de proponente cadastrada ainda.{" "}
+              <Link href="/contas?tab=nova" className="font-semibold text-[var(--navy)] underline">
+                Adicionar o primeiro proponente
+              </Link>
+              .
+            </div>
+          ) : (
+            accounts.map((account) => (
+              <AccountEditor
+                key={account.id}
+                syncEnabled={entitlements.syncEnabled}
+                account={{
+                  id: account.id,
+                  name: account.name,
+                  cgccpf: formatCgccpf(account.cgccpf),
+                  salicUsername: decryptCredential(account.salicUsernameEnc),
+                  hasPassword: Boolean(account.salicPasswordEnc),
+                  personType: account.personType,
+                  projectCount: account._count.planningProjects,
+                  institutionalMap: account.institutionalMap,
+                }}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

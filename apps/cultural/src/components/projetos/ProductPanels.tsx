@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { FluxoHubSummary } from "@/lib/fluxo-projects";
-import { formatMoney, formatWhen, type HubProjectSummary } from "@/lib/origem-projects";
+import type { IndicadoresHubSummary } from "@/lib/indicadores-projects";
+import { formatMoney, formatWhen, type HubProjectSummary } from "@/lib/financeiro-projects";
 import { BarChart, DonutChart, SocioTabs } from "./MiniCharts";
 
 type PanelTheme = {
@@ -11,7 +11,7 @@ type PanelTheme = {
   border: string;
 };
 
-const ORIGEM = {
+const FINANCEIRO = {
   accent: "#7c3aed",
   ink: "#5b21b6",
   soft: "#f5f3ff",
@@ -26,7 +26,7 @@ const ORIGEM = {
   available: string;
 };
 
-const FLUXO = {
+const INDICADORES = {
   accent: "#0d9488",
   ink: "#115e59",
   soft: "#f0fdfa",
@@ -156,14 +156,14 @@ function ThemeBtn({
   );
 }
 
-export function OrigemPanel({
+export function FinanceiroPanel({
   project,
-  origemBase,
+  financeiroBase,
 }: {
   project: HubProjectSummary;
-  origemBase: string;
+  financeiroBase: string;
 }) {
-  const t = ORIGEM;
+  const t = FINANCEIRO;
   const teto = Number.isFinite(project.totalAvailableCap)
     ? project.totalAvailableCap
     : project.totalApproved;
@@ -195,16 +195,16 @@ export function OrigemPanel({
   return (
     <PanelShell
       theme={t}
-      logoSrc="/brand/max-origem.png"
-      logoAlt="MAX Origem"
-      openHref={project.origemPlanejamentoUrl}
+      logoSrc="/brand/max-financeiro.png"
+      logoAlt="MAX Financeiro"
+      openHref={project.financeiroPlanejamentoUrl}
       openLabel="Abrir planejamento"
       actions={
         <>
-          <ThemeBtn href={`${origemBase}/auditoria`} accent={t.accent} soft={t.soft2}>
+          <ThemeBtn href={`${financeiroBase}/auditoria`} accent={t.accent} soft={t.soft2}>
             Auditoria
           </ThemeBtn>
-          <ThemeBtn href={`${origemBase}/painel`} accent={t.accent} soft={t.soft2}>
+          <ThemeBtn href={`${financeiroBase}/painel`} accent={t.accent} soft={t.soft2}>
             Painel
           </ThemeBtn>
         </>
@@ -278,31 +278,31 @@ export function OrigemPanel({
   );
 }
 
-export function FluxoPanel({
-  fluxo,
+export function IndicadoresPanel({
+  indicadores,
   error,
-  fluxoBase,
+  indicadoresBase,
 }: {
-  fluxo: FluxoHubSummary | null;
+  indicadores: IndicadoresHubSummary | null;
   error?: string;
-  fluxoBase: string;
+  indicadoresBase: string;
 }) {
-  const t = FLUXO;
-  const found = Boolean(fluxo?.found);
+  const t = INDICADORES;
+  const found = Boolean(indicadores?.found);
 
   return (
     <PanelShell
       theme={t}
-      logoSrc="/brand/max-fluxo.png"
-      logoAlt="MAX Fluxo"
-      openHref={found && fluxo?.fluxoUrl ? fluxo.fluxoUrl : null}
-      openLabel="Abrir no Fluxo"
+      logoSrc="/brand/max-indicadores.png"
+      logoAlt="MAX Indicadores"
+      openHref={found && indicadores?.indicadoresUrl ? indicadores.indicadoresUrl : null}
+      openLabel="Abrir no MAX Indicadores"
       actions={
         <>
-          <ThemeBtn href={`${fluxoBase}/dashboard`} accent={t.accent} soft={t.soft2}>
-            Painel Fluxo
+          <ThemeBtn href={`${indicadoresBase}/dashboard`} accent={t.accent} soft={t.soft2}>
+            Painel Indicadores
           </ThemeBtn>
-          <ThemeBtn href={`${fluxoBase}/dashboard/analise`} accent={t.accent} soft={t.soft2}>
+          <ThemeBtn href={`${indicadoresBase}/dashboard/analise`} accent={t.accent} soft={t.soft2}>
             Análise
           </ThemeBtn>
         </>
@@ -312,43 +312,43 @@ export function FluxoPanel({
 
       {!error && !found ? (
         <p className="text-sm text-[var(--gray-500)]">
-          Sem dados de inscrição no Fluxo para este código.
+          Sem dados de inscrição no MAX Indicadores para este código.
         </p>
       ) : null}
 
-      {found && fluxo ? (
+      {found && indicadores ? (
         <>
-          {fluxo.projetos.length > 0 ? (
+          {indicadores.projetos.length > 0 ? (
             <dl className="grid gap-2 sm:grid-cols-2">
               <Meta
-                label={fluxo.projetos.length > 1 ? "Projetos Fluxo" : "Projeto Fluxo"}
+                label={indicadores.projetos.length > 1 ? "Projetos" : "Projeto"}
                 value={
-                  fluxo.projetos.length === 1
-                    ? `${fluxo.projetos[0]!.nome} · ${fluxo.projetos[0]!.ano}`
-                    : `${fluxo.projetos.length} vinculados · ${fluxo.projetos[0]!.nome}…`
+                  indicadores.projetos.length === 1
+                    ? `${indicadores.projetos[0]!.nome} · ${indicadores.projetos[0]!.ano}`
+                    : `${indicadores.projetos.length} vinculados · ${indicadores.projetos[0]!.nome}…`
                 }
               />
-              <Meta label="PRONAC" value={fluxo.pronac} />
+              <Meta label="PRONAC" value={indicadores.pronac} />
             </dl>
           ) : null}
 
           <div className="grid grid-cols-2 gap-3">
-            <Stat label="Inscritos" value={String(fluxo.totais.inscritos)} soft={t.soft2} accent={t.ink} />
+            <Stat label="Inscritos" value={String(indicadores.totais.inscritos)} soft={t.soft2} accent={t.ink} />
             <Stat
               label="Selecionados"
-              value={String(fluxo.totais.selecionados)}
+              value={String(indicadores.totais.selecionados)}
               soft={t.soft2}
               accent={t.ink}
             />
             <Stat
               label="Participantes"
-              value={String(fluxo.totais.participantes)}
+              value={String(indicadores.totais.participantes)}
               soft={t.soft2}
               accent={t.ink}
             />
             <Stat
               label="Certificados"
-              value={String(fluxo.totais.certificados)}
+              value={String(indicadores.totais.certificados)}
               soft={t.soft2}
               accent={t.ink}
             />
@@ -361,28 +361,28 @@ export function FluxoPanel({
             <BarChart
               accent={t.accent}
               items={[
-                { label: "Inscritos", value: fluxo.totais.inscritos },
-                { label: "Selecionados", value: fluxo.totais.selecionados },
-                { label: "Participantes", value: fluxo.totais.participantes },
-                { label: "Certificados", value: fluxo.totais.certificados },
+                { label: "Inscritos", value: indicadores.totais.inscritos },
+                { label: "Selecionados", value: indicadores.totais.selecionados },
+                { label: "Participantes", value: indicadores.totais.participantes },
+                { label: "Certificados", value: indicadores.totais.certificados },
               ]}
             />
             <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Meta label="Oficinas" value={String(fluxo.totais.oficinas)} />
-              <Meta label="Seleção" value={`${fluxo.totais.taxaSelecao}%`} />
-              <Meta label="Participação" value={`${fluxo.totais.taxaParticipacao}%`} />
-              <Meta label="Certificação" value={`${fluxo.totais.taxaCertificado}%`} />
+              <Meta label="Oficinas" value={String(indicadores.totais.oficinas)} />
+              <Meta label="Seleção" value={`${indicadores.totais.taxaSelecao}%`} />
+              <Meta label="Participação" value={`${indicadores.totais.taxaParticipacao}%`} />
+              <Meta label="Certificação" value={`${indicadores.totais.taxaCertificado}%`} />
             </dl>
           </div>
 
-          {fluxo.topEstados.length > 0 ? (
+          {indicadores.topEstados.length > 0 ? (
             <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-400)]">
                 Principais UFs
               </p>
               <BarChart
                 accent={t.b}
-                items={fluxo.topEstados.map((e) => ({
+                items={indicadores.topEstados.map((e) => ({
                   label: e.estado,
                   value: e.inscritos,
                 }))}
@@ -397,20 +397,20 @@ export function FluxoPanel({
             <SocioTabs
               accent={t.accent}
               soft={t.soft2}
-              byCohort={fluxo.socioByCohort}
+              byCohort={indicadores.socioByCohort}
               sections={[
-                { id: "genero", title: "Gênero", items: fluxo.socio?.genero ?? [] },
-                { id: "idade", title: "Idade", items: fluxo.socio?.idade ?? [] },
-                { id: "etnia", title: "Etnia", items: fluxo.socio?.etnia ?? [] },
+                { id: "genero", title: "Gênero", items: indicadores.socio?.genero ?? [] },
+                { id: "idade", title: "Idade", items: indicadores.socio?.idade ?? [] },
+                { id: "etnia", title: "Etnia", items: indicadores.socio?.etnia ?? [] },
                 {
                   id: "escolaridade",
                   title: "Escolaridade",
-                  items: fluxo.socio?.escolaridade ?? [],
+                  items: indicadores.socio?.escolaridade ?? [],
                 },
                 {
                   id: "deficiencia",
                   title: "Deficiência",
-                  items: fluxo.socio?.deficienca ?? [],
+                  items: indicadores.socio?.deficienca ?? [],
                 },
               ]}
             />

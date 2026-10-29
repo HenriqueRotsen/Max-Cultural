@@ -31,7 +31,7 @@ function createPrismaClient() {
   }
   if (/supabase\.co|pooler\.supabase/i.test(connectionString)) {
     console.warn(
-      "[origem] DATABASE_URL aponta para Supabase em desenvolvimento. Rode: npm run db:use-local",
+      "[auditoria] DATABASE_URL aponta para Supabase em desenvolvimento. Rode: npm run db:use-local",
     );
   }
   const schema = schemaFromDatabaseUrl(connectionString);
@@ -39,7 +39,7 @@ function createPrismaClient() {
     throw new Error(`Invalid Postgres schema name: ${schema}`);
   }
   // O adapter só qualifica SQL gerado pelo Prisma. $queryRaw / $executeRaw
-  // precisam do search_path — sem isso, tabelas do schema (ex.: origem.catalog_*)
+  // precisam do search_path — sem isso, tabelas do schema (ex.: financeiro.catalog_*)
   // falham com "relation does not exist" e quebram /fornecedores.
   const pool = new Pool({
     connectionString,
@@ -60,7 +60,7 @@ export function clientMatchesSchema(client: PrismaClient): boolean {
   )._runtimeDataModel?.models;
   if (!models) return false;
   const fields = (model: string) => new Set((models[model]?.fields || []).map((f) => f.name));
-  // Planejamento e Fornecedores são do MAX Origem — não existem neste client.
+  // Planejamento e Fornecedores são do MAX Financeiro — não existem neste client.
   if (models.PlanningProject || models.CatalogSupplier) return false;
   const account = fields("SalicAccount");
   if (!account.has("foundedAt") || !account.has("institutionalMap")) return false;

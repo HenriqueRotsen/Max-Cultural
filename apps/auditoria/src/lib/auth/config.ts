@@ -1,5 +1,5 @@
 /**
- * Auth do MAX Origem: login e 2FA ficam no hub MAX Cultural.
+ * Auth do MAX Financeiro: login e 2FA ficam no hub MAX Cultural.
  * Este app só consome o cookie SSO (`AUTH_SECRET` + `NEXT_PUBLIC_CULTURAL_URL`).
  */
 

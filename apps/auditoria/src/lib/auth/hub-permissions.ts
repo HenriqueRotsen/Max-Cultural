@@ -164,9 +164,9 @@ export async function requireHubPermission(permissionId: string): Promise<boolea
 
 /**
  * Entrada no app Auditoria (antigo Salink). Aceita a permissão própria e, na
- * transição, quem já tinha a tela de Auditoria dentro do MAX Origem.
+ * transição, quem já tinha a tela de Auditoria dentro do MAX Financeiro.
  */
-export const AUDITORIA_PERMISSION_IDS = ["auditoria.app", "origem.auditoria"] as const;
+export const AUDITORIA_PERMISSION_IDS = ["auditoria.app", "financeiro.auditoria"] as const;
 
 export function canEnterAuditoria(ids: Set<string>): boolean {
   return ids.has("*") || AUDITORIA_PERMISSION_IDS.some((id) => ids.has(id));

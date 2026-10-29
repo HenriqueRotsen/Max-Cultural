@@ -275,7 +275,7 @@ export function LogsExplorer({ logs, total, query, filterOptions }: Props) {
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-[var(--navy)]">Logs</h1>
           <p className="mt-1 text-sm text-[var(--gray-500)]">
-            Trilha central: autenticação, IAM do hub e eventos do Origem/Fluxo.
+            Trilha central: autenticação, IAM do hub e eventos do Financeiro/Indicadores.
           </p>
         </div>
         <a href={exportHref} className="btn btn-ghost text-sm">

@@ -40,8 +40,8 @@ export function UserAccessEditor({
   });
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({
     cultural: true,
-    origem: true,
-    fluxo: true,
+    financeiro: true,
+    indicadores: true,
   });
   const sections = useMemo(() => productSections(), []);
 

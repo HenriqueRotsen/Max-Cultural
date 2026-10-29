@@ -10,18 +10,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
   if (needsPasswordChange(user)) redirect("/onboarding/senha");
 
-  const origemUrl = (process.env.NEXT_PUBLIC_ORIGEM_URL || "http://localhost:3001").replace(
+  const financeiroUrl = (process.env.NEXT_PUBLIC_FINANCEIRO_URL || "http://localhost:3001").replace(
     /\/$/,
     "",
   );
-  const fluxoUrl = (process.env.NEXT_PUBLIC_FLUXO_URL || "http://localhost:3002").replace(
+  const indicadoresUrl = (process.env.NEXT_PUBLIC_INDICADORES_URL || "http://localhost:3002").replace(
     /\/$/,
     "",
   );
 
 
   const auditoriaUrl =
-    (can(user, "auditoria.app", "view") || can(user, "origem.auditoria", "view")) &&
+    (can(user, "auditoria.app", "view") || can(user, "financeiro.auditoria", "view")) &&
     process.env.NEXT_PUBLIC_AUDITORIA_URL
       ? process.env.NEXT_PUBLIC_AUDITORIA_URL.replace(/\/$/, "")
       : "";
@@ -36,16 +36,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         canUsers={can(user, "cultural.usuarios", "view")}
         canRoles={can(user, "cultural.papeis", "view")}
         canLogs={can(user, "cultural.logs", "view")}
-        canOrigem={can(user, "origem.app", "view")}
-        canFluxo={can(user, "fluxo.app", "view")}
-        fluxoFormulariosOnly={
+        canFinanceiro={can(user, "financeiro.app", "view")}
+        canIndicadores={can(user, "indicadores.app", "view")}
+        indicadoresFormulariosOnly={
           user.role.name === "Professor" ||
-          (can(user, "fluxo.app", "view") &&
-            !can(user, "fluxo.operacao", "view") &&
-            !can(user, "fluxo.consultas", "view"))
+          (can(user, "indicadores.app", "view") &&
+            !can(user, "indicadores.operacao", "view") &&
+            !can(user, "indicadores.consultas", "view"))
         }
-        origemUrl={origemUrl}
-        fluxoUrl={fluxoUrl}
+        financeiroUrl={financeiroUrl}
+        indicadoresUrl={indicadoresUrl}
         auditoriaUrl={auditoriaUrl}
       />
       <div className="shell-main" data-mx-main>

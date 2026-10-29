@@ -73,7 +73,7 @@ export default async function UsuarioAcessosPage({
           >
             {target.role.name}
           </Link>
-          . Ajustes aqui valem só para esta pessoa (Cultural, Origem e Fluxo via SSO).
+          . Ajustes aqui valem só para esta pessoa (Cultural, Financeiro e Indicadores via SSO).
         </p>
       </div>
 

@@ -8,12 +8,12 @@ describe("screens catalog", () => {
 
   it("inclui telas críticas de produtos", () => {
     const ids = new Set(SCREEN_IDS);
-    expect(ids.has("origem.app")).toBe(true);
-    expect(ids.has("origem.planejamento")).toBe(true);
-    expect(ids.has("origem.planejamento.excluir_nf")).toBe(true);
-    expect(ids.has("origem.planejamento.editar_rubricas")).toBe(true);
+    expect(ids.has("financeiro.app")).toBe(true);
+    expect(ids.has("financeiro.planejamento")).toBe(true);
+    expect(ids.has("financeiro.planejamento.excluir_nf")).toBe(true);
+    expect(ids.has("financeiro.planejamento.editar_rubricas")).toBe(true);
     expect(ids.has("cultural.usuarios.edit")).toBe(true);
-    expect(ids.has("fluxo.app")).toBe(true);
+    expect(ids.has("indicadores.app")).toBe(true);
     expect(ids.has("cultural.home")).toBe(true);
   });
 

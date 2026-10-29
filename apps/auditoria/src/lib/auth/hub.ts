@@ -21,7 +21,7 @@ export function isHubSsoEnabled() {
   return Boolean(hub && secret);
 }
 
-export function origemPublicUrl(path = "/inicio") {
+export function financeiroPublicUrl(path = "/inicio") {
   const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001").replace(
     /\/$/,
     "",
@@ -30,15 +30,15 @@ export function origemPublicUrl(path = "/inicio") {
   return `${site}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export function origemHubLoginUrl(path = "/inicio") {
-  return culturalLoginUrl(origemPublicUrl(path));
+export function financeiroHubLoginUrl(path = "/inicio") {
+  return culturalLoginUrl(financeiroPublicUrl(path));
 }
 
-export function origemHubLogoutUrl() {
+export function financeiroHubLogoutUrl() {
   return culturalLogoutUrl();
 }
 
-export function origemHubAccountUrl() {
+export function financeiroHubAccountUrl() {
   return `${culturalHubUrl()}/conta`;
 }
 

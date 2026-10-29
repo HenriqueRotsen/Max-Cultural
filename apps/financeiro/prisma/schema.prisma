@@ -1,0 +1,826 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PersonType {
+  PJ
+  PF
+  MEI
+}
+
+enum RulesetStatus {
+  active
+  draft
+  superseded
+  archived
+}
+
+enum RulesetSource {
+  ai
+  manual
+  default
+}
+
+enum AppUserRole {
+  ADMIN
+  USER
+}
+
+enum AppPlan {
+  ESSENTIAL
+  PRO
+}
+
+/** Espaço do cliente: plano, limite de contas e dados isolados. */
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  plan        AppPlan  @default(ESSENTIAL)
+  /** Limite de contas SALIC. Essencial força 1; Pro é definido pelo admin. */
+  maxAccounts Int      @default(1)
+  /**
+   * Overrides de vínculo art. 23 por IN:
+   * { [rulesetVersion]: RelationKind[] }
+   */
+  relationBondOverrides Json?
+  /** Atualização automática diária com o SALIC (desligar exige capacidade + confirmação dupla). */
+  salicAutoSync            Boolean   @default(true)
+  salicAutoSyncChangedAt   DateTime?
+  salicAutoSyncChangedById String?
+  /** Motivo informado ao desligar/religar. */
+  salicAutoSyncNote        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users            AppUser[]
+  accounts         SalicAccount[]
+  catalogSuppliers   CatalogSupplier[]
+  catalogFavorites   CatalogFavorite[]
+  catalogEngagements CatalogEngagement[]
+  planningProjects          PlanningProject[]
+  planningPedidos           PlanningPedido[]
+  planningReadequacaoDrafts PlanningReadequacaoDraft[]
+  appNotifications          AppNotification[]
+  notificationSettings      NotificationSettings[]
+
+  @@index([plan])
+}
+
+/** Perfil do usuário autenticado (Supabase Auth). */
+model AppUser {
+  id                 String      @id
+  email              String      @unique
+  name               String?
+  role               AppUserRole @default(USER)
+  /** Exige troca na próxima entrada (senha temporária do admin). */
+  mustChangePassword Boolean     @default(false)
+  active             Boolean     @default(true)
+  /** Contato comercial do usuário / cliente */
+  contactEmail       String      @default("")
+  contactPhone       String      @default("")
+  addressZip         String      @default("")
+  addressStreet      String      @default("")
+  addressNumber      String      @default("")
+  addressComplement  String?
+  addressNeighborhood String     @default("")
+  addressCity        String      @default("")
+  /** UF (2 letras) */
+  addressState       String      @default("")
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  createdById        String?
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([role])
+  @@index([active])
+  @@index([workspaceId])
+}
+
+model SalicAccount {
+  id               String     @id @default(cuid())
+  name             String
+  cgccpf           String
+  /** Login SALIC criptografado em repouso (AES-256-GCM) */
+  salicUsernameEnc String?
+  /** Senha SALIC criptografada em repouso (AES-256-GCM) */
+  salicPasswordEnc String?
+  /** PRONACs extras (vírgula/espaço), úteis quando a API não lista o projeto no CNPJ */
+  extraPronacs     String?
+  /** PJ = teto 20%; PF/MEI = teto 30% (art. 23 §2º II) */
+  personType       PersonType @default(PJ)
+  active           Boolean    @default(true)
+  /** Data de abertura da empresa — âncora dos intervalos do mapa */
+  foundedAt            DateTime?
+  foundedAtPrecision   DatePrecision  @default(DAY)
+  foundedAtSource      String?
+  /** OSC: mapa organizacional e papéis sempre administrador (sem “sócio/societário”). */
+  institutionalMap     Boolean        @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  planningProjects   PlanningProject[]
+
+  @@unique([workspaceId, cgccpf])
+  @@index([active])
+  @@index([workspaceId])
+}
+
+enum DatePrecision {
+  DAY
+  MONTH
+  YEAR
+}
+
+enum RulesetKind {
+  AUDIT_CAPS
+  PLANNING
+  BOTH
+}
+
+/** Pacote operacional de tetos (histórico + vigente) — federal e estadual */
+model ComplianceRuleset {
+  id                 String        @id @default(cuid())
+  version            String        @unique
+  sourceCode         String
+  sourceUrl          String
+  /** FEDERAL ou UF (SP, MG, …) */
+  jurisdiction       String        @default("FEDERAL")
+  kind               RulesetKind   @default(BOTH)
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  caps               Json
+  /** Parâmetros de Planejamento (%, formulário, checklist) — null em INs só de auditoria legadas */
+  planning           Json?
+  legalSummary       String?       @db.Text
+  jurisprudenceNotes String?       @db.Text
+  contentHash        String?
+  status             RulesetStatus @default(draft)
+  needsReview        Boolean       @default(false)
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  planningProjects PlanningProject[]
+
+  @@index([status])
+  @@index([jurisdiction])
+  @@index([kind])
+  @@index([effectiveFrom])
+  @@index([createdAt])
+}
+
+/** Banco de preços (módulo Fornecedores), isolado por workspace. */
+model CatalogSupplier {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  cnpj           String
+  name           String
+  tradeName      String?
+  phone          String?
+  email          String?
+  /** CNAE principal (código só dígitos, ex. 9001902). Obrigatório para CNPJ na UI. */
+  cnaeCode       String?
+  cnaeDescription String?
+  address        String?
+  streetType     String?
+  streetName     String?
+  streetNumber   String?
+  complement     String?
+  neighborhood   String?
+  city           String?
+  cityIbgeCode   String?
+  state          String?
+  zipCode        String?
+  latitude       Float?
+  longitude      Float?
+  /** Dados de pagamento extraídos/confirmados a partir da descrição da NF. */
+  pixKey         String?
+  bankName       String?
+  bankAgency     String?
+  bankAccount    String?
+  paymentNotes   String?
+  notes          String?
+  avgRating      Float    @default(0)
+  ratingCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  services    CatalogService[]
+  favorites   CatalogFavorite[]
+  pedidos     PlanningPedido[]
+
+  @@unique([workspaceId, cnpj])
+  @@index([workspaceId, name])
+  @@index([workspaceId, state])
+  @@map("catalog_suppliers")
+}
+
+model CatalogFavorite {
+  id          String   @id @default(cuid())
+  workspaceId String
+  supplierId  String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  supplier  CatalogSupplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, supplierId])
+  @@map("catalog_favorites")
+}
+
+model CatalogService {
+  id               String   @id @default(cuid())
+  supplierId       String
+  name             String
+  category         String?
+  description      String?
+  defaultPriceUnit String?
+  avgRating        Float    @default(0)
+  ratingCount      Int      @default(0)
+  avgPrice         Float    @default(0)
+  embeddingUpdatedAt DateTime?
+  nameEmbedding    Unsupported("vector")?
+  descriptionEmbedding Unsupported("vector")?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  supplier    CatalogSupplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  engagements CatalogEngagement[]
+
+  @@index([supplierId, name])
+  @@index([category])
+  @@map("catalog_services")
+}
+
+model CatalogEngagement {
+  id          String    @id @default(cuid())
+  workspaceId String
+  serviceId   String
+  price       Decimal   @db.Decimal(14, 2)
+  unitPrice   Decimal   @db.Decimal(14, 2) @default(0)
+  quantity    Decimal   @db.Decimal(14, 4) @default(1)
+  priceUnit   String    @default("closed")
+  hiredAt     DateTime
+  location    String?
+  deadlineDays Int?
+  deadlineDate DateTime?
+  rating      Int?
+  ratingComment String?
+  delayed     Boolean   @default(false)
+  delayDays   Int?
+  /** Avaliação feita após o pagamento (nota, prazo/atraso, comentário). */
+  evaluatedAt   DateTime?
+  evaluatedById String?
+  notes       String?
+  /** Origem (sempre o Planejamento): PLANNING_NF | PLANNING_RPA | PLANNING_MANUAL | PLANNING_PEDIDO */
+  source             String  @default("PLANNING_MANUAL")
+  planningProjectId  String?
+  budgetLineId       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  service         CatalogService   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  planningProject PlanningProject? @relation(fields: [planningProjectId], references: [id], onDelete: SetNull)
+  budgetLine      ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  commitment      RubricCommitment?
+  documents       PlanningDocument[]
+
+  @@index([workspaceId, hiredAt])
+  @@index([planningProjectId])
+  @@index([budgetLineId])
+  @@map("catalog_engagements")
+}
+
+enum CommitmentStatus {
+  RESERVED
+  PAID
+  CANCELLED
+}
+
+enum PedidoStatus {
+  OPEN
+  FULFILLED
+  CANCELLED
+}
+
+enum PlanningDocumentKind {
+  NF
+  RPA
+  PAYMENT_PROOF
+  TAX_PROOF
+}
+
+enum ReadequacaoDraftSource {
+  MANUAL
+  SALIC_READEQUADA
+}
+
+enum ReadequacaoDraftStatus {
+  OPEN
+  EXPORTED
+  APPLIED
+  EXPIRED
+}
+
+enum PlanningDocumentStatus {
+  PROCESSING
+  REVIEW
+  IMPORTED
+  FAILED
+}
+
+enum AppNotificationType {
+  PAYMENT_DUE_SOON
+  PAYMENT_OVERDUE
+  RUBRIC_NEAR
+  NF_PENDING
+  TAX_DUE_ISS
+  TAX_DUE_FEDERAL
+  SALIC_DILIGENCIA
+  READEQUADA_APPLIED
+  EVALUATION_PENDING
+}
+
+/** Projeto de execução no Planejamento (planilha homologada one-shot). */
+model PlanningProject {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  accountId      String
+  /** FEDERAL ou UF */
+  jurisdiction   String
+  /** IN de referência (só informativo no federal; estadual não usa). */
+  rulesetVersion String?
+  /** Limites do projeto, em % do valor captado (informados ao começar o projeto). */
+  supplierCapPct   Decimal  @default(20) @db.Decimal(5, 2)
+  /** Proponente + quem tem vínculo com ele (sócio, cônjuge, empresa ligada), somados. */
+  bondCapPct       Decimal  @default(20) @db.Decimal(5, 2)
+  /** Quanto uma rubrica pode passar do aprovado (reserva e remanejamento), com permissão. */
+  rubricOverrunPct Decimal  @default(100) @db.Decimal(6, 2)
+  /** PRONAC ou código estadual */
+  externalCode   String
+  name           String?
+  /**
+   * Situação do projeto no SALIC (ex.: "E37 - Diligência"), lida pela sessão
+   * do próprio Planejamento — não vem da Auditoria.
+   */
+  situacao       String?
+  situacaoAt     DateTime?
+  /** Valor captado: do SALIC no federal; informado à mão no estadual. Base do saldo. */
+  valorCaptado   Decimal?  @db.Decimal(14, 2)
+  /** Federal: segue procurando a planilha readequada no SALIC até encontrá-la ou encerrar. */
+  sheetSearchActive      Boolean   @default(true)
+  /** Quando a readequada passou a ser a planilha de trabalho (aviso no projeto). */
+  readequadaAppliedAt    DateTime?
+  readequadaNoticeSeenAt DateTime?
+  /** Encerramento manual (com confirmação dupla); projeto encerrado some do Financeiro. */
+  closedAt               DateTime?
+  closedById             String?
+  closeReason            String?
+  importedAt     DateTime?
+  /** SALIC_HOMOLOGADA | STATE_FILE */
+  importSource   String?
+  /** EM_ANDAMENTO | ENCERRADO */
+  lifecycleStatus String   @default("EM_ANDAMENTO")
+  /**
+   * Envio acumulado de NF/comprovantes ao SALIC:
+   * IDLE | AGUARDANDO | ENVIANDO | CONCLUIDO | FALHOU | CANCELADO
+   */
+  salicPublishStatus           String    @default("IDLE")
+  salicPublishMessage          String?
+  salicPublishStartedAt        DateTime?
+  salicPublishCancelRequested  Boolean   @default(false)
+  /** Captação operacional (detalhe de valorCaptado). */
+  captadoRecebido     Decimal?  @db.Decimal(14, 2)
+  captadoTransferido  Decimal?  @db.Decimal(14, 2)
+  rendimentos         Decimal?  @db.Decimal(14, 2)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account         SalicAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ruleset         ComplianceRuleset? @relation(fields: [rulesetVersion], references: [version], onDelete: Restrict)
+  sheet           ProjectBudgetSheet?
+  commitments     RubricCommitment[]
+  engagements     CatalogEngagement[]
+  documents       PlanningDocument[]
+  pedidos         PlanningPedido[]
+  readequacaoDrafts PlanningReadequacaoDraft[]
+  sheetVersions   ProjectBudgetSheetVersion[]
+
+  @@unique([workspaceId, accountId, externalCode])
+  @@index([workspaceId, updatedAt])
+  @@index([jurisdiction])
+  @@index([lifecycleStatus])
+  @@map("planning_projects")
+}
+
+enum BudgetHierarchyLockLevel {
+  FONTE
+  PRODUCT
+  STAGE
+  CITY
+  ITEM
+}
+
+/** Cópia fixa de cada planilha do SALIC que o projeto usou (homologada, readequada). */
+model ProjectBudgetSheetVersion {
+  id                String   @id @default(cuid())
+  planningProjectId String
+  /** HOMOLOGADA | READEQUADA */
+  kind              String
+  fetchedAt         DateTime @default(now())
+  totalApproved     Decimal  @db.Decimal(14, 2)
+  /** HomologatedLine[] como veio do SALIC. */
+  linesJson         Json
+
+  planningProject PlanningProject @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+
+  @@index([planningProjectId, kind])
+  @@map("project_budget_sheet_versions")
+}
+
+model ProjectBudgetSheet {
+  id                String   @id @default(cuid())
+  planningProjectId String   @unique
+  kind              String   @default("HOMOLOGADA")
+  totalApproved     Decimal  @db.Decimal(14, 2)
+  importedAt        DateTime
+  sourceFilename    String?
+  available         Boolean  @default(true)
+
+  planningProject PlanningProject        @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  lines           ProjectBudgetLine[]
+  hierarchyLocks  BudgetHierarchyLock[]
+
+  @@map("project_budget_sheets")
+}
+
+/// Cadeado em qualquer nível da árvore (fonte → produto → etapa → cidade → item).
+/// Trava edições e uso de saldo de todas as linhas descendentes.
+model BudgetHierarchyLock {
+  id              String                    @id @default(cuid())
+  sheetId         String
+  level           BudgetHierarchyLockLevel
+  /// Chave canônica única no sheet (ex.: "PRODUCT|Incentivo|Oficina X").
+  scopeKey        String
+  fonteRecurso    String                    @default("")
+  productName     String                    @default("")
+  stageName       String                    @default("")
+  state           String                    @default("")
+  city            String                    @default("")
+  budgetLineId    String?
+  lockedByUserId  String?
+  lockedAt        DateTime                  @default(now())
+  note            String                    @default("")
+
+  sheet ProjectBudgetSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@unique([sheetId, scopeKey])
+  @@index([sheetId, level])
+  @@index([budgetLineId])
+  @@map("budget_hierarchy_locks")
+}
+
+model ProjectBudgetLine {
+  id                  String   @id @default(cuid())
+  sheetId             String
+  planilhaAprovacaoId String?
+  fonteRecurso        String
+  productName         String
+  stageName           String
+  state               String   @default("")
+  city                String   @default("")
+  itemName            String
+  categoryHint        String?
+  unit                String   @default("Unidade")
+  days                Int      @default(1)
+  quantity            Decimal  @db.Decimal(14, 4) @default(1)
+  occurrences         Decimal  @db.Decimal(14, 4) @default(1)
+  unitPrice           Decimal  @db.Decimal(14, 2) @default(0)
+  /** Valor homologado original (SALIC/arquivo) — base do teto 2× na redistribuição */
+  homologatedAmount   Decimal  @db.Decimal(14, 2)
+  /** Alocação vigente (pode ser redistribuída com ACL; usada no saldo/NF) */
+  approvedAmount      Decimal  @db.Decimal(14, 2)
+  salicComprovado     Decimal? @db.Decimal(14, 2)
+  sortOrder           Int      @default(0)
+
+  sheet       ProjectBudgetSheet  @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  commitments RubricCommitment[]
+  engagements CatalogEngagement[]
+  allocations DocumentRubricAllocation[]
+
+  @@index([sheetId])
+  @@index([planilhaAprovacaoId])
+  @@index([categoryHint])
+  @@index([itemName])
+  @@map("project_budget_lines")
+}
+
+model RubricCommitment {
+  id                String           @id @default(cuid())
+  budgetLineId      String
+  planningProjectId String
+  workspaceId       String
+  engagementId      String           @unique
+  /** Pedido (reserva parcelada sem NF) que originou este compromisso. */
+  pedidoId          String?
+  /** Ordem da parcela dentro do pedido (1-based). */
+  installmentNumber Int?
+  amount            Decimal          @db.Decimal(14, 2)
+  /** Percentual da NF/RPA alocado nesta fatia (0–100). */
+  allocationSharePct Decimal?        @db.Decimal(7, 4)
+  status            CommitmentStatus @default(RESERVED)
+  hasBond           Boolean          @default(false)
+  /** Pagamento feito antes da NF — aguarda documento fiscal. */
+  nfPending         Boolean          @default(false)
+  paidWithoutNf     Boolean          @default(false)
+  expectedPayAt     DateTime
+  /** Dia escolhido para lembrar do pagamento (NF/RPA reservada). */
+  paymentReminderAt DateTime?
+  /** Dia escolhido para lembrar de anexar NF/RPA (pagamento antecipado). */
+  nfReminderAt      DateTime?
+  paidAt            DateTime?
+  createdById       String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  budgetLine      ProjectBudgetLine @relation(fields: [budgetLineId], references: [id], onDelete: Cascade)
+  planningProject PlanningProject   @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  engagement      CatalogEngagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  pedido          PlanningPedido?   @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
+  documents       PlanningDocument[]
+  allocations     DocumentRubricAllocation[]
+
+  @@index([budgetLineId])
+  @@index([planningProjectId])
+  @@index([workspaceId, status])
+  @@index([pedidoId])
+  @@index([expectedPayAt])
+  @@index([paymentReminderAt])
+  @@index([nfReminderAt])
+  @@map("rubric_commitments")
+}
+
+/** Reserva parcelada sem NF — “Pedido” na UI. */
+model PlanningPedido {
+  id                String       @id @default(cuid())
+  workspaceId       String
+  planningProjectId String
+  supplierId        String
+  description       String?
+  totalAmount       Decimal      @db.Decimal(14, 2)
+  status            PedidoStatus @default(OPEN)
+  /** NF/RPA vinculada ao pedido (quando houver). */
+  sourceDocumentId  String?      @unique
+  createdById       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  planningProject PlanningProject   @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  supplier        CatalogSupplier   @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  sourceDocument  PlanningDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  commitments     RubricCommitment[]
+
+  @@index([workspaceId, status])
+  @@index([planningProjectId])
+  @@index([supplierId])
+  @@map("planning_pedidos")
+}
+
+model PlanningDocument {
+  id                String                 @id @default(cuid())
+  kind              PlanningDocumentKind
+  status            PlanningDocumentStatus @default(PROCESSING)
+  filename          String
+  mimeType          String
+  storagePath       String
+  byteSize          Int                    @default(0)
+  originalByteSize  Int?
+  extractedJson     Json?
+  errorMessage      String?
+  /** PJ | PF */
+  personType        String?
+  grossAmount       Decimal?               @db.Decimal(14, 2)
+  netAmount         Decimal?               @db.Decimal(14, 2)
+  taxTotal          Decimal?               @db.Decimal(14, 2)
+  /** { iss, irrf, inss, csll, pis, cofins, other? } */
+  taxesJson         Json?
+  workspaceId       String
+  planningProjectId String?
+  engagementId      String?
+  /** Commitment “principal” legado; preferir allocations. */
+  commitmentId      String?
+  /**
+   * Para comprovantes: NF/RPA de origem.
+   * O rateio do comprovante espelha as DocumentRubricAllocation da NF/RPA.
+   */
+  sourceDocumentId  String?
+  /** SHA-256 hex do arquivo original (deduplicação). */
+  contentHash       String?
+  /** id_comprovante_pagamento no SALIC, após envio bem-sucedido. */
+  salicComprovanteId     String?
+  salicPublishedAt       DateTime?
+  /** PROOF_ONLY | MERGED — como foi enviado pela última vez. */
+  salicPublishMode       String?
+  /** PDF preparado (NF+RPA+comprovante) pronto para upload. */
+  salicMergedStoragePath String?
+  /** Comprovante só no SALIC; NF chegou depois — republicar merged. */
+  salicRepublishPending  Boolean                @default(false)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  planningProject PlanningProject?  @relation(fields: [planningProjectId], references: [id], onDelete: SetNull)
+  engagement      CatalogEngagement? @relation(fields: [engagementId], references: [id], onDelete: SetNull)
+  commitment      RubricCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  sourceDocument  PlanningDocument?  @relation("DocumentProofSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  derivedProofs   PlanningDocument[] @relation("DocumentProofSource")
+  allocations     DocumentRubricAllocation[]
+  pedidoLinked    PlanningPedido?
+
+  @@index([workspaceId, kind])
+  @@index([commitmentId])
+  @@index([engagementId])
+  @@index([sourceDocumentId])
+  @@index([workspaceId, contentHash])
+  @@map("planning_documents")
+}
+
+/** Rateio de uma NF/RPA em uma ou mais rubricas (mesma % para valor e impostos). */
+model DocumentRubricAllocation {
+  id            String  @id @default(cuid())
+  documentId    String
+  budgetLineId  String
+  commitmentId  String
+  sharePct      Decimal @db.Decimal(7, 4)
+  amount        Decimal @db.Decimal(14, 2)
+  taxesJson     Json?
+  createdAt     DateTime @default(now())
+
+  document   PlanningDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  budgetLine ProjectBudgetLine @relation(fields: [budgetLineId], references: [id], onDelete: Cascade)
+  commitment RubricCommitment  @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, budgetLineId])
+  @@index([commitmentId])
+  @@map("document_rubric_allocations")
+}
+
+/** Rascunho temporário (24h) de readequação de planilha. */
+model PlanningReadequacaoDraft {
+  id                String                  @id @default(cuid())
+  planningProjectId String
+  workspaceId       String
+  createdById       String?
+  source            ReadequacaoDraftSource  @default(MANUAL)
+  status            ReadequacaoDraftStatus  @default(OPEN)
+  /** Snapshot editável: lines[], totals, captura, meta */
+  snapshotJson      Json
+  expiresAt         DateTime
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  planningProject PlanningProject @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([planningProjectId, status])
+  @@index([workspaceId, expiresAt])
+  @@map("planning_readequacao_drafts")
+}
+
+model AppNotification {
+  id          String              @id @default(cuid())
+  workspaceId String
+  userId      String?
+  type        AppNotificationType
+  title       String
+  body        String
+  href        String?
+  readAt      DateTime?
+  /** Exibir a partir desta data (null = imediato). */
+  scheduledFor DateTime?
+  meta        Json?
+  createdAt   DateTime            @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([userId, readAt])
+  @@index([scheduledFor])
+  @@map("app_notifications")
+}
+
+/** Preferências de aviso por usuário no workspace. */
+model NotificationSettings {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  /** AppUser.id (sem FK — alinhado a AppNotification.userId). */
+  userId           String
+  paymentDueSoon   Boolean  @default(true)
+  paymentOverdue   Boolean  @default(true)
+  rubricNear       Boolean  @default(true)
+  nfPending        Boolean  @default(true)
+  /** Aviso de ISS retido — vencimento típico dia 10 do mês seguinte. */
+  taxDueIss        Boolean  @default(true)
+  /** Aviso de retenções federais — vencimento típico dia 20 do mês seguinte. */
+  taxDueFederal    Boolean  @default(true)
+  /** Aviso (da Auditoria) quando o PRONAC entra em diligência no SALIC. */
+  salicDiligencia  Boolean  @default(true)
+  /** Aviso quando o projeto passa a usar a planilha readequada. */
+  readequadaApplied Boolean @default(true)
+  /** Lembrete para avaliar o fornecedor depois do pagamento. */
+  evaluationPending Boolean @default(true)
+  /** Enviar também por e-mail (Resend) para o e-mail da conta. */
+  emailEnabled     Boolean  @default(false)
+  /** Quantos dias antes do vencimento gerar/mostrar aviso de pagamento previsto. */
+  dueSoonDaysAhead Int      @default(5)
+  /** Dias após pagamento antecipado para cobrar NF pendente. */
+  nfPendingDaysAfterPaid Int @default(7)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@map("notification_settings")
+}
+
+/** Trilha de atividade (quem fez o quê) — distinto da Auditoria SALIC. */
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  screen      String   @default("")
+  entityType  String   @default("")
+  entityId    String   @default("")
+  meta        Json?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// —— Enums das tabelas da Auditoria (schema "auditoria", app MAX Auditoria) ——
+// Os tipos ficam no schema "financeiro" e são usados por aquelas tabelas: não remover.
+enum PaymentSource {
+  api
+  crawler
+}
+
+enum SyncRunStatus {
+  pending
+  running
+  success
+  error
+  partial
+}
+
+enum RelatedPartyRelation {
+  SPOUSE
+  COMPANION
+  LINEAL_KIN
+  COLLATERAL_2ND
+  /** Parente em 3º grau (ex.: tio, sobrinho) */
+  COLLATERAL_3RD
+  AFFINITY
+  /** Legado — não oferecer na UI */
+  PARTNER
+  AFFILIATED_COMPANY
+  COMMON_PARTNER
+  /** Casal (cônjuges/companheiros) sócios nas duas empresas */
+  COUPLE_PARTNERS
+  /** Legado — migrado para COMMON_PARTNER / AFFILIATED_COMPANY */
+  CORPORATE_MEMBER
+  /** Legado — migrado para PROPONENT_PF / PROPONENT_PJ */
+  PROPONENT
+  PROPONENT_PF
+  PROPONENT_PJ
+  /** Diretor(a) de entidade do terceiro setor — não gera vínculo art. 23 */
+  DIRECTOR_THIRD_SECTOR
+  /** Mesmo endereço cadastral */
+  SAME_ADDRESS
+  /** Legado — tratado como sem vínculo na UI */
+  OTHER
+}
+
+enum CorporateRole {
+  PARTNER
+  ADMINISTRATOR
+  BOTH
+}

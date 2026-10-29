@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getHubSessionPayload, origemHubLoginUrl } from "@/lib/auth/hub";
+import { getHubSessionPayload, financeiroHubLoginUrl } from "@/lib/auth/hub";
 import {
   entitlementsFromWorkspace,
   type PlanEntitlements,
@@ -136,11 +136,11 @@ async function ensureHubAppUser(params: { id: string; email: string }) {
       hubUserCache.set(cacheKey, { profile: fallback, at: Date.now() });
       return fallback;
     }
-    throw new Error("Não foi possível vincular a sessão do hub ao Origem.");
+    throw new Error("Não foi possível vincular a sessão do hub ao Financeiro.");
   }
 }
 
-/** Login único no MAX Cultural: a sessão do Origem é o cookie SSO do hub. */
+/** Login único no MAX Cultural: a sessão do Financeiro é o cookie SSO do hub. */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const hub = await getHubSessionPayload();
   if (!hub?.email) return null;
@@ -162,7 +162,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 /** Contexto do workspace atual (Auth ou hub SSO). */
 export async function getWorkspaceContext(): Promise<WorkspaceContext> {
   const session = await getSessionUser();
-  if (!session) redirect(origemHubLoginUrl("/inicio"));
+  if (!session) redirect(financeiroHubLoginUrl("/inicio"));
   return {
     session,
     workspace: session.workspace,
@@ -172,7 +172,7 @@ export async function getWorkspaceContext(): Promise<WorkspaceContext> {
 
 export async function requireUser(options?: { roles?: AppUserRole[] }) {
   const session = await getSessionUser();
-  if (!session) redirect(origemHubLoginUrl("/inicio"));
+  if (!session) redirect(financeiroHubLoginUrl("/inicio"));
   if (options?.roles && !options.roles.includes(session.profile.role)) {
     redirect("/inicio");
   }

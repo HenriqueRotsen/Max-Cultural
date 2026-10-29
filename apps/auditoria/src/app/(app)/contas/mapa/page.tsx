@@ -32,10 +32,10 @@ export default async function MapasIndexPage() {
           <p className="px-5 py-8 text-sm text-[var(--gray-500)]">
             Nenhum proponente cadastrado.{" "}
             <a
-              href={`${(process.env.NEXT_PUBLIC_ORIGEM_URL || "").replace(/\/$/, "")}/contas?tab=nova`}
+              href={`${(process.env.NEXT_PUBLIC_FINANCEIRO_URL || "").replace(/\/$/, "")}/contas?tab=nova`}
               className="font-semibold text-[var(--navy)] underline"
             >
-              Cadastrar proponente no MAX Origem
+              Cadastrar proponente no MAX Financeiro
             </a>
           </p>
         ) : (

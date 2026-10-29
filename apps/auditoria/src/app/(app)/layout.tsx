@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
-import { origemHubLoginUrl, origemHubLogoutUrl } from "@/lib/auth/hub";
+import { financeiroHubLoginUrl, financeiroHubLogoutUrl } from "@/lib/auth/hub";
 import { canEnterAuditoria, getHubPermissions } from "@/lib/auth/hub-permissions";
 import { getHubSessionPayload } from "@/lib/auth/hub";
 import { getSessionUser } from "@/lib/auth/session";
@@ -10,11 +10,11 @@ import { culturalDeniedUrl } from "@max/auth";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [session, hubPerms] = await Promise.all([getSessionUser(), getHubPermissions()]);
   if (!session) {
-    redirect(origemHubLoginUrl("/inicio"));
+    redirect(financeiroHubLoginUrl("/inicio"));
   }
   // Sessão revogada no hub: /logout do Cultural limpa o cookie (ir a /login faria loop).
   if (hubPerms.revoked) {
-    redirect(origemHubLogoutUrl());
+    redirect(financeiroHubLogoutUrl());
   }
 
   const canEnter =

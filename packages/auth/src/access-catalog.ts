@@ -4,8 +4,8 @@ export type AccessKind = "product" | "screen" | "capability";
 
 export type AccessProductGroup =
   | "Cultural"
-  | "Origem"
-  | "Fluxo"
+  | "Financeiro"
+  | "Indicadores"
   | "Auditoria"
   | "Produtos";
 
@@ -17,7 +17,7 @@ export type AccessCatalogEntry = {
   /** Agrupamento na UI de papéis. */
   group: AccessProductGroup;
   /** Produto ao qual a tela/capacidade pertence (para acordeão). */
-  product?: "cultural" | "origem" | "fluxo" | "auditoria";
+  product?: "cultural" | "financeiro" | "indicadores" | "auditoria";
   /** Tela ou produto pai (capacidades exigem screen; screens exigem product). */
   parentId?: string;
 };
@@ -84,20 +84,20 @@ export const ACCESS_CATALOG = [
 
   // —— Produtos ——
   {
-    id: "origem.app",
-    label: "MAX Origem",
-    description: "Entrar no produto Origem.",
+    id: "financeiro.app",
+    label: "MAX Financeiro",
+    description: "Entrar no produto Financeiro.",
     kind: "product",
     group: "Produtos",
-    product: "origem",
+    product: "financeiro",
   },
   {
-    id: "fluxo.app",
-    label: "MAX Fluxo",
-    description: "Entrar no produto Fluxo.",
+    id: "indicadores.app",
+    label: "MAX Indicadores",
+    description: "Entrar no produto Indicadores.",
     kind: "product",
     group: "Produtos",
-    product: "fluxo",
+    product: "indicadores",
   },
   {
     id: "auditoria.app",
@@ -109,92 +109,92 @@ export const ACCESS_CATALOG = [
     product: "auditoria",
   },
 
-  // —— Origem telas ——
+  // —— Financeiro telas ——
   {
-    id: "origem.proponentes",
+    id: "financeiro.proponentes",
     label: "Proponentes",
     kind: "screen",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.app",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.app",
   },
   {
-    id: "origem.auditoria",
+    id: "financeiro.auditoria",
     label: "Auditoria (relatórios)",
     description: "Relatórios de conformidade SALIC — não é log de acesso.",
     kind: "screen",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.app",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.app",
   },
   {
-    id: "origem.fornecedores",
+    id: "financeiro.fornecedores",
     label: "Fornecedores",
     kind: "screen",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.app",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.app",
   },
   {
-    id: "origem.planejamento",
+    id: "financeiro.planejamento",
     label: "Planejamento",
     kind: "screen",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.app",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.app",
   },
 
-  // —— Origem capacidades (planejamento) ——
+  // —— Financeiro capacidades (planejamento) ——
   {
-    id: "origem.planejamento.editar_rubricas",
+    id: "financeiro.planejamento.editar_rubricas",
     label: "Editar rubricas",
     description: "Alterar valores e estrutura de rubricas no planejamento.",
     kind: "capability",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.planejamento",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
   },
   {
-    id: "origem.planejamento.exceder_rubrica",
+    id: "financeiro.planejamento.exceder_rubrica",
     label: "Exceder rubrica",
     description: "Permitir compromisso acima do saldo da rubrica.",
     kind: "capability",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.planejamento",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
   },
   {
-    id: "origem.planejamento.subir_salic",
+    id: "financeiro.planejamento.subir_salic",
     label: "Enviar projeto ao SALIC",
     kind: "capability",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.planejamento",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
   },
   {
-    id: "origem.planejamento.readequacao",
+    id: "financeiro.planejamento.readequacao",
     label: "Readequação de planilha",
     kind: "capability",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.planejamento",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
   },
   {
-    id: "origem.planejamento.excluir_nf",
+    id: "financeiro.planejamento.excluir_nf",
     label: "Excluir NF/RPA",
     kind: "capability",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.planejamento",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
   },
   {
-    id: "origem.planejamento.encerrar",
+    id: "financeiro.planejamento.encerrar",
     label: "Encerrar projeto",
-    description: "Encerra o projeto (confirmação dupla); depois disso ele some do Origem.",
+    description: "Encerra o projeto (confirmação dupla); depois disso ele some do Financeiro.",
     kind: "capability",
-    group: "Origem",
-    product: "origem",
-    parentId: "origem.planejamento",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
   },
 
   // —— Auditoria ——
@@ -219,34 +219,34 @@ export const ACCESS_CATALOG = [
     parentId: "auditoria.atualizacao",
   },
 
-  // —— Fluxo ——
+  // —— Indicadores ——
   {
-    id: "fluxo.operacao",
+    id: "indicadores.operacao",
     label: "Operação",
     description: "Inscrições, contextos, importação, formulários e análise.",
     kind: "screen",
-    group: "Fluxo",
-    product: "fluxo",
-    parentId: "fluxo.app",
+    group: "Indicadores",
+    product: "indicadores",
+    parentId: "indicadores.app",
   },
   {
-    id: "fluxo.formularios",
+    id: "indicadores.formularios",
     label: "Avaliação de formulários",
     description:
       "Somente respostas das oficinas em que é professor (papel Professor).",
     kind: "screen",
-    group: "Fluxo",
-    product: "fluxo",
-    parentId: "fluxo.app",
+    group: "Indicadores",
+    product: "indicadores",
+    parentId: "indicadores.app",
   },
   {
-    id: "fluxo.consultas",
+    id: "indicadores.consultas",
     label: "Consultas",
     description: "Consultas de CPF e território.",
     kind: "screen",
-    group: "Fluxo",
-    product: "fluxo",
-    parentId: "fluxo.app",
+    group: "Indicadores",
+    product: "indicadores",
+    parentId: "indicadores.app",
   },
 ] as const satisfies readonly AccessCatalogEntry[];
 
@@ -259,19 +259,19 @@ export const ACCESS_BY_ID: Record<string, AccessCatalogEntry> = Object.fromEntri
 );
 
 /** Capacidades privilegiadas de planejamento (Operador não recebe no seed). */
-export const ORIGEM_PRIVILEGED_CAPABILITIES = [
-  "origem.planejamento.exceder_rubrica",
-  "origem.planejamento.subir_salic",
-  "origem.planejamento.readequacao",
-  "origem.planejamento.excluir_nf",
-  "origem.planejamento.editar_rubricas",
-  "origem.planejamento.encerrar",
+export const FINANCEIRO_PRIVILEGED_CAPABILITIES = [
+  "financeiro.planejamento.exceder_rubrica",
+  "financeiro.planejamento.subir_salic",
+  "financeiro.planejamento.readequacao",
+  "financeiro.planejamento.excluir_nf",
+  "financeiro.planejamento.editar_rubricas",
+  "financeiro.planejamento.encerrar",
 ] as const;
 
-/** Mapeamento hub → códigos locais do Fluxo (interseção no satélite). */
-export const HUB_TO_FLUXO_PERMISSIONS: Record<string, readonly string[]> = {
-  "fluxo.app": ["dashboard:access", "perfil:write"],
-  "fluxo.operacao": [
+/** Mapeamento hub → códigos locais do Indicadores (interseção no satélite). */
+export const HUB_TO_INDICADORES_PERMISSIONS: Record<string, readonly string[]> = {
+  "indicadores.app": ["dashboard:access", "perfil:write"],
+  "indicadores.operacao": [
     "inscricoes:read",
     "inscricoes:write",
     "inscricoes:export",
@@ -286,15 +286,25 @@ export const HUB_TO_FLUXO_PERMISSIONS: Record<string, readonly string[]> = {
     "formularios:merge",
   ],
   /** Papel Professor: só fila de respostas das oficinas atribuídas. */
-  "fluxo.formularios": ["formularios:review"],
-  "fluxo.consultas": ["consultas:cpf", "consultas:territorio"],
+  "indicadores.formularios": ["formularios:review"],
+  "indicadores.consultas": ["consultas:cpf", "consultas:territorio"],
   /**
-   * IAM do hub → gestão de usuários/escopos no Fluxo (menu Acesso).
+   * IAM do hub → gestão de usuários/escopos no Indicadores (menu Acesso).
    * Escopo de contextos/projetos/oficinas só existe no satélite.
    */
   "cultural.usuarios": ["usuarios:read", "roles:read", "audit:read"],
   "cultural.usuarios.edit": ["usuarios:write", "roles:write"],
 };
+
+/**
+ * Ids antigos (MAX Origem → Financeiro, MAX Fluxo → Indicadores) ainda presentes em
+ * cookies de sessão emitidos antes da troca de nome.
+ */
+export function normalizeLegacyAccessId(id: string): string {
+  if (id.startsWith("origem.")) return `financeiro.${id.slice(7)}`;
+  if (id.startsWith("fluxo.")) return `indicadores.${id.slice(6)}`;
+  return id;
+}
 
 export function isAccessPermissionId(id: string): id is AccessPermissionId {
   return id in ACCESS_BY_ID;
@@ -307,7 +317,7 @@ export function childrenOf(parentId: string): AccessCatalogEntry[] {
 }
 
 export function productSections(): Array<{
-  product: "cultural" | "origem" | "fluxo" | "auditoria";
+  product: "cultural" | "financeiro" | "indicadores" | "auditoria";
   label: string;
   productId?: AccessPermissionId;
   entries: AccessCatalogEntry[];
@@ -319,19 +329,19 @@ export function productSections(): Array<{
       entries: ACCESS_CATALOG.filter((e) => e.product === "cultural"),
     },
     {
-      product: "origem",
-      label: "MAX Origem",
-      productId: "origem.app",
+      product: "financeiro",
+      label: "MAX Financeiro",
+      productId: "financeiro.app",
       entries: ACCESS_CATALOG.filter(
-        (e) => e.product === "origem" && e.id !== "origem.app",
+        (e) => e.product === "financeiro" && e.id !== "financeiro.app",
       ),
     },
     {
-      product: "fluxo",
-      label: "MAX Fluxo",
-      productId: "fluxo.app",
+      product: "indicadores",
+      label: "MAX Indicadores",
+      productId: "indicadores.app",
       entries: ACCESS_CATALOG.filter(
-        (e) => e.product === "fluxo" && e.id !== "fluxo.app",
+        (e) => e.product === "indicadores" && e.id !== "indicadores.app",
       ),
     },
     {

@@ -5,6 +5,7 @@ import {
   grantedIdsFromRoleRows,
   normalizeGrantedIds,
   childrenOf,
+  normalizeLegacyAccessId,
 } from "@max/auth";
 
 describe("access catalog", () => {
@@ -22,10 +23,10 @@ describe("access catalog", () => {
   });
 
   it("normalizeGrantedIds sobe pais", () => {
-    const ids = normalizeGrantedIds(["origem.planejamento.excluir_nf"]);
-    expect(ids).toContain("origem.planejamento.excluir_nf");
-    expect(ids).toContain("origem.planejamento");
-    expect(ids).toContain("origem.app");
+    const ids = normalizeGrantedIds(["financeiro.planejamento.excluir_nf"]);
+    expect(ids).toContain("financeiro.planejamento.excluir_nf");
+    expect(ids).toContain("financeiro.planejamento");
+    expect(ids).toContain("financeiro.app");
   });
 
   it("legado canEdit vira .edit", () => {
@@ -37,9 +38,19 @@ describe("access catalog", () => {
   });
 
   it("childrenOf lista capacidades da tela", () => {
-    const caps = childrenOf("origem.planejamento");
-    expect(caps.some((c) => c.id === "origem.planejamento.exceder_rubrica")).toBe(
+    const caps = childrenOf("financeiro.planejamento");
+    expect(caps.some((c) => c.id === "financeiro.planejamento.exceder_rubrica")).toBe(
       true,
     );
+  });
+});
+
+describe("normalizeLegacyAccessId", () => {
+  it("troca os prefixos antigos pelos novos nomes", () => {
+    expect(normalizeLegacyAccessId("origem.planejamento.encerrar")).toBe(
+      "financeiro.planejamento.encerrar",
+    );
+    expect(normalizeLegacyAccessId("fluxo.operacao")).toBe("indicadores.operacao");
+    expect(normalizeLegacyAccessId("auditoria.app")).toBe("auditoria.app");
   });
 });

@@ -5,17 +5,17 @@ import {
   clearAuthCookieOptions,
   isPrefetchRequest,
 } from "@max/auth";
-import { origemHubLogoutUrl } from "@/lib/auth/hub";
+import { financeiroHubLogoutUrl } from "@/lib/auth/hub";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Logout do Origem: limpa o cookie SSO e manda ao /logout do Cultural. */
+/** Logout do Financeiro: limpa o cookie SSO e manda ao /logout do Cultural. */
 export async function GET(request: NextRequest) {
   if (isPrefetchRequest(request)) {
     return new NextResponse(null, { status: 204, headers: { "cache-control": "no-store" } });
   }
-  const res = NextResponse.redirect(origemHubLogoutUrl());
+  const res = NextResponse.redirect(financeiroHubLogoutUrl());
   res.headers.set("cache-control", "no-store");
   for (const opts of clearAuthCookieOptions()) {
     res.cookies.set(AUTH_COOKIE, "", opts);

@@ -46,7 +46,7 @@ const DATE_BR_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 const DATE_ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ACTION_CODE_RE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/i;
 const ACTION_PREFIX_RE =
-  /^(auth|iam|planning|origem|fluxo|cultural|inscricao|contexto|projeto|oficina|user|role|audit|import|consulta)\.?$/i;
+  /^(auth|iam|planning|financeiro|indicadores|cultural|inscricao|contexto|projeto|oficina|user|role|audit|import|consulta)\.?$/i;
 
 function first(v: string | string[] | undefined) {
   return Array.isArray(v) ? v[0] : v;

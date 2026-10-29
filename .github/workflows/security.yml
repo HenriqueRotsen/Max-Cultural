@@ -20,11 +20,11 @@ jobs:
       - name: ESLint Cultural
         run: npm run lint -w max-cultural-app --if-present
         continue-on-error: true
-      - name: ESLint Origem
-        run: npm run lint -w max-origem --if-present
+      - name: ESLint Financeiro
+        run: npm run lint -w max-financeiro --if-present
         continue-on-error: true
-      - name: ESLint Fluxo
-        run: npm run lint -w max-fluxo --if-present
+      - name: ESLint Indicadores
+        run: npm run lint -w max-indicadores --if-present
         continue-on-error: true
       - name: ESLint Auditoria
         run: npm run lint -w max-auditoria --if-present
