@@ -67,7 +67,7 @@ export default async function AlertasPage({ searchParams }: { searchParams: Sear
       <PageHeader
         breadcrumb="Auditoria › Alertas"
         title="Alertas"
-        description="Problemas que a Auditoria encontrou no espelho do SALIC — hoje, projetos que entram em diligência. Cada alerta também vai para o sino do MAX Financeiro e, para quem ativou, por e-mail."
+        description="Problemas que a Auditoria encontrou no SALIC, como projetos que entraram em diligência. Abra um alerta para ver o detalhe, marcar como visto ou resolver."
       />
 
       <section className="grid gap-4 sm:grid-cols-3">

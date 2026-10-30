@@ -10,12 +10,12 @@ function sharePercent(part: number, total: number): number {
   return (part / total) * 100;
 }
 
-function formatPercent(part: number, total: number, digits = 4): string {
+function formatPercent(part: number, total: number, digits = 2): string {
   return `${sharePercent(part, total).toFixed(digits).replace(".", ",")}%`;
 }
 
 function pctLabel(percent: number) {
-  return `${percent.toFixed(4).replace(".", ",")}%`;
+  return `${percent.toFixed(2).replace(".", ",")}%`;
 }
 
 /** @deprecated Prefer getActiveRules(); mantido para imports síncronos de fallback. */

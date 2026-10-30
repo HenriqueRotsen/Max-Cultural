@@ -3,13 +3,11 @@ import { redirect } from "next/navigation";
 import { removeWatchedSupplier } from "@/lib/actions";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
-import { FieldHelp } from "@/components/FieldHelp";
 import { PageHeader } from "@/components/ui";
 import { AddWatchedSupplierForm } from "@/components/AddWatchedSupplierForm";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { RelationBondByRulesetPanel } from "@/components/RelationBondByRulesetPanel";
 import { formatCgccpf } from "@/lib/format";
-import { HELP } from "@/lib/help";
 import { RULESET_CATALOG, type RelationKind } from "@/lib/compliance/defaults";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +56,7 @@ export default async function ObservadosPage({
       <PageHeader
         breadcrumb="Auditoria › Observados"
         title="Observados"
-        description="Lista de acompanhamento para a análise de vínculos. Todos os fornecedores pagos ficam em Auditoria › Fornecedores; o banco de preços fica no módulo Fornecedores."
+        description="Pessoas e empresas que você quer acompanhar de perto. Quem estiver nesta lista aparece no detalhe de cada PRONAC, onde você marca se tem vínculo com o proponente."
       />
 
       <nav className="accounts-tabs" aria-label="Abas de observados">
@@ -91,13 +89,12 @@ export default async function ObservadosPage({
       {tab === "observados" && (
         <section className="card overflow-hidden">
           <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-            <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--navy)]">
-              Observados
-              <FieldHelp text={HELP.watchedOnly} />
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-[var(--navy)]">
+              Quem você acompanha
             </h2>
-            <p className="mt-1 text-sm text-[var(--gray-500)]">
-              Lista de acompanhamento. O vínculo art. 23 liga/desliga no detalhe
-              de cada PRONAC (vale para o proponente + IN daquele projeto).
+            <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
+              Para dizer se alguém tem vínculo com o proponente, abra o PRONAC
+              (Por PRONAC) e use o bloco “Limite do art. 23”.
             </p>
           </div>
 
@@ -162,12 +159,12 @@ export default async function ObservadosPage({
       {tab === "vinculos" && (
         <section className="card overflow-hidden">
           <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-            <h2 className="text-base font-semibold text-[var(--navy)]">
-              Vínculos por IN
+            <h2 className="text-lg font-semibold text-[var(--navy)]">
+              O que cada IN considera vínculo
             </h2>
-            <p className="mt-1 text-sm text-[var(--gray-500)]">
-              Relacionamentos previstos em cada texto legal. O on/off por observado
-              fica no detalhe do PRONAC.
+            <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
+              Os tipos de relação (sócio, parente, empresa ligada…) que cada
+              instrução normativa conta para o limite do art. 23. Só consulta.
             </p>
           </div>
           <div className="p-5">

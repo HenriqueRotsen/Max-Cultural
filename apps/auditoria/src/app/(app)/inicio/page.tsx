@@ -2,8 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
 import { getWorkspaceContext } from "@/lib/auth/session";
-import { PageHeader, StatCard } from "@/components/ui";
-import { HELP } from "@/lib/help";
+import { PageHeader, Section, StatCard, StatusBanner } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -44,142 +43,124 @@ export default async function HomePage() {
           ? "Em andamento"
           : lastSync?.status;
 
+  const steps = [
+    {
+      href: "/alertas",
+      title: "Veja os alertas",
+      text:
+        openAlerts > 0
+          ? `${openAlerts} alerta${openAlerts === 1 ? "" : "s"} em aberto: diligências e outros problemas no SALIC.`
+          : "Nenhum alerta em aberto agora.",
+    },
+    {
+      href: "/panorama/pronac",
+      title: "Confira os PRONACs",
+      text: "Veja quais projetos passaram ou estão perto dos limites da IN.",
+    },
+    {
+      href: "/auditoria",
+      title: "Gere o relatório",
+      text: "Escolha os PRONACs e baixe um PDF completo para a auditoria.",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Auditoria › Início"
-        title="Visão geral"
-        description="Espelho do SALIC: acompanhe os gastos por fornecedor e os alertas dos projetos culturais das suas empresas."
+        title="Início"
+        description="A Auditoria espelha o SALIC dos seus proponentes e avisa quando um projeto passa dos limites ou entra em diligência."
         actions={
-          <>
-            {entitlements.syncEnabled && (
-              <Link href="/atualizacao" className="btn">
-                Atualizar dados
-              </Link>
-            )}
-            <Link href="/panorama" className="btn btn-ghost">
-              Ver panorama
+          entitlements.syncEnabled ? (
+            <Link href="/atualizacao" className="btn btn-ghost">
+              Atualizar dados do SALIC
             </Link>
-          </>
+          ) : null
         }
       />
 
       {openAlerts > 0 ? (
-        <Link
-          href="/alertas"
-          className="flex items-center justify-between gap-3 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-5 py-4 text-sm text-[#991b1b] hover:shadow-sm"
-        >
-          <span>
-            <strong>
-              {openAlerts} alerta{openAlerts === 1 ? "" : "s"} em aberto
-            </strong>{" "}
-            — projetos em diligência ou outros problemas encontrados no SALIC.
-          </span>
-          <span className="font-semibold">Ver alertas →</span>
+        <Link href="/alertas" className="block hover:opacity-95">
+          <StatusBanner
+            tone="critical"
+            title={`${openAlerts} alerta${openAlerts === 1 ? "" : "s"} em aberto`}
+          >
+            Projetos em diligência ou com outros problemas encontrados no SALIC.{" "}
+            <span className="font-semibold underline underline-offset-2">Ver alertas</span>
+          </StatusBanner>
         </Link>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Contas ativas"
-          value={String(accounts)}
-          hint="Proponentes com atualização ligada"
-          help={HELP.active}
-        />
-        <StatCard
-          label="Projetos"
-          value={String(projects)}
-          hint="PRONACs já carregados"
-        />
-        <StatCard
-          label="Pagamentos"
-          value={String(paymentsAgg._count)}
-          hint="Linhas da relação de pagamento"
-        />
-        <StatCard
-          label="Total carregado"
-          value={formatCurrency(total)}
-          hint={`${watched} fornecedores observados`}
-        />
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="card p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-[var(--navy)]">Atalhos</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              {
-                href: "/observados",
-                title: "Observados",
-                text: "Escolha quem você quer acompanhar de perto na análise.",
-              },
-              {
-                href: "/panorama",
-                title: "Panorama",
-                text: "Concentração, maiores fornecedores e projetos em destaque.",
-              },
-              {
-                href: "/atualizacao",
-                title: "Atualizar",
-                text: "Busca projetos e pagamentos no SALIC para o espelho da Auditoria.",
-              },
-              {
-                href: "/fornecedores-pagos",
-                title: "Fornecedores",
-                text: "Todos que já receberam pagamento nos PRONACs carregados.",
-              },
-              {
-                href: "/auditoria",
-                title: "Relatório",
-                text: "Gere PDF de auditoria com PRONACs e mapa do proponente.",
-              },
-            ].map((item) => (
+      <Section
+        title="Por onde começar"
+        description="O caminho mais comum na Auditoria, em três passos."
+      >
+        <ol className="grid gap-3 md:grid-cols-3">
+          {steps.map((step, i) => (
+            <li key={step.href}>
               <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-xl border border-[var(--border)] p-4 transition hover:border-[#c5d0e4] hover:bg-[var(--gray-50)]"
+                href={step.href}
+                className="flex h-full gap-3 rounded-xl border border-[var(--border)] p-4 transition hover:border-[var(--gold-border)] hover:bg-[var(--navy-soft)]"
               >
-                <p className="font-semibold text-[var(--navy)]">{item.title}</p>
-                <p className="mt-1 text-sm text-[var(--gray-500)]">{item.text}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        <div className="card p-5">
-          <h2 className="text-base font-semibold text-[var(--navy)]">Última atualização</h2>
-          {lastSync ? (
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-[var(--gray-500)]">Status</span>
-                <span
-                  className={`badge ${
-                    lastSync.status === "success"
-                      ? "badge-success"
-                      : lastSync.status === "error"
-                        ? "badge-warn"
-                        : "badge-muted"
-                  }`}
-                >
-                  {lastStatus}
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--navy)] text-sm font-semibold text-white">
+                  {i + 1}
                 </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[var(--gray-500)]">Projetos</span>
-                <span className="font-medium text-[var(--navy)]">{lastSync.projectsSynced}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[var(--gray-500)]">Pagamentos</span>
-                <span className="font-medium text-[var(--navy)]">{lastSync.paymentsUpserted}</span>
-              </div>
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-[var(--gray-500)]">Nenhuma atualização ainda.</p>
-          )}
+                <span>
+                  <span className="block text-base font-semibold text-[var(--navy)]">
+                    {step.title}
+                  </span>
+                  <span className="mt-1 block text-[0.95rem] text-[var(--gray-600)]">
+                    {step.text}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </Section>
+
+      <Section
+        title="Seus números"
+        description="O que já foi carregado do SALIC para a Auditoria."
+      >
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Proponentes"
+            value={String(accounts)}
+            hint="Com atualização ligada"
+          />
+          <StatCard label="Projetos" value={String(projects)} hint="PRONACs carregados" />
+          <StatCard
+            label="Pagamentos"
+            value={String(paymentsAgg._count)}
+            hint={`${watched} fornecedor${watched === 1 ? "" : "es"} observado${watched === 1 ? "" : "s"}`}
+          />
+          <StatCard label="Total pago" value={formatCurrency(total)} hint="Soma dos pagamentos" />
         </div>
-      </section>
+      </Section>
+
+      <Section
+        title="Última atualização do SALIC"
+        description={
+          lastSync
+            ? `${lastStatus} · ${lastSync.projectsSynced} projetos e ${lastSync.paymentsUpserted} pagamentos atualizados.`
+            : "Nenhuma atualização ainda."
+        }
+        actions={
+          lastSync ? (
+            <span
+              className={`badge ${
+                lastSync.status === "success"
+                  ? "badge-success"
+                  : lastSync.status === "error"
+                    ? "badge-warn"
+                    : "badge-muted"
+              }`}
+            >
+              {lastStatus}
+            </span>
+          ) : null
+        }
+      />
     </div>
   );
 }

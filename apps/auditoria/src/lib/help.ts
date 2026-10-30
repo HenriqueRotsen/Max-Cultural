@@ -52,6 +52,8 @@ export const HELP = {
     "Mostra só projetos vinculados àquela instrução normativa (escolha automática ou manual).",
 
   // Conformidade / tabelas
+  art23:
+    "O art. 23 limita quanto o proponente e quem tem vínculo com ele (sócio, parente, empresa ligada) podem receber, somados, de um mesmo projeto. Marque “Tem vínculo” só para quem tem essa relação com o proponente.",
   alerts:
     "Avisos usam a IN do PRONAC. Vermelho = acima do limite; amarelo = perto do limite. A linha do PRONAC assume a cor mais grave entre fornecedores e a soma art. 23. A seta só aparece se um fornecedor sem vínculo chegou perto ou ultrapassou o teto. Art. 23: soma só proponente + relacionados tipificados (alimentação/refeição não entram).",
   pronacRowLegend:

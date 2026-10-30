@@ -129,8 +129,8 @@ export function AddWatchedSupplierForm() {
   return (
     <form onSubmit={(e) => void onSubmit(e)} className="card overflow-hidden">
       <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-        <h2 className="text-base font-semibold text-[var(--navy)]">Adicionar observado</h2>
-        <p className="mt-1 text-sm text-[var(--gray-500)]">
+        <h2 className="text-lg font-semibold text-[var(--navy)]">Adicionar observado</h2>
+        <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
           Observar alguém filtra a análise. Relacionamentos A↔B são cadastrados na aba
           Observados.
         </p>

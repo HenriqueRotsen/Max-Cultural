@@ -83,7 +83,7 @@ textarea {
   color: white;
   border: none;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   font-weight: 600;
   transition: filter 0.15s ease, transform 0.15s ease;
 }
@@ -136,7 +136,7 @@ textarea {
 
 .field label,
 .field-label-row {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--gray-500);
   letter-spacing: 0.02em;
@@ -194,7 +194,7 @@ textarea {
   border-radius: 10px;
   background: #fff;
   color: var(--gray-600);
-  font-size: 0.72rem;
+  font-size: 0.85rem;
   font-weight: 500;
   line-height: 1.4;
   letter-spacing: 0;
@@ -299,7 +299,7 @@ textarea {
 .accounts-tabs a {
   border-radius: 10px;
   padding: 0.5rem 0.9rem;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--gray-500);
 }
@@ -344,7 +344,7 @@ table.data {
   width: 100%;
   min-width: 48rem;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
 }
 
 table.data th.col-money,
@@ -393,7 +393,7 @@ table.data td {
 table.data th {
   color: var(--gray-400);
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -416,7 +416,7 @@ table.data tfoot tr.table-total-row td {
   align-items: center;
   border-radius: 999px;
   padding: 0.2rem 0.55rem;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
@@ -481,7 +481,7 @@ table.data.table-expandable {
   align-items: center;
   gap: 0.15rem 1.15rem;
   margin: 0.35rem 0.25rem 0;
-  font-size: 11px;
+  font-size: 0.8125rem;
   line-height: 1.35;
   color: var(--gray-500);
 }
@@ -1040,4 +1040,146 @@ table.data tbody tr.row-expand-child-last > td:last-child {
   width: 100%;
   z-index: 0;
   font-family: inherit;
+}
+
+/* ——— Blocos padrão (Section / StatusBanner) ——— */
+.section-head {
+  background: color-mix(in srgb, var(--navy-soft) 50%, white);
+}
+
+.section-block-highlight {
+  border-color: var(--gold-border);
+}
+
+.section-block-highlight .section-head {
+  background: var(--navy-soft);
+}
+
+.section-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.section-collapsible:not([open]) > summary {
+  background: var(--white);
+}
+
+.section-collapsible .section-toggle-close,
+.section-collapsible[open] .section-toggle-open {
+  display: none;
+}
+
+.section-collapsible[open] .section-toggle-close {
+  display: inline;
+}
+
+.status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  border-radius: 16px;
+  border: 1px solid;
+  padding: 1rem 1.25rem;
+}
+
+.status-banner-dot {
+  margin-top: 0.4rem;
+  height: 0.75rem;
+  width: 0.75rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: currentColor;
+}
+
+.status-banner-ok {
+  border-color: #b7e4c7;
+  background: #ecfbf1;
+  color: #146c3a;
+}
+
+.status-banner-attention {
+  border-color: #f6d39a;
+  background: #fff7e8;
+  color: #8a4b12;
+}
+
+.status-banner-critical {
+  border-color: #f5b5ad;
+  background: #fef1ef;
+  color: #a12a1c;
+}
+
+.status-banner-neutral {
+  border-color: var(--border);
+  background: var(--white);
+  color: var(--navy);
+}
+
+/* ——— Filtros em chips e linhas clicáveis ——— */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.filter-chip:hover {
+  background: var(--gray-50);
+}
+
+.filter-chip-count {
+  border-radius: 9999px;
+  background: var(--gray-100);
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+}
+
+.filter-chip.is-active {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
+.filter-chip.is-active .filter-chip-count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.filter-chip-critical.is-active {
+  border-color: #b42318;
+  background: #b42318;
+}
+
+.filter-chip-attention.is-active {
+  border-color: #b45309;
+  background: #b45309;
+}
+
+.filter-chip-ok.is-active {
+  border-color: #15803d;
+  background: #15803d;
+}
+
+.more-filters > summary {
+  cursor: pointer;
+  width: fit-content;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--gold-ink);
+}
+
+table.data tbody tr.row-link {
+  cursor: pointer;
+}
+
+/* Texto pequeno mais legível na área de conteúdo (12px → 13px). */
+.shell-main .text-xs {
+  font-size: 0.8125rem;
+  line-height: 1.15rem;
 }

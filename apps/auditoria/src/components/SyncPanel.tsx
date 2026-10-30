@@ -274,7 +274,7 @@ export function SyncPanel({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1 basis-[16rem]">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold text-[var(--navy)]">
+              <h2 className="text-lg font-semibold text-[var(--navy)]">
                 Atualização automática
               </h2>
               <span className={`badge ${autoSync.enabled ? "badge-success" : "badge-warn"}`}>

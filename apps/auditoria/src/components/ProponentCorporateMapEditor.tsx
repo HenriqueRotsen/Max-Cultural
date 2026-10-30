@@ -474,7 +474,7 @@ export function ProponentCorporateMapEditor({
       </section>
 
       <section className="card p-5">
-        <h2 className="text-base font-semibold text-[var(--navy)]">
+        <h2 className="text-lg font-semibold text-[var(--navy)]">
           Data de abertura
         </h2>
         <p className="mt-3 text-lg font-semibold text-[var(--navy)]">
@@ -514,10 +514,10 @@ export function ProponentCorporateMapEditor({
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-[var(--navy)]">
+          <h2 className="text-lg font-semibold text-[var(--navy)]">
             {copy.compositionTitle}
           </h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
+          <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
             {copy.compositionHint}
           </p>
         </div>
@@ -704,10 +704,10 @@ export function ProponentCorporateMapEditor({
       </section>
 
       <section className="card p-5">
-        <h2 className="text-base font-semibold text-[var(--navy)]">
+        <h2 className="text-lg font-semibold text-[var(--navy)]">
           Novo intervalo
         </h2>
-        <p className="mt-1 text-sm text-[var(--gray-500)]">
+        <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
           {copy.newPeriodHint}
         </p>
         <div className="mt-4">

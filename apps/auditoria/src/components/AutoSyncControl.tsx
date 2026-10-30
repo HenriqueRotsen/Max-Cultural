@@ -45,8 +45,8 @@ export function AutoSyncControl({ autoSync }: { autoSync: AutoSyncInfo }) {
   return (
     <section className="card space-y-3 border-[#fecaca] p-5">
       <div>
-        <h2 className="text-base font-semibold text-[var(--navy)]">Desativar atualização automática</h2>
-        <p className="mt-1 text-sm text-[var(--gray-500)]">
+        <h2 className="text-lg font-semibold text-[var(--navy)]">Desativar atualização automática</h2>
+        <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
           Só para casos excepcionais. Com ela desligada, os dados do SALIC deixam de ser
           atualizados sozinhos e os alertas de diligência param de chegar.
         </p>

@@ -504,7 +504,7 @@ export function sharePercent(part: number, total: number): number {
   return (part / total) * 100;
 }
 
-export function formatPercent(part: number, total: number, digits = 4): string {
+export function formatPercent(part: number, total: number, digits = 2): string {
   return `${sharePercent(part, total).toFixed(digits).replace(".", ",")}%`;
 }
 

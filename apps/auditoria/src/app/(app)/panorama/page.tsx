@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatCurrency, formatCgccpf } from "@/lib/format";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { FieldLabel } from "@/components/FieldHelp";
-import { PageHeader, StatCard } from "@/components/ui";
+import { PageHeader, Section, StatCard } from "@/components/ui";
 import { HELP } from "@/lib/help";
 
 export const dynamic = "force-dynamic";
@@ -48,65 +48,62 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Auditoria › Panorama"
-        title="Panorama"
-        description="Leitura rápida dos pagamentos carregados: concentração, maiores fornecedores e projetos em destaque."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Link href="/panorama/pronac" className="btn">
-              Análise por PRONAC
-            </Link>
-            <Link href="/fornecedores-pagos" className="btn btn-ghost">
-              Ver fornecedores
-            </Link>
-          </div>
-        }
+        title="Panorama geral"
+        description="Uma visão de todos os pagamentos de uma vez: para onde foi o dinheiro e quem mais recebeu. Para ver os limites de cada projeto, use Por PRONAC."
       />
 
-      <form className="card grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-5">
-        <div className="field">
-          <FieldLabel htmlFor="accountId" help={HELP.filterProponente}>
-            Proponente
-          </FieldLabel>
-          <select id="accountId" name="accountId" defaultValue={accountId || ""}>
-            <option value="">Todos</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+      <form className="card space-y-4 p-5">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <div className="field">
+            <FieldLabel htmlFor="accountId" help={HELP.filterProponente}>
+              Proponente
+            </FieldLabel>
+            <select id="accountId" name="accountId" defaultValue={accountId || ""}>
+              <option value="">Todos os proponentes</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <FieldLabel htmlFor="rulesetVersion" help={HELP.filterRuleset}>
+              Regra (IN)
+            </FieldLabel>
+            <select id="rulesetVersion" name="rulesetVersion" defaultValue={rulesetVersion || ""}>
+              <option value="">Todas as INs</option>
+              {rulesetOptions.map((r) => (
+                <option key={r.version} value={r.version}>
+                  {r.sourceCode}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end gap-2">
+            <button type="submit" className="btn">
+              Aplicar
+            </button>
+            {accountId || rulesetVersion || from || to ? (
+              <Link href="/panorama" className="btn btn-ghost">
+                Limpar
+              </Link>
+            ) : null}
+          </div>
         </div>
-        <div className="field">
-          <FieldLabel htmlFor="rulesetVersion" help={HELP.filterRuleset}>
-            IN do projeto
-          </FieldLabel>
-          <select id="rulesetVersion" name="rulesetVersion" defaultValue={rulesetVersion || ""}>
-            <option value="">Todas</option>
-            {rulesetOptions.map((r) => (
-              <option key={r.version} value={r.version}>
-                {r.sourceCode}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <FieldLabel htmlFor="from" help={HELP.filterFrom}>
-            De
-          </FieldLabel>
-          <input id="from" name="from" type="date" defaultValue={from || ""} />
-        </div>
-        <div className="field">
-          <FieldLabel htmlFor="to" help={HELP.filterTo}>
-            Até
-          </FieldLabel>
-          <input id="to" name="to" type="date" defaultValue={to || ""} />
-        </div>
-        <div className="flex items-end">
-          <button type="submit" className="btn">
-            Atualizar visão
-          </button>
-        </div>
+        <details className="more-filters" open={Boolean(from || to) || undefined}>
+          <summary>Filtrar por período</summary>
+          <div className="mt-3 grid gap-4 md:grid-cols-2 md:max-w-xl">
+            <div className="field">
+              <FieldLabel htmlFor="from">Pagamentos a partir de</FieldLabel>
+              <input id="from" name="from" type="date" defaultValue={from || ""} />
+            </div>
+            <div className="field">
+              <FieldLabel htmlFor="to">Pagamentos até</FieldLabel>
+              <input id="to" name="to" type="date" defaultValue={to || ""} />
+            </div>
+          </div>
+        </details>
       </form>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -132,92 +129,31 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
         />
       </section>
 
-      <section className="card overflow-hidden">
-        <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-          <h2 className="text-base font-semibold text-[var(--navy)]">O que chama atenção</h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
-            Resumo automático com base no filtro atual.
-          </p>
-        </div>
-        <ul className="divide-y divide-[var(--border)]">
+      <Section
+        step={1}
+        tone="highlight"
+        title="O que chama atenção"
+        description="Resumo automático dos pagamentos, de acordo com os filtros acima."
+      >
+        <ul className="list-disc space-y-2 pl-5 text-[0.95rem] text-[var(--gray-600)]">
           {insights.highlights.map((text) => (
-            <li key={text} className="px-5 py-3.5 text-sm text-[var(--gray-600)]">
-              {text}
-            </li>
+            <li key={text}>{text}</li>
           ))}
         </ul>
-      </section>
+      </Section>
 
-      <section className="card p-5">
-        <div className="mb-4">
-          <h2 className="text-base font-semibold text-[var(--navy)]">PRONACs por IN</h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
-            Quantos projetos do filtro estão vinculados a cada instrução normativa. Clique para
-            filtrar.
-          </p>
-        </div>
-        {insights.rulesets.length === 0 ? (
-          <p className="text-sm text-[var(--gray-500)]">Nenhum PRONAC no filtro.</p>
-        ) : (
-          <ul className="space-y-3">
-            {insights.rulesets.map((r) => {
-              const qs = new URLSearchParams();
-              if (accountId) qs.set("accountId", accountId);
-              if (from) qs.set("from", from);
-              if (to) qs.set("to", to);
-              if (r.version) qs.set("rulesetVersion", r.version);
-              const href = `/panorama?${qs.toString()}`;
-              const active = Boolean(r.version && r.version === rulesetVersion);
-              return (
-                <li key={r.version || r.sourceCode}>
-                  <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
-                    {r.version ? (
-                      <Link
-                        href={href}
-                        className={`font-medium underline-offset-2 hover:underline ${
-                          active ? "text-[var(--gold-ink,var(--navy))]" : "text-[var(--navy)]"
-                        }`}
-                      >
-                        {r.sourceCode}
-                        {active ? " · filtro ativo" : ""}
-                      </Link>
-                    ) : (
-                      <span className="font-medium text-[var(--navy)]">{r.sourceCode}</span>
-                    )}
-                    <span className="text-sm text-[var(--gray-500)]">
-                      <strong className="text-[var(--navy)]">{r.count}</strong> PRONAC
-                      {r.count === 1 ? "" : "s"} · {pct(r.sharePct)}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-[var(--gray-100)]">
-                    <div
-                      className={`h-full rounded-full ${active ? "accent-bar" : "bg-[var(--navy)]"}`}
-                      style={{ width: `${Math.min(100, r.sharePct)}%` }}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="card p-5 lg:col-span-2">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-[var(--navy)]">Maiores fornecedores</h2>
-              <p className="mt-1 text-sm text-[var(--gray-500)]">
-                Participação no total do filtro (escala 0–100%).
-              </p>
-            </div>
-            <Link
-              href="/fornecedores-pagos"
-              className="text-sm font-semibold text-[var(--navy)] underline-offset-2 hover:underline"
-            >
-              Lista completa
-            </Link>
-          </div>
+      <Section
+        step={2}
+        title="Quem mais recebeu"
+        description="Os fornecedores com mais dinheiro recebido e quanto isso representa do total pago."
+        actions={
+          <Link href="/fornecedores-pagos" className="btn btn-ghost">
+            Ver todos os fornecedores
+          </Link>
+        }
+      >
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
 
           {insights.topSuppliers.length === 0 ? (
             <p className="text-sm text-[var(--gray-500)]">Sem dados para exibir.</p>
@@ -233,7 +169,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
                       >
                         {s.name}
                       </Link>
-                      <p className="text-xs text-[var(--gray-500)]">
+                      <p className="text-sm text-[var(--gray-500)]">
                         {formatCgccpf(s.cgccpf)} · {s.projectCount} projeto
                         {s.projectCount === 1 ? "" : "s"} · {s.count} pag.
                       </p>
@@ -255,9 +191,9 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
           )}
         </div>
 
-        <div className="card p-5">
-          <h2 className="text-base font-semibold text-[var(--navy)]">Concentração</h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--gray-50)] p-4">
+          <h3 className="text-base font-semibold text-[var(--navy)]">Concentração</h3>
+          <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
             Quanto os maiores recebem do total.
           </p>
           <dl className="mt-5 space-y-4">
@@ -281,7 +217,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
             ))}
           </dl>
           {insights.watched.count > 0 && (
-            <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--gray-50)] px-3 py-3 text-sm">
+            <div className="mt-6 border-t border-[var(--border)] pt-4 text-[0.95rem]">
               <p className="font-semibold text-[var(--navy)]">Observados</p>
               <p className="mt-1 text-[var(--gray-500)]">
                 {formatCurrency(insights.watched.total)} · {pct(insights.watched.sharePct)} do
@@ -296,23 +232,14 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
             </div>
           )}
         </div>
-      </section>
+      </div>
+      </Section>
 
-      <section className="card p-5">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 className="text-base font-semibold text-[var(--navy)]">Projetos com mais volume</h2>
-            <p className="mt-1 text-sm text-[var(--gray-500)]">
-              PRONACs que mais concentraram pagamentos no filtro.
-            </p>
-          </div>
-          <Link
-            href="/panorama/pronac"
-            className="text-sm font-semibold text-[var(--navy)] underline-offset-2 hover:underline"
-          >
-            Abrir análise por PRONAC
-          </Link>
-        </div>
+      <Section
+        step={3}
+        title="Projetos com mais pagamentos"
+        description="Os PRONACs que mais concentraram dinheiro. Clique no número para abrir a análise do projeto."
+      >
 
         {insights.topPronacs.length === 0 ? (
           <p className="text-sm text-[var(--gray-500)]">Sem projetos no filtro.</p>
@@ -362,7 +289,59 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
             </table>
           </div>
         )}
-      </section>
+      </Section>
+
+      <Section
+        collapsible
+        step={4}
+        title="PRONACs por regra (IN)"
+        description="Quantos projetos seguem cada instrução normativa. Clique numa IN para filtrar o panorama por ela."
+      >
+        {insights.rulesets.length === 0 ? (
+          <p className="text-sm text-[var(--gray-500)]">Nenhum PRONAC no filtro.</p>
+        ) : (
+          <ul className="space-y-3">
+            {insights.rulesets.map((r) => {
+              const qs = new URLSearchParams();
+              if (accountId) qs.set("accountId", accountId);
+              if (from) qs.set("from", from);
+              if (to) qs.set("to", to);
+              if (r.version) qs.set("rulesetVersion", r.version);
+              const href = `/panorama?${qs.toString()}`;
+              const active = Boolean(r.version && r.version === rulesetVersion);
+              return (
+                <li key={r.version || r.sourceCode}>
+                  <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+                    {r.version ? (
+                      <Link
+                        href={href}
+                        className={`font-medium underline-offset-2 hover:underline ${
+                          active ? "text-[var(--gold-ink,var(--navy))]" : "text-[var(--navy)]"
+                        }`}
+                      >
+                        {r.sourceCode}
+                        {active ? " · filtro ativo" : ""}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-[var(--navy)]">{r.sourceCode}</span>
+                    )}
+                    <span className="text-sm text-[var(--gray-500)]">
+                      <strong className="text-[var(--navy)]">{r.count}</strong> PRONAC
+                      {r.count === 1 ? "" : "s"} · {pct(r.sharePct)}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[var(--gray-100)]">
+                    <div
+                      className={`h-full rounded-full ${active ? "accent-bar" : "bg-[var(--navy)]"}`}
+                      style={{ width: `${Math.min(100, r.sharePct)}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
     </div>
   );
 }

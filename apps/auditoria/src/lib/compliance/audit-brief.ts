@@ -159,7 +159,7 @@ export function scoreRulesetForProject(params: {
     relatedCounted.length
       ? `${relatedCounted.length} vínculo(s) entram no teto nesta IN`
       : "Nenhum vínculo cadastrado entra no teto nesta IN",
-    overProponent ? `Soma proponente+relacionados ${proponentPct.toFixed(4)}% (acima)` : null,
+    overProponent ? `Soma proponente+relacionados ${proponentPct.toFixed(2).replace(".", ",")}% (acima)` : null,
     overSuppliers.length ? `${overSuppliers.length} fornecedor(es) acima do teto` : null,
   ]
     .filter(Boolean)
@@ -250,7 +250,7 @@ export function buildDeterministicBrief(params: {
         code: "proponent_cap_over",
         severity: "high",
         title: `Soma proponente + vínculos acima de ${chosen.caps.proponentCapPct}%`,
-        detail: `Na IN ${chosen.sourceCode}, a soma chega a ${score.proponentPct.toFixed(4)}% do valor captado do projeto.`,
+        detail: `Na IN ${chosen.sourceCode}, a soma chega a ${score.proponentPct.toFixed(2).replace(".", ",")}% do valor captado do projeto.`,
       });
     }
     if (score && score.overSupplierCount > 0) {

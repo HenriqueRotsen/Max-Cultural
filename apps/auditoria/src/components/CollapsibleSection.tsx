@@ -1,45 +1,35 @@
-"use client";
+import type { ReactNode } from "react";
+import { Section } from "@/components/ui";
 
-import { useState, type ReactNode } from "react";
-
+/** Bloco que começa fechado — mesmo visual de `Section`. */
 export function CollapsibleSection({
+  step,
   title,
+  description,
   summary,
+  help,
   children,
   defaultOpen = false,
-  expandLabel = "Expandir",
-  collapseLabel = "Recolher",
-  className = "card p-5",
 }: {
+  step?: number | string;
   title: ReactNode;
+  description?: ReactNode;
   summary?: ReactNode;
+  help?: string;
   children: ReactNode;
   defaultOpen?: boolean;
-  expandLabel?: string;
-  collapseLabel?: string;
-  className?: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-
   return (
-    <section className={className}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-[var(--navy)]">{title}</h2>
-          {summary ? (
-            <p className="mt-1 text-sm text-[var(--gray-500)]">{summary}</p>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          {open ? collapseLabel : expandLabel}
-        </button>
-      </div>
-      {open ? <div className="mt-4">{children}</div> : null}
-    </section>
+    <Section
+      collapsible
+      step={step}
+      title={title}
+      description={description}
+      summary={summary}
+      help={help}
+      defaultOpen={defaultOpen}
+    >
+      {children}
+    </Section>
   );
 }

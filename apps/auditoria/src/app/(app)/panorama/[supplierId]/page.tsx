@@ -79,7 +79,7 @@ export default async function SupplierDetailPage({
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="card p-5">
-          <h2 className="text-base font-semibold text-[var(--navy)]">Por PRONAC</h2>
+          <h2 className="text-lg font-semibold text-[var(--navy)]">Por PRONAC</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {detail.byPronac.map((p) => (
               <li
@@ -122,7 +122,7 @@ export default async function SupplierDetailPage({
           </ul>
         </div>
         <div className="card p-5">
-          <h2 className="text-base font-semibold text-[var(--navy)]">Por proponente</h2>
+          <h2 className="text-lg font-semibold text-[var(--navy)]">Por proponente</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {detail.byAccount.map((a) => (
               <li
@@ -144,7 +144,7 @@ export default async function SupplierDetailPage({
 
       <section className="card p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-[var(--navy)]">Linhas de pagamento</h2>
+          <h2 className="text-lg font-semibold text-[var(--navy)]">Linhas de pagamento</h2>
           <ReportDownloadButton href={reportHref} label="Baixar PDF" />
         </div>
         <SupplierPaymentsTable

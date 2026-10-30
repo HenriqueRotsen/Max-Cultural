@@ -55,8 +55,8 @@ export function ComplianceAlerts({
                 {typeof alert.percent === "number" ? (
                   <span className="badge badge-warn">
                     {alert.members
-                      ? `Soma ${alert.percent.toFixed(4).replace(".", ",")}%`
-                      : `${alert.percent.toFixed(4).replace(".", ",")}%`}
+                      ? `Soma ${alert.percent.toFixed(2).replace(".", ",")}%`
+                      : `${alert.percent.toFixed(2).replace(".", ",")}%`}
                     {alert.limitPct ? ` / ${alert.limitPct}%` : ""}
                   </span>
                 ) : null}
@@ -80,14 +80,14 @@ export function ComplianceAlerts({
                       </span>
                     </span>
                     <span className="font-medium text-[var(--navy)]">
-                      {m.percent.toFixed(4).replace(".", ",")}%
+                      {m.percent.toFixed(2).replace(".", ",")}%
                     </span>
                   </li>
                 ))}
                 <li className="flex justify-between gap-2 border-t border-dashed border-[var(--border)] pt-1 font-semibold text-[var(--navy)]">
                   <span>Soma art. 23</span>
                   <span>
-                    {(alert.percent || 0).toFixed(4).replace(".", ",")}%
+                    {(alert.percent || 0).toFixed(2).replace(".", ",")}%
                     {alert.limitPct ? ` (limite ${alert.limitPct}%)` : ""}
                   </span>
                 </li>
@@ -121,16 +121,12 @@ export function LimitBadge({
     : near
       ? "badge-attention"
       : "badge-success";
-  const label = over
-    ? `> ${limit}%`
-    : near
-      ? `~${limit}%`
-      : `≤ ${limit}%`;
+  const label = over ? "Acima do limite" : near ? "Perto do limite" : "Dentro do limite";
 
   return (
     <span
       className={`badge ${cls}`}
-      title={`${percent.toFixed(4).replace(".", ",")}% do total pago no projeto. ${HELP.limitBadge}`}
+      title={`${percent.toFixed(2).replace(".", ",")}% do valor captado · limite ${limit}%`}
     >
       {label}
     </span>
