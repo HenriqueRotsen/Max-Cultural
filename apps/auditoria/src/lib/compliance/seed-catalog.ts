@@ -2,8 +2,24 @@ import { prisma } from "@/lib/db";
 import { RULESET_CATALOG } from "@/lib/compliance/defaults";
 import type { Prisma } from "@/generated/prisma/client";
 
-/** Garante o catálogo histórico de INs no banco (idempotente). */
-export async function seedComplianceCatalog() {
+const seedState = globalThis as unknown as {
+  complianceCatalogSeed: Promise<void> | undefined;
+};
+
+/**
+ * Garante o catálogo histórico de INs no banco (idempotente). O catálogo vem do
+ * código, então basta gravar uma vez por instância do servidor — antes rodava
+ * ~14 queries em toda página que lia as INs.
+ */
+export function seedComplianceCatalog(): Promise<void> {
+  seedState.complianceCatalogSeed ??= writeComplianceCatalog().catch((err) => {
+    seedState.complianceCatalogSeed = undefined;
+    throw err;
+  });
+  return seedState.complianceCatalogSeed;
+}
+
+async function writeComplianceCatalog() {
   for (const item of RULESET_CATALOG) {
     const jurisdiction = item.jurisdiction ?? "FEDERAL";
     const kind = item.kind ?? "BOTH";
