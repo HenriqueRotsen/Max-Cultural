@@ -69,7 +69,7 @@ export function CollapsibleAlertsPanel({
     <section className="card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="inline-flex items-center gap-1.5 text-base font-semibold text-[var(--navy)]">
+          <h2 className="inline-flex items-center gap-1.5 text-lg font-semibold text-[var(--navy)]">
             {heading}
             {headingRuleset ? (
               <span className="text-sm font-medium text-[var(--gray-400)]">
@@ -78,7 +78,7 @@ export function CollapsibleAlertsPanel({
             ) : null}
             <FieldHelp text={HELP.alerts} />
           </h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">{summary}</p>
+          <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">{summary}</p>
         </div>
         <button
           type="button"

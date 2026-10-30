@@ -108,8 +108,8 @@ export function ProjectCompliancePanel({
       <section className="card space-y-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-[var(--navy)]">Instrução normativa</h2>
-            <p className="mt-1 text-sm text-[var(--gray-500)]">
+            <h2 className="text-lg font-semibold text-[var(--navy)]">Instrução normativa</h2>
+            <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
               PRONAC {pronac}
               {sourceLabel ? ` · origem ${sourceLabel}` : ""}
             </p>
@@ -192,8 +192,8 @@ export function ProjectCompliancePanel({
 
       <section className="card space-y-4 p-5">
         <div>
-          <h2 className="text-base font-semibold text-[var(--navy)]">Briefing de auditoria</h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
+          <h2 className="text-lg font-semibold text-[var(--navy)]">Briefing de auditoria</h2>
+          <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
             {problems.length === 0 && recommendations.length === 0
               ? "Sem destaques no momento"
               : [

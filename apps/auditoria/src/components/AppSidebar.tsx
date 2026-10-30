@@ -10,17 +10,19 @@ const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000"
   "",
 );
 
+/** Menu em grupos: acompanhar → analisar → cadastrar → ferramentas. */
 const auditoriaLinks = [
-  { href: "/inicio", label: "Início", icon: HomeIcon },
-  { href: "/alertas", label: "Alertas", icon: AlertIcon },
-  { href: "/panorama", label: "Panorama", icon: ChartIcon },
-  { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon },
-  { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon },
-  { href: "/fornecedores-pagos", label: "Fornecedores pagos", icon: PackageIcon },
-  { href: "/observados", label: "Observados", icon: UsersIcon },
-  { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon },
-  { href: "/atualizacao", label: "Atualizar SALIC", icon: SyncIcon },
+  { href: "/inicio", label: "Início", icon: HomeIcon, group: "Acompanhar" },
+  { href: "/alertas", label: "Alertas", icon: AlertIcon, group: "Acompanhar" },
+  { href: "/panorama/pronac", label: "Por PRONAC", icon: PronacIcon, group: "Analisar" },
+  { href: "/panorama", label: "Panorama geral", icon: ChartIcon, group: "Analisar" },
+  { href: "/fornecedores-pagos", label: "Fornecedores pagos", icon: PackageIcon, group: "Analisar" },
+  { href: "/observados", label: "Observados", icon: UsersIcon, group: "Cadastros" },
+  { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon, group: "Cadastros" },
+  { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon, group: "Ferramentas" },
+  { href: "/atualizacao", label: "Atualizar SALIC", icon: SyncIcon, group: "Ferramentas" },
 ];
+const NAV_GROUPS = ["Acompanhar", "Analisar", "Cadastros", "Ferramentas"];
 
 function linkActive(pathname: string, href: string) {
   if (href === "/inicio") return pathname === "/inicio" || pathname === "/";
@@ -45,7 +47,6 @@ export function AppSidebar({
   const links = auditoriaLinks
     .filter((l) => syncEnabled || l.href !== "/atualizacao")
     .map((l) => (l.href === "/alertas" ? { ...l, badge: newAlerts } : l));
-  const nav = { title: "Auditoria (antigo Salink)", links };
 
   const menu = useMobileMenu(pathname);
   // Rodapé no celular: o essencial; o resto fica no menu.
@@ -73,8 +74,15 @@ export function AppSidebar({
         </Link>
       </div>
 
-      <nav className="flex flex-1 flex-col space-y-4 px-3 pb-4">
-        <NavGroup title={nav.title} links={nav.links} pathname={pathname} />
+      <nav className="flex flex-1 flex-col space-y-5 px-3 pb-4">
+        {NAV_GROUPS.map((group) => (
+          <NavGroup
+            key={group}
+            title={group}
+            links={links.filter((l) => l.group === group)}
+            pathname={pathname}
+          />
+        ))}
         <div className="mt-auto space-y-4">
           <div className="border-t border-[var(--border)] pt-4">
             <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
@@ -143,9 +151,10 @@ function NavGroup({
   links: { href: string; label: string; icon: typeof HomeIcon; badge?: number }[];
   pathname: string;
 }) {
+  if (!links.length) return null;
   return (
     <div>
-      <p className="px-3 pb-2 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+      <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
         {title}
       </p>
       {links.map((link) => {
@@ -155,7 +164,7 @@ function NavGroup({
           <Link
             key={link.href}
             href={link.href}
-            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.95rem] font-medium transition ${
               active
                 ? "bg-[var(--navy-soft)] text-[var(--navy)]"
                 : "text-[var(--gray-600)] hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"

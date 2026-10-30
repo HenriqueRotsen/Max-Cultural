@@ -102,33 +102,12 @@ function barChartSvg(
         <text x="0" y="${y + 14}" font-size="11" fill="${NAVY}" font-family="Montserrat, sans-serif">${label}</text>
         <rect x="${labelW}" y="${y}" width="${barMax}" height="16" rx="8" fill="${GRAY_100}" />
         <rect x="${labelW}" y="${y}" width="${w}" height="16" rx="8" fill="${GOLD}" />
-        <text x="${labelW + barMax + 8}" y="${y + 13}" font-size="11" fill="${GRAY_500}" font-family="Montserrat, sans-serif">${row.percent.toFixed(4).replace(".", ",")}%</text>
+        <text x="${labelW + barMax + 8}" y="${y + 13}" font-size="11" fill="${GRAY_500}" font-family="Montserrat, sans-serif">${row.percent.toFixed(2).replace(".", ",")}%</text>
       `;
     })
     .join("");
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
-}
-
-function donutSvg(watched: number, rest: number) {
-  const total = watched + rest;
-  if (total <= 0) {
-    return `<p style="color:${GRAY_500}">Sem dados para o gráfico.</p>`;
-  }
-  const r = 54;
-  const c = 2 * Math.PI * r;
-  const watchedPct = watched / total;
-  const dash = watchedPct * c;
-  return `
-    <svg viewBox="0 0 160 160" width="150" height="150" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="80" cy="80" r="${r}" fill="none" stroke="${GRAY_100}" stroke-width="18" />
-      <circle cx="80" cy="80" r="${r}" fill="none" stroke="${GOLD}" stroke-width="18"
-        stroke-dasharray="${dash} ${c - dash}" stroke-linecap="round"
-        transform="rotate(-90 80 80)" />
-      <text x="80" y="76" text-anchor="middle" font-size="18" font-weight="700" fill="${NAVY}" font-family="Montserrat, sans-serif">${(watchedPct * 100).toFixed(0)}%</text>
-      <text x="80" y="96" text-anchor="middle" font-size="10" fill="${GRAY_500}" font-family="Montserrat, sans-serif">observados</text>
-    </svg>
-  `;
 }
 
 function warningsHtml(warnings: ReportWarning[]) {
@@ -152,6 +131,41 @@ function warningsHtml(warnings: ReportWarning[]) {
       `;
     })
     .join("");
+}
+
+/** Título de seção numerada + uma frase do que ela mostra. */
+function sectionTitle(num: number | string | null, title: string, intro?: string) {
+  return `
+    <h2>${num != null ? `<span class="num">${escapeHtml(String(num))}</span>` : ""}${escapeHtml(title)}</h2>
+    ${intro ? `<p class="section-intro">${escapeHtml(intro)}</p>` : ""}
+  `;
+}
+
+type VerdictTone = "ok" | "attention" | "critical";
+
+const VERDICT_TITLE: Record<VerdictTone, string> = {
+  ok: "Dentro dos limites",
+  attention: "Perto de um limite",
+  critical: "Passou de um limite",
+};
+
+function verdictTone(levels: Array<string>): VerdictTone {
+  if (levels.includes("critical")) return "critical";
+  if (levels.includes("attention")) return "attention";
+  return "ok";
+}
+
+/** Quadro colorido com a resposta principal (dentro / perto / acima do limite). */
+function verdictHtml(tone: VerdictTone, lines: string[], title = VERDICT_TITLE[tone]) {
+  return `
+    <div class="verdict ${tone}">
+      <span class="dot"></span>
+      <div>
+        <strong>${escapeHtml(title)}</strong>
+        ${lines.length ? `<ul>${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>` : ""}
+      </div>
+    </div>
+  `;
 }
 
 type ReportSupplier = {
@@ -233,19 +247,18 @@ function bondAndWatchedHtml(params: {
 
   const bondSection = group
     ? `
-    <h2>Vínculos art. 23 — soma prioritária</h2>
+    <h3>Soma do art. 23</h3>
     <div class="panel keep" style="border-color:${GOLD};background:${GOLD_SOFT}">
       <p style="margin:0 0 10px;font-size:12px;color:${NAVY}">
-        Soma apenas de <strong>proponente + observados com vínculo ligado</strong> na IN
+        Soma apenas de <strong>proponente + observados com vínculo ligado</strong> na
         ${escapeHtml(rules.sourceCode)} (${escapeHtml(rules.caps.articles.proponent)}).
         Limite: <strong>${limitPct}%</strong> do captado.
       </p>
       <table>
         <thead>
           <tr>
-            <th>Parte</th>
+            <th>Quem recebeu</th>
             <th>Papel</th>
-            <th>Vínculo</th>
             <th class="num">Total</th>
             <th class="num">% captado</th>
             <th class="num">% comprovado</th>
@@ -254,15 +267,12 @@ function bondAndWatchedHtml(params: {
         <tbody>
           ${group.members
             .map((m) => {
-              const rel =
-                m.role === "proponent" ? "Proponente" : "Com vínculo";
               return `
             <tr>
               <td><strong>${escapeHtml(m.name)}</strong>
-                <div style="color:${GRAY_500};font-size:10px">${escapeHtml(formatCgccpf(m.cgccpf))}</div>
+                <div style="color:${GRAY_500};font-size:11px">${escapeHtml(formatCgccpf(m.cgccpf))}</div>
               </td>
-              <td>${m.role === "proponent" ? "Proponente" : "Observado"}</td>
-              <td>${escapeHtml(rel)}</td>
+              <td>${m.role === "proponent" ? "Proponente" : "Com vínculo"}</td>
               <td class="num">${formatCurrency(m.amount)}</td>
               <td class="num"><strong>${formatPercent(m.amount, params.projectTotal)}</strong></td>
               <td class="num">${formatPercent(m.amount, comprovado)}</td>
@@ -270,7 +280,7 @@ function bondAndWatchedHtml(params: {
             })
             .join("")}
           <tr style="background:#fff;font-weight:700">
-            <td colspan="3">Soma dos % que geram vínculo</td>
+            <td colspan="2">Soma do art. 23</td>
             <td class="num">${formatCurrency(group.amount)}</td>
             <td class="num" style="color:${group.percent > limitPct ? "#b42318" : NAVY}">
               ${formatPercent(group.amount, params.projectTotal)}
@@ -283,7 +293,7 @@ function bondAndWatchedHtml(params: {
     </div>
   `
     : `
-    <h2>Vínculos art. 23</h2>
+    <h3>Soma do art. 23</h3>
     <div class="alert info">
       <strong>Sem soma de vínculo neste PRONAC</strong>
       <p>Não há pagamentos a observados com vínculo ligado nesta IN (${escapeHtml(rules.sourceCode)}). Ative o vínculo no detalhe do PRONAC quando couber.</p>
@@ -297,17 +307,17 @@ function bondAndWatchedHtml(params: {
   const watchedSection =
     watched.length === 0
       ? `
-    <h2>Observados neste PRONAC</h2>
+    <h3>Observados neste PRONAC</h3>
     <div class="alert attention">
       <strong>Nenhum observado com pagamento neste PRONAC</strong>
       <p>Só entram aqui observados que receberam neste projeto.</p>
     </div>
   `
       : `
-    <h2>Observados neste PRONAC</h2>
+    <h3>Observados neste PRONAC</h3>
     <div class="panel">
       <p style="margin:0 0 10px;font-size:11px;color:${GRAY_500}">
-        Observados com pagamento neste projeto. Vínculo Sim/Não conforme a IN ${escapeHtml(rules.sourceCode)}.
+        Observados com pagamento neste projeto. Vínculo Sim/Não conforme a ${escapeHtml(rules.sourceCode)}.
       </p>
       <table>
         <thead>
@@ -332,7 +342,7 @@ function bondAndWatchedHtml(params: {
               <td>${i + 1}</td>
               <td>
                 <strong>${escapeHtml(w.name)}</strong>
-                ${w.label && w.label !== w.name ? `<div style="color:${GRAY_500};font-size:10px">${escapeHtml(w.label)}</div>` : ""}
+                ${w.label && w.label !== w.name ? `<div style="color:${GRAY_500};font-size:11px">${escapeHtml(w.label)}</div>` : ""}
               </td>
               <td>${escapeHtml(formatCgccpf(w.cgccpf))}</td>
               <td>
@@ -410,8 +420,8 @@ function shellHtml(params: {
       color: var(--navy);
       font-family: "Montserrat", system-ui, sans-serif;
       background: #fff;
-      font-size: 12px;
-      line-height: 1.45;
+      font-size: 13px;
+      line-height: 1.5;
     }
     .page { padding: 28px 32px 40px; }
     .header {
@@ -457,8 +467,8 @@ function shellHtml(params: {
     }
     .chip.gold { background: var(--gold-soft); }
     h2 {
-      margin: 28px 0 12px;
-      font-size: 14px;
+      margin: 30px 0 6px;
+      font-size: 17px;
       font-weight: 700;
       letter-spacing: 0.02em;
       break-after: avoid;
@@ -479,9 +489,7 @@ function shellHtml(params: {
       background: #fff;
     }
     .card .label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
+      font-size: 12px;
       color: var(--gray-500);
       font-weight: 600;
     }
@@ -491,7 +499,7 @@ function shellHtml(params: {
       font-weight: 700;
       color: var(--navy);
     }
-    .card .hint { margin-top: 6px; font-size: 11px; color: var(--gray-500); }
+    .card .hint { margin-top: 6px; font-size: 12px; color: var(--gray-500); }
     .grid-2 {
       display: grid;
       grid-template-columns: 1.4fr 0.8fr;
@@ -509,7 +517,7 @@ function shellHtml(params: {
       /* separate + spacing 0: Chromium respeita break-inside em <tr> */
       border-collapse: separate;
       border-spacing: 0;
-      font-size: 11px;
+      font-size: 12px;
     }
     thead { display: table-header-group; }
     tfoot { display: table-footer-group; }
@@ -520,9 +528,9 @@ function shellHtml(params: {
       vertical-align: top;
     }
     th {
-      font-size: 10px;
+      font-size: 10.5px;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       color: var(--gray-500);
       background: #fff;
     }
@@ -595,7 +603,62 @@ function shellHtml(params: {
       page-break-inside: avoid;
     }
     .alert strong { display: block; margin-bottom: 4px; }
-    .alert p { margin: 0; color: var(--gray-500); }
+    .alert p { margin: 0; color: #4b5563; }
+    h2 .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      margin-right: 8px;
+      border-radius: 999px;
+      background: var(--navy);
+      color: #fff;
+      font-size: 12px;
+      vertical-align: 2px;
+    }
+    h3 { margin: 16px 0 8px; font-size: 14px; font-weight: 700; break-after: avoid; page-break-after: avoid; }
+    .section-intro {
+      margin: 0 0 12px;
+      color: #4b5563;
+      font-size: 13px;
+      max-width: 640px;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .verdict {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      border-radius: 14px;
+      border: 1px solid;
+      padding: 14px 16px;
+      margin: 0 0 18px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .verdict .dot { width: 12px; height: 12px; border-radius: 99px; background: currentColor; margin-top: 5px; flex-shrink: 0; }
+    .verdict strong { display: block; font-size: 16px; margin-bottom: 4px; }
+    .verdict ul { margin: 4px 0 0; padding-left: 18px; }
+    .verdict.ok { background: #ecfbf1; border-color: #b7e4c7; color: #146c3a; }
+    .verdict.attention { background: #fff7e8; border-color: #f6d39a; color: #8a4b12; }
+    .verdict.critical { background: #fef1ef; border-color: #f5b5ad; color: #a12a1c; }
+    .status { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .status.ok { background: #ecfbf1; color: #146c3a; }
+    .status.attention { background: #fff7e8; color: #8a4b12; }
+    .status.critical { background: #fef1ef; color: #a12a1c; }
+    .annex { page-break-before: always; break-before: page; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 4px 0 10px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .kpi { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
+    .kpi .label { font-size: 12px; font-weight: 600; color: var(--gray-500); }
+    .kpi .value { margin-top: 6px; font-size: 17px; font-weight: 700; }
     .alert.info { background: var(--navy-soft); }
     .alert.attention { background: var(--gold-soft); border-color: ${GOLD_BORDER}; }
     .alert.critical { background: #fdecec; border-color: #f2c7c7; }
@@ -638,7 +701,7 @@ function shellHtml(params: {
   <div class="page">
     <header class="header">
       <div>
-        <img class="logo" src="${params.logoDataUri}" alt="MAX Financeiro" />
+        <img class="logo" src="${params.logoDataUri}" alt="MAX Auditoria" />
         <p class="eyebrow" style="margin-top:14px">Relatório de auditoria</p>
         <h1>${escapeHtml(params.title)}</h1>
         <p class="subtitle">${escapeHtml(params.subtitle)}</p>
@@ -646,7 +709,7 @@ function shellHtml(params: {
       <div class="meta">
         <div><strong>Gerado em</strong></div>
         <div class="timestamp">${escapeHtml(generatedAt)}</div>
-        <div style="margin-top:10px">MAX Financeiro · Auditoria & Gestão</div>
+        <div style="margin-top:10px">MAX Auditoria</div>
       </div>
     </header>
 
@@ -663,7 +726,7 @@ function shellHtml(params: {
     ${params.body}
 
     <footer class="footer">
-      <span>Documento gerado automaticamente pelo MAX Financeiro para apoio à auditoria de gastos SALIC.</span>
+      <span>Documento gerado automaticamente pelo MAX Auditoria a partir dos dados do SALIC.</span>
       <span>Gerado em ${escapeHtml(generatedAt)}</span>
     </footer>
   </div>
@@ -810,7 +873,7 @@ export function buildPronacDetailWarnings(params: {
     const share = sharePercent(params.watchedTotal, params.projectTotal);
     warnings.push({
       level: "info",
-      title: `Observados representam ${share.toFixed(4).replace(".", ",")}% do projeto`,
+      title: `Observados representam ${share.toFixed(2).replace(".", ",")}% do projeto`,
       detail: `${formatCurrency(params.watchedTotal)} de ${formatCurrency(params.projectTotal)} no PRONAC ${params.pronac}. Este percentual conjunto não é o teto do ${rules.caps.articles.supplier} (o teto é por fornecedor).`,
     });
   }
@@ -1273,12 +1336,7 @@ export async function renderPronacDetailHtml(params: {
     bondSet.add(normalizeCgccpf(params.accountCgccpf));
   }
 
-  const suppliersSorted = [...params.suppliers].sort((a, b) => {
-    const aBond = bondSet.has(normalizeCgccpf(a.cgccpf)) ? 1 : 0;
-    const bBond = bondSet.has(normalizeCgccpf(b.cgccpf)) ? 1 : 0;
-    if (aBond !== bBond) return bBond - aBond;
-    return b.total - a.total;
-  });
+  const suppliersSorted = [...params.suppliers].sort((a, b) => b.total - a.total);
 
   const chartItems = suppliersSorted.slice(0, 10).map((s) => ({
     label: s.name,
@@ -1286,7 +1344,6 @@ export async function renderPronacDetailHtml(params: {
     percent: s.percent,
   }));
 
-  const rest = Math.max(0, params.projectTotal - params.total);
   const paymentsRows = params.payments.slice(0, 80);
   const comprovado =
     params.paidTotal && params.paidTotal > 0
@@ -1305,25 +1362,33 @@ export async function renderPronacDetailHtml(params: {
     watchedSuppliers: params.watchedSuppliers,
   });
 
+  const limitPct =
+    params.personType === "PF" || params.personType === "MEI"
+      ? rules.caps.proponentMeiCapPct
+      : rules.caps.proponentCapPct;
+  const tone = verdictTone(warnings.map((w) => w.level));
+  const verdictLines = warnings
+    .filter((w) => w.level !== "info")
+    .slice(0, 4)
+    .map((w) => w.title);
+
   const body = `
+    ${verdictHtml(tone, verdictLines, `Este PRONAC: ${VERDICT_TITLE[tone].toLowerCase()}`)}
+
     <section class="cards">
       <div class="card">
         <div class="label">Valor captado</div>
         <div class="value">${formatCurrency(params.projectTotal)}</div>
+        <div class="hint">Base de todos os limites</div>
       </div>
       <div class="card">
-        <div class="label">Comprovado</div>
+        <div class="label">Já pago</div>
         <div class="value">${formatCurrency(comprovado)}</div>
         <div class="hint">${formatPercent(comprovado, params.projectTotal)} do captado</div>
       </div>
       <div class="card">
-        <div class="label">${params.watchedOnly ? "Total observados" : "Total exibido"}</div>
-        <div class="value">${formatCurrency(params.total)}</div>
-        ${
-          params.watchedOnly
-            ? `<div class="hint">${formatPercent(params.total, params.projectTotal)} capt. · ${formatPercent(params.total, comprovado)} comp.</div>`
-            : ""
-        }
+        <div class="label">Fornecedores</div>
+        <div class="value">${params.supplierCount}</div>
       </div>
       <div class="card">
         <div class="label">Pagamentos</div>
@@ -1331,57 +1396,42 @@ export async function renderPronacDetailHtml(params: {
       </div>
     </section>
 
-    <h2>Sinais para auditoria</h2>
+    ${sectionTitle(1, "Avisos", `Pontos que passaram ou estão perto dos limites da ${rules.sourceCode}. Vermelho é o que passou do limite; amarelo, o que está perto.`)}
     ${warningsHtml(warnings)}
 
+    ${sectionTitle(2, "Limite do art. 23", `Soma do que o proponente e quem tem vínculo com ele receberam. Pela ${rules.sourceCode}, pode chegar a no máximo ${limitPct}% do valor captado. Alimentação e refeição não entram.`)}
     ${bondBlock}
 
-    <h2>Participação dos fornecedores</h2>
-    <div class="grid-2">
-      <div class="panel keep">
-        ${barChartSvg(chartItems, { maxBars: 10, scale: "percent" })}
-      </div>
-      <div class="panel keep" style="text-align:center">
-        ${
-          params.watchedOnly
-            ? `${donutSvg(params.total, rest)}
-               <p style="color:${GRAY_500};margin:8px 0 0">Observados vs demais no PRONAC</p>`
-            : `<p style="color:${GRAY_500}">Barras com vínculos art. 23 primeiro.</p>
-               <p style="color:${GRAY_500}">A soma prioritária está na seção de vínculos acima.</p>`
-        }
-      </div>
+    ${sectionTitle(3, params.watchedOnly ? "Fornecedores observados" : "Fornecedores", `Quem recebeu dinheiro neste PRONAC, do maior para o menor. Cada fornecedor pode receber até ${rules.caps.supplierCapPct}% do valor captado. Destacados: proponente e quem tem vínculo.`)}
+    <div class="panel keep" style="margin-bottom:12px">
+      ${barChartSvg(chartItems, { maxBars: 10, scale: "percent" })}
     </div>
-
-    <h2>Fornecedores${params.watchedOnly ? " (exibidos)" : ""}</h2>
     <div class="panel">
       <table>
         <thead>
           <tr>
             <th>Fornecedor</th>
-            <th>CNPJ/CPF</th>
-            <th>Vínculo art. 23</th>
-            <th class="num">Total</th>
-            <th class="num">% captado</th>
-            <th class="num">% comprovado</th>
-            <th class="num">Pag.</th>
+            <th class="num">Recebeu</th>
+            <th class="num">% do captado</th>
+            <th class="num">Pagamentos</th>
           </tr>
         </thead>
         <tbody>
           ${suppliersSorted
             .map((s) => {
-              const isBond = bondSet.has(normalizeCgccpf(s.cgccpf));
+              const dig = normalizeCgccpf(s.cgccpf);
+              const isBond = bondSet.has(dig);
+              const isProponent =
+                !!params.accountCgccpf && dig === normalizeCgccpf(params.accountCgccpf);
               return `
             <tr style="${isBond ? `background:${GOLD_SOFT}` : ""}">
-              <td><strong>${escapeHtml(s.name)}</strong></td>
-              <td>${escapeHtml(formatCgccpf(s.cgccpf))}</td>
-              <td>${
-                isBond
-                  ? `<span class="chip gold" style="padding:3px 8px">Sim</span>`
-                  : `<span style="color:${GRAY_500}">Não</span>`
-              }</td>
+              <td><strong>${escapeHtml(s.name)}</strong>
+                <div style="color:${GRAY_500};font-size:11px">${escapeHtml(formatCgccpf(s.cgccpf))}${
+                  isProponent ? " · Proponente" : isBond ? " · Com vínculo" : ""
+                }</div>
+              </td>
               <td class="num">${formatCurrency(s.total)}</td>
               <td class="num">${formatPercent(s.total, params.projectTotal)}</td>
-              <td class="num">${formatPercent(s.total, comprovado)}</td>
               <td class="num">${s.count}</td>
             </tr>
           `;
@@ -1391,11 +1441,8 @@ export async function renderPronacDetailHtml(params: {
       </table>
     </div>
 
-    <h2>Linhas de pagamento${params.payments.length > paymentsRows.length ? ` (primeiras ${paymentsRows.length})` : ""}</h2>
-    <p style="font-size:11px;color:${GRAY_500};margin:0 0 8px">
-      Itens de alimentação ou refeição são marcados e não entram no cálculo do vínculo art. 23.
-    </p>
-    <div class="panel">
+    <section class="annex">
+      ${sectionTitle("A", `Anexo: pagamentos${params.payments.length > paymentsRows.length ? ` (primeiros ${paymentsRows.length} de ${params.payments.length})` : ""}`, "Cada comprovante lançado no SALIC, para conferência. Itens de alimentação ou refeição não contam para o art. 23.")}
       <table>
         <thead>
           <tr>
@@ -1404,9 +1451,6 @@ export async function renderPronacDetailHtml(params: {
             <th>Item</th>
             <th>Comprovante</th>
             <th class="num">Valor</th>
-            <th class="num">% captado</th>
-            <th class="num">% comprovado</th>
-            <th>Origem</th>
           </tr>
         </thead>
         <tbody>
@@ -1418,23 +1462,20 @@ export async function renderPronacDetailHtml(params: {
               <td>${escapeHtml(p.supplierName)}</td>
               <td>${escapeHtml(p.itemName || "—")}${
                 isExcludedFromBondItem(p.itemName)
-                  ? ` <span class="chip" style="margin-left:6px;font-size:9px;background:${GRAY_100};color:${GRAY_500}">Não entrou no cálculo do vínculo art. 23</span>`
+                  ? `<div style="color:${GRAY_500};font-size:11px">Não conta para o art. 23</div>`
                   : ""
               }</td>
               <td>${escapeHtml(
                 `${p.documentType || "—"}${p.documentNumber ? ` nº ${p.documentNumber}` : ""}`,
               )}</td>
               <td class="num">${formatCurrency(p.amount)}</td>
-              <td class="num">${formatPercent(p.amount, params.projectTotal)}</td>
-              <td class="num">${formatPercent(p.amount, comprovado)}</td>
-              <td>${escapeHtml(p.source)}</td>
             </tr>
           `,
             )
             .join("")}
         </tbody>
       </table>
-    </div>
+    </section>
   `;
 
   return shellHtml({
@@ -1818,6 +1859,9 @@ export type AuditoriaPronacBlock = {
   }>;
   corporateMapHtml: string;
   alertsSummary: string;
+  /** Níveis dos avisos (critical / attention / info) — dão a cor do resumo. */
+  alertLevels?: string[];
+  alertTitles?: string[];
   institutionalMap?: boolean;
 };
 
@@ -1826,11 +1870,31 @@ export async function renderAuditoriaReportHtml(params: {
   blocks: AuditoriaPronacBlock[];
 }) {
   const logoDataUri = await loadLogoDataUri();
-  const toc = params.blocks
-    .map(
-      (b, i) =>
-        `<li><a href="#pronac-${i}">${escapeHtml(b.pronac)} — ${escapeHtml(b.name)}</a></li>`,
-    )
+  const toneOf = (b: AuditoriaPronacBlock) => verdictTone(b.alertLevels || []);
+  const counts = { critical: 0, attention: 0, ok: 0 };
+  for (const b of params.blocks) counts[toneOf(b)] += 1;
+  const coverTone: VerdictTone =
+    counts.critical > 0 ? "critical" : counts.attention > 0 ? "attention" : "ok";
+  const coverLines = [
+    `${params.blocks.length} PRONAC(s) analisados`,
+    counts.critical ? `${counts.critical} passaram de algum limite` : null,
+    counts.attention ? `${counts.attention} estão perto de algum limite` : null,
+    counts.ok ? `${counts.ok} estão dentro dos limites` : null,
+  ].filter(Boolean) as string[];
+  const summaryRows = params.blocks
+    .map((b, i) => {
+      const tone = toneOf(b);
+      const titles = (b.alertTitles || []).slice(0, 2);
+      return `
+        <tr>
+          <td><span class="status ${tone}">${VERDICT_TITLE[tone]}</span></td>
+          <td><a href="#pronac-${i}"><strong>${escapeHtml(b.pronac)}</strong></a>
+            <div style="color:${GRAY_500};font-size:11px">${escapeHtml(b.name)}</div>
+          </td>
+          <td>${escapeHtml(b.accountName)}</td>
+          <td>${titles.length ? titles.map((t) => escapeHtml(t)).join("<br/>") : `<span style="color:${GRAY_500}">Sem avisos</span>`}</td>
+        </tr>`;
+    })
     .join("");
 
   const sections = params.blocks
@@ -1853,15 +1917,15 @@ export async function renderAuditoriaReportHtml(params: {
           const bonded = (b.relatedParties || []).some(
             (r) => normalizeCgccpf(r.cgccpf) === dig,
           );
+          const isProponent = dig === normalizeCgccpf(b.accountCgccpf);
           return `
           <tr>
             <td><strong>${escapeHtml(s.name)}</strong>
               <div class="muted">${escapeHtml(formatCgccpf(s.cgccpf))}</div>
             </td>
-            <td>${bonded ? '<span class="chip gold">Sim</span>' : "Não"}</td>
+            <td>${isProponent ? "Proponente" : bonded ? "Sim" : `<span style="color:${GRAY_500}">Não</span>`}</td>
             <td class="num">${formatCurrency(s.total)}</td>
             <td class="num">${formatPercent(s.total, b.projectTotal)}</td>
-            <td class="num">${formatPercent(s.total, b.paidTotal || b.projectTotal)}</td>
             <td class="num">${s.count}</td>
           </tr>`;
         })
@@ -1890,44 +1954,43 @@ export async function renderAuditoriaReportHtml(params: {
           <h1 style="margin:0;font-size:18px;color:${NAVY}">PRONAC ${escapeHtml(b.pronac)}</h1>
           <p style="margin:6px 0 0;font-size:12px;color:${GRAY_500}">
             ${escapeHtml(b.name)} · ${escapeHtml(b.accountName)} ·
-            ${escapeHtml(formatCgccpf(b.accountCgccpf))} · IN ${escapeHtml(b.rules.sourceCode)}
+            ${escapeHtml(formatCgccpf(b.accountCgccpf))} · ${escapeHtml(b.rules.sourceCode)}
           </p>
         </div>
 
-        <h2>1. Situação perante a auditoria</h2>
+        ${verdictHtml(toneOf(b), (b.alertTitles || []).slice(0, 4))}
+
+        ${sectionTitle(1, "Situação", "Números principais do projeto no SALIC.")}
         <div class="kpis">
           <div class="kpi"><div class="label">Captado</div><div class="value">${formatCurrency(b.projectTotal)}</div></div>
           <div class="kpi"><div class="label">Comprovado</div><div class="value">${formatCurrency(b.paidTotal)}</div></div>
           <div class="kpi"><div class="label">Fornecedores</div><div class="value">${b.suppliers.length}</div></div>
           <div class="kpi"><div class="label">Pagamentos</div><div class="value">${b.payments.length}</div></div>
         </div>
-        <p style="font-size:12px;color:${GRAY_500}">${escapeHtml(b.alertsSummary)}</p>
+        <p class="section-intro">${escapeHtml(b.alertsSummary)}</p>
 
-        <h2>${escapeHtml(corporateMapCopy(Boolean(b.institutionalMap)).reportSection)}</h2>
+        ${sectionTitle(2, corporateMapCopy(Boolean(b.institutionalMap)).reportSection.replace(/^\d+\.\s*/, ""), "Quem fazia parte do proponente em cada período. Ajuda a identificar vínculos.")}
         ${b.corporateMapHtml}
 
-        <h2>3. Observados e vínculo (IN)</h2>
+        ${sectionTitle(3, "Limite do art. 23", `Soma do que o proponente e quem tem vínculo com ele receberam. Limite da ${b.rules.sourceCode}: ${b.personType === "PF" || b.personType === "MEI" ? b.rules.caps.proponentMeiCapPct : b.rules.caps.proponentCapPct}% do valor captado.`)}
         ${bondBlock}
 
-        <h2>4. Agregados por fornecedor</h2>
+        ${sectionTitle(4, "Fornecedores", `Quanto cada fornecedor recebeu neste PRONAC. Limite por fornecedor: ${b.rules.caps.supplierCapPct}% do valor captado.`)}
         <table>
           <thead>
             <tr>
               <th>Fornecedor</th>
-              <th>Vínculo</th>
-              <th class="num">Total</th>
-              <th class="num">% captado</th>
-              <th class="num">% comprovado</th>
-              <th class="num">Pag.</th>
+              <th>Tem vínculo?</th>
+              <th class="num">Recebeu</th>
+              <th class="num">% do captado</th>
+              <th class="num">Pagamentos</th>
             </tr>
           </thead>
-          <tbody>${supplierRows || `<tr><td colspan="6">Sem fornecedores</td></tr>`}</tbody>
+          <tbody>${supplierRows || `<tr><td colspan="5">Sem fornecedores</td></tr>`}</tbody>
         </table>
 
-        <h2>5. Linhas de pagamento</h2>
-        <p style="font-size:11px;color:${GRAY_500};margin:0 0 8px">
-          Itens de alimentação ou refeição são marcados e não entram no cálculo do vínculo art. 23.
-        </p>
+        <div class="annex">
+        ${sectionTitle("A", `Anexo do PRONAC ${b.pronac}: pagamentos`, "Cada comprovante lançado no SALIC, para conferência. Itens de alimentação ou refeição não contam para o art. 23.")}
         <table>
           <thead>
             <tr>
@@ -1940,19 +2003,31 @@ export async function renderAuditoriaReportHtml(params: {
           </thead>
           <tbody>${paymentRows || `<tr><td colspan="5">Sem pagamentos</td></tr>`}</tbody>
         </table>
+        </div>
       </section>`;
     })
     .join("\n");
 
   const body = `
-    <h2>Sumário</h2>
-    <ol>${toc}</ol>
+    ${verdictHtml(coverTone, coverLines, "Resumo da auditoria")}
+    ${sectionTitle(null, "Situação de cada PRONAC", "Os que passaram de algum limite vêm primeiro na leitura: clique no número para ir direto ao projeto.")}
+    <table>
+      <thead>
+        <tr>
+          <th>Situação</th>
+          <th>PRONAC</th>
+          <th>Proponente</th>
+          <th>Principais avisos</th>
+        </tr>
+      </thead>
+      <tbody>${summaryRows}</tbody>
+    </table>
     ${sections}
   `;
 
   return shellHtml({
     title: "Relatório de Auditoria",
-    subtitle: `${params.blocks.length} PRONAC(s) · situação, mapa, observados, agregados e pagamentos`,
+    subtitle: `${params.blocks.length} PRONAC(s) · situação, mapa do proponente, limite do art. 23, fornecedores e pagamentos`,
     logoDataUri,
     filters: {
       accountName: null,

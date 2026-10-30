@@ -67,8 +67,8 @@ export default async function AuditoriaFornecedoresPage() {
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Auditoria › Fornecedores"
-        title="Fornecedores"
-        description="Todos os fornecedores que já receberam pagamento nos projetos (PRONACs) carregados do SALIC. Clique em um nome para ver os pagamentos e baixar o relatório."
+        title="Fornecedores pagos"
+        description="Todos que já receberam dinheiro nos projetos carregados do SALIC. Clique em um nome para ver os pagamentos dele em cada PRONAC."
         actions={
           <>
             <Link href="/observados?tab=adicionar" className="btn">
@@ -108,11 +108,11 @@ export default async function AuditoriaFornecedoresPage() {
 
       <section className="card overflow-hidden">
         <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--navy)]">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-[var(--navy)]">
             Todos os fornecedores pagos
             <FieldHelp text="Esta lista é montada automaticamente a partir dos pagamentos do SALIC. Ela não é a lista de observados — use a tela Observados para acompanhar alguém de perto." />
           </h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
+          <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
             Busque por nome ou CNPJ/CPF e ordene clicando no título das colunas.
           </p>
         </div>

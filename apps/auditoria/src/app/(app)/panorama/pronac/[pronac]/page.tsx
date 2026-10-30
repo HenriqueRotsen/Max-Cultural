@@ -1,21 +1,25 @@
 import Link from "next/link";
 import {
-  formatPercent,
   getPronacDetail,
   getWatchedSupplierCount,
   listWatchedSuppliers,
 } from "@/lib/audit";
-import { evaluatePronacSupplierCompliance } from "@/lib/compliance/rouanet";
+import {
+  computeProponentGroupShare,
+  evaluatePronacSupplierCompliance,
+  nearThresholdForLimit,
+  proponentLimitPct,
+} from "@/lib/compliance/rouanet";
 import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
 import { listRulesets, rulesForProject } from "@/lib/compliance/rules";
 import type { AuditBrief } from "@/lib/compliance/audit-brief";
 import { formatCurrency } from "@/lib/crypto";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { ComplianceAlerts } from "@/components/ComplianceAlerts";
-import { FieldHelp, FieldLabel } from "@/components/FieldHelp";
-import { PageHeader, StatCard } from "@/components/ui";
+import { FieldLabel } from "@/components/FieldHelp";
+import { PageHeader, Section, StatCard, StatusBanner } from "@/components/ui";
 import { PronacDetailTables } from "@/components/PronacDetailTables";
-import { ObservadoBondsPanel } from "@/components/ObservadoBondsPanel";
+import { Art23Section } from "@/components/Art23Section";
 import { ProjectCompliancePanel } from "@/components/ProjectCompliancePanel";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { HELP } from "@/lib/help";
@@ -125,19 +129,49 @@ export default async function PronacDetailPage({
   const briefCount =
     (brief?.problems?.length || 0) + (brief?.recommendations?.length || 0);
 
+  const limitPct = proponentLimitPct(projectRules, personType);
+  const accountDoc = accountCgccpf ? normalizeCgccpf(accountCgccpf) : "";
+  const bondAmountByDoc = new Map(
+    detail.bondSuppliers.map((s) => [normalizeCgccpf(s.cgccpf), s.total]),
+  );
+  const enabledBondDocs = meta.relatedParties.map((r) => normalizeCgccpf(r.cgccpf));
+  const enabledSet = new Set(enabledBondDocs);
+  const art23Rows = watchedInPronac
+    .map((w) => normalizeCgccpf(w.cgccpf || ""))
+    .filter((dig, i, all) => dig.length >= 11 && dig !== accountDoc && all.indexOf(dig) === i)
+    .map((dig) => {
+      const w = watchedInPronac.find((x) => normalizeCgccpf(x.cgccpf || "") === dig)!;
+      return {
+        cgccpf: dig,
+        name: w.name,
+        amount: bondAmountByDoc.get(dig) || 0,
+        enabled: enabledSet.has(dig),
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+  const group = computeProponentGroupShare({
+    projectTotal: detail.projectTotal,
+    accountCgccpf,
+    personType,
+    suppliers: detail.bondSuppliers,
+    relatedParties: meta.relatedParties,
+    rules: projectRules,
+  });
+  const groupPct = group ? group.percent : 0;
+  const pctText = (v: number) => `${v.toFixed(2).replace(".", ",")}%`;
+  const levelRank = { critical: 0, attention: 1, info: 2 } as Record<string, number>;
+  const topAlerts = [...complianceAlerts]
+    .filter((a) => a.level !== "info")
+    .sort((a, b) => (levelRank[a.level] ?? 3) - (levelRank[b.level] ?? 3))
+    .slice(0, 3);
+  const statusTone =
+    criticalCount > 0 ? "critical" : attentionCount > 0 ? "attention" : "ok";
+
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href={`/panorama/pronac?${backQs}`}
-          className="text-sm text-[var(--gray-500)] hover:text-[var(--navy)]"
-        >
-          ← Voltar à análise por PRONAC
-        </Link>
-      </div>
-
       <PageHeader
-        breadcrumb="Início › Panorama › PRONAC › Detalhe"
+        backHref={`/panorama/pronac?${backQs}`}
+        backLabel="Voltar para a lista de PRONACs"
         title={`PRONAC ${detail.pronac}`}
         description={
           detail.name
@@ -145,64 +179,43 @@ export default async function PronacDetailPage({
             : detail.accounts.map((a) => a.name).join(", ") || undefined
         }
         actions={
-          <div className="flex flex-wrap items-end gap-2">
-            <ReportDownloadButton
-              href={`/api/reports/pronac/${detail.pronac}${reportQs}`}
-              label="Gerar relatório PDF"
-            />
-            <form className="flex flex-wrap items-end gap-2">
-              {accountId && <input type="hidden" name="accountId" value={accountId} />}
-              {from && <input type="hidden" name="from" value={from} />}
-              {to && <input type="hidden" name="to" value={to} />}
-              {tab !== "analise" && <input type="hidden" name="tab" value={tab} />}
-              <div className="field">
-                <FieldLabel htmlFor="watchedOnly" help={HELP.watchedOnly}>
-                  Fornecedores
-                </FieldLabel>
-                <select
-                  id="watchedOnly"
-                  name="watchedOnly"
-                  defaultValue={watchedOnly ? "1" : "0"}
-                >
-                  <option value="0">Todos</option>
-                  <option value="1" disabled={watchedCount === 0}>
-                    Só observados{watchedCount > 0 ? ` (${watchedCount})` : " — cadastre antes"}
-                  </option>
-                </select>
-              </div>
-              <button type="submit" className="btn">
-                Aplicar
-              </button>
-            </form>
-          </div>
+          <ReportDownloadButton
+            href={`/api/reports/pronac/${detail.pronac}${reportQs}`}
+            label="Gerar relatório PDF"
+          />
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--gray-500)]">
-        <Link
-          href={hrefForTab("in")}
-          className="badge badge-warn hover:opacity-90"
-          title="Abrir IN e briefing"
-        >
-          {projectRules.sourceCode}
-        </Link>
-        <Link
-          href={hrefForTab("avisos")}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 hover:bg-[var(--gray-50)]"
-        >
-          <span className="font-medium text-[var(--navy)]">
-            {complianceAlerts.length === 0
-              ? "Sem avisos"
-              : `${complianceAlerts.length} aviso${complianceAlerts.length === 1 ? "" : "s"}`}
-          </span>
-          {criticalCount > 0 ? (
-            <span className="text-xs text-[#b42318]">{criticalCount} crítico(s)</span>
-          ) : attentionCount > 0 ? (
-            <span className="text-xs text-[#c05621]">{attentionCount} atenção</span>
+      <StatusBanner
+        tone={statusTone}
+        title={
+          statusTone === "critical"
+            ? "Este PRONAC passou de um limite"
+            : statusTone === "attention"
+              ? "Este PRONAC está perto de um limite"
+              : "Este PRONAC está dentro dos limites"
+        }
+      >
+        {topAlerts.length > 0 ? (
+          <ul className="mb-1 list-disc space-y-0.5 pl-5">
+            {topAlerts.map((a, i) => (
+              <li key={`${a.code}-${i}`}>{a.title}</li>
+            ))}
+          </ul>
+        ) : null}
+        <p>
+          Soma do art. 23: <strong>{pctText(groupPct)}</strong> de {limitPct}% permitido
+          {" · "}Regra aplicada: {projectRules.sourceCode}
+          {complianceAlerts.length > 0 ? (
+            <>
+              {" · "}
+              <Link href={hrefForTab("avisos")} className="font-semibold underline underline-offset-2">
+                {complianceAlerts.length === 1 ? "ver o aviso" : `ver os ${complianceAlerts.length} avisos`}
+              </Link>
+            </>
           ) : null}
-        </Link>
-        <FieldHelp text={HELP.alerts} />
-      </div>
+        </p>
+      </StatusBanner>
 
       <nav className="accounts-tabs" aria-label="Abas do PRONAC">
         <Link href={hrefForTab("analise")} aria-current={tab === "analise" ? "page" : undefined}>
@@ -213,79 +226,81 @@ export default async function PronacDetailPage({
           {complianceAlerts.length > 0 ? ` (${complianceAlerts.length})` : ""}
         </Link>
         <Link href={hrefForTab("in")} aria-current={tab === "in" ? "page" : undefined}>
-          IN e briefing
+          Regra aplicada (IN)
           {briefCount > 0 ? ` (${briefCount})` : ""}
         </Link>
       </nav>
 
       {tab === "analise" && (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 sm:grid-cols-3">
             <StatCard
               label="Valor captado"
               value={formatCurrency(detail.projectTotal)}
               hint={
                 detail.baseSource === "comprovado"
-                  ? "Captado indisponível — usando soma dos comprovados"
-                  : `Comprovado: ${formatCurrency(detail.paidTotal)}`
+                  ? "Captado indisponível: usando a soma dos pagamentos"
+                  : "Base de todos os limites"
               }
               help={HELP.valorCaptado}
             />
-            {detail.watchedOnly ? (
-              <>
-                <StatCard
-                  label="Total observados"
-                  value={formatCurrency(detail.total)}
-                  hint={`${formatPercent(detail.total, detail.projectTotal)} do captado`}
-                  help={HELP.totalObservados}
-                />
-                <StatCard
-                  label="Observados neste PRONAC"
-                  value={String(detail.supplierCount)}
-                />
-              </>
-            ) : (
-              <StatCard
-                label="Comprovado (pagamentos)"
-                value={formatCurrency(detail.paidTotal)}
-                hint={`${formatPercent(detail.paidTotal, detail.projectTotal)} do captado`}
-              />
-            )}
-            <StatCard label="Pagamentos exibidos" value={String(detail.paymentCount)} />
+            <StatCard
+              label="Já pago"
+              value={formatCurrency(detail.paidTotal)}
+              hint={`${pctText(detail.projectTotal > 0 ? (detail.paidTotal / detail.projectTotal) * 100 : 0)} do captado`}
+            />
+            <StatCard
+              label="Pagamentos"
+              value={String(detail.paymentCount)}
+              hint={`${detail.allSuppliers.length} fornecedor${detail.allSuppliers.length === 1 ? "" : "es"}`}
+            />
           </section>
 
-          {primaryAccountId ? (
-            <ObservadoBondsPanel
-              salicAccountId={primaryAccountId}
-              accountName={detail.accounts[0]?.name || "Proponente"}
-              rulesetVersion={projectRules.version}
-              rulesetSourceCode={projectRules.sourceCode}
-              watched={watchedInPronac.map((w) => ({
-                id: w.id,
-                name: w.name,
-                label: w.label,
-                cgccpf: w.cgccpf,
-              }))}
-              enabledDocs={meta.relatedParties.map((r) =>
-                normalizeCgccpf(r.cgccpf),
-              )}
-            />
-          ) : null}
+          <Art23Section
+            step={1}
+            salicAccountId={primaryAccountId || null}
+            rulesetVersion={projectRules.version}
+            rulesetSourceCode={projectRules.sourceCode}
+            accountName={detail.accounts[0]?.name || "Proponente"}
+            proponentAmount={accountDoc ? bondAmountByDoc.get(accountDoc) || 0 : 0}
+            projectTotal={detail.projectTotal}
+            limitPct={limitPct}
+            nearPct={nearThresholdForLimit(limitPct, projectRules)}
+            rows={art23Rows}
+          />
 
           <PronacDetailTables
+            firstStep={2}
             pronac={detail.pronac}
             projectTotal={detail.projectTotal}
-            paidTotal={detail.paidTotal}
             accountId={accountId}
             accountCgccpf={accountCgccpf}
             personType={personType}
-            relatedParties={meta.relatedParties}
+            bondDocs={enabledBondDocs}
             rules={projectRules}
             watchedOnly={detail.watchedOnly}
             suppliers={detail.suppliers}
-            allSuppliers={detail.allSuppliers}
-            bondSuppliers={detail.bondSuppliers}
-            watchedSuppliers={watchedInPronac}
+            filterSlot={
+              <form className="flex flex-wrap items-end gap-2">
+                {accountId && <input type="hidden" name="accountId" value={accountId} />}
+                {from && <input type="hidden" name="from" value={from} />}
+                {to && <input type="hidden" name="to" value={to} />}
+                <div className="field">
+                  <FieldLabel htmlFor="watchedOnly" help={HELP.watchedOnly}>
+                    Mostrar
+                  </FieldLabel>
+                  <select id="watchedOnly" name="watchedOnly" defaultValue={watchedOnly ? "1" : "0"}>
+                    <option value="0">Todos os fornecedores</option>
+                    <option value="1" disabled={watchedCount === 0}>
+                      Só observados{watchedCount > 0 ? ` (${watchedCount})` : " (nenhum cadastrado)"}
+                    </option>
+                  </select>
+                </div>
+                <button type="submit" className="btn btn-ghost">
+                  Aplicar
+                </button>
+              </form>
+            }
             payments={detail.payments.map((p) => ({
               id: p.id,
               paymentDate: p.paymentDate?.toISOString() ?? null,
@@ -301,26 +316,18 @@ export default async function PronacDetailPage({
       )}
 
       {tab === "avisos" && (
-        <section className="card p-5">
-          <h2 className="text-base font-semibold text-[var(--navy)]">
-            Avisos de conformidade
-            <span className="ml-2 text-sm font-medium text-[var(--gray-400)]">
-              · {projectRules.sourceCode}
-            </span>
-          </h2>
-          <p className="mt-1 mb-4 text-sm text-[var(--gray-500)]">
-            {complianceAlerts.length === 0
-              ? "Nenhum alerta neste PRONAC"
-              : [
-                  criticalCount ? `${criticalCount} crítico${criticalCount > 1 ? "s" : ""}` : null,
-                  attentionCount ? `${attentionCount} atenção` : null,
-                  `${complianceAlerts.length} no total`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-          </p>
-          <ComplianceAlerts alerts={complianceAlerts} rules={projectRules} />
-        </section>
+        <Section
+          title="Avisos de conformidade"
+          description={
+            complianceAlerts.length === 0
+              ? `Nenhum problema encontrado pelas regras da ${projectRules.sourceCode}.`
+              : `Pontos que passaram ou estão perto dos limites da ${projectRules.sourceCode}. Vermelho é o que passou do limite; amarelo, o que está perto.`
+          }
+        >
+          {complianceAlerts.length > 0 ? (
+            <ComplianceAlerts alerts={complianceAlerts} rules={projectRules} />
+          ) : null}
+        </Section>
       )}
 
       {tab === "in" &&
@@ -342,11 +349,10 @@ export default async function PronacDetailPage({
             }))}
           />
         ) : (
-          <section className="card p-5">
-            <p className="text-sm text-[var(--gray-500)]">
-              Projeto ainda sem vínculo de IN no MAX Auditoria.
-            </p>
-          </section>
+          <Section
+            title="Regra aplicada (IN)"
+            description="Este projeto ainda não tem uma IN definida. Ela é escolhida na próxima atualização do SALIC."
+          />
         ))}
     </div>
   );

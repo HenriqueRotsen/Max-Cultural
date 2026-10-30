@@ -128,12 +128,12 @@ export function parseBrMoney(raw: string | null | undefined): number | null {
 }
 
 /** Percentual pt-BR com casas fixas (padrão 4 — ex.: 10,8746%). */
-export function formatPercentValue(value: number, digits = 4): string {
+export function formatPercentValue(value: number, digits = 2): string {
   return `${value.toFixed(digits).replace(".", ",")}%`;
 }
 
 /** Parte / total → percentual formatado. */
-export function formatPercentOf(part: number, total: number, digits = 4): string {
+export function formatPercentOf(part: number, total: number, digits = 2): string {
   if (!total || total <= 0) return formatPercentValue(0, digits);
   return formatPercentValue((part / total) * 100, digits);
 }

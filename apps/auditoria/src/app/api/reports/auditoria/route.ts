@@ -175,6 +175,8 @@ export async function GET(request: Request) {
         })),
         corporateMapHtml,
         alertsSummary,
+        alertLevels: alerts.map((a) => a.level),
+        alertTitles: alerts.filter((a) => a.level !== "info").map((a) => a.title),
         institutionalMap: institutional,
       });
     }

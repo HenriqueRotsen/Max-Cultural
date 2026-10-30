@@ -76,8 +76,8 @@ export function ProjectSheetComparePanel() {
     <div className="space-y-6">
       <form onSubmit={(e) => void onSubmit(e)} className="card space-y-4 p-5">
         <div>
-          <h2 className="text-base font-semibold text-[var(--navy)]">Enviar planilha</h2>
-          <p className="mt-1 text-sm text-[var(--gray-500)]">
+          <h2 className="text-lg font-semibold text-[var(--navy)]">Enviar planilha</h2>
+          <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
             Esperado: aba “Listar Projetos” com Pronac, Proponente, Projeto, Situação, IN,
             Captado e Limite.
           </p>
@@ -128,7 +128,7 @@ export function ProjectSheetComparePanel() {
           </section>
 
           <section className="card p-5">
-            <h2 className="text-base font-semibold text-[var(--navy)]">
+            <h2 className="text-lg font-semibold text-[var(--navy)]">
               Associações de colunas
             </h2>
             <p className="mt-1 mb-3 text-sm text-[var(--gray-500)]">
@@ -157,8 +157,8 @@ export function ProjectSheetComparePanel() {
           <section className="card p-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-[var(--navy)]">Comparação por PRONAC</h2>
-                <p className="mt-1 text-sm text-[var(--gray-500)]">
+                <h2 className="text-lg font-semibold text-[var(--navy)]">Comparação por PRONAC</h2>
+                <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
                   {filtered.length} de {result.rows.length} linhas
                 </p>
               </div>
