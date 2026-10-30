@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { setObservadoBond } from "@/lib/actions";
+import { createPortal } from "react-dom";
+import { setObservadoBonds } from "@/lib/actions";
 import { formatCgccpf } from "@/lib/format";
 
 type WatchedRow = {
@@ -29,8 +30,10 @@ export function ObservadoBondsPanel({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [busyDoc, setBusyDoc] = useState<string | null>(null);
+  /** Marcações ainda não salvas: doc → ligado/desligado. */
+  const [draft, setDraft] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const enabled = new Set(enabledDocs);
 
   const withDoc = watched.filter(
@@ -39,19 +42,33 @@ export function ObservadoBondsPanel({
 
   function toggle(cgccpf: string, next: boolean) {
     setError(null);
-    setBusyDoc(cgccpf);
+    setSavedMsg(null);
+    setDraft((cur) => {
+      const copy = new Map(cur);
+      if (next === enabled.has(cgccpf)) copy.delete(cgccpf);
+      else copy.set(cgccpf, next);
+      return copy;
+    });
+  }
+
+  function save() {
+    if (!draft.size) return;
+    setError(null);
+    const changes = Array.from(draft, ([cgccpf, on]) => ({ cgccpf, enabled: on }));
     startTransition(async () => {
-      const fd = new FormData();
-      fd.set("salicAccountId", salicAccountId);
-      fd.set("cgccpf", cgccpf);
-      fd.set("rulesetVersion", rulesetVersion);
-      fd.set("enabled", next ? "1" : "0");
-      const result = await setObservadoBond(fd);
-      setBusyDoc(null);
+      const result = await setObservadoBonds({
+        salicAccountId,
+        rulesetVersion,
+        changes,
+      });
       if (!result.ok) {
         setError(result.error);
         return;
       }
+      setDraft(new Map());
+      setSavedMsg(
+        `${changes.length} vínculo${changes.length === 1 ? "" : "s"} salvo${changes.length === 1 ? "" : "s"}.`,
+      );
       router.refresh();
     });
   }
@@ -63,12 +80,10 @@ export function ObservadoBondsPanel({
           Observados e vínculo · {rulesetSourceCode}
         </h2>
         <p className="mt-1 text-sm text-[var(--gray-500)]">
-                      Liga ou desliga o vínculo art. 23 de cada observado que
-                      aparece neste PRONAC com{" "}
-                      <strong className="font-medium text-[var(--navy)]">
-                        {accountName}
-                      </strong>
-                      . Vale para todos os PRONACs deste proponente com esta IN.
+          Marque os observados que têm vínculo art. 23 com{" "}
+          <strong className="font-medium text-[var(--navy)]">{accountName}</strong>{" "}
+          e clique em Salvar. Vale para todos os PRONACs deste proponente com
+          esta IN.
         </p>
       </div>
       <div className="p-5">
@@ -78,41 +93,96 @@ export function ObservadoBondsPanel({
             Fornecedores › Observados quem receber neste projeto.
           </p>
         ) : (
-          <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-            {withDoc.map((w) => {
-              const dig = (w.cgccpf || "").replace(/\D/g, "");
-              const on = enabled.has(dig);
-              const busy = pending && busyDoc === dig;
-              return (
-                <li
-                  key={w.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium text-[var(--navy)]">{w.name}</div>
-                    <div className="text-xs text-[var(--gray-500)]">
-                      {formatCgccpf(w.cgccpf)}
+          <>
+            <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+              {withDoc.map((w) => {
+                const dig = (w.cgccpf || "").replace(/\D/g, "");
+                const changed = draft.has(dig);
+                const on = changed ? draft.get(dig) === true : enabled.has(dig);
+                return (
+                  <li
+                    key={w.id}
+                    className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${changed ? "bg-[var(--gold-soft)]" : ""}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium text-[var(--navy)]">{w.name}</div>
+                      <div className="text-xs text-[var(--gray-500)]">
+                        {formatCgccpf(w.cgccpf)}
+                      </div>
                     </div>
-                  </div>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <span className="text-[var(--gray-500)]">
-                      {on ? "Com vínculo" : "Sem vínculo"}
-                    </span>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-[var(--navy)]"
-                      checked={on}
-                      disabled={busy || pending}
-                      onChange={(e) => toggle(dig, e.target.checked)}
-                    />
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <span className="text-[var(--gray-500)]">
+                        {on ? "Com vínculo" : "Sem vínculo"}
+                        {changed ? " · não salvo" : ""}
+                      </span>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[var(--navy)]"
+                        checked={on}
+                        disabled={pending}
+                        onChange={(e) => toggle(dig, e.target.checked)}
+                      />
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+              <span className="mr-auto text-sm text-[var(--gray-500)]" aria-live="polite">
+                {draft.size
+                  ? `${draft.size} alteração${draft.size === 1 ? "" : "ões"} não salva${draft.size === 1 ? "" : "s"}`
+                  : savedMsg}
+              </span>
+              {draft.size ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={pending}
+                  onClick={() => setDraft(new Map())}
+                >
+                  Descartar
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn"
+                disabled={!draft.size || pending}
+                onClick={save}
+              >
+                Salvar
+              </button>
+            </div>
+          </>
         )}
         {error ? <p className="mt-3 text-xs text-[#8a4b12]">{error}</p> : null}
       </div>
+      {pending && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[110] flex items-center justify-center bg-black/45 p-4"
+              role="presentation"
+            >
+              <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-live="assertive"
+                className="flex w-full max-w-xs items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-xl"
+              >
+                <span
+                  className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--navy)]"
+                  aria-hidden
+                />
+                <div>
+                  <div className="text-sm font-semibold text-[var(--navy)]">Salvando…</div>
+                  <div className="text-xs text-[var(--gray-500)]">
+                    Aplicando os vínculos e atualizando os PRONACs.
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </section>
   );
 }

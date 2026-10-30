@@ -96,44 +96,57 @@ export async function setPartyRelation(formData: FormData) {
   return { ok: true as const };
 }
 
-/** Liga/desliga vínculo do observado com o proponente sob uma IN (vale p/ todos os PRONACs dessa conta+IN). */
-export async function setObservadoBond(formData: FormData) {
+/**
+ * Grava de uma vez os vínculos marcados no detalhe do PRONAC (vale p/ todos os
+ * PRONACs dessa conta+IN) e recalcula o briefing desses projetos uma única vez.
+ */
+export async function setObservadoBonds(input: {
+  salicAccountId: string;
+  rulesetVersion: string;
+  changes: Array<{ cgccpf: string; enabled: boolean }>;
+}) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { assertAccountInWorkspace } = await import("@/lib/auth/workspace");
   const { entitlements } = await getWorkspaceContext();
 
-  const salicAccountId = String(formData.get("salicAccountId") || "").trim();
-  const cgccpfRaw = String(formData.get("cgccpf") || "");
-  const rulesetVersion = String(formData.get("rulesetVersion") || "").trim();
-  const enabled = String(formData.get("enabled") || "") === "1";
-
+  const salicAccountId = String(input.salicAccountId || "").trim();
+  const rulesetVersion = String(input.rulesetVersion || "").trim();
   if (!salicAccountId || !rulesetVersion) {
     return { ok: false as const, error: "Proponente e IN são obrigatórios" };
   }
   await assertAccountInWorkspace(salicAccountId, entitlements.workspaceId);
 
-  const cgccpf = normalizeCgccpf(cgccpfRaw);
-  if (!cgccpf || (cgccpf.length !== 11 && cgccpf.length !== 14)) {
-    return { ok: false as const, error: "CNPJ/CPF do observado inválido" };
+  const byDoc = new Map<string, boolean>();
+  for (const c of Array.isArray(input.changes) ? input.changes : []) {
+    const cgccpf = normalizeCgccpf(String(c?.cgccpf || ""));
+    if (!cgccpf || (cgccpf.length !== 11 && cgccpf.length !== 14)) {
+      return { ok: false as const, error: "CNPJ/CPF do observado inválido" };
+    }
+    byDoc.set(cgccpf, c.enabled === true);
   }
+  if (!byDoc.size) return { ok: true as const };
 
-  await prisma.observadoBond.upsert({
-    where: {
-      salicAccountId_cgccpf_rulesetVersion: {
-        salicAccountId,
-        cgccpf,
-        rulesetVersion,
-      },
-    },
-    create: {
-      workspaceId: entitlements.workspaceId,
-      salicAccountId,
-      cgccpf,
-      rulesetVersion,
-      enabled,
-    },
-    update: { enabled },
-  });
+  await prisma.$transaction(
+    Array.from(byDoc, ([cgccpf, enabled]) =>
+      prisma.observadoBond.upsert({
+        where: {
+          salicAccountId_cgccpf_rulesetVersion: {
+            salicAccountId,
+            cgccpf,
+            rulesetVersion,
+          },
+        },
+        create: {
+          workspaceId: entitlements.workspaceId,
+          salicAccountId,
+          cgccpf,
+          rulesetVersion,
+          enabled,
+        },
+        update: { enabled },
+      }),
+    ),
+  );
 
   // Atualiza o briefing dos PRONACs deste proponente com a mesma IN
   const projects = await prisma.project.findMany({
@@ -147,17 +160,20 @@ export async function setObservadoBond(formData: FormData) {
     const { ensureProjectRuleset } = await import(
       "@/lib/compliance/choose-ruleset"
     );
-    await Promise.all(
-      projects.map((p) =>
-        ensureProjectRuleset(p.id, { forceBriefRefresh: true }).catch((err) => {
-          console.warn(
-            "[bond] falha ao atualizar briefing",
-            p.id,
-            err instanceof Error ? err.message : err,
-          );
-        }),
-      ),
-    );
+    // Poucos por vez: cada um carrega todos os pagamentos do projeto.
+    for (let i = 0; i < projects.length; i += 4) {
+      await Promise.all(
+        projects.slice(i, i + 4).map((p) =>
+          ensureProjectRuleset(p.id, { forceBriefRefresh: true }).catch((err) => {
+            console.warn(
+              "[bond] falha ao atualizar briefing",
+              p.id,
+              err instanceof Error ? err.message : err,
+            );
+          }),
+        ),
+      );
+    }
   }
 
   revalidatePath("/observados");
