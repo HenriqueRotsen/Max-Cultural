@@ -2,6 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 
+/** Minúsculas e sem acento, para a busca casar "praca" com "Praça". */
+function norm(s: string) {
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
 type ProjectOption = {
   id: string;
   pronac: string;
@@ -17,6 +22,7 @@ export function AuditoriaReportForm({
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState("");
+  const [query, setQuery] = useState("");
   const [pending, startTransition] = useTransition();
 
   const accounts = useMemo(() => {
@@ -26,9 +32,14 @@ export function AuditoriaReportForm({
   }, [projects]);
 
   const visible = useMemo(() => {
-    if (!accountFilter) return projects;
-    return projects.filter((p) => p.accountId === accountFilter);
-  }, [projects, accountFilter]);
+    const terms = norm(query).split(/\s+/).filter(Boolean);
+    return projects.filter((p) => {
+      if (accountFilter && p.accountId !== accountFilter) return false;
+      if (!terms.length) return true;
+      const hay = norm(`${p.pronac} ${p.name} ${p.accountName}`);
+      return terms.every((t) => hay.includes(t));
+    });
+  }, [projects, accountFilter, query]);
 
   function toggle(pronac: string) {
     setSelected((cur) =>
@@ -60,6 +71,17 @@ export function AuditoriaReportForm({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3">
+        <div className="field min-w-[14rem] flex-1">
+          <label htmlFor="projectSearch">Buscar</label>
+          <input
+            id="projectSearch"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="PRONAC, nome do projeto ou proponente"
+            autoComplete="off"
+          />
+        </div>
         <div className="field min-w-[14rem]">
           <label htmlFor="accountFilter">Proponente</label>
           <select
@@ -90,6 +112,13 @@ export function AuditoriaReportForm({
           {pending ? "Gerando…" : `Gerar PDF (${selected.length})`}
         </button>
       </div>
+
+      {query || accountFilter ? (
+        <p className="text-sm text-[var(--gray-500)]" aria-live="polite">
+          {visible.length} de {projects.length} PRONACs
+          {selected.length ? ` · ${selected.length} marcados no total` : ""}
+        </p>
+      ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="data">
