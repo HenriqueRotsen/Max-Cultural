@@ -65,7 +65,7 @@ export function StatCard({
         {label}
         {help ? <FieldHelp text={help} /> : null}
       </p>
-      <p className="mt-2 break-words text-[1.6rem] font-semibold leading-tight text-[var(--navy)]">{value}</p>
+      <p className="mt-2 whitespace-nowrap text-[clamp(1.15rem,2.1vw,1.6rem)] font-semibold leading-tight text-[var(--navy)]">{value}</p>
       {hint && <p className="mt-2 text-sm text-[var(--gray-500)]">{hint}</p>}
     </div>
   );
