@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { actionErrorMessage } from "@/lib/action-errors";
 import { Fragment, useMemo, useState, type FormEvent } from "react";
 import type { CompareResult, CompareRow } from "@/lib/compare/projects-sheet";
 
@@ -60,7 +61,7 @@ export function ProjectSheetComparePanel() {
       setExpanded({});
     } catch (err) {
       setResult(null);
-      setError(err instanceof Error ? err.message : "Falha na comparação");
+      setError(actionErrorMessage(err, "Falha na comparação"));
     } finally {
       setPending(false);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { actionErrorMessage } from "@/lib/action-errors";
 import { AutoSyncControl, type AutoSyncInfo } from "@/components/AutoSyncControl";
 import { SyncHistoryTable } from "@/components/SyncHistoryTable";
 
@@ -215,7 +216,7 @@ export function SyncPanel({
       await refresh();
     } catch (err) {
       setActive(null);
-      setError(err instanceof Error ? err.message : String(err));
+      setError(actionErrorMessage(err, String(err)));
     } finally {
       setStarting(false);
     }

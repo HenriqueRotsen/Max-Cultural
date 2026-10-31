@@ -6,6 +6,7 @@ import { addWatchedSupplier, lookupFornecedorByCgccpf } from "@/lib/actions";
 import { FieldLabel } from "@/components/FieldHelp";
 import { cgccpfValidationError, formatCgccpf } from "@/lib/format";
 import { HELP } from "@/lib/help";
+import { actionErrorMessage } from "@/lib/action-errors";
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -70,7 +71,9 @@ export function AddWatchedSupplierForm() {
       }
     } catch (error) {
       setAlreadyWatched(false);
-      setStatus(error instanceof Error ? error.message : "Falha na consulta");
+      // Permite tentar de novo o mesmo CNPJ/CPF depois de uma falha.
+      setLastLookup("");
+      setStatus(actionErrorMessage(error, "Falha na consulta"));
       setStatusTone("warn");
     } finally {
       setLookingUp(false);
@@ -119,7 +122,7 @@ export function AddWatchedSupplierForm() {
       setStatusTone("ok");
       router.refresh();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Falha ao adicionar");
+      setStatus(actionErrorMessage(error, "Falha ao adicionar"));
       setStatusTone("warn");
     } finally {
       setSaving(false);
