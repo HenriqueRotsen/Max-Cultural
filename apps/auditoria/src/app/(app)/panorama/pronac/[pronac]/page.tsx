@@ -24,6 +24,7 @@ import { ProjectCompliancePanel } from "@/components/ProjectCompliancePanel";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { HELP } from "@/lib/help";
 import { normalizeCgccpf } from "@/lib/format";
+import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,7 @@ export default async function PronacDetailPage({
     .sort((a, b) => (levelRank[a.level] ?? 3) - (levelRank[b.level] ?? 3))
     .slice(0, 3);
   const noLimits = Boolean(projectRules.caps.noPercentLimits);
+  const situacao = situacaoLabel(detail.situacao);
   const statusTone = noLimits
     ? "neutral"
     : criticalCount > 0 ? "critical" : attentionCount > 0 ? "attention" : "ok";
@@ -176,9 +178,24 @@ export default async function PronacDetailPage({
         backLabel="Voltar para a lista de PRONACs"
         title={`PRONAC ${detail.pronac}`}
         description={
-          detail.name
-            ? `${detail.name}${detail.accounts[0] ? ` · ${detail.accounts[0].name}` : ""}`
-            : detail.accounts.map((a) => a.name).join(", ") || undefined
+          <>
+            {detail.name
+              ? `${detail.name}${detail.accounts[0] ? ` · ${detail.accounts[0].name}` : ""}`
+              : detail.accounts.map((a) => a.name).join(", ") || null}
+            {situacao ? (
+              <span className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold text-[var(--gray-500)]">Situação no SALIC:</span>
+                <span className={`badge ${SITUACAO_BADGE[situacao.tone]}`}>{situacao.label}</span>
+                <span className="text-[var(--gray-500)]">
+                  {situacao.code ? `${situacao.code} · ` : ""}
+                  {situacao.detail}
+                  {detail.lastSyncedAt
+                    ? ` · atualizado em ${detail.lastSyncedAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+                    : ""}
+                </span>
+              </span>
+            ) : null}
+          </>
         }
         actions={
           <ReportDownloadButton

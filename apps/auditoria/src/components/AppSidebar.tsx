@@ -19,6 +19,7 @@ const auditoriaLinks = [
   { href: "/fornecedores-pagos", label: "Fornecedores pagos", icon: PackageIcon, group: "Analisar" },
   { href: "/observados", label: "Observados", icon: UsersIcon, group: "Cadastros" },
   { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon, group: "Cadastros" },
+  { href: "/ins", label: "INs", icon: RulesIcon, group: "Cadastros" },
   { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon, group: "Ferramentas" },
   { href: "/atualizacao", label: "Atualizar SALIC", icon: SyncIcon, group: "Ferramentas" },
 ];
@@ -181,6 +182,20 @@ function NavGroup({
         );
       })}
     </div>
+  );
+}
+
+function RulesIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 3h9l4 4v14a0 0 0 0 1 0 0H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+        stroke={stroke(active)}
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M9 11h7M9 15h7M9 7h3" stroke={stroke(active)} strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
   );
 }
 

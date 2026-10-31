@@ -16,6 +16,7 @@ import {
 import { FieldLabel } from "@/components/FieldHelp";
 import { TablePagination, usePagedSlice } from "@/components/InfiniteScroll";
 import { HELP } from "@/lib/help";
+import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 
 /** Minúsculas e sem acento, para a busca casar "praca" com "Praça". */
 function norm(s: string) {
@@ -39,6 +40,8 @@ export type PronacTableRow = {
   projectId: string;
   pronac: string;
   name: string | null;
+  /** Situação do dia no SALIC (sync diário). */
+  situacao?: string | null;
   accountName: string;
   accountCgccpf: string;
   personType?: PersonTypeInput;
@@ -141,7 +144,10 @@ export function PronacPanoramaTable({
           groupPct: group?.percent ?? 0,
           limitPct: proponentLimitPct(rowRules, row.personType),
           noLimits: Boolean(rowRules.caps.noPercentLimits),
-          hay: norm(`${row.pronac} ${row.name || ""} ${row.accountName}`),
+          salic: situacaoLabel(row.situacao),
+          hay: norm(
+            `${row.pronac} ${row.name || ""} ${row.accountName} ${situacaoLabel(row.situacao)?.label || ""} ${row.situacao || ""}`,
+          ),
         };
       }),
     [rows, rules],
@@ -185,7 +191,7 @@ export function PronacPanoramaTable({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="PRONAC, nome do projeto ou proponente"
+              placeholder="PRONAC, projeto, proponente ou situação"
               autoComplete="off"
             />
           </div>
@@ -209,8 +215,8 @@ export function PronacPanoramaTable({
         </div>
 
         <div>
-          <p className="mb-2 text-[0.85rem] font-semibold text-[var(--gray-500)]">Situação</p>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por situação">
+          <p className="mb-2 text-[0.85rem] font-semibold text-[var(--gray-500)]">Limites</p>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por limites">
             {chips.map((c) => (
               <button
                 key={c.key}
@@ -296,8 +302,9 @@ export function PronacPanoramaTable({
           <table className="data">
             <thead>
               <tr>
-                <th>Situação</th>
+                <th>Limites</th>
                 <th>Projeto</th>
+                <th>No SALIC</th>
                 <th>Proponente</th>
                 <th>{watchedOnly ? "Pago a observados" : "Já pago"}</th>
                 <th>Soma do art. 23</th>
@@ -305,7 +312,7 @@ export function PronacPanoramaTable({
               </tr>
             </thead>
             <tbody>
-              {paging.slice.map(({ row, tone, groupPct, limitPct, noLimits }) => (
+              {paging.slice.map(({ row, tone, groupPct, limitPct, noLimits, salic }) => (
                 <tr
                   key={row.projectId}
                   className={`row-link ${tone === "critical" ? "row-tone-critical" : tone === "attention" ? "row-tone-attention" : ""}`}
@@ -325,6 +332,18 @@ export function PronacPanoramaTable({
                       {row.pronac}
                     </Link>
                     <div className="text-sm text-[var(--gray-600)]">{row.name || "Sem nome"}</div>
+                  </td>
+                  <td>
+                    {salic ? (
+                      <span
+                        className={`badge ${SITUACAO_BADGE[salic.tone]}`}
+                        title={`${salic.code ? `${salic.code} · ` : ""}${salic.detail}`}
+                      >
+                        {salic.label}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--gray-400)]">—</span>
+                    )}
                   </td>
                   <td className="text-[var(--gray-600)]">{row.accountName}</td>
                   <td>
@@ -356,7 +375,7 @@ export function PronacPanoramaTable({
               ))}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-[var(--gray-500)]">
+                  <td colSpan={7} className="text-[var(--gray-500)]">
                     {rows.length === 0
                       ? watchedOnly
                         ? "Nenhum PRONAC com pagamento aos observados."

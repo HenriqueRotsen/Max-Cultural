@@ -445,6 +445,11 @@ table.data tfoot tr.table-total-row td {
   color: var(--gray-600);
 }
 
+.badge-info {
+  background: var(--navy-soft);
+  color: var(--navy);
+}
+
 /* Linhas do panorama por PRONAC (status de conformidade)
    vermelho = acima do limite · amarelo = perto do limite */
 tr.row-tone-critical > td {
