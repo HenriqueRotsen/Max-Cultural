@@ -17,12 +17,6 @@ export type Art23Row = {
   enabled: boolean;
 };
 
-/** "a, b ou c" */
-function joinPt(items: string[]) {
-  if (items.length <= 1) return items[0] || "";
-  return `${items.slice(0, -1).join(", ")} ou ${items[items.length - 1]}`;
-}
-
 function pct(part: number, total: number) {
   if (!total || total <= 0) return 0;
   return (part / total) * 100;
@@ -187,9 +181,21 @@ export function Art23Section({
             <p>
               <strong className="font-semibold">Lembrete da {rulesetSourceCode}:</strong>{" "}
               {bondRelations.length
-                ? `tem vínculo quem for ${joinPt(bondRelations.map((r) => r.toLowerCase()))} do proponente.`
+                ? "tem vínculo com o proponente quem for"
                 : "esta IN não lista tipos de vínculo."}
             </p>
+            {bondRelations.length ? (
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {bondRelations.map((rel) => (
+                  <li
+                    key={rel}
+                    className="rounded-full border border-[var(--gold-border)] bg-white px-3 py-1 text-sm font-medium text-[var(--navy)]"
+                  >
+                    {rel}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {artisticGroupException ? (
               <p className="mt-1 text-sm text-[var(--gray-600)]">
                 Grupo artístico familiar ou coletivo previsto na IN não conta.
