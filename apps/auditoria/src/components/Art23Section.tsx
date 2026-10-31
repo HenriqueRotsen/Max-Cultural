@@ -7,6 +7,7 @@ import { setObservadoBonds } from "@/lib/actions";
 import { formatCgccpf, formatCurrency } from "@/lib/format";
 import { Section } from "@/components/ui";
 import { HELP } from "@/lib/help";
+import { actionErrorMessage } from "@/lib/action-errors";
 
 export type Art23Row = {
   cgccpf: string;
@@ -82,7 +83,13 @@ export function Art23Section({
     setError(null);
     const changes = Array.from(draft, ([cgccpf, on]) => ({ cgccpf, enabled: on }));
     startTransition(async () => {
-      const result = await setObservadoBonds({ salicAccountId, rulesetVersion, changes });
+      let result: Awaited<ReturnType<typeof setObservadoBonds>>;
+      try {
+        result = await setObservadoBonds({ salicAccountId, rulesetVersion, changes });
+      } catch (err) {
+        setError(actionErrorMessage(err, "Não foi possível salvar."));
+        return;
+      }
       if (!result.ok) {
         setError(result.error);
         return;
