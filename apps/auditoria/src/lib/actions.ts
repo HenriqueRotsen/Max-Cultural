@@ -518,25 +518,46 @@ export async function lookupFornecedorByCgccpf(cgccpfRaw: string) {
       };
     }
 
-    const { searchFornecedores } = await import("@/lib/salic/api");
-    let items = await searchFornecedores({ cgccpf });
-    let nome = pickFornecedorNome(items, cgccpf);
-
-    // PF: às vezes a API só acha buscando o CPF como nome
-    if (!nome && cgccpf.length === 11) {
-      items = await searchFornecedores({ nome: cgccpf });
+    // 2) API pública do SALIC — pode estar fora do ar (manutenção).
+    let nome: string | null = null;
+    let salicDown = false;
+    try {
+      const { searchFornecedores } = await import("@/lib/salic/api");
+      let items = await searchFornecedores({ cgccpf });
       nome = pickFornecedorNome(items, cgccpf);
+      // PF: às vezes a API só acha buscando o CPF como nome
+      if (!nome && cgccpf.length === 11) {
+        items = await searchFornecedores({ nome: cgccpf });
+        nome = pickFornecedorNome(items, cgccpf);
+      }
+    } catch (err) {
+      salicDown = true;
+      console.warn("[observados] busca no SALIC falhou", err instanceof Error ? err.message : err);
+    }
+
+    // 3) CNPJ: Receita (BrasilAPI) quando o SALIC não achou ou está fora do ar.
+    if (!nome && cgccpf.length === 14) {
+      try {
+        const { fetchCnpjCompany } = await import("@/lib/lookup/cnpj");
+        const company = await fetchCnpjCompany(cgccpf);
+        if (company?.name) {
+          return { found: true as const, nome: company.name, cgccpf, source: "receita" as const };
+        }
+      } catch {
+        // segue para a mensagem abaixo
+      }
     }
 
     if (!nome) {
-      if (cgccpf.length === 11) {
-        return {
-          found: false as const,
-          error:
-            "CPF não encontrado automaticamente na API. Informe o nome manualmente.",
-        };
-      }
-      return { found: false as const, error: "Fornecedor não encontrado na API SALIC" };
+      const manual = "Digite o nome à mão e clique em Adicionar.";
+      return {
+        found: false as const,
+        error: salicDown
+          ? `A API do SALIC está fora do ar agora, então o nome não veio sozinho. ${manual}`
+          : cgccpf.length === 11
+            ? `CPF não encontrado no SALIC. ${manual}`
+            : `CNPJ não encontrado. ${manual}`,
+      };
     }
 
     // Sempre devolve o documento digitado — a API mascara CPF e não deve sobrescrever o campo.
