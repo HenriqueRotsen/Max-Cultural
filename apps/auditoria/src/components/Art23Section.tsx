@@ -17,6 +17,12 @@ export type Art23Row = {
   enabled: boolean;
 };
 
+/** "a, b ou c" */
+function joinPt(items: string[]) {
+  if (items.length <= 1) return items[0] || "";
+  return `${items.slice(0, -1).join(", ")} ou ${items[items.length - 1]}`;
+}
+
 function pct(part: number, total: number) {
   if (!total || total <= 0) return 0;
   return (part / total) * 100;
@@ -41,6 +47,8 @@ export function Art23Section({
   limitPct,
   nearPct,
   noLimits = false,
+  bondRelations = [],
+  artisticGroupException = false,
   rows,
 }: {
   step: number;
@@ -55,6 +63,9 @@ export function Art23Section({
   nearPct: number;
   /** IN sem limites percentuais: mostra a soma, sem teto. */
   noLimits?: boolean;
+  /** Tipos de relação que a IN conta como vínculo (rótulos já traduzidos). */
+  bondRelations?: string[];
+  artisticGroupException?: boolean;
   rows: Art23Row[];
 }) {
   const router = useRouter();
@@ -170,6 +181,22 @@ export function Art23Section({
           </div>
           )}
         </div>
+
+        {rows.length > 0 ? (
+          <div className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-[0.95rem] text-[var(--navy)]">
+            <p>
+              <strong className="font-semibold">Lembrete da {rulesetSourceCode}:</strong>{" "}
+              {bondRelations.length
+                ? `tem vínculo quem for ${joinPt(bondRelations.map((r) => r.toLowerCase()))} do proponente.`
+                : "esta IN não lista tipos de vínculo."}
+            </p>
+            {artisticGroupException ? (
+              <p className="mt-1 text-sm text-[var(--gray-600)]">
+                Grupo artístico familiar ou coletivo previsto na IN não conta.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="table-wrap">
           <table className="data">

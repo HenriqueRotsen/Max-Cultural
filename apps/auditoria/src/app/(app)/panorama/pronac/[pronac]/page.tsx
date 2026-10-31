@@ -24,6 +24,7 @@ import { ProjectCompliancePanel } from "@/components/ProjectCompliancePanel";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { HELP } from "@/lib/help";
 import { normalizeCgccpf } from "@/lib/format";
+import { RELATION_LABELS } from "@/lib/compliance/defaults";
 import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 
 export const dynamic = "force-dynamic";
@@ -295,6 +296,10 @@ export default async function PronacDetailPage({
             noLimits={noLimits}
             nearPct={nearThresholdForLimit(limitPct, projectRules)}
             rows={art23Rows}
+            bondRelations={projectRules.caps.relationRules.countsTowardProponentCap.map(
+              (r) => RELATION_LABELS[r],
+            )}
+            artisticGroupException={projectRules.caps.relationRules.artisticGroupException}
           />
 
           <PronacDetailTables
