@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { RELATION_HINTS, RELATION_LABELS, type RelationKind } from "@/lib/compliance/defaults";
+import { RELATION_LABELS, type RelationKind } from "@/lib/compliance/defaults";
 import {
   BOND_RELATION_GROUPS,
   emptyRulesetForm,
@@ -48,23 +48,12 @@ export function RulesetsManager({ rulesets, canEdit }: { rulesets: RulesetCard[]
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-[0.95rem] text-[var(--gray-600)]">
-          Cada IN define os limites do art. 23 (proponente) e do art. 24 (fornecedor) e
-          quem conta como vínculo. Os PRONACs usam a IN da época em que foram executados.
-        </p>
-        {canEdit ? (
+      {canEdit ? (
+        <div className="flex justify-end">
           <button type="button" className="btn" onClick={() => setEditing(emptyRulesetForm())}>
             + Nova IN
           </button>
-        ) : null}
-      </div>
-
-      {!canEdit ? (
-        <p className="rounded-xl border border-[var(--border)] bg-[var(--gray-50)] px-4 py-3 text-[0.95rem] text-[var(--gray-600)]">
-          Somente consulta. Para cadastrar, editar ou excluir INs é preciso a permissão
-          “Cadastrar e editar INs” no MAX Cultural.
-        </p>
+        </div>
       ) : null}
 
       {flash ? (
@@ -79,92 +68,75 @@ export function RulesetsManager({ rulesets, canEdit }: { rulesets: RulesetCard[]
       {rulesets.length === 0 ? (
         <p className="text-[0.95rem] text-[var(--gray-500)]">Nenhuma IN cadastrada.</p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] bg-white">
           {rulesets.map((r) => (
-            <li key={r.id} className="rounded-xl border border-[var(--border)] bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <li key={r.id} className="px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="flex flex-wrap items-center gap-2 text-base font-semibold text-[var(--navy)]">
-                    {r.sourceUrl ? (
+                  <p className="flex flex-wrap items-center gap-2 font-semibold text-[var(--navy)]">
+                    {r.sourceCode}
+                    {r.isDefault ? <span className="badge badge-success">Padrão</span> : null}
+                  </p>
+                  <p className="text-sm text-[var(--gray-500)]">
+                    {r.effectiveTo
+                      ? `${fmtDate(r.effectiveFrom)} a ${fmtDate(r.effectiveTo)}`
+                      : `Desde ${fmtDate(r.effectiveFrom)}`}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-[0.95rem] text-[var(--gray-600)]">
+                    {r.noPercentLimits ? (
+                      "Sem limites"
+                    ) : (
+                      <>
+                        Proponente <strong className="text-[var(--navy)]">{pct(r.proponentCapPct)}</strong>
+                        {r.proponentMeiCapPct !== r.proponentCapPct ? (
+                          <> (PF/MEI {pct(r.proponentMeiCapPct)})</>
+                        ) : null}
+                        {" · "}Fornecedor <strong className="text-[var(--navy)]">{pct(r.supplierCapPct)}</strong>
+                      </>
+                    )}
+                  </p>
+                  {canEdit ? (
+                    <div className="flex gap-1.5">
+                      <button type="button" className="btn btn-ghost" onClick={() => setEditing(r.form)}>
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost text-[#b42318]"
+                        onClick={() => setDeleting(r)}
+                        aria-label={`Excluir ${r.sourceCode}`}
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <details className="mt-1">
+                <summary className="w-fit cursor-pointer text-sm font-semibold text-[var(--gold-ink)]">
+                  Ver vínculos
+                </summary>
+                <p className="mt-1.5 text-sm text-[var(--gray-600)]">
+                  {r.relations.length
+                    ? r.relations.map((rel) => RELATION_LABELS[rel]).join(", ")
+                    : "Nenhum tipo de vínculo marcado."}
+                  {r.sourceUrl ? (
+                    <>
+                      {" · "}
                       <a
                         href={r.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="underline-offset-2 hover:underline"
-                        title="Abrir o texto da IN"
+                        className="font-semibold text-[var(--navy)] underline underline-offset-2"
                       >
-                        {r.sourceCode} ↗
+                        Texto da IN
                       </a>
-                    ) : (
-                      r.sourceCode
-                    )}
-                    {r.isDefault ? <span className="badge badge-success">Padrão</span> : null}
-                    {r.noPercentLimits ? (
-                      <span className="badge badge-muted">Sem limites percentuais</span>
-                    ) : null}
-                  </h3>
-                  <p className="mt-0.5 text-sm text-[var(--gray-500)]">
-                    {r.effectiveTo
-                      ? `Vigência de ${fmtDate(r.effectiveFrom)} a ${fmtDate(r.effectiveTo)}`
-                      : `Vigente desde ${fmtDate(r.effectiveFrom)}`}
-                    {" · "}
-                    {r.projectCount === 1 ? "1 PRONAC usa" : `${r.projectCount} PRONACs usam`}
-                  </p>
-                </div>
-                {canEdit ? (
-                  <div className="flex gap-2">
-                    <button type="button" className="btn btn-ghost" onClick={() => setEditing(r.form)}>
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost text-[#b42318]"
-                      onClick={() => setDeleting(r)}
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              {r.noPercentLimits ? (
-                <p className="mt-3 text-[0.95rem] text-[var(--gray-600)]">
-                  Esta IN não define limites percentuais: nenhum teto é avaliado nos PRONACs
-                  que a usam.
+                    </>
+                  ) : null}
                 </p>
-              ) : (
-                <dl className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {[
-                    { label: "Proponente (empresa)", value: r.proponentCapPct },
-                    { label: "Proponente (PF/MEI)", value: r.proponentMeiCapPct },
-                    { label: "Por fornecedor", value: r.supplierCapPct },
-                  ].map((x) => (
-                    <div key={x.label} className="rounded-lg bg-[var(--gray-50)] px-3 py-2">
-                      <dt className="text-sm text-[var(--gray-500)]">{x.label}</dt>
-                      <dd className="text-lg font-semibold text-[var(--navy)]">até {pct(x.value)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-
-              <div className="mt-3">
-                <p className="text-sm font-semibold text-[var(--gray-500)]">Contam como vínculo</p>
-                {r.relations.length ? (
-                  <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                    {r.relations.map((rel) => (
-                      <li
-                        key={rel}
-                        className="rounded-full border border-[var(--border)] bg-[var(--gray-50)] px-3 py-1 text-sm text-[var(--gray-600)]"
-                      >
-                        {RELATION_LABELS[rel]}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-sm text-[var(--gray-500)]">Nenhum tipo marcado.</p>
-                )}
-              </div>
-              {r.notes ? <p className="mt-2 text-sm text-[var(--gray-500)]">{r.notes}</p> : null}
+              </details>
             </li>
           ))}
         </ul>
@@ -380,7 +352,7 @@ function RulesetWizard({
 
       {step === 0 && (
         <div className="space-y-4">
-          <Field label="Nome da IN" hint="Como vai aparecer nas telas e relatórios.">
+          <Field label="Nome da IN">
             <input
               value={values.sourceCode}
               onChange={(e) => set("sourceCode", e.target.value)}
@@ -388,7 +360,7 @@ function RulesetWizard({
               autoFocus
             />
           </Field>
-          <Field label="Link do texto oficial" hint="Opcional. Ajuda quem consulta a regra.">
+          <Field label="Link do texto oficial (opcional)">
             <input
               value={values.sourceUrl}
               onChange={(e) => set("sourceUrl", e.target.value)}
@@ -404,7 +376,7 @@ function RulesetWizard({
                 onChange={(e) => set("effectiveFrom", e.target.value)}
               />
             </Field>
-            <Field label="Vale até" hint="Deixe em branco se ainda está valendo.">
+            <Field label="Vale até" hint="Em branco se ainda vale.">
               <input
                 type="date"
                 value={values.effectiveTo}
@@ -416,7 +388,7 @@ function RulesetWizard({
             checked={values.isDefault}
             onChange={(v) => set("isDefault", v)}
             label="Usar como IN padrão"
-            hint="Vale para PRONACs ainda sem IN definida. Só uma IN pode ser a padrão."
+            hint="Para PRONACs ainda sem IN."
           />
         </div>
       )}
@@ -427,34 +399,24 @@ function RulesetWizard({
             checked={values.noPercentLimits}
             onChange={(v) => set("noPercentLimits", v)}
             label="Esta IN não define limites percentuais"
-            hint="Ex.: IN nº 01/2013. Nenhum teto é avaliado nos PRONACs que usam esta IN."
+            hint="Ex.: IN nº 01/2013."
           />
-          {values.noPercentLimits ? (
-            <p className="rounded-xl bg-[var(--gray-50)] px-4 py-3 text-[0.95rem] text-[var(--gray-600)]">
-              Sem limites, os PRONACs desta IN mostram os valores só para consulta, sem
-              “acima do limite” ou “perto do limite”.
-            </p>
-          ) : (
+          {values.noPercentLimits ? null : (
             <>
-              <p className="text-[0.95rem] text-[var(--gray-600)]">
-                Os limites são em % do valor captado do projeto.
-              </p>
+              <p className="text-[0.95rem] text-[var(--gray-600)]">Em % do valor captado.</p>
               <div className="grid gap-4 sm:grid-cols-3">
                 <PctField
                   label="Proponente (empresa)"
-                  hint="Soma do art. 23"
                   value={values.proponentCapPct}
                   onChange={(v) => set("proponentCapPct", v)}
                 />
                 <PctField
                   label="Proponente (PF ou MEI)"
-                  hint="Soma do art. 23"
                   value={values.proponentMeiCapPct}
                   onChange={(v) => set("proponentMeiCapPct", v)}
                 />
                 <PctField
                   label="Por fornecedor"
-                  hint="Cada fornecedor"
                   value={values.supplierCapPct}
                   onChange={(v) => set("supplierCapPct", v)}
                 />
@@ -486,8 +448,7 @@ function RulesetWizard({
       {step === 2 && (
         <div className="space-y-4">
           <p className="text-[0.95rem] text-[var(--gray-600)]">
-            Marque quem, por esta IN, conta como vínculo com o proponente. O que essas
-            pessoas ou empresas recebem entra na soma do art. 23.
+            Quem conta como vínculo com o proponente?
           </p>
           {BOND_RELATION_GROUPS.map((g) => (
             <fieldset key={g.label}>
@@ -505,7 +466,6 @@ function RulesetWizard({
                       )
                     }
                     label={RELATION_LABELS[rel]}
-                    hint={RELATION_HINTS[rel]}
                   />
                 ))}
               </div>
@@ -515,9 +475,8 @@ function RulesetWizard({
             checked={values.artisticGroupException}
             onChange={(v) => set("artisticGroupException", v)}
             label="Prevê exceção para grupo artístico"
-            hint="Grupo artístico familiar ou coletivo previsto na IN não entra no limite do proponente."
           />
-          <Field label="Observação" hint="Opcional. Aparece no card da IN.">
+          <Field label="Observação (opcional)">
             <textarea
               rows={2}
               value={values.notes}
@@ -576,7 +535,7 @@ function PctField({
   onChange,
 }: {
   label: string;
-  hint: string;
+  hint?: string;
   value: string;
   onChange: (v: string) => void;
 }) {

@@ -187,10 +187,9 @@ export default async function ObservadosPage({
       {(tab === "ins" || tab === "vinculos") && (
         <section className="card overflow-hidden">
           <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-            <h2 className="text-lg font-semibold text-[var(--navy)]">Instruções normativas (INs)</h2>
+            <h2 className="text-lg font-semibold text-[var(--navy)]">INs</h2>
             <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
-              As regras usadas nas análises: limites em % do valor captado e quem conta
-              como vínculo com o proponente.
+              Limites de cada IN, em % do valor captado.
             </p>
           </div>
           <div className="p-5">
