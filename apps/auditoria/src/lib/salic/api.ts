@@ -165,7 +165,26 @@ async function salicFetch<T>(
     throw new Error(`SALIC API ${res.status} ${url}: ${body.slice(0, 300)}`);
   }
 
+  // Em manutenção a API responde 200 com uma página HTML ("Aviso de Manutenção").
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("json")) {
+    const body = await res.text().catch(() => "");
+    throw new SalicUnavailableError(
+      /manuten/i.test(body)
+        ? "A API do SALIC está em manutenção agora."
+        : "A API do SALIC respondeu fora do formato esperado.",
+    );
+  }
+
   return (await res.json()) as T;
+}
+
+/** API pública do SALIC fora do ar (manutenção ou resposta em HTML). */
+export class SalicUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SalicUnavailableError";
+  }
 }
 
 function extractIdFromSelf(self?: string): string | undefined {
