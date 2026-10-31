@@ -26,7 +26,9 @@ export function ComplianceAlerts({
         <p className="mt-1 text-[var(--gray-500)]">
           {perProjectRules
             ? "Nenhum fornecedor acima do teto da IN vinculada a cada PRONAC no filtro."
-            : `Nenhum fornecedor acima de ${rules.caps.supplierCapPct}% do total pago neste projeto. Base: ${rules.sourceCode}.`}
+            : rules.caps.noPercentLimits
+              ? `A ${rules.sourceCode} não define limites percentuais: não há teto a avaliar.`
+              : `Nenhum fornecedor acima de ${rules.caps.supplierCapPct}% do valor captado. Base: ${rules.sourceCode}.`}
         </p>
       </div>
     );
@@ -111,6 +113,9 @@ export function LimitBadge({
   personType?: PersonTypeInput | null;
   rules?: ActiveRules;
 }) {
+  if (rules.caps.noPercentLimits) {
+    return <span className="badge badge-muted">Sem limite na IN</span>;
+  }
   const limit = isProponent
     ? proponentLimitPct(rules, personType)
     : rules.caps.supplierCapPct;

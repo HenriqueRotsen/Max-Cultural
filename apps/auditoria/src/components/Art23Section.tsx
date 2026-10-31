@@ -40,6 +40,7 @@ export function Art23Section({
   projectTotal,
   limitPct,
   nearPct,
+  noLimits = false,
   rows,
 }: {
   step: number;
@@ -52,6 +53,8 @@ export function Art23Section({
   limitPct: number;
   /** A partir daqui conta como "perto do limite" (regra da IN). */
   nearPct: number;
+  /** IN sem limites percentuais: mostra a soma, sem teto. */
+  noLimits?: boolean;
   rows: Art23Row[];
 }) {
   const router = useRouter();
@@ -63,8 +66,8 @@ export function Art23Section({
   const isOn = (r: Art23Row) => (draft.has(r.cgccpf) ? draft.get(r.cgccpf) === true : r.enabled);
   const sum = proponentAmount + rows.filter(isOn).reduce((s, r) => s + r.amount, 0);
   const sumPct = pct(sum, projectTotal);
-  const over = sumPct > limitPct;
-  const near = !over && sumPct >= nearPct;
+  const over = !noLimits && sumPct > limitPct;
+  const near = !noLimits && !over && sumPct >= nearPct;
   const barPct = Math.min(100, limitPct > 0 ? (sumPct / limitPct) * 100 : 0);
 
   function toggle(r: Art23Row, next: boolean) {
@@ -109,12 +112,20 @@ export function Art23Section({
       title="Limite do art. 23"
       help={HELP.art23}
       description={
-        <>
-          Soma do que o proponente e as pessoas ou empresas ligadas a ele receberam
-          neste projeto. Pela {rulesetSourceCode}, essa soma pode chegar a no máximo{" "}
-          <strong className="font-semibold text-[var(--navy)]">{limitPct}% do valor captado</strong>.
-          Alimentação e refeição não entram.
-        </>
+        noLimits ? (
+          <>
+            Soma do que o proponente e as pessoas ou empresas ligadas a ele receberam
+            neste projeto. A {rulesetSourceCode} não define limite percentual, então
+            a soma aparece só para consulta.
+          </>
+        ) : (
+          <>
+            Soma do que o proponente e as pessoas ou empresas ligadas a ele receberam
+            neste projeto. Pela {rulesetSourceCode}, essa soma pode chegar a no máximo{" "}
+            <strong className="font-semibold text-[var(--navy)]">{limitPct}% do valor captado</strong>.
+            Alimentação e refeição não entram.
+          </>
+        )
       }
     >
       <div className="space-y-5">
@@ -128,15 +139,22 @@ export function Art23Section({
                 {pctLabel(sumPct)}
               </strong>{" "}
               <span className="text-[var(--gray-500)]">
-                de {limitPct}% permitido · {formatCurrency(sum)}
+                {noLimits ? "do valor captado" : `de ${limitPct}% permitido`} · {formatCurrency(sum)}
               </span>
             </p>
             <span
-              className={`badge ${over ? "badge-danger" : near ? "badge-attention" : "badge-success"}`}
+              className={`badge ${noLimits ? "badge-muted" : over ? "badge-danger" : near ? "badge-attention" : "badge-success"}`}
             >
-              {over ? "Acima do limite" : near ? "Perto do limite" : "Dentro do limite"}
+              {noLimits
+                ? "Sem limite na IN"
+                : over
+                  ? "Acima do limite"
+                  : near
+                    ? "Perto do limite"
+                    : "Dentro do limite"}
             </span>
           </div>
+          {noLimits ? null : (
           <div
             className="mt-2 h-3 overflow-hidden rounded-full bg-[var(--gray-100)]"
             role="progressbar"
@@ -150,6 +168,7 @@ export function Art23Section({
               style={{ width: `${barPct}%` }}
             />
           </div>
+          )}
         </div>
 
         <div className="table-wrap">

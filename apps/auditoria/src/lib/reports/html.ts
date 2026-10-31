@@ -1399,10 +1399,10 @@ export async function renderPronacDetailHtml(params: {
     ${sectionTitle(1, "Avisos", `Pontos que passaram ou estão perto dos limites da ${rules.sourceCode}. Vermelho é o que passou do limite; amarelo, o que está perto.`)}
     ${warningsHtml(warnings)}
 
-    ${sectionTitle(2, "Limite do art. 23", `Soma do que o proponente e quem tem vínculo com ele receberam. Pela ${rules.sourceCode}, pode chegar a no máximo ${limitPct}% do valor captado. Alimentação e refeição não entram.`)}
+    ${sectionTitle(2, "Limite do art. 23", rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${rules.sourceCode} não define limite percentual; a soma é só para consulta.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Pela ${rules.sourceCode}, pode chegar a no máximo ${limitPct}% do valor captado. Alimentação e refeição não entram.`)}
     ${bondBlock}
 
-    ${sectionTitle(3, params.watchedOnly ? "Fornecedores observados" : "Fornecedores", `Quem recebeu dinheiro neste PRONAC, do maior para o menor. Cada fornecedor pode receber até ${rules.caps.supplierCapPct}% do valor captado. Destacados: proponente e quem tem vínculo.`)}
+    ${sectionTitle(3, params.watchedOnly ? "Fornecedores observados" : "Fornecedores", rules.caps.noPercentLimits ? `Quem recebeu dinheiro neste PRONAC, do maior para o menor. A ${rules.sourceCode} não define limite por fornecedor.` : `Quem recebeu dinheiro neste PRONAC, do maior para o menor. Cada fornecedor pode receber até ${rules.caps.supplierCapPct}% do valor captado. Destacados: proponente e quem tem vínculo.`)}
     <div class="panel keep" style="margin-bottom:12px">
       ${barChartSvg(chartItems, { maxBars: 10, scale: "percent" })}
     </div>
@@ -1972,10 +1972,10 @@ export async function renderAuditoriaReportHtml(params: {
         ${sectionTitle(2, corporateMapCopy(Boolean(b.institutionalMap)).reportSection.replace(/^\d+\.\s*/, ""), "Quem fazia parte do proponente em cada período. Ajuda a identificar vínculos.")}
         ${b.corporateMapHtml}
 
-        ${sectionTitle(3, "Limite do art. 23", `Soma do que o proponente e quem tem vínculo com ele receberam. Limite da ${b.rules.sourceCode}: ${b.personType === "PF" || b.personType === "MEI" ? b.rules.caps.proponentMeiCapPct : b.rules.caps.proponentCapPct}% do valor captado.`)}
+        ${sectionTitle(3, "Limite do art. 23", b.rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${b.rules.sourceCode} não define limite percentual.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Limite da ${b.rules.sourceCode}: ${b.personType === "PF" || b.personType === "MEI" ? b.rules.caps.proponentMeiCapPct : b.rules.caps.proponentCapPct}% do valor captado.`)}
         ${bondBlock}
 
-        ${sectionTitle(4, "Fornecedores", `Quanto cada fornecedor recebeu neste PRONAC. Limite por fornecedor: ${b.rules.caps.supplierCapPct}% do valor captado.`)}
+        ${sectionTitle(4, "Fornecedores", b.rules.caps.noPercentLimits ? `Quanto cada fornecedor recebeu neste PRONAC. A ${b.rules.sourceCode} não define limite por fornecedor.` : `Quanto cada fornecedor recebeu neste PRONAC. Limite por fornecedor: ${b.rules.caps.supplierCapPct}% do valor captado.`)}
         <table>
           <thead>
             <tr>

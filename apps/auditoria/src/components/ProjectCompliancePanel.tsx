@@ -8,6 +8,7 @@ type RulesetOption = {
   version: string;
   sourceCode: string;
   proponentCapPct: number;
+  noPercentLimits?: boolean;
   supplierCapPct: number;
 };
 
@@ -161,7 +162,10 @@ export function ProjectCompliancePanel({
               <option value="">Selecione…</option>
               {rulesets.map((r) => (
                 <option key={r.version} value={r.version}>
-                  {r.sourceCode} · prop. {r.proponentCapPct}% · forn. {r.supplierCapPct}%
+                  {r.sourceCode}
+                  {r.noPercentLimits
+                    ? " · sem limites percentuais"
+                    : ` · proponente ${r.proponentCapPct}% · fornecedor ${r.supplierCapPct}%`}
                 </option>
               ))}
             </select>

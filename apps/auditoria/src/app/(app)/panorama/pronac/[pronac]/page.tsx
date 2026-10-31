@@ -164,8 +164,10 @@ export default async function PronacDetailPage({
     .filter((a) => a.level !== "info")
     .sort((a, b) => (levelRank[a.level] ?? 3) - (levelRank[b.level] ?? 3))
     .slice(0, 3);
-  const statusTone =
-    criticalCount > 0 ? "critical" : attentionCount > 0 ? "attention" : "ok";
+  const noLimits = Boolean(projectRules.caps.noPercentLimits);
+  const statusTone = noLimits
+    ? "neutral"
+    : criticalCount > 0 ? "critical" : attentionCount > 0 ? "attention" : "ok";
 
   return (
     <div className="space-y-6">
@@ -193,7 +195,9 @@ export default async function PronacDetailPage({
             ? "Este PRONAC passou de um limite"
             : statusTone === "attention"
               ? "Este PRONAC está perto de um limite"
-              : "Este PRONAC está dentro dos limites"
+              : noLimits
+                ? "Esta IN não tem limites percentuais"
+                : "Este PRONAC está dentro dos limites"
         }
       >
         {topAlerts.length > 0 ? (
@@ -204,7 +208,13 @@ export default async function PronacDetailPage({
           </ul>
         ) : null}
         <p>
-          Soma do art. 23: <strong>{pctText(groupPct)}</strong> de {limitPct}% permitido
+          {noLimits ? (
+            <>Os valores aparecem só para consulta, sem “acima” ou “perto” do limite</>
+          ) : (
+            <>
+              Soma do art. 23: <strong>{pctText(groupPct)}</strong> de {limitPct}% permitido
+            </>
+          )}
           {" · "}Regra aplicada: {projectRules.sourceCode}
           {complianceAlerts.length > 0 ? (
             <>
@@ -265,6 +275,7 @@ export default async function PronacDetailPage({
             proponentAmount={accountDoc ? bondAmountByDoc.get(accountDoc) || 0 : 0}
             projectTotal={detail.projectTotal}
             limitPct={limitPct}
+            noLimits={noLimits}
             nearPct={nearThresholdForLimit(limitPct, projectRules)}
             rows={art23Rows}
           />
@@ -345,6 +356,7 @@ export default async function PronacDetailPage({
               version: r.version,
               sourceCode: r.sourceCode,
               proponentCapPct: r.caps.proponentCapPct,
+              noPercentLimits: Boolean(r.caps.noPercentLimits),
               supplierCapPct: r.caps.supplierCapPct,
             }))}
           />

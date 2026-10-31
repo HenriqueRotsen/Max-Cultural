@@ -112,7 +112,7 @@ export function PronacDetailTables({
   const paymentTotal = filteredPayments.reduce((s, row) => s + row.amount, 0);
   const overCount = suppliers.filter((s) => {
     const isProponent = !!proponentDoc && normalizeCgccpf(s.cgccpf) === proponentDoc;
-    return !isProponent && s.percent > rules.caps.supplierCapPct;
+    return !rules.caps.noPercentLimits && !isProponent && s.percent > rules.caps.supplierCapPct;
   }).length;
 
   const suppliersPage = usePagedSlice(filteredSuppliers, 10);
@@ -125,17 +125,24 @@ export function PronacDetailTables({
         title={watchedOnly ? "Fornecedores observados" : "Fornecedores"}
         help={HELP.limitBadge}
         description={
-          <>
-            Quem recebeu dinheiro neste PRONAC, do maior valor para o menor. Cada
-            fornecedor pode receber até{" "}
-            <strong className="font-semibold text-[var(--navy)]">
-              {rules.caps.supplierCapPct}% do valor captado
-            </strong>
-            .{" "}
-            {overCount > 0
-              ? `${overCount} passou${overCount === 1 ? "" : "ram"} desse limite (em vermelho).`
-              : "Em vermelho, quem passou do limite; em amarelo, quem está perto."}
-          </>
+          rules.caps.noPercentLimits ? (
+            <>
+              Quem recebeu dinheiro neste PRONAC, do maior valor para o menor. A{" "}
+              {rules.sourceCode} não define limite por fornecedor.
+            </>
+          ) : (
+            <>
+              Quem recebeu dinheiro neste PRONAC, do maior valor para o menor. Cada
+              fornecedor pode receber até{" "}
+              <strong className="font-semibold text-[var(--navy)]">
+                {rules.caps.supplierCapPct}% do valor captado
+              </strong>
+              .{" "}
+              {overCount > 0
+                ? `${overCount} passou${overCount === 1 ? "" : "ram"} desse limite (em vermelho).`
+                : "Em vermelho, quem passou do limite; em amarelo, quem está perto."}
+            </>
+          )
         }
       >
         <div className="flex flex-wrap items-end gap-3">
@@ -173,7 +180,7 @@ export function PronacDetailTables({
                     ? rules.caps.proponentMeiCapPct
                     : rules.caps.proponentCapPct
                   : rules.caps.supplierCapPct;
-                const over = s.percent > limit;
+                const over = !rules.caps.noPercentLimits && s.percent > limit;
                 const near = !over && isNearLimit(s.percent, limit, rules);
                 return (
                   <tr

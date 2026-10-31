@@ -140,6 +140,7 @@ export function PronacPanoramaTable({
           tone,
           groupPct: group?.percent ?? 0,
           limitPct: proponentLimitPct(rowRules, row.personType),
+          noLimits: Boolean(rowRules.caps.noPercentLimits),
           hay: norm(`${row.pronac} ${row.name || ""} ${row.accountName}`),
         };
       }),
@@ -304,7 +305,7 @@ export function PronacPanoramaTable({
               </tr>
             </thead>
             <tbody>
-              {paging.slice.map(({ row, tone, groupPct, limitPct }) => (
+              {paging.slice.map(({ row, tone, groupPct, limitPct, noLimits }) => (
                 <tr
                   key={row.projectId}
                   className={`row-link ${tone === "critical" ? "row-tone-critical" : tone === "attention" ? "row-tone-attention" : ""}`}
@@ -344,7 +345,9 @@ export function PronacPanoramaTable({
                     >
                       {pctLabel(groupPct)}
                     </span>
-                    <span className="text-sm text-[var(--gray-500)]"> de {limitPct}%</span>
+                    <span className="text-sm text-[var(--gray-500)]">
+                      {noLimits ? " · IN sem limite" : ` de ${limitPct}%`}
+                    </span>
                   </td>
                   <td className="text-right text-[var(--gray-400)]" aria-hidden>
                     ›
