@@ -86,6 +86,7 @@ export default async function PronacPanoramaPage({
       projectId: row.projectId,
       pronac: row.pronac,
       name: row.name,
+      situacao: row.situacao,
       accountName: row.accountName,
       accountCgccpf: row.accountCgccpf,
       personType: meta.personType || row.personType,

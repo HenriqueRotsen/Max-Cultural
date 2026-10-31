@@ -21,6 +21,7 @@ type Result = { ok: true; id: string } | { ok: false; error: string; step?: 1 | 
 const NO_PERMISSION = "Você não tem permissão para alterar as INs. Peça acesso ao administrador.";
 
 function revalidateRulesetScreens() {
+  revalidatePath("/ins");
   revalidatePath("/observados");
   revalidatePath("/panorama");
   revalidatePath("/panorama/pronac", "layout");

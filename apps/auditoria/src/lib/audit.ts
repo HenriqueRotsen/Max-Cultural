@@ -604,6 +604,7 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
         projectId: project.id,
         pronac: project.pronac,
         name: project.name,
+        situacao: project.situacao,
         accountId: project.salicAccount.id,
         accountName: project.salicAccount.name,
         accountCgccpf: project.salicAccount.cgccpf,
@@ -805,6 +806,8 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
       personType: p.salicAccount.personType,
     })),
     projectId: primaryProject?.id || null,
+    situacao: primaryProject?.situacao ?? null,
+    lastSyncedAt: primaryProject?.lastSyncedAt ?? null,
     compliance: primaryProject
       ? {
           rulesetId: primaryProject.complianceRulesetId,

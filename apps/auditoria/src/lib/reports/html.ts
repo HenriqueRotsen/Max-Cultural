@@ -1104,7 +1104,7 @@ export async function renderPronacOverviewHtml(params: {
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">% comprovado</td>
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Vínculo art. 23</td>
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Participação</td>
-          <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Pag.</td>
+          <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Pagamentos</td>
         </tr>
       `;
 
@@ -1570,7 +1570,7 @@ export async function renderSupplierDetailHtml(params: {
             <th>Projeto</th>
             <th>IN</th>
             <th class="num">Total</th>
-            <th class="num">Pag.</th>
+            <th class="num">Pagamentos</th>
           </tr>
         </thead>
         <tbody>
@@ -1598,7 +1598,7 @@ export async function renderSupplierDetailHtml(params: {
           <tr>
             <th>Proponente</th>
             <th class="num">Total</th>
-            <th class="num">Pag.</th>
+            <th class="num">Pagamentos</th>
           </tr>
         </thead>
         <tbody>
