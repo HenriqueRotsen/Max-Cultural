@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { formatCurrency } from "@/lib/crypto";
-import { getPronacPanorama, getWatchedSupplierCount } from "@/lib/audit";
+import {
+  getPronacPanorama,
+  getWatchedSupplierCount,
+  listProjectsWithoutPayments,
+} from "@/lib/audit";
+import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 import {
   evaluatePronacSupplierCompliance,
 } from "@/lib/compliance/rouanet";
@@ -35,13 +40,14 @@ export default async function PronacPanoramaPage({
   // Só observados apenas quando pedido — o padrão mostra todos os fornecedores.
   const watchedOnly = sp.watchedOnly === "1" || sp.watchedOnly === "on";
 
-  const [accounts, rows, pendingReview] = await Promise.all([
+  const [accounts, rows, pendingReview, withoutPayments] = await Promise.all([
     prisma.salicAccount.findMany({
       where: { workspaceId },
       orderBy: { name: "asc" },
     }),
     getPronacPanorama({ accountId, pronac, from, to, watchedOnly, workspaceId }),
     getPendingRulesetReview(),
+    listProjectsWithoutPayments({ accountId, pronac, workspaceId }),
   ]);
 
   const bundle = await loadComplianceBundle(
@@ -136,6 +142,41 @@ export default async function PronacPanoramaPage({
         from={from}
         to={to}
       />
+
+      {withoutPayments.length > 0 ? (
+        <details className="more-filters rounded-xl border border-[var(--border)] bg-white px-5 py-3">
+          <summary>
+            {withoutPayments.length === 1
+              ? "1 projeto ainda sem pagamentos não aparece na lista"
+              : `${withoutPayments.length} projetos ainda sem pagamentos não aparecem na lista`}
+          </summary>
+          <p className="mt-2 text-[0.95rem] text-[var(--gray-600)]">
+            Sem pagamento não há o que analisar. Eles entram aqui assim que o SALIC
+            registrar o primeiro pagamento.
+          </p>
+          <ul className="mt-3 divide-y divide-[var(--border)]">
+            {withoutPayments.map((p) => {
+              const sit = situacaoLabel(p.situacao);
+              return (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span className="min-w-0">
+                    <span className="font-semibold text-[var(--navy)]">{p.pronac}</span>
+                    <span className="ml-2 text-[0.95rem] text-[var(--gray-600)]">{p.name || "Sem nome"}</span>
+                  </span>
+                  {sit ? (
+                    <span
+                      className={`badge ${SITUACAO_BADGE[sit.tone]}`}
+                      title={`${sit.code ? `${sit.code} · ` : ""}${sit.detail}`}
+                    >
+                      {sit.label}
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ) : null}
 
       <CollapsibleAlertsPanel
         title="Todos os avisos"
