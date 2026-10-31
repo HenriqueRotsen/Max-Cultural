@@ -508,6 +508,16 @@ export function formatPercent(part: number, total: number, digits = 2): string {
   return `${sharePercent(part, total).toFixed(digits).replace(".", ",")}%`;
 }
 
+/** PRONACs carregados que ainda não têm nenhum pagamento (não entram na análise). */
+export async function listProjectsWithoutPayments(filters: PanoramaFilters = {}) {
+  const rows = await prisma.project.findMany({
+    where: { ...projectScope(filters), payments: { none: {} } },
+    select: { id: true, pronac: true, name: true, situacao: true },
+    orderBy: { pronac: "asc" },
+  });
+  return rows;
+}
+
 /** Lista PRONACs com totais (visão de análise por projeto). */
 export async function getPronacPanorama(filters: PanoramaFilters = {}) {
   const matchers = await loadWatchedMatchers(filters.workspaceId);
