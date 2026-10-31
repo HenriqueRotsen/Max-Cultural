@@ -68,6 +68,11 @@ export type RelationRules = {
 };
 
 export type ComplianceCaps = {
+  /**
+   * IN sem limites percentuais (ex.: IN 01/2013): nenhum teto é avaliado.
+   * Os percentuais ficam guardados só para referência.
+   */
+  noPercentLimits?: boolean;
   proponentCapPct: number;
   proponentMeiCapPct: number;
   supplierCapPct: number;
@@ -121,6 +126,7 @@ const REL_NARROW_2024: RelationKind[] = [
 ];
 
 function caps(partial: {
+  noPercentLimits?: boolean;
   proponentCapPct: number;
   proponentMeiCapPct?: number;
   supplierCapPct: number;
@@ -129,6 +135,7 @@ function caps(partial: {
   relationRules: RelationRules;
 }): ComplianceCaps {
   return {
+    ...(partial.noPercentLimits ? { noPercentLimits: true } : {}),
     proponentCapPct: partial.proponentCapPct,
     proponentMeiCapPct: partial.proponentMeiCapPct ?? partial.proponentCapPct,
     supplierCapPct: partial.supplierCapPct,
@@ -208,6 +215,7 @@ export const RULESET_CATALOG: RulesetSeed[] = [
     effectiveTo: "2017-03-19",
     status: "archived",
     caps: caps({
+      noPercentLimits: true,
       proponentCapPct: 20,
       supplierCapPct: 100,
       nearCapPct: 18,

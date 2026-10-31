@@ -167,6 +167,11 @@ model ComplianceRuleset {
   status             RulesetStatus @default(draft)
   needsReview        Boolean       @default(false)
   notes              String?
+  /** Editada à mão na Auditoria — o catálogo do código não sobrescreve mais. */
+  editedAt           DateTime?
+  editedByEmail      String?
+  /** Excluída na Auditoria (some das listas; o catálogo não recria). */
+  deletedAt          DateTime?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 

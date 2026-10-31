@@ -31,6 +31,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
     }),
     prisma.complianceRuleset.findMany({
       where: {
+        deletedAt: null,
         projects: { some: { salicAccount: { workspaceId: entitlements.workspaceId } } },
       },
       select: { version: true, sourceCode: true },

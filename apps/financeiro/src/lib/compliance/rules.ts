@@ -121,7 +121,7 @@ export async function ensureDefaultRuleset(): Promise<ActiveRules> {
   await seedComplianceCatalog();
 
   const active = await prisma.complianceRuleset.findFirst({
-    where: { status: "active" },
+    where: { status: "active", deletedAt: null },
     orderBy: { effectiveFrom: "desc" },
   });
   if (active) return toActiveRules(active);
@@ -140,6 +140,7 @@ export async function getActiveRules(): Promise<ActiveRules> {
 export async function listRulesets(): Promise<ActiveRules[]> {
   await seedComplianceCatalog();
   const rows = await prisma.complianceRuleset.findMany({
+    where: { deletedAt: null },
     orderBy: { effectiveFrom: "asc" },
   });
   return rows.map(toActiveRules);
@@ -158,7 +159,7 @@ export async function getRulesetByVersion(version: string): Promise<ActiveRules 
 export async function getPendingRulesetReview() {
   try {
     return await prisma.complianceRuleset.findFirst({
-      where: { status: "draft", needsReview: true },
+      where: { status: "draft", needsReview: true, deletedAt: null },
       orderBy: { createdAt: "desc" },
     });
   } catch {

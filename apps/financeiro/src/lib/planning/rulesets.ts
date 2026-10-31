@@ -47,6 +47,7 @@ export async function listPlanningRulesets(jurisdiction?: string) {
     where: {
       kind: { in: ["PLANNING", "BOTH"] },
       status: { in: ["active", "draft"] },
+      deletedAt: null,
       ...(jurisdiction ? { jurisdiction } : {}),
     },
     orderBy: [{ jurisdiction: "asc" }, { effectiveFrom: "desc" }],

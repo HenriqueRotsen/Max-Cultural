@@ -64,7 +64,8 @@ function parseRelationRules(raw: unknown): RelationRules {
     artisticGroupException: Boolean(
       o.artisticGroupException ?? DEFAULT_CAPS.relationRules.artisticGroupException,
     ),
-    notes: String(o.notes || DEFAULT_CAPS.relationRules.notes),
+    // Observação vazia é válida (IN cadastrada sem observação).
+    notes: typeof o.notes === "string" ? o.notes : DEFAULT_CAPS.relationRules.notes,
   };
 }
 
@@ -75,6 +76,24 @@ export function parseCaps(raw: unknown): ComplianceCaps {
     o.articles && typeof o.articles === "object"
       ? (o.articles as Record<string, unknown>)
       : {};
+  // Sem limites percentuais: tetos em 100% — nenhum fornecedor/soma passa do limite.
+  if (o.noPercentLimits === true) {
+    return {
+      noPercentLimits: true,
+      proponentCapPct: 100,
+      proponentMeiCapPct: 100,
+      supplierCapPct: 100,
+      nearCapPct: 100,
+      articles: {
+        proponent: String(articles.proponent || DEFAULT_CAPS.articles.proponent),
+        supplier: String(articles.supplier || DEFAULT_CAPS.articles.supplier),
+        supplierExceptions: String(
+          articles.supplierExceptions || DEFAULT_CAPS.articles.supplierExceptions,
+        ),
+      },
+      relationRules: parseRelationRules(o.relationRules),
+    };
+  }
   return {
     proponentCapPct: Number(o.proponentCapPct) || DEFAULT_CAPS.proponentCapPct,
     proponentMeiCapPct: Number(o.proponentMeiCapPct) || DEFAULT_CAPS.proponentMeiCapPct,
@@ -121,7 +140,7 @@ export async function ensureDefaultRuleset(): Promise<ActiveRules> {
   await seedComplianceCatalog();
 
   const active = await prisma.complianceRuleset.findFirst({
-    where: { status: "active" },
+    where: { status: "active", deletedAt: null },
     orderBy: { effectiveFrom: "desc" },
   });
   if (active) return toActiveRules(active);
@@ -140,6 +159,7 @@ export async function getActiveRules(): Promise<ActiveRules> {
 export async function listRulesets(): Promise<ActiveRules[]> {
   await seedComplianceCatalog();
   const rows = await prisma.complianceRuleset.findMany({
+    where: { deletedAt: null },
     orderBy: { effectiveFrom: "asc" },
   });
   return rows.map(toActiveRules);
@@ -158,7 +178,7 @@ export async function getRulesetByVersion(version: string): Promise<ActiveRules 
 export async function getPendingRulesetReview() {
   try {
     return await prisma.complianceRuleset.findFirst({
-      where: { status: "draft", needsReview: true },
+      where: { status: "draft", needsReview: true, deletedAt: null },
       orderBy: { createdAt: "desc" },
     });
   } catch {

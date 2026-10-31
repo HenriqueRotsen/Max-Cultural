@@ -10,7 +10,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump quando o schema ganhar models/campos novos (evita client stale no next dev). */
-const PRISMA_SCHEMA_VERSION = 39;
+const PRISMA_SCHEMA_VERSION = 40;
 
 /** Schemas renomeados (Origem → Financeiro, Fluxo → Indicadores); URLs antigas continuam valendo. */
 const RENAMED_SCHEMAS: Record<string, string> = { origem: "financeiro", fluxo: "indicadores" };

@@ -218,6 +218,26 @@ export const ACCESS_CATALOG = [
     product: "auditoria",
     parentId: "auditoria.atualizacao",
   },
+  {
+    id: "auditoria.observados",
+    label: "Observados e INs",
+    description:
+      "Ver observados e as instruções normativas (quem entra na Auditoria já vê).",
+    kind: "screen",
+    group: "Auditoria",
+    product: "auditoria",
+    parentId: "auditoria.app",
+  },
+  {
+    id: "auditoria.ins.editar",
+    label: "Cadastrar e editar INs",
+    description:
+      "Cria, edita e exclui as instruções normativas (limites e vínculos do art. 23) usadas nas análises.",
+    kind: "capability",
+    group: "Auditoria",
+    product: "auditoria",
+    parentId: "auditoria.observados",
+  },
 
   // —— Indicadores ——
   {

@@ -6,9 +6,11 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui";
 import { AddWatchedSupplierForm } from "@/components/AddWatchedSupplierForm";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
-import { RelationBondByRulesetPanel } from "@/components/RelationBondByRulesetPanel";
+import { RulesetsManager, type RulesetCard } from "@/components/RulesetsManager";
+import { hasHubPermission } from "@/lib/auth/hub-permissions";
+import { parseCaps, toActiveRules } from "@/lib/compliance/rules";
+import { RULESET_EDIT_PERMISSION, rulesetToForm } from "@/lib/rulesets/form";
 import { formatCgccpf } from "@/lib/format";
-import { RULESET_CATALOG, type RelationKind } from "@/lib/compliance/defaults";
 
 export const dynamic = "force-dynamic";
 
@@ -32,18 +34,44 @@ export default async function ObservadosPage({
     include: { supplier: true },
   });
 
-  const bondRows = RULESET_CATALOG.map((item) => ({
-    version: item.version,
-    sourceCode: item.sourceCode,
-    sourceUrl: item.sourceUrl,
-    catalogRelations: [
-      ...item.caps.relationRules.countsTowardProponentCap,
-    ] as RelationKind[],
-    notes: item.caps.relationRules.notes || null,
-  }));
+  const [rulesetRows, usage, canEditRulesets] = await Promise.all([
+    prisma.complianceRuleset.findMany({
+      where: { deletedAt: null },
+      orderBy: { effectiveFrom: "desc" },
+    }),
+    prisma.project.groupBy({
+      by: ["complianceRulesetId"],
+      where: { salicAccount: { workspaceId: ws }, complianceRulesetId: { not: null } },
+      _count: { _all: true },
+    }),
+    hasHubPermission(RULESET_EDIT_PERMISSION),
+  ]);
+  const usageById = new Map(usage.map((u) => [u.complianceRulesetId, u._count._all]));
+  const rulesetCards: RulesetCard[] = rulesetRows.map((row) => {
+    const rules = toActiveRules(row);
+    const raw = (row.caps && typeof row.caps === "object" ? row.caps : {}) as Record<string, unknown>;
+    // Em IN sem limites os tetos efetivos viram 100 — mostra os valores guardados.
+    const stored = rules.caps.noPercentLimits ? parseCaps({ ...raw, noPercentLimits: false }) : rules.caps;
+    return {
+      id: row.id,
+      sourceCode: row.sourceCode,
+      sourceUrl: row.sourceUrl,
+      effectiveFrom: rules.effectiveFrom,
+      effectiveTo: rules.effectiveTo || null,
+      isDefault: row.status === "active",
+      noPercentLimits: Boolean(rules.caps.noPercentLimits),
+      proponentCapPct: stored.proponentCapPct,
+      proponentMeiCapPct: stored.proponentMeiCapPct,
+      supplierCapPct: stored.supplierCapPct,
+      relations: rules.caps.relationRules.countsTowardProponentCap,
+      notes: rules.caps.relationRules.notes || "",
+      projectCount: usageById.get(row.id) || 0,
+      form: rulesetToForm({ ...rules, isDefault: row.status === "active", rawCaps: raw }),
+    };
+  });
 
   const tab =
-    tabParam === "adicionar" || tabParam === "observados" || tabParam === "vinculos"
+    tabParam === "adicionar" || tabParam === "observados" || tabParam === "vinculos" || tabParam === "ins"
       ? tabParam
       : watched.length > 0
         ? "observados"
@@ -62,21 +90,21 @@ export default async function ObservadosPage({
       <nav className="accounts-tabs" aria-label="Abas de observados">
         <Link
           href="/observados?tab=observados"
-          className={tab === "observados" ? "is-active" : undefined}
+          aria-current={tab === "observados" ? "page" : undefined}
         >
           Observados{watched.length > 0 ? ` (${watched.length})` : ""}
         </Link>
         <Link
           href="/observados?tab=adicionar"
-          className={tab === "adicionar" ? "is-active" : undefined}
+          aria-current={tab === "adicionar" ? "page" : undefined}
         >
           Adicionar
         </Link>
         <Link
-          href="/observados?tab=vinculos"
-          className={tab === "vinculos" ? "is-active" : undefined}
+          href="/observados?tab=ins"
+          aria-current={tab === "ins" || tab === "vinculos" ? "page" : undefined}
         >
-          Vínculos por IN
+          INs ({rulesetCards.length})
         </Link>
       </nav>
 
@@ -156,19 +184,17 @@ export default async function ObservadosPage({
 
       {tab === "adicionar" && <AddWatchedSupplierForm />}
 
-      {tab === "vinculos" && (
+      {(tab === "ins" || tab === "vinculos") && (
         <section className="card overflow-hidden">
           <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-            <h2 className="text-lg font-semibold text-[var(--navy)]">
-              O que cada IN considera vínculo
-            </h2>
+            <h2 className="text-lg font-semibold text-[var(--navy)]">Instruções normativas (INs)</h2>
             <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
-              Os tipos de relação (sócio, parente, empresa ligada…) que cada
-              instrução normativa conta para o limite do art. 23. Só consulta.
+              As regras usadas nas análises: limites em % do valor captado e quem conta
+              como vínculo com o proponente.
             </p>
           </div>
           <div className="p-5">
-            <RelationBondByRulesetPanel rows={bondRows} />
+            <RulesetsManager rulesets={rulesetCards} canEdit={canEditRulesets} />
           </div>
         </section>
       )}

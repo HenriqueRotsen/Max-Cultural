@@ -80,6 +80,7 @@ export function isNearLimit(
   limitPct: number,
   rules: ActiveRules = DEFAULT_RULES,
 ): boolean {
+  if (rules.caps.noPercentLimits) return false;
   if (percent > limitPct) return false;
   return percent >= nearThresholdForLimit(limitPct, rules);
 }
@@ -382,6 +383,8 @@ export function evaluatePronacSupplierCompliance(params: {
   }>;
 }): ComplianceAlert[] {
   const rules = params.rules || DEFAULT_RULES;
+  // IN sem limites percentuais: não há teto a avaliar.
+  if (rules.caps.noPercentLimits) return [];
   const alerts: ComplianceAlert[] = [];
   const bondSuppliers = params.bondSuppliers?.length
     ? params.bondSuppliers
@@ -460,6 +463,7 @@ export function worstComplianceTone(
   },
 ): ComplianceTone {
   const rules = options?.rules || DEFAULT_RULES;
+  if (rules.caps.noPercentLimits) return "ok";
   const relatedSet = new Set(
     (options?.relatedParties || [])
       .filter((r) => relatedPartyCountsTowardCap(r, rules))
