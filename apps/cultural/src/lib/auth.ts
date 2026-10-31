@@ -244,6 +244,8 @@ export function canViewProjetos(user: SessionUser) {
 }
 
 export function listGrantedPermissionIds(user: SessionUser): string[] {
-  if (user.isSuperAdmin) return [...ACCESS_PERMISSION_IDS];
+  // Superadmin: todas as permissões de hoje + "*", para valer também as que forem
+  // criadas depois (os módulos tratam "*" como acesso total).
+  if (user.isSuperAdmin) return [...ACCESS_PERMISSION_IDS, "*"];
   return [...effectiveGrantedSet(user)];
 }

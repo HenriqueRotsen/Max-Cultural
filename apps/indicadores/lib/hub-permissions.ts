@@ -67,6 +67,10 @@ function hubGet(
 }
 
 function codesFromHubIds(ids: Set<string>, fetchFailed = false): HubIndicadoresAccess {
+  // "*" = superadmin no hub: todas as permissões, inclusive as criadas depois.
+  if (ids.has("*")) {
+    ids = new Set([...ids, "indicadores.app", ...Object.keys(HUB_TO_INDICADORES_PERMISSIONS)]);
+  }
   if (!ids.has("indicadores.app")) {
     return { hasHubSession: true, allowedProduct: false, codes: new Set(), fetchFailed };
   }
