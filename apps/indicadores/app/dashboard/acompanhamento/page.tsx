@@ -1,0 +1,93 @@
+import Link from "next/link";
+import { AdminShell } from "@/components/admin/admin-shell";
+import { requireDashboardPermission } from "@/lib/dashboard-gate";
+import { listAcompanhamentoProjetosAction } from "@/app/actions/acompanhamento";
+
+export const dynamic = "force-dynamic";
+
+function Barra({ pct, cor }: { pct: number; cor: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${cor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
+    </div>
+  );
+}
+
+export default async function AcompanhamentoPage() {
+  await requireDashboardPermission("acompanhamento:read");
+  const projetos = await listAcompanhamentoProjetosAction();
+
+  return (
+    <AdminShell title="Acompanhamento">
+      <div className="mb-6 space-y-1">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight text-brand-deep">Acompanhamento</h1>
+        <p className="text-sm text-muted-foreground">
+          Comunicação e Produção de cada projeto: o que está em andamento, atrasado e concluído.
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">
+        <table className="w-full text-sm">
+          <thead className="bg-brand-mist/50 text-left text-xs text-brand-deep">
+            <tr>
+              <th className="px-4 py-2 font-semibold">Projeto</th>
+              <th className="px-4 py-2 font-semibold">Comunicação</th>
+              <th className="px-4 py-2 font-semibold">Produção</th>
+              <th className="px-4 py-2 font-semibold">Pedem atenção</th>
+              <th className="px-4 py-2 font-semibold">Recurso</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {projetos.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                  Nenhum projeto no seu acesso.
+                </td>
+              </tr>
+            ) : (
+              projetos.map((p) => (
+                <tr key={p.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/dashboard/acompanhamento/${encodeURIComponent(p.id)}`}
+                      className="font-medium text-brand-deep underline-offset-2 hover:underline"
+                    >
+                      {p.nome}
+                    </Link>
+                    <div className="text-xs text-muted-foreground">
+                      {p.contextoNome}
+                      {p.pronac ? ` · PRONAC ${p.pronac}` : ""} · {p.acoes} {p.acoes === 1 ? "ação" : "ações"}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.comunicacao.total ? <Barra pct={p.comunicacao.pct} cor="bg-teal-700" /> : <span className="text-xs text-muted-foreground">Abrir para gerar</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.producao.total ? <Barra pct={p.producao.pct} cor="bg-orange-500" /> : <span className="text-xs text-muted-foreground">Abrir para gerar</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.pedemAtencao > 0 ? (
+                      <span className="font-semibold text-red-700">{p.pedemAtencao}</span>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {p.recursoLiberado ? (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">Liberado</span>
+                    ) : (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">Aguardando</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </AdminShell>
+  );
+}
