@@ -21,6 +21,10 @@ export const PERMISSION_CODES = [
   "roles:write",
   "audit:read",
   "perfil:write",
+  "acompanhamento:read",
+  "comunicacao:write",
+  "producao:write",
+  "acompanhamento:gestao",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -145,6 +149,28 @@ export const PERMISSION_CATALOG: Array<{
     code: "perfil:write",
     label: "Editar próprio perfil",
     group: "Perfil",
+  },
+  {
+    code: "acompanhamento:read",
+    label: "Ver acompanhamento",
+    group: "Acompanhamento",
+    description: "Ver as tarefas de Comunicação e Produção dos projetos.",
+  },
+  {
+    code: "comunicacao:write",
+    label: "Atualizar tarefas de Comunicação",
+    group: "Acompanhamento",
+  },
+  {
+    code: "producao:write",
+    label: "Atualizar tarefas de Produção",
+    group: "Acompanhamento",
+  },
+  {
+    code: "acompanhamento:gestao",
+    label: "Gestão do acompanhamento",
+    group: "Acompanhamento",
+    description: "Datas do projeto, agenda das ações, ocorrências e escaladas.",
   },
 ];
 

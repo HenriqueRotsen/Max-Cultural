@@ -650,6 +650,8 @@ model Tarefa {
   uf             String?
   status         StatusTarefa   @default(NAO_INICIADA)
   prazo          DateTime?
+  /// Prazo definido à mão: a sincronização com o modelo não o recalcula.
+  prazoManual    Boolean        @default(false) @map("prazo_manual")
   responsavelId  String?        @map("responsavel_id")
   concluidaEm    DateTime?      @map("concluida_em")
   atualizadoPor  String?        @map("atualizado_por")
