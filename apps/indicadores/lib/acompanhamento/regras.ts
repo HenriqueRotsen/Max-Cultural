@@ -1,7 +1,8 @@
 /**
  * Regras do acompanhamento de Comunicação e Produção (sem banco: testáveis).
  *
- * - Prazo = data base (início/fim da execução ou data da ação) + dias do modelo.
+ * - Prazo = data base + dias do modelo (notação D±N). A data base é o início ou o
+ *   fim da execução do projeto (nível 1) ou da realização da ação (nível 2).
  * - Status de gestão é calculado (prazo × status da equipe × hoje), nunca gravado.
  * - Tarefas de um projeto são geradas a partir dos modelos; a geração é
  *   idempotente pela `chaveTarefa` (rodar de novo não duplica).
@@ -17,7 +18,7 @@ export type FaseTarefa =
   | "DURANTE"
   | "DEPOIS";
 export type UnidadeTarefa = "PROJETO" | "ACAO" | "CIDADE";
-export type PrazoBase = "INICIO_EXECUCAO" | "FIM_EXECUCAO" | "DATA_ACAO";
+export type PrazoBase = "INICIO_EXECUCAO" | "FIM_EXECUCAO" | "INICIO_ACAO" | "FIM_ACAO";
 export type StatusTarefa = "NAO_CONTEMPLADA" | "NAO_INICIADA" | "EM_ANDAMENTO" | "CONCLUIDA";
 
 export type StatusGestao =
@@ -69,11 +70,14 @@ export type DatasProjeto = {
   fimExecucao: Date | null;
 };
 
-/** Prazo de uma tarefa; `dataAcao` é a data da realização (ou da cidade). */
+/** Período de execução da realização da ação (ou da cidade). */
+export type PeriodoAcao = { inicio: Date; fim: Date };
+
+/** Prazo de uma tarefa: data base + dias. */
 export function calcularPrazo(
   modelo: Pick<ModeloTarefa, "prazoBase" | "prazoDias">,
   datas: DatasProjeto,
-  dataAcao?: Date | null,
+  acao?: PeriodoAcao | null,
 ): Date | null {
   if (!modelo.prazoBase || modelo.prazoDias == null) return null;
   const base =
@@ -81,7 +85,9 @@ export function calcularPrazo(
       ? datas.inicioExecucao
       : modelo.prazoBase === "FIM_EXECUCAO"
         ? datas.fimExecucao
-        : (dataAcao ?? null);
+        : modelo.prazoBase === "INICIO_ACAO"
+          ? (acao?.inicio ?? null)
+          : (acao?.fim ?? null);
   return base ? somarDias(base, modelo.prazoDias) : null;
 }
 
@@ -117,7 +123,8 @@ export function percentualConcluido(statuses: StatusTarefa[]): number {
 export type AcaoParaGerar = {
   id: string;
   tipoId: string;
-  agenda: Array<{ id: string; cidade: string; uf: string; data: Date }>;
+  /** `data` = início da realização; `dataFim` nulo = um dia só. */
+  agenda: Array<{ id: string; cidade: string; uf: string; data: Date; dataFim?: Date | null }>;
 };
 
 export type TarefaGerada = {
@@ -171,8 +178,8 @@ function seAplicaAoTipo(modelo: ModeloTarefa, tipoId: string): boolean {
  * - Nível 1: uma por modelo.
  * - Unidade ACAO: uma por realização (data) de cada ação do tipo certo;
  *   ação sem agenda recebe uma tarefa sem prazo.
- * - Unidade CIDADE: uma por cidade da agenda; prazo a partir da 1ª data da
- *   cidade (fases Antes/Durante) ou da última (Depois).
+ * - Unidade CIDADE: uma por cidade da agenda; o período da cidade vai do
+ *   primeiro início ao último fim das realizações nela.
  */
 export function gerarTarefas(params: {
   modelos: ModeloTarefa[];
@@ -182,14 +189,23 @@ export function gerarTarefas(params: {
   const out: TarefaGerada[] = [];
   const modelos = params.modelos.filter((m) => m.ativo).sort((a, b) => a.ordem - b.ordem);
 
-  const cidades = new Map<string, { cidade: string; uf: string; datas: Date[]; tipos: Set<string> }>();
+  const periodo = (ag: { data: Date; dataFim?: Date | null }): PeriodoAcao => ({
+    inicio: ag.data,
+    fim: ag.dataFim && ag.dataFim > ag.data ? ag.dataFim : ag.data,
+  });
+  const cidades = new Map<string, { cidade: string; uf: string; periodo: PeriodoAcao; tipos: Set<string> }>();
   for (const a of params.acoes) {
     for (const ag of a.agenda) {
       const k = `${normalizarCidade(ag.cidade)}/${ag.uf.toUpperCase()}`;
-      const c = cidades.get(k) || { cidade: ag.cidade.trim(), uf: ag.uf.toUpperCase(), datas: [], tipos: new Set() };
-      c.datas.push(ag.data);
-      c.tipos.add(a.tipoId);
-      cidades.set(k, c);
+      const p = periodo(ag);
+      const c = cidades.get(k);
+      if (c) {
+        if (p.inicio < c.periodo.inicio) c.periodo.inicio = p.inicio;
+        if (p.fim > c.periodo.fim) c.periodo.fim = p.fim;
+        c.tipos.add(a.tipoId);
+      } else {
+        cidades.set(k, { cidade: ag.cidade.trim(), uf: ag.uf.toUpperCase(), periodo: { ...p }, tipos: new Set([a.tipoId]) });
+      }
     }
   }
 
@@ -220,22 +236,20 @@ export function gerarTarefas(params: {
             agendaId: ag.id,
             cidade: ag.cidade.trim(),
             uf: ag.uf.toUpperCase(),
-            prazo: calcularPrazo(m, params.datas, ag.data),
+            prazo: calcularPrazo(m, params.datas, periodo(ag)),
           });
         }
       }
     } else {
       for (const c of cidades.values()) {
         if (m.tiposAcao.length && ![...c.tipos].some((t) => m.tiposAcao.includes(t))) continue;
-        const ordenadas = [...c.datas].sort((x, y) => x.getTime() - y.getTime());
-        const ref = m.fase === "DEPOIS" ? ordenadas[ordenadas.length - 1]! : ordenadas[0]!;
         out.push({
           ...base,
           acaoId: null,
           agendaId: null,
           cidade: c.cidade,
           uf: c.uf,
-          prazo: calcularPrazo(m, params.datas, ref),
+          prazo: calcularPrazo(m, params.datas, c.periodo),
         });
       }
     }

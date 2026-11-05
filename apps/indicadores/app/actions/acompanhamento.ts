@@ -12,7 +12,7 @@ import {
   percentualConcluido,
   statusGestao,
 } from "@/lib/acompanhamento/regras";
-import { garantirAcompanhamento, sincronizarTarefas } from "@/lib/acompanhamento/sync";
+import { copiaDaPreDefinicao, garantirAcompanhamento, sincronizarTarefas } from "@/lib/acompanhamento/sync";
 import type {
   AcompanhamentoDTO,
   AreaTarefa,
@@ -113,7 +113,7 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
         nome: true,
         tipoId: true,
         tipo: { select: { nome: true } },
-        agenda: { orderBy: { data: "asc" }, select: { id: true, acaoId: true, titulo: true, cidade: true, uf: true, data: true } },
+        agenda: { orderBy: { data: "asc" }, select: { id: true, acaoId: true, titulo: true, cidade: true, uf: true, data: true, dataFim: true } },
       },
     }),
     prisma.tarefa.findMany({
@@ -140,12 +140,13 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
     fimExecucao: isoDia(acomp?.fimExecucao),
     recursoLiberadoEm: isoDia(acomp?.recursoLiberadoEm),
     financeiroVinculado: Boolean(acomp?.financeiroProjectId),
+    preDefinicaoEm: isoDia(acomp?.modelosEm),
     acoes: acoes.map((a) => ({
       id: a.id,
       nome: a.nome,
       tipoId: a.tipoId,
       tipoNome: a.tipo.nome,
-      agenda: a.agenda.map((g) => ({ ...g, data: isoDia(g.data)! })),
+      agenda: a.agenda.map((g) => ({ ...g, data: isoDia(g.data)!, dataFim: isoDia(g.dataFim) })),
     })),
     tarefas: tarefas.map((t) => ({
       id: t.id,
@@ -225,7 +226,7 @@ export async function editTarefaAction(
       titulo: titulo.slice(0, 200),
       detalhamento: input.detalhamento.trim().slice(0, 2000),
       prazo,
-      // Prazo mudado à mão deixa de seguir o modelo (a tarefa continua ligada a ele).
+      // Prazo mudado à mão deixa de seguir a pré-definição (a tarefa continua ligada a ela).
       ...((r.tarefa.prazo?.getTime() ?? null) !== (prazo?.getTime() ?? null) ? { prazoManual: true } : {}),
       atualizadoPor: r.user.id,
     },
@@ -364,23 +365,50 @@ export async function setDatasProjetoAction(
   return { ok: true };
 }
 
+/**
+ * Troca a pré-definição guardada no projeto pela atual (gestão). Tarefas novas
+ * da pré-definição entram; datas não editadas à mão são recalculadas.
+ */
+export async function atualizarPreDefinicaoProjetoAction(projetoId: string): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão atualiza a pré-definição do projeto." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { modelos: await copiaDaPreDefinicao(), modelosEm: new Date() },
+  });
+  await sincronizarTarefas(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.predefinicao_projeto",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: {},
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
 /** Nova realização de uma ação (gestão). Gera as tarefas de nível 2. */
 export async function addAgendaAction(
   acaoId: string,
-  input: { titulo: string; cidade: string; uf: string; data: string },
+  input: { titulo: string; cidade: string; uf: string; data: string; dataFim?: string | null },
 ): Promise<Result> {
   const { perms, scope } = await contexto();
   if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera a agenda." };
   const acao = await prisma.acao.findUnique({ where: { id: acaoId }, select: { id: true, projetoId: true } });
   if (!acao || !(await projetoVisivel(acao.projetoId, scope))) return { ok: false, error: "Ação não encontrada." };
   const data = parseDia(input.data);
-  if (!data || data === "invalida") return { ok: false, error: "Informe a data." };
+  if (!data || data === "invalida") return { ok: false, error: "Informe o início." };
+  const dataFim = parseDia(input.dataFim);
+  if (dataFim === "invalida") return { ok: false, error: "Fim inválido." };
+  if (dataFim && dataFim < data) return { ok: false, error: "O fim não pode ser antes do início." };
   const cidade = input.cidade.trim();
   const uf = input.uf.trim().toUpperCase();
   if (!cidade) return { ok: false, error: "Informe a cidade." };
   if (!/^[A-Z]{2}$/.test(uf)) return { ok: false, error: "UF com 2 letras." };
   await prisma.acaoAgenda.create({
-    data: { acaoId, titulo: input.titulo.trim().slice(0, 120), cidade, uf, data },
+    data: { acaoId, titulo: input.titulo.trim().slice(0, 120), cidade, uf, data, dataFim: dataFim && dataFim > data ? dataFim : null },
   });
   await sincronizarTarefas(acao.projetoId);
   revalidar(acao.projetoId);

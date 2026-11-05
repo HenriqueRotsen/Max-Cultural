@@ -548,7 +548,8 @@ enum UnidadeTarefa {
 enum PrazoBase {
   INICIO_EXECUCAO
   FIM_EXECUCAO
-  DATA_ACAO
+  INICIO_ACAO
+  FIM_ACAO
 }
 
 enum StatusTarefa {
@@ -578,8 +579,8 @@ model TarefaModelo {
   titulo       String
   detalhamento String         @default("")
   unidade      UnidadeTarefa
+  /// Prazo: data base + dias (D±N; negativo = antes). Nulo = sem prazo.
   prazoBase    PrazoBase?     @map("prazo_base")
-  /// Dias somados à data base (negativo = antes). Nulo = sem prazo.
   prazoDias    Int?           @map("prazo_dias")
   /// Tipos de ação a que se aplica (ids de acao_tipos). Vazio = todos.
   tiposAcao    String[]       @default([]) @map("tipos_acao")
@@ -603,6 +604,10 @@ model AcompanhamentoProjeto {
   /// Detectado no Financeiro (captadoTransferido > 0). Antes disso as tarefas aguardam.
   recursoLiberadoEm   DateTime? @map("recurso_liberado_em")
   financeiroProjectId String?   @map("financeiro_project_id")
+  /// Cópia da pré-definição (tarefa_modelos ativos) feita quando o projeto entrou
+  /// no acompanhamento: mudanças na pré-definição só valem para projetos novos.
+  modelos             Json?
+  modelosEm           DateTime? @map("modelos_em")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -617,7 +622,10 @@ model AcaoAgenda {
   titulo    String   @default("")
   cidade    String
   uf        String
+  /// Início da execução desta realização.
   data      DateTime
+  /// Fim da execução; nulo = um dia só (fim = início).
+  dataFim   DateTime? @map("data_fim")
   tarefas   Tarefa[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

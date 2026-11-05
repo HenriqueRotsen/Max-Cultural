@@ -22,11 +22,19 @@ export default async function AcompanhamentoPage() {
 
   return (
     <AdminShell title="Acompanhamento">
-      <div className="mb-6 space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight text-brand-deep">Acompanhamento</h1>
-        <p className="text-sm text-muted-foreground">
-          Comunicação e Produção de cada projeto: o que está em andamento, atrasado e concluído.
-        </p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-brand-deep">Acompanhamento</h1>
+          <p className="text-sm text-muted-foreground">
+            Comunicação e Produção de cada projeto: o que está em andamento, atrasado e concluído.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/acompanhamento/pre-definicao"
+          className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm font-medium text-brand-deep hover:bg-muted/40"
+        >
+          Configurações · pré-definição
+        </Link>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">

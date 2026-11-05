@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import {
   addAgendaAction,
   addComentarioAction,
+  atualizarPreDefinicaoProjetoAction,
   createTarefaAvulsaAction,
   editTarefaAction,
   listComentariosAction,
@@ -92,6 +93,11 @@ function fmtCurto(iso: string | null) {
   return `${d}/${m}`;
 }
 
+/** "09/11" ou "09/11 a 11/11" (período da realização). */
+function periodoCurto(g: { data: string; dataFim: string | null }) {
+  return g.dataFim && g.dataFim !== g.data ? `${fmtCurto(g.data)} a ${fmtCurto(g.dataFim)}` : fmtCurto(g.data);
+}
+
 function pct(ts: TarefaDTO[]) {
   const validas = ts.filter((t) => t.status !== "NAO_CONTEMPLADA");
   if (!validas.length) return 0;
@@ -110,7 +116,12 @@ function GestaoBadge({ s }: { s: StatusGestao }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
       <span className={cn("h-2 w-2 shrink-0 rounded-full", GESTAO_COR[s])} />
-      <span className={cn(s === "EM_ATRASO" && "font-medium text-red-700", s === "PRAZO_PROXIMO" && "text-amber-800")}>
+      <span
+        className={cn(
+          s === "EM_ATRASO" && "font-medium text-red-700",
+          s === "PRAZO_PROXIMO" && "text-amber-800",
+        )}
+      >
         {GESTAO_LABEL[s]}
       </span>
     </span>
@@ -151,7 +162,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
     const nome = t.acaoId ? acaoNome.get(t.acaoId) ?? "Ação" : "Ação";
     const g = t.agendaId ? agendaPorId.get(t.agendaId) : null;
     if (!g) return `${nome} · sem data`;
-    return [nome, g.titulo || fmtCurto(g.data), `${g.cidade}/${g.uf}`].filter(Boolean).join(" · ");
+    return [nome, g.titulo || periodoCurto(g), `${g.cidade}/${g.uf}`].filter(Boolean).join(" · ");
   }
 
   const liberado = Boolean(data.recursoLiberadoEm);
@@ -361,9 +372,14 @@ function AreaPainel(props: AreaProps) {
                       >
                         {t.titulo}
                       </button>
+                      {t.prazo ? (
+                        <div className="text-xs tabular-nums text-muted-foreground">Prazo {fmtCurto(t.prazo)}</div>
+                      ) : null}
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
-                        {t.gestao === "EM_ATRASO" || t.gestao === "PRAZO_PROXIMO" ? <GestaoBadge s={t.gestao} /> : null}
+                        {t.gestao === "EM_ATRASO" || t.gestao === "PRAZO_PROXIMO" ? (
+                          <GestaoBadge s={t.gestao} />
+                        ) : null}
                         {t.escaladasAbertas ? <Flag className="size-3.5 text-red-600" aria-label="Escalada à gestão" /> : null}
                       </div>
                     </li>
@@ -507,7 +523,7 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                               ) : null}
                             </td>
                             <td className="hidden py-2 pr-3 text-xs text-muted-foreground sm:table-cell">{FASE_LABEL[t.fase]}</td>
-                            <td className="py-2 pr-3 text-xs tabular-nums">{fmtCurto(t.prazo)}</td>
+                            <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{fmtCurto(t.prazo)}</td>
                             <td className="py-2 pr-3">
                               <span className="inline-flex items-center gap-2">
                                 <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
@@ -770,7 +786,7 @@ function AvulsaDialog({
               <select value={alvo} onChange={(e) => setAlvo(e.target.value)} className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm">
                 {realizacoes.map(({ a, g }) => (
                   <option key={g.id} value={`ag:${g.id}`}>
-                    {a.nome} · {g.titulo || fmtCurto(g.data)} · {g.cidade}/{g.uf}
+                    {a.nome} · {g.titulo || periodoCurto(g)} · {g.cidade}/{g.uf}
                   </option>
                 ))}
                 {area === "PRODUCAO"
@@ -806,8 +822,18 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
   const [pending, startTransition] = useTransition();
   const [inicio, setInicio] = useState(data.inicioExecucao ?? "");
   const [fim, setFim] = useState(data.fimExecucao ?? "");
-  const [nova, setNova] = useState<Record<string, { titulo: string; data: string; cidade: string; uf: string }>>({});
+  const [nova, setNova] = useState<Record<string, { titulo: string; data: string; dataFim: string; cidade: string; uf: string }>>({});
   const pode = data.pode.gestao;
+
+  function atualizarPreDefinicao() {
+    if (!window.confirm("Usar a pré-definição atual neste projeto? Tarefas novas entram e as datas não editadas à mão são recalculadas.")) return;
+    startTransition(async () => {
+      const r = await atualizarPreDefinicaoProjetoAction(data.projeto.id);
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("Projeto atualizado para a pré-definição atual");
+      router.refresh();
+    });
+  }
 
   function salvarDatas() {
     startTransition(async () => {
@@ -825,7 +851,7 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
       const r = await addAgendaAction(acaoId, v);
       if (!r.ok) return void toast.error(r.error);
       toast.success("Data adicionada; tarefas geradas");
-      setNova((s) => ({ ...s, [acaoId]: { titulo: "", data: "", cidade: v.cidade, uf: v.uf } }));
+      setNova((s) => ({ ...s, [acaoId]: { titulo: "", data: "", dataFim: "", cidade: v.cidade, uf: v.uf } }));
       router.refresh();
     });
   }
@@ -874,11 +900,30 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         </p>
       </section>
 
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+        <div>
+          <h2 className="font-heading text-lg font-semibold text-brand-deep">Pré-definição</h2>
+          <p className="text-sm text-muted-foreground">
+            Este projeto segue a{" "}
+            <Link href="/dashboard/acompanhamento/pre-definicao" className="font-medium text-teal-800 hover:underline">
+              pré-definição das tarefas
+            </Link>{" "}
+            de {fmtDia(data.preDefinicaoEm)}. Mudanças feitas depois só valem para projetos novos.
+          </p>
+        </div>
+        {pode ? (
+          <Button variant="outline" disabled={pending} onClick={atualizarPreDefinicao}>
+            Usar a pré-definição atual
+          </Button>
+        ) : null}
+      </section>
+
       <section className="space-y-3">
         <div>
           <h2 className="font-heading text-lg font-semibold text-brand-deep">Agenda das ações</h2>
           <p className="text-sm text-muted-foreground">
-            Cada data e cidade em que a ação acontece. As tarefas de nível 2 são geradas a partir daqui.
+            Cada execução da ação: início, fim e cidade. As tarefas de nível 2 são geradas a partir daqui, com o
+            prazo contado do início ou do fim da execução da ação.
           </p>
         </div>
         {data.acoes.length === 0 ? (
@@ -886,7 +931,7 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {data.acoes.map((a) => {
-              const v = nova[a.id] ?? { titulo: "", data: "", cidade: "", uf: "" };
+              const v = nova[a.id] ?? { titulo: "", data: "", dataFim: "", cidade: "", uf: "" };
               const set = (k: keyof typeof v, val: string) => setNova((s) => ({ ...s, [a.id]: { ...v, [k]: val } }));
               return (
                 <div key={a.id} className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
@@ -901,7 +946,11 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                       {a.agenda.map((g) => (
                         <li key={g.id} className="flex items-center justify-between gap-2 py-1.5">
                           <span>
-                            <span className="tabular-nums">{fmtDia(g.data)}</span> · {g.cidade}/{g.uf}
+                            <span className="tabular-nums">
+                              {fmtDia(g.data)}
+                              {g.dataFim && g.dataFim !== g.data ? ` a ${fmtDia(g.dataFim)}` : ""}
+                            </span>{" "}
+                            · {g.cidade}/{g.uf}
                             {g.titulo ? <span className="text-muted-foreground"> · {g.titulo}</span> : null}
                           </span>
                           {pode ? (
@@ -916,20 +965,32 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                     <p className="mb-3 text-xs text-muted-foreground">Sem datas.</p>
                   )}
                   {pode ? (
-                    <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2 sm:grid-cols-[9.5rem_minmax(0,1fr)_4rem]">
-                      <Input type="date" value={v.data} onChange={(e) => set("data", e.target.value)} aria-label="Data" />
-                      <Input value={v.cidade} onChange={(e) => set("cidade", e.target.value)} placeholder="Cidade" aria-label="Cidade" />
-                      <Input value={v.uf} maxLength={2} onChange={(e) => set("uf", e.target.value.toUpperCase())} placeholder="UF" aria-label="UF" />
-                      <Input
-                        value={v.titulo}
-                        onChange={(e) => set("titulo", e.target.value)}
-                        placeholder="Rótulo (opcional), ex.: Oficina 2"
-                        aria-label="Rótulo"
-                        className="col-span-2 sm:col-span-2"
-                      />
-                      <Button variant="outline" disabled={pending || !v.data || !v.cidade || v.uf.length !== 2} onClick={() => adicionar(a.id)}>
-                        <Plus className="size-4" /> Data
-                      </Button>
+                    <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="space-y-1 text-xs text-muted-foreground">
+                          Início da execução
+                          <Input type="date" value={v.data} onChange={(e) => set("data", e.target.value)} />
+                        </label>
+                        <label className="space-y-1 text-xs text-muted-foreground">
+                          Fim (se durar mais de um dia)
+                          <Input type="date" value={v.dataFim} min={v.data || undefined} onChange={(e) => set("dataFim", e.target.value)} />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2">
+                        <Input value={v.cidade} onChange={(e) => set("cidade", e.target.value)} placeholder="Cidade" aria-label="Cidade" />
+                        <Input value={v.uf} maxLength={2} onChange={(e) => set("uf", e.target.value.toUpperCase())} placeholder="UF" aria-label="UF" />
+                      </div>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                        <Input
+                          value={v.titulo}
+                          onChange={(e) => set("titulo", e.target.value)}
+                          placeholder="Rótulo (opcional), ex.: Oficina 2"
+                          aria-label="Rótulo"
+                        />
+                        <Button variant="outline" disabled={pending || !v.data || !v.cidade || v.uf.length !== 2} onClick={() => adicionar(a.id)}>
+                          <Plus className="size-4" /> Adicionar
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
                 </div>

@@ -1,12 +1,13 @@
 import type {
   AreaTarefa,
   FaseTarefa,
+  PrazoBase,
   StatusGestao,
   StatusTarefa,
   UnidadeTarefa,
 } from "@/lib/acompanhamento/regras";
 
-export type { AreaTarefa, FaseTarefa, StatusGestao, StatusTarefa, UnidadeTarefa };
+export type { AreaTarefa, FaseTarefa, PrazoBase, StatusGestao, StatusTarefa, UnidadeTarefa };
 
 export const STATUS_LABEL: Record<StatusTarefa, string> = {
   NAO_CONTEMPLADA: "Não contemplada",
@@ -24,6 +25,23 @@ export const GESTAO_LABEL: Record<StatusGestao, string> = {
   PRAZO_PROXIMO: "Prazo próximo",
   EM_ATRASO: "Em atraso",
 };
+
+export const BASE_LABEL: Record<PrazoBase, string> = {
+  INICIO_EXECUCAO: "início da execução",
+  FIM_EXECUCAO: "fim da execução",
+  INICIO_ACAO: "início da ação",
+  FIM_ACAO: "fim da ação",
+};
+
+/** Notação D: "D+15 · início da execução", "D−3 · início da ação", "sem prazo". */
+export function regraLabel(base: PrazoBase | null, dias: number | null): string {
+  if (!base || dias == null) return "sem prazo";
+  return `${notacaoD(dias)} · ${BASE_LABEL[base]}`;
+}
+
+export function notacaoD(dias: number): string {
+  return `D${dias < 0 ? "−" : "+"}${Math.abs(dias)}`;
+}
 
 export const FASE_LABEL: Record<FaseTarefa, string> = {
   PLANEJAMENTO: "Planejamento",
@@ -70,8 +88,10 @@ export type AgendaDTO = {
   titulo: string;
   cidade: string;
   uf: string;
-  /** yyyy-mm-dd */
+  /** Início da realização (yyyy-mm-dd). */
   data: string;
+  /** Fim da realização (yyyy-mm-dd); nulo = um dia só. */
+  dataFim: string | null;
 };
 
 export type AcaoAcompDTO = {
@@ -88,6 +108,8 @@ export type AcompanhamentoDTO = {
   fimExecucao: string | null;
   recursoLiberadoEm: string | null;
   financeiroVinculado: boolean;
+  /** Dia em que o projeto guardou a pré-definição (yyyy-mm-dd). */
+  preDefinicaoEm: string | null;
   acoes: AcaoAcompDTO[];
   tarefas: TarefaDTO[];
   pode: { comunicacao: boolean; producao: boolean; gestao: boolean };
@@ -113,4 +135,20 @@ export type ProjetoAcompResumoDTO = {
   comunicacao: { pct: number; total: number };
   producao: { pct: number; total: number };
   pedemAtencao: number;
+};
+
+/** Tarefa da pré-definição (tela de edição). */
+export type ModeloDTO = {
+  id: string;
+  area: AreaTarefa;
+  nivel: number;
+  fase: FaseTarefa;
+  titulo: string;
+  detalhamento: string;
+  unidade: UnidadeTarefa;
+  prazoBase: PrazoBase | null;
+  prazoDias: number | null;
+  tiposAcao: string[];
+  ordem: number;
+  ativo: boolean;
 };

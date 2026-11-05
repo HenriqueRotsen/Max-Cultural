@@ -139,12 +139,15 @@ async function setup({ reset }) {
   run("cultural", ["prisma", "migrate", "deploy"]);
   console.log("\n▶ Migrações do MAX Indicadores");
   run("indicadores", ["prisma", "migrate", "deploy"]);
+  console.log("\n▶ Cliente do banco (prisma generate)");
+  run("cultural", ["prisma", "generate"]);
+  run("indicadores", ["prisma", "generate"]);
   console.log("\n▶ Contas locais");
   run("cultural", ["tsx", "scripts/seed.ts"]);
   run("indicadores", ["tsx", "scripts/seed-auth.ts"]);
   console.log("\n▶ Dados demo do Indicadores");
   run("indicadores", ["tsx", "scripts/seed-demo.ts"]);
-  console.log("\n✅ Ambiente local pronto. Suba com: npm run dev:local");
+  console.log("\n✅ Ambiente local pronto. Suba (ou reinicie) com: npm run dev:local");
 }
 
 async function liberar() {
