@@ -75,7 +75,8 @@ export type DadosProjetoDTO = {
   entregueEm: string | null;
 };
 
-export type ProdutoDTO = { id: string; nome: string; meta: string; fichas: number };
+/** Produto prometido no projeto e as ações que contam para ele. */
+export type ProdutoDTO = { id: string; nome: string; meta: string; acaoIds: string[]; execucoes: number };
 
 export type ExecucaoDTO = {
   agendaId: string;
@@ -96,6 +97,7 @@ export type PrestacaoProjetoDTO = {
   projeto: { id: string; nome: string; pronac: string; proponente: string; ano: string; contextoNome: string };
   dados: DadosProjetoDTO;
   produtos: ProdutoDTO[];
+  acoes: Array<{ id: string; nome: string; execucoes: number }>;
   execucoes: ExecucaoDTO[];
   /** Ações sem nenhuma execução na agenda (ainda sem ficha). */
   acoesSemAgenda: Array<{ id: string; nome: string }>;
@@ -104,7 +106,7 @@ export type PrestacaoProjetoDTO = {
   pode: Record<EquipePrestacao, boolean>;
 };
 
-/** Dados que vêm do sistema (ação, agenda e inscrições), com as correções da gestão. */
+/** Dados que vêm do sistema (ação, agenda e inscrições); só leitura na ficha. */
 export type SistemaDTO = {
   ano: string;
   proponente: string;
@@ -118,7 +120,7 @@ export type SistemaDTO = {
   dataFim: string;
   meses: string;
   quantidadeMeses: number;
-  numeros: Array<{ chave: string; rotulo: string; valor: number; doSistema: number; ajustado: boolean }>;
+  numeros: Array<{ chave: string; rotulo: string; valor: number }>;
   /** A ação tem mais de uma execução: os números das inscrições são da ação toda. */
   numerosDaAcaoToda: boolean;
 };
@@ -127,8 +129,8 @@ export type FichaDTO = {
   agendaId: string;
   projetoId: string;
   projetoNome: string;
-  produtoId: string | null;
-  produtos: Array<{ id: string; nome: string }>;
+  /** Produto da ação (definido em "Produtos e metas"). */
+  produtoNome: string | null;
   campos: CampoDTO[];
   valores: ValoresFicha;
   arquivos: ArquivoDTO[];

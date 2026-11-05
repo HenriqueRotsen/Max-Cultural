@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   enderecoLabel,
   formatarNumero,
+  mapaProdutoDaAcao,
   diasDaExecucao,
   gruposDoPerfil,
   mesesDoPeriodo,
@@ -175,5 +176,19 @@ describe("pessoas, local e números", () => {
     expect(sugerir({ sugestao: "LOCAL", tipo: "ENDERECO", opcoes: [] }, base)?.valor).toEqual({ cidade: "Belo Horizonte", uf: "MG" });
     const comLocal = { ...base, locais: [{ nome: "Escola X", logradouro: "Rua A" }] };
     expect(sugerir({ sugestao: "LOCAL", tipo: "ENDERECO", opcoes: [] }, comLocal)?.valor).toEqual({ nome: "Escola X", logradouro: "Rua A" });
+  });
+});
+
+describe("produto da ação", () => {
+  it("cada ação no primeiro produto que a inclui", () => {
+    const m = mapaProdutoDaAcao([
+      { id: "p1", acaoIds: ["a1", "a2"] },
+      { id: "p2", acaoIds: ["a2", "a3"] },
+    ]);
+    expect([...m]).toEqual([
+      ["a1", "p1"],
+      ["a2", "p1"],
+      ["a3", "p2"],
+    ]);
   });
 });

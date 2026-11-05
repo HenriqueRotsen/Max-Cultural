@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { SimpleSelect } from "@/components/ui/simple-select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -235,19 +236,23 @@ function Fichas({ data, podeAcompanhamento }: { data: PrestacaoProjetoDTO; podeA
   );
 }
 
+const execucoesTexto = (n: number) => (n === 1 ? "1 execução" : `${n} execuções`);
+
 function Produtos({ data }: { data: PrestacaoProjetoDTO }) {
   const router = useRouter();
   const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
-  const [editando, setEditando] = useState<{ id?: string; nome: string; meta: string } | null>(null);
+  const [editando, setEditando] = useState<Partial<ProdutoDTO> | null>(null);
   const pode = data.pode.GESTAO;
+  const acaoNome = new Map(data.acoes.map((a) => [a.id, a.nome]));
+  const semProduto = data.acoes.filter((a) => !data.produtos.some((p) => p.acaoIds.includes(a.id)));
 
   async function remover(p: ProdutoDTO) {
     const ok = await confirmar({
       title: `Remover o produto "${p.nome}"?`,
-      description: p.fichas
-        ? `${p.fichas} ficha(s) ligada(s) a ele ficarão sem produto. Os dados das fichas não são apagados.`
-        : "Nenhuma ficha está ligada a ele.",
+      description: p.acaoIds.length
+        ? `${p.acaoIds.length === 1 ? "1 ação ficará" : `${p.acaoIds.length} ações ficarão`} sem produto. Os dados das fichas não são apagados.`
+        : "Nenhuma ação está ligada a ele.",
       destructive: true,
     });
     if (!ok) return;
@@ -262,11 +267,11 @@ function Produtos({ data }: { data: PrestacaoProjetoDTO }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Os produtos e metas prometidos no projeto (PRONAC, LEIC ou outra lei). Cada ficha é ligada a um produto, e o
-          relatório sai por produto. Podem mudar ao longo do processo.
+          Os produtos e metas prometidos no projeto (PRONAC, LEIC ou outra lei). Em cada produto, escolha as ações que contam
+          para ele: todas as execuções da ação entram no produto, e o relatório sai por produto.
         </p>
         {pode ? (
-          <Button size="sm" variant="outline" onClick={() => setEditando({ nome: "", meta: "" })}>
+          <Button size="sm" variant="outline" onClick={() => setEditando({})}>
             <Plus className="size-4" /> Produto
           </Button>
         ) : null}
@@ -278,7 +283,18 @@ function Produtos({ data }: { data: PrestacaoProjetoDTO }) {
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-brand-deep">{p.nome}</div>
                 <div className="whitespace-pre-wrap text-sm text-muted-foreground">{p.meta || "Sem meta informada."}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{p.fichas} ficha(s) ligada(s)</div>
+                {p.acaoIds.length ? (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {p.acaoIds.map((id) => (
+                      <span key={id} className="rounded-full bg-brand-mist px-2 py-0.5 text-xs font-medium text-brand-deep">
+                        {acaoNome.get(id)}
+                      </span>
+                    ))}
+                    <span className="px-1 py-0.5 text-xs text-muted-foreground">· {execucoesTexto(p.execucoes)}</span>
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs text-amber-800">Nenhuma ação ligada ainda.</div>
+                )}
               </div>
               {pode ? (
                 <div className="flex gap-1">
@@ -298,26 +314,35 @@ function Produtos({ data }: { data: PrestacaoProjetoDTO }) {
           Nenhum produto cadastrado.
         </p>
       )}
+      {data.produtos.length && semProduto.length ? (
+        <p className="text-xs text-amber-800">
+          Sem produto: {semProduto.map((a) => a.nome).join(", ")}. No relatório, aparecem em &ldquo;Ações sem produto definido&rdquo;.
+        </p>
+      ) : null}
       {editando ? (
-        <ProdutoDialog projetoId={data.projeto.id} inicial={editando} onClose={() => setEditando(null)} />
+        <ProdutoDialog data={data} inicial={editando} onClose={() => setEditando(null)} />
       ) : null}
     </div>
   );
 }
 
 function ProdutoDialog({
-  projetoId,
+  data,
   inicial,
   onClose,
 }: {
-  projetoId: string;
-  inicial: { id?: string; nome: string; meta: string };
+  data: PrestacaoProjetoDTO;
+  inicial: Partial<ProdutoDTO>;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [nome, setNome] = useState(inicial.nome);
-  const [meta, setMeta] = useState(inicial.meta);
+  const [nome, setNome] = useState(inicial.nome ?? "");
+  const [meta, setMeta] = useState(inicial.meta ?? "");
+  const [acaoIds, setAcaoIds] = useState<string[]>(inicial.acaoIds ?? []);
+  const outroProduto = new Map(
+    data.produtos.filter((p) => p.id !== inicial.id).flatMap((p) => p.acaoIds.map((a) => [a, p.nome] as const)),
+  );
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-lg">
@@ -334,6 +359,37 @@ function ProdutoDialog({
             <Label>Meta</Label>
             <Textarea rows={3} value={meta} onChange={(e) => setMeta(e.target.value)} placeholder="Ex.: 20 oficinas, 400 participantes" />
           </div>
+          <div className="space-y-1.5">
+            <Label>Ações que contam para este produto</Label>
+            {data.acoes.length ? (
+              <ul className="max-h-60 divide-y divide-border/50 overflow-y-auto rounded-lg border border-border/70">
+                {data.acoes.map((a) => {
+                  const marcado = acaoIds.includes(a.id);
+                  const outro = outroProduto.get(a.id);
+                  return (
+                    <li key={a.id}>
+                      <label className="flex cursor-pointer items-start gap-2.5 px-3 py-2 text-sm hover:bg-muted/40">
+                        <Checkbox
+                          className="mt-0.5"
+                          checked={marcado}
+                          onCheckedChange={(v) => setAcaoIds((xs) => (v ? [...xs, a.id] : xs.filter((x) => x !== a.id)))}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-foreground">{a.nome}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {execucoesTexto(a.execucoes)}
+                            {outro ? (marcado ? ` · sai de "${outro}"` : ` · hoje em "${outro}"`) : ""}
+                          </span>
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">O projeto ainda não tem ações cadastradas.</p>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -343,7 +399,7 @@ function ProdutoDialog({
             disabled={pending || !nome.trim()}
             onClick={() =>
               startTransition(async () => {
-                const r = await salvarProdutoAction(projetoId, { id: inicial.id, nome, meta });
+                const r = await salvarProdutoAction(data.projeto.id, { id: inicial.id, nome, meta, acaoIds });
                 if (!r.ok) return void toast.error(r.error);
                 toast.success("Produto salvo");
                 router.refresh();
@@ -590,7 +646,7 @@ const PASSOS = [
   {
     quem: "Gestão",
     titulo: "Dados e produtos",
-    texto: "Uma vez por projeto: lei, identificação e patrocinador em Dados do projeto; os produtos e metas prometidos em Produtos e metas.",
+    texto: "Uma vez por projeto: lei, identificação e patrocinador em Dados do projeto; os produtos e metas prometidos em Produtos e metas, cada um com as ações que contam para ele.",
   },
   {
     quem: "Produção, Comunicação e Gestão",

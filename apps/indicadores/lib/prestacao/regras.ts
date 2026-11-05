@@ -369,3 +369,13 @@ export function sugerir(
       return null;
   }
 }
+
+/**
+ * Produto de cada ação (ações escolhidas em "Produtos e metas"). Se, por algum
+ * motivo, a ação estiver em mais de um, vale o primeiro na ordem do projeto.
+ */
+export function mapaProdutoDaAcao(produtos: Array<{ id: string; acaoIds: string[] }>): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const p of produtos) for (const a of p.acaoIds) if (!m.has(a)) m.set(a, p.id);
+  return m;
+}

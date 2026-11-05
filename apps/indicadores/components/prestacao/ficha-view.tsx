@@ -11,11 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { SimpleSelect } from "@/components/ui/simple-select";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { salvarFichaEquipeAction, salvarFichaGestaoAction } from "@/app/actions/prestacao";
+import { salvarFichaEquipeAction } from "@/app/actions/prestacao";
 import {
   enderecoLabel,
   EQUIPES,
+  formatarNumero,
   minutosEmHoras,
   sugerir,
   type Endereco,
@@ -82,37 +84,16 @@ function Item({ rotulo, valor }: { rotulo: string; valor: string | number }) {
   );
 }
 
-/** Dados do projeto, da agenda e das inscrições; a gestão escolhe o produto e corrige os números. */
+/** Dados do projeto, da ação, da agenda e das inscrições: só leitura (corrige-se na origem). */
 function DoSistema({ ficha }: { ficha: FichaDTO }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
   const s = ficha.sistema;
-  const [produtoId, setProdutoId] = useState(ficha.produtoId ?? "");
-  const [ajustes, setAjustes] = useState<Record<string, string>>(
-    Object.fromEntries(s.numeros.filter((n) => n.ajustado).map((n) => [n.chave, String(n.valor)])),
-  );
-  const pode = ficha.pode.GESTAO;
-
-  function salvar() {
-    const nums: Record<string, number | null> = {};
-    for (const n of s.numeros) {
-      const t = (ajustes[n.chave] ?? "").trim();
-      nums[n.chave] = t === "" ? null : Number(t);
-      if (t !== "" && !Number.isInteger(Number(t))) return void toast.error(`${n.rotulo}: número inválido.`);
-    }
-    startTransition(async () => {
-      const r = await salvarFichaGestaoAction(ficha.agendaId, { produtoId: produtoId || null, ajustes: nums });
-      if (!r.ok) return void toast.error(r.error);
-      toast.success("Produto e números salvos");
-      router.refresh();
-    });
-  }
-
   return (
     <section className="space-y-4 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
       <div>
         <h2 className="font-heading text-lg font-semibold text-brand-deep">Do sistema</h2>
-        <p className="text-sm text-muted-foreground">Vem do cadastro do projeto, da ação, da agenda e das inscrições.</p>
+        <p className="text-sm text-muted-foreground">
+          Vem do cadastro do projeto, da ação, da agenda e das inscrições. Para mudar, altere lá.
+        </p>
       </div>
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
         <Item rotulo="Ano" valor={s.ano} />
@@ -123,61 +104,39 @@ function DoSistema({ ficha }: { ficha: FichaDTO }) {
         <Item rotulo="Cidade/Estado" valor={s.cidadeUf} />
         <Item rotulo="Mês" valor={s.meses} />
         <Item rotulo="Quantidade de meses" valor={s.quantidadeMeses} />
+        <div className="min-w-0 sm:col-span-2 lg:col-span-4">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Produto do projeto</div>
+          <div className="text-sm text-foreground">
+            {ficha.produtoNome ?? (
+              <span className="text-muted-foreground">
+                Esta ação ainda não está em nenhum produto.{" "}
+                <Link
+                  href={`/dashboard/prestacao/${encodeURIComponent(ficha.projetoId)}?aba=produtos`}
+                  className="font-medium text-teal-800 hover:underline"
+                >
+                  Definir em Produtos e metas
+                </Link>
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Números das inscrições</div>
           {s.numerosDaAcaoToda ? (
-            <span className="text-xs text-amber-800">
-              A ação tem mais de uma execução: os números são da ação toda. Corrija aqui se precisar separar.
-            </span>
+            <span className="text-xs text-muted-foreground">A ação tem mais de uma execução: os números são da ação toda.</span>
           ) : null}
         </div>
-        <div className="grid gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {s.numeros.map((n) => (
-            <div key={n.chave} className="space-y-1">
-              <Label className="text-xs">{n.rotulo}</Label>
-              {pode ? (
-                <Input
-                  inputMode="numeric"
-                  value={ajustes[n.chave] ?? ""}
-                  placeholder={String(n.doSistema)}
-                  onChange={(e) => setAjustes((a) => ({ ...a, [n.chave]: e.target.value.replace(/\D/g, "") }))}
-                  className="h-9 bg-white tabular-nums"
-                  aria-label={n.rotulo}
-                />
-              ) : (
-                <div className="text-lg font-semibold tabular-nums text-brand-deep">{n.valor}</div>
-              )}
-              <div className="text-[11px] text-muted-foreground">
-                {n.ajustado ? `corrigido (sistema: ${n.doSistema})` : "do sistema"}
-              </div>
+            <div key={n.chave}>
+              <div className="text-xs text-muted-foreground">{n.rotulo}</div>
+              <div className="text-lg font-semibold tabular-nums text-brand-deep">{formatarNumero(n.valor)}</div>
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-full max-w-sm space-y-1.5">
-          <Label>Produto</Label>
-          <SimpleSelect
-            value={produtoId}
-            onChange={setProdutoId}
-            disabled={!pode}
-            className="h-9 w-full"
-            aria-label="Produto"
-            options={[
-              { value: "", label: ficha.produtos.length ? "Sem produto" : "Nenhum produto cadastrado" },
-              ...ficha.produtos.map((p) => ({ value: p.id, label: p.nome })),
-            ]}
-          />
-        </div>
-        {pode ? (
-          <Button disabled={pending} onClick={salvar}>
-            Salvar produto e números
-          </Button>
-        ) : null}
       </div>
     </section>
   );
@@ -270,7 +229,7 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
           <h2 className="font-heading text-lg font-semibold text-brand-deep">{EQUIPE_LABEL[equipe]}</h2>
           <p className="text-sm text-muted-foreground">
             {pode
-              ? `Equipe de ${EQUIPE_LABEL[equipe]} preenche. Marque "Não se aplica" quando o campo não fizer sentido nesta ação.`
+              ? `Equipe de ${EQUIPE_LABEL[equipe]} preenche. Ligue "Não se aplica" quando o campo não fizer sentido nesta ação.`
               : `Só consulta: quem preenche é a equipe de ${EQUIPE_LABEL[equipe]}.`}
           </p>
         </div>
@@ -497,13 +456,12 @@ function Campo({
           {campo.rotulo}
           {campo.obrigatorio ? <span className="text-red-600"> *</span> : null}
         </Label>
-        <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            className="size-3.5"
+        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+          <Switch
             checked={valor.na}
             disabled={disabled}
-            onChange={(e) => onChange({ na: e.target.checked })}
+            aria-label={`${campo.rotulo}: não se aplica`}
+            onCheckedChange={(na) => onChange({ na })}
           />
           Não se aplica
         </label>

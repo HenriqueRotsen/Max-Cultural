@@ -11,6 +11,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { territorioLabel } from "@/lib/acompanhamento/types";
 import {
   EQUIPES,
+  mapaProdutoDaAcao,
   mesesDoPeriodo,
   normalizarValor,
   progressoEquipe,
@@ -194,11 +195,7 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
   if (!projeto) return null;
   const [dados, produtos, acoes, fichas, campos] = await Promise.all([
     prisma.prestacaoProjeto.findUnique({ where: { projetoId } }),
-    prisma.prestacaoProduto.findMany({
-      where: { projetoId },
-      orderBy: [{ ordem: "asc" }, { createdAt: "asc" }],
-      include: { _count: { select: { fichas: true } } },
-    }),
+    prisma.prestacaoProduto.findMany({ where: { projetoId }, orderBy: [{ ordem: "asc" }, { createdAt: "asc" }] }),
     prisma.acao.findMany({
       where: { projetoId },
       orderBy: { nome: "asc" },
@@ -221,7 +218,7 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
         },
       },
     }),
-    prisma.prestacaoFicha.findMany({ where: { projetoId }, select: { agendaId: true, valores: true, produtoId: true } }),
+    prisma.prestacaoFicha.findMany({ where: { projetoId }, select: { agendaId: true, valores: true } }),
     camposAtivos(),
   ]);
   const relatorios = await prisma.prestacaoRelatorio.findMany({
@@ -236,6 +233,7 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
   });
   const autor = new Map(autores.map((u) => [u.id, u.name || u.email]));
   const fichaPorAgenda = new Map(fichas.map((f) => [f.agendaId, f]));
+  const produtoDaAcao = mapaProdutoDaAcao(produtos);
   const execucoes = acoes.flatMap((a) =>
     a.agenda.map((g) => {
       const f = fichaPorAgenda.get(g.id);
@@ -248,7 +246,7 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
         data: isoDia(g.data)!,
         dataFim: isoDia(g.dataFim),
         titulo: g.titulo,
-        produtoId: f?.produtoId ?? null,
+        produtoId: produtoDaAcao.get(a.id) ?? null,
         progresso: progressoFicha(campos, comoValores(f?.valores)),
       };
     }),
@@ -269,7 +267,14 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
       patrocinador: dados?.patrocinador ?? "",
       entregueEm: isoDia(dados?.entregueEm),
     },
-    produtos: produtos.map((p) => ({ id: p.id, nome: p.nome, meta: p.meta, fichas: p._count.fichas })),
+    produtos: produtos.map((p) => ({
+      id: p.id,
+      nome: p.nome,
+      meta: p.meta,
+      acaoIds: p.acaoIds.filter((id) => produtoDaAcao.get(id) === p.id),
+      execucoes: acoes.filter((a) => produtoDaAcao.get(a.id) === p.id).reduce((n, a) => n + a.agenda.length, 0),
+    })),
+    acoes: acoes.map((a) => ({ id: a.id, nome: a.nome, execucoes: a.agenda.length })),
     execucoes,
     acoesSemAgenda: acoes.filter((a) => !a.agenda.length).map((a) => ({ id: a.id, nome: a.nome })),
     relatorios: relatorios.map((r) => ({
@@ -331,21 +336,37 @@ export async function setPrestacaoEntregueAction(projetoId: string, data: string
 
 export async function salvarProdutoAction(
   projetoId: string,
-  input: { id?: string; nome: string; meta: string },
+  input: { id?: string; nome: string; meta: string; acaoIds: string[] },
 ): Promise<Result> {
   const ctx = await gestaoDoProjeto(projetoId);
   if ("erro" in ctx) return { ok: false, error: ctx.erro! };
   const nome = input.nome.trim();
   if (!nome) return { ok: false, error: "Informe o produto." };
-  const data = { nome: nome.slice(0, 200), meta: input.meta.trim().slice(0, 2000) };
-  if (input.id) {
-    const atual = await prisma.prestacaoProduto.findFirst({ where: { id: input.id, projetoId }, select: { id: true } });
-    if (!atual) return { ok: false, error: "Produto não encontrado." };
-    await prisma.prestacaoProduto.update({ where: { id: input.id }, data });
-  } else {
-    const n = await prisma.prestacaoProduto.count({ where: { projetoId } });
-    await prisma.prestacaoProduto.create({ data: { projetoId, ...data, ordem: n + 1 } });
+  const doProjeto = await prisma.acao.findMany({ where: { projetoId, id: { in: input.acaoIds } }, select: { id: true } });
+  const acaoIds = doProjeto.map((a) => a.id);
+  const data = { nome: nome.slice(0, 200), meta: input.meta.trim().slice(0, 2000), acaoIds };
+  if (input.id && !(await prisma.prestacaoProduto.findFirst({ where: { id: input.id, projetoId }, select: { id: true } }))) {
+    return { ok: false, error: "Produto não encontrado." };
   }
+  await prisma.$transaction(async (tx) => {
+    let id = input.id;
+    if (id) {
+      await tx.prestacaoProduto.update({ where: { id }, data });
+    } else {
+      const n = await tx.prestacaoProduto.count({ where: { projetoId } });
+      id = (await tx.prestacaoProduto.create({ data: { projetoId, ...data, ordem: n + 1 } })).id;
+    }
+    // Cada ação conta para um produto só: sai dos outros produtos do projeto.
+    if (acaoIds.length) {
+      const outros = await tx.prestacaoProduto.findMany({
+        where: { projetoId, id: { not: id }, acaoIds: { hasSome: acaoIds } },
+        select: { id: true, acaoIds: true },
+      });
+      for (const o of outros) {
+        await tx.prestacaoProduto.update({ where: { id: o.id }, data: { acaoIds: o.acaoIds.filter((x) => !acaoIds.includes(x)) } });
+      }
+    }
+  });
   await writeAuditLog({ actorUserId: ctx.user.id, action: "prestacao.produto", entityType: "Projeto", entityId: projetoId, meta: data });
   revalidar(projetoId);
   return { ok: true };
@@ -513,12 +534,16 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
       include: { arquivos: { orderBy: [{ categoria: "asc" }, { ordem: "asc" }] } },
     }),
     prisma.prestacaoCampo.findMany({ where: { ativo: true }, orderBy: [{ equipe: "asc" }, { ordem: "asc" }] }),
-    prisma.prestacaoProduto.findMany({ where: { projetoId: projeto.id }, orderBy: [{ ordem: "asc" }], select: { id: true, nome: true } }),
+    prisma.prestacaoProduto.findMany({
+      where: { projetoId: projeto.id, acaoIds: { has: g.acao.id } },
+      orderBy: [{ ordem: "asc" }],
+      select: { nome: true },
+      take: 1,
+    }),
     prisma.prestacaoProjeto.findUnique({ where: { projetoId: projeto.id } }),
     numerosDaAcao(g.acao.id),
   ]);
   const valores = comoValores(ficha.valores);
-  const ajustes = (ficha.ajustes && typeof ficha.ajustes === "object" ? ficha.ajustes : {}) as Record<string, number>;
   const periodo = mesesDoPeriodo(g.data, g.dataFim);
   const sistema: SistemaDTO = {
     ano: projeto.ano,
@@ -536,9 +561,7 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
     numeros: NUMEROS.map((n) => ({
       chave: n.chave,
       rotulo: n.rotulo,
-      doSistema: numeros[n.chave],
-      valor: typeof ajustes[n.chave] === "number" ? ajustes[n.chave]! : numeros[n.chave],
-      ajustado: typeof ajustes[n.chave] === "number",
+      valor: numeros[n.chave],
     })),
     numerosDaAcaoToda: g.acao._count.agenda > 1,
   };
@@ -559,8 +582,7 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
     agendaId,
     projetoId: projeto.id,
     projetoNome: projeto.nome,
-    produtoId: ficha.produtoId,
-    produtos,
+    produtoNome: produtos[0]?.nome ?? null,
     campos: camposDTO,
     valores,
     arquivos: ficha.arquivos.map(
@@ -630,35 +652,6 @@ export async function salvarFichaEquipeAction(
   await prisma.prestacaoFicha.update({
     where: { agendaId },
     data: { valores: valores as Prisma.InputJsonValue, atualizadoPor: user.id },
-  });
-  revalidar(vis.projeto.id, agendaId);
-  return { ok: true };
-}
-
-/** Produto da execução e correções dos números do sistema (gestão). */
-export async function salvarFichaGestaoAction(
-  agendaId: string,
-  input: { produtoId: string | null; ajustes: Record<string, number | null> },
-): Promise<Result> {
-  const { user, scope, pode } = await contexto();
-  if (!pode.GESTAO) return { ok: false, error: "Só a gestão altera o produto e os números." };
-  const vis = await agendaVisivel(agendaId, scope);
-  if (!vis) return { ok: false, error: "Execução não encontrada." };
-  if (input.produtoId) {
-    const p = await prisma.prestacaoProduto.findFirst({ where: { id: input.produtoId, projetoId: vis.projeto.id } });
-    if (!p) return { ok: false, error: "Produto não encontrado neste projeto." };
-  }
-  const ajustes: Record<string, number> = {};
-  for (const n of NUMEROS) {
-    const v = input.ajustes[n.chave];
-    if (v == null) continue;
-    if (!Number.isInteger(v) || v < 0) return { ok: false, error: `${n.rotulo}: número inválido.` };
-    ajustes[n.chave] = v;
-  }
-  await prisma.prestacaoFicha.upsert({
-    where: { agendaId },
-    create: { agendaId, projetoId: vis.projeto.id, produtoId: input.produtoId, ajustes },
-    update: { produtoId: input.produtoId, ajustes, atualizadoPor: user.id },
   });
   revalidar(vis.projeto.id, agendaId);
   return { ok: true };

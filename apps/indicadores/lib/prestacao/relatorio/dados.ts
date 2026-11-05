@@ -3,7 +3,7 @@ import { aggregateSocio } from "@/lib/socio";
 import type { SocioBreakdown } from "@/lib/socio-cohort";
 import { lerArquivoPrivado } from "@/lib/storage/privado";
 import { territorioLabel } from "@/lib/acompanhamento/types";
-import { enderecoLabel, formatarNumero, mesesDoPeriodo, minutosEmHoras, type ValoresFicha } from "@/lib/prestacao/regras";
+import { enderecoLabel, formatarNumero, mapaProdutoDaAcao, mesesDoPeriodo, minutosEmHoras, type ValoresFicha } from "@/lib/prestacao/regras";
 import { CATEGORIA_LABEL, CATEGORIAS_FOTO, LEI_LABEL } from "@/lib/prestacao/types";
 
 /** Tudo o que o relatório em PDF precisa, já resolvido (sem acesso ao banco no desenho). */
@@ -92,8 +92,10 @@ export async function montarDadosRelatorio(
     },
   });
   const campos = await prisma.prestacaoCampo.findMany({ where: { ativo: true }, orderBy: [{ equipe: "asc" }, { ordem: "asc" }] });
+  const produtoDaAcao = mapaProdutoDaAcao(projeto.produtos);
+  const acoesDoProduto = opts.produtoId ? [...produtoDaAcao].filter(([, p]) => p === opts.produtoId).map(([a]) => a) : null;
   const fichas = await prisma.prestacaoFicha.findMany({
-    where: { projetoId, ...(opts.produtoId ? { produtoId: opts.produtoId } : {}) },
+    where: { projetoId, ...(acoesDoProduto ? { agenda: { acaoId: { in: acoesDoProduto } } } : {}) },
     include: {
       arquivos: { orderBy: [{ ordem: "asc" }, { createdAt: "asc" }] },
       agenda: {
@@ -157,9 +159,7 @@ export async function montarDadosRelatorio(
     fichas.map(async (f) => {
       const g = f.agenda;
       const local = g.online ? "Online" : g.territorio ? territorioLabel(g.territorio) : [g.cidade, g.uf].filter(Boolean).join(", ");
-      const auto = numerosAcao(g.acao.id);
-      const ajustes = (f.ajustes ?? {}) as Record<string, number>;
-      const num = (k: keyof typeof auto) => (typeof ajustes[k] === "number" ? ajustes[k]! : auto[k]);
+      const num = (k: keyof ReturnType<typeof numerosAcao>) => numerosAcao(g.acao.id)[k];
       const valores = (f.valores ?? {}) as ValoresFicha;
       const informacoes = campos
         .filter((c) => c.tipo !== "LINK")
@@ -201,7 +201,7 @@ export async function montarDadosRelatorio(
         })),
       );
       return {
-        produtoId: f.produtoId,
+        produtoId: produtoDaAcao.get(g.acao.id) ?? null,
         acaoId: g.acao.id,
         exec: {
           acao: g.acao.nome,

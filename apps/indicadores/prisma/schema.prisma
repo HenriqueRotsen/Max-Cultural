@@ -782,6 +782,8 @@ model PrestacaoProduto {
   projeto   Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   nome      String
   meta      String           @default("")
+  /// Ações do projeto que contam para este produto (cada ação em um produto só).
+  acaoIds   String[]         @default([]) @map("acao_ids")
   ordem     Int              @default(0)
   fichas    PrestacaoFicha[]
   relatorios PrestacaoRelatorio[]
