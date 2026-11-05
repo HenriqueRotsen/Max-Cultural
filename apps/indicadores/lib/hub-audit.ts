@@ -1,7 +1,7 @@
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import http from "node:http";
 import https from "node:https";
-import { AUTH_COOKIE, culturalHubUrl } from "@max/auth";
+import { culturalHubUrl , firstValidSessionToken } from "@max/auth";
 
 export type HubAuditPayload = {
   action: string;
@@ -56,8 +56,8 @@ function postJson(
 /** Envia evento de auditoria ao hub Cultural. Retorna true se gravou. */
 export async function postHubAudit(payload: HubAuditPayload): Promise<boolean> {
   try {
-    const jar = await cookies();
-    const token = jar.get(AUTH_COOKIE)?.value;
+    // Cópia válida do cookie: em homologação o cookie da produção também chega (assinatura diferente).
+    const token = (await firstValidSessionToken((await headers()).get("cookie"))) ?? undefined;
     if (!token) return false;
     const hub = culturalHubUrl().replace("://localhost", "://127.0.0.1");
     if (!hub) return false;

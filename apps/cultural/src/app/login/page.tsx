@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { AUTH_COOKIE, safeContinueUrl } from "@max/auth";
+import { firstValidSessionToken, safeContinueUrl } from "@max/auth";
 import { MaxCulturalLogoLink } from "@/components/BrandLogo";
 import { LoginForm } from "@/components/LoginForm";
 import { PasswordRulesPreview } from "@/components/PasswordRulesPreview";
@@ -33,8 +33,9 @@ export default async function LoginPage({
   // Cookie fantasma de sessão (papel/permissões alterados / senha resetada).
   // Não dá para alterar cookies em RSC — redireciona para Route Handler.
   // Não apaga max_pending_2fa (fluxo do código por e-mail).
-  const jar = await cookies();
-  if (jar.get(AUTH_COOKIE)?.value) {
+  // Só cookies com assinatura válida aqui: o de outro ambiente (ex.: produção vista
+  // da homologação, domínio-pai) não pode ser apagado daqui e geraria um loop.
+  if (await firstValidSessionToken((await headers()).get("cookie"))) {
     const loginPath =
       next && next !== "/"
         ? `/login?next=${encodeURIComponent(next)}`
