@@ -1,4 +1,4 @@
-import type { EquipePrestacao, PerfilResumo, TipoCampoPrestacao, ValoresFicha } from "@/lib/prestacao/regras";
+import type { Endereco, EquipePrestacao, PerfilResumo, TipoCampoPrestacao, ValoresFicha } from "@/lib/prestacao/regras";
 
 export type { EquipePrestacao, TipoCampoPrestacao, ValoresFicha };
 
@@ -18,6 +18,8 @@ export const TIPO_CAMPO_LABEL: Record<TipoCampoPrestacao, string> = {
   SIM_NAO: "Sim ou não",
   MULTIPLA: "Várias opções",
   HORARIO: "Horário (início e fim)",
+  PESSOAS: "Pessoas (vários nomes)",
+  ENDERECO: "Local (endereço com CEP)",
 };
 
 export const LEIS = [
@@ -56,6 +58,11 @@ export type ContextoSugestaoDTO = {
   perfil: PerfilResumo | null;
   /** Valores já usados em cada campo (chave → valores, os mais próximos primeiro). */
   historico: Record<string, string[]>;
+  /** Locais já usados (campos de endereço), os mais próximos primeiro. */
+  locais: Record<string, Endereco[]>;
+  /** Cidade e UF do território da execução. */
+  cidade: string;
+  uf: string;
 };
 
 export type ProgressoDTO = Record<EquipePrestacao, { pct: number; faltando: string[] }>;

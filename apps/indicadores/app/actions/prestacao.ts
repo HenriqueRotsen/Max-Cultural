@@ -14,6 +14,7 @@ import {
   mesesDoPeriodo,
   normalizarValor,
   progressoEquipe,
+  enderecoLabel,
   SUGESTOES_POR_TIPO,
   type CampoPrestacao,
   type FonteSugestao,
@@ -24,7 +25,7 @@ import {
 import { CATEGORIAS_DOC, CATEGORIAS_FOTO, LEIS } from "@/lib/prestacao/types";
 import { removerArquivoPrivado } from "@/lib/storage/privado";
 import { aggregateSocio } from "@/lib/socio";
-import type { PerfilResumo } from "@/lib/prestacao/regras";
+import type { Endereco, PerfilResumo } from "@/lib/prestacao/regras";
 import type {
   ArquivoDTO,
   CampoDTO,
@@ -440,14 +441,16 @@ async function contextoSugestoes(p: {
   agendaId: string;
   acaoId: string;
   cidade: string;
+  uf: string;
   inicio: Date;
   fim: Date | null;
   participantes: number;
   responsaveis: string[];
   campos: CampoDTO[];
 }): Promise<ContextoSugestaoDTO> {
-  const comHistorico = p.campos.filter((c) => c.sugestao === "HISTORICO" || c.sugestao === "RESPONSAVEIS");
+  const comHistorico = p.campos.filter((c) => c.sugestao === "HISTORICO" || c.sugestao === "RESPONSAVEIS" || c.tipo === "ENDERECO");
   const historico: Record<string, string[]> = {};
+  const locais: Record<string, Endereco[]> = {};
   if (comHistorico.length) {
     const outras = await prisma.prestacaoFicha.findMany({
       where: { agendaId: { not: p.agendaId } },
@@ -458,10 +461,26 @@ async function contextoSugestoes(p: {
     const peso = (o: (typeof outras)[number]) => (o.agenda.acaoId === p.acaoId ? 0 : o.agenda.cidade === p.cidade ? 1 : 2);
     const ordenadas = [...outras].sort((a, b) => peso(a) - peso(b));
     for (const c of comHistorico) {
+      if (c.tipo === "ENDERECO") {
+        const vistos = new Map<string, Endereco>();
+        for (const o of ordenadas) {
+          const v = comoValores(o.valores)[c.chave]?.v;
+          if (v && typeof v === "object" && !Array.isArray(v)) {
+            const chave = enderecoLabel(v).toLowerCase();
+            if (chave && !vistos.has(chave)) vistos.set(chave, v);
+          }
+          if (vistos.size >= 8) break;
+        }
+        locais[c.chave] = [...vistos.values()];
+        continue;
+      }
       const vistos = new Set<string>();
       for (const o of ordenadas) {
         const v = comoValores(o.valores)[c.chave]?.v;
-        if (typeof v === "string" && v.trim() && !vistos.has(v.trim())) vistos.add(v.trim());
+        // Listas de nomes contam nome a nome.
+        for (const x of Array.isArray(v) ? v : [v]) {
+          if (typeof x === "string" && x.trim() && !vistos.has(x.trim())) vistos.add(x.trim());
+        }
         if (vistos.size >= 12) break;
       }
       historico[c.chave] = [...vistos];
@@ -475,6 +494,9 @@ async function contextoSugestoes(p: {
     responsaveis: [...new Set(p.responsaveis)],
     perfil: p.campos.some((c) => c.sugestao === "PERFIL") ? await perfilDaAcao(p.acaoId) : null,
     historico,
+    locais,
+    cidade: p.cidade,
+    uf: p.uf,
   };
 }
 
@@ -560,6 +582,7 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
       agendaId,
       acaoId: g.acao.id,
       cidade: g.cidade,
+      uf: g.uf,
       inicio: g.data,
       fim: g.dataFim,
       participantes: sistema.numeros.find((n) => n.chave === "participantes")?.valor ?? 0,
@@ -639,6 +662,38 @@ export async function salvarFichaGestaoAction(
   });
   revalidar(vis.projeto.id, agendaId);
   return { ok: true };
+}
+
+/**
+ * Usuários do sistema com o nome parecido (para o campo de pessoas). Só nomes,
+ * de quem está ativo; o campo continua aceitando qualquer nome digitado.
+ */
+export async function buscarPessoasAction(q: string): Promise<string[]> {
+  await contexto();
+  const termo = q.trim().slice(0, 60);
+  if (termo.length < 2) return [];
+  const padrao = `%${termo.replace(/[%_\\]/g, "\\$&")}%`;
+  let nomes: string[] = [];
+  try {
+    // Usuários do MAX (cadastro do hub, mesmo banco): quem está ativo, só o nome.
+    const rows = await prisma.$queryRaw<Array<{ name: string }>>`
+      SELECT name FROM "public"."users"
+      WHERE "deactivatedAt" IS NULL AND name ILIKE ${padrao}
+      ORDER BY name ASC
+      LIMIT 8
+    `;
+    nomes = rows.map((r) => r.name);
+  } catch {
+    // Sem o cadastro do hub: quem já entrou no Indicadores.
+    const users = await prisma.user.findMany({
+      where: { deactivatedAt: null, name: { contains: termo, mode: "insensitive" } },
+      orderBy: { name: "asc" },
+      take: 8,
+      select: { name: true },
+    });
+    nomes = users.map((u) => u.name);
+  }
+  return [...new Set(nomes.map((n) => n.trim()).filter(Boolean))];
 }
 
 // ── Fotos e documentos da ficha ──────────────────────────────────────────
@@ -726,7 +781,19 @@ export async function listCamposAction(): Promise<{ campos: CampoDTO[]; pode: bo
   };
 }
 
-const TIPOS: TipoCampoPrestacao[] = ["TEXTO", "TEXTO_LONGO", "NUMERO", "DATA", "LINK", "OPCOES", "SIM_NAO", "MULTIPLA", "HORARIO"];
+const TIPOS: TipoCampoPrestacao[] = [
+  "TEXTO",
+  "TEXTO_LONGO",
+  "NUMERO",
+  "DATA",
+  "LINK",
+  "OPCOES",
+  "SIM_NAO",
+  "MULTIPLA",
+  "HORARIO",
+  "PESSOAS",
+  "ENDERECO",
+];
 
 function chaveDe(rotulo: string): string {
   return (

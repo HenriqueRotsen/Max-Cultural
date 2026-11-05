@@ -3,7 +3,7 @@ import { aggregateSocio } from "@/lib/socio";
 import type { SocioBreakdown } from "@/lib/socio-cohort";
 import { lerArquivoPrivado } from "@/lib/storage/privado";
 import { territorioLabel } from "@/lib/acompanhamento/types";
-import { mesesDoPeriodo, minutosEmHoras, type ValoresFicha } from "@/lib/prestacao/regras";
+import { enderecoLabel, formatarNumero, mesesDoPeriodo, minutosEmHoras, type ValoresFicha } from "@/lib/prestacao/regras";
 import { CATEGORIA_LABEL, CATEGORIAS_FOTO, LEI_LABEL } from "@/lib/prestacao/types";
 
 /** Tudo o que o relatório em PDF precisa, já resolvido (sem acesso ao banco no desenho). */
@@ -168,7 +168,11 @@ export async function montarDadosRelatorio(
           if (!v || v.na || v.v == null || String(v.v).trim() === "") return null;
           const texto = Array.isArray(v.v)
             ? v.v.join(", ")
-            : c.tipo === "HORARIO"
+            : typeof v.v === "object"
+              ? enderecoLabel(v.v)
+              : c.tipo === "NUMERO" && c.chave !== "carga_horaria_min"
+                ? formatarNumero(Number(v.v))
+                : c.tipo === "HORARIO"
               ? String(v.v).replace("-", " às ")
               : c.chave === "carga_horaria_min"
                 ? `${minutosEmHoras(Number(v.v))} (${v.v} min)`

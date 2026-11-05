@@ -750,6 +750,10 @@ enum TipoCampoPrestacao {
   MULTIPLA
   /// Horário de início e fim (HH:MM-HH:MM).
   HORARIO
+  /// Vários nomes (texto livre; usuários do sistema aparecem como opção).
+  PESSOAS
+  /// Local: nome, CEP, logradouro, número, complemento, bairro, cidade e UF.
+  ENDERECO
 }
 
 /// Dados do projeto para a prestação de contas (gestão).

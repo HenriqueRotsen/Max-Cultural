@@ -13,7 +13,16 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { cn } from "@/lib/utils";
 import { salvarFichaEquipeAction, salvarFichaGestaoAction } from "@/app/actions/prestacao";
-import { EQUIPES, minutosEmHoras, sugerir, type EquipePrestacao, type Sugestao } from "@/lib/prestacao/regras";
+import {
+  enderecoLabel,
+  EQUIPES,
+  minutosEmHoras,
+  sugerir,
+  type Endereco,
+  type EquipePrestacao,
+  type Sugestao,
+} from "@/lib/prestacao/regras";
+import { EnderecoInput, NumeroInput, PessoasInput } from "@/components/prestacao/campos-inteligentes";
 import { EQUIPE_LABEL, type CampoDTO, type FichaDTO } from "@/lib/prestacao/types";
 import { BarraEquipe } from "@/components/prestacao/progresso";
 import { FotosDocumentos } from "@/components/prestacao/fotos-documentos";
@@ -178,12 +187,13 @@ const diaDe = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
 /** Valor do campo como o formulário guarda (texto; várias opções em JSON). */
 function paraEntrada(v: unknown): string {
-  if (Array.isArray(v)) return JSON.stringify(v);
+  if (Array.isArray(v) || (v && typeof v === "object")) return JSON.stringify(v);
   return v != null ? String(v) : "";
 }
 
 function textoSugestao(campo: CampoDTO, valor: Sugestao["valor"]): string {
   if (Array.isArray(valor)) return valor.join(", ");
+  if (valor && typeof valor === "object") return enderecoLabel(valor);
   if (campo.chave === "carga_horaria_min" && typeof valor === "number") return `${valor} min (${minutosEmHoras(valor)})`;
   return String(valor);
 }
@@ -219,6 +229,9 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
         historico: ctx.historico[c.chave] ?? [],
         perfil: ctx.perfil,
         horario,
+        locais: ctx.locais[c.chave] ?? [],
+        cidade: ctx.cidade,
+        uf: ctx.uf,
       }),
     ]),
   );
@@ -228,7 +241,7 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
     setEntrada((e) => ({ ...e, [chave]: { ...e[chave]!, ...patch } }));
   const vazio = (chave: string) => {
     const e = entrada[chave];
-    return !e || (!e.na && (e.v.trim() === "" || e.v === "[]"));
+    return !e || (!e.na && (e.v.trim() === "" || e.v === "[]" || e.v === "{}"));
   };
   const aplicaveis = campos.filter((c) => vazio(c.chave) && sugestoes.get(c.chave));
 
@@ -284,7 +297,8 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
             valor={entrada[c.chave]!}
             disabled={!pode}
             sugestao={vazio(c.chave) ? (sugestoes.get(c.chave) ?? null) : null}
-            alternativas={sugestoes.get(c.chave)?.alternativas ?? []}
+            alternativas={sugestoes.get(c.chave)?.alternativas ?? ctx.historico[c.chave] ?? []}
+            locais={ctx.locais[c.chave] ?? []}
             onChange={(patch) => set(c.chave, patch)}
           />
         ))}
@@ -368,6 +382,7 @@ function Campo({
   disabled,
   sugestao,
   alternativas,
+  locais,
   onChange,
 }: {
   campo: CampoDTO;
@@ -375,10 +390,11 @@ function Campo({
   disabled: boolean;
   sugestao: Sugestao | null;
   alternativas: string[];
+  locais: Endereco[];
   onChange: (patch: Partial<{ v: string; na: boolean }>) => void;
 }) {
   const off = disabled || valor.na;
-  const largo = campo.tipo === "TEXTO_LONGO" || campo.tipo === "MULTIPLA";
+  const largo = ["TEXTO_LONGO", "MULTIPLA", "PESSOAS", "ENDERECO"].includes(campo.tipo);
   const listaId = `sug-${campo.chave}`;
   let controle: React.ReactNode;
   switch (campo.tipo) {
@@ -393,6 +409,14 @@ function Campo({
       break;
     case "HORARIO":
       controle = <Horario valor={valor.v} disabled={off} onChange={(v) => onChange({ v })} />;
+      break;
+    case "PESSOAS":
+      controle = (
+        <PessoasInput valor={valor.v} disabled={off} alternativas={alternativas} onChange={(v) => onChange({ v })} ariaLabel={campo.rotulo} />
+      );
+      break;
+    case "ENDERECO":
+      controle = <EnderecoInput valor={valor.v} disabled={off} locais={locais} onChange={(v) => onChange({ v })} />;
       break;
     case "OPCOES":
     case "SIM_NAO": {
@@ -434,13 +458,12 @@ function Campo({
       break;
     case "NUMERO":
       controle = (
-        <Input
-          inputMode="decimal"
-          value={valor.v}
+        <NumeroInput
+          valor={valor.v}
           disabled={off}
-          onChange={(e) => onChange({ v: e.target.value.replace(/[^\d.,]/g, "") })}
-          className="tabular-nums"
-          aria-label={campo.rotulo}
+          onChange={(v) => onChange({ v })}
+          ariaLabel={campo.rotulo}
+          sufixo={campo.chave === "carga_horaria_min" ? "minutos" : undefined}
         />
       );
       break;
@@ -465,7 +488,7 @@ function Campo({
         </>
       );
   }
-  const horas = campo.chave === "carga_horaria_min" && valor.v ? minutosEmHoras(Number(valor.v.replace(",", "."))) : "";
+  const horas = campo.chave === "carga_horaria_min" && valor.v ? minutosEmHoras(Number(valor.v.replace(/\D/g, ""))) : "";
 
   return (
     <div className={cn("space-y-1.5", largo && "md:col-span-2")}>

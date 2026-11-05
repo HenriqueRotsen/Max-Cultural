@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  enderecoLabel,
+  formatarNumero,
   diasDaExecucao,
   gruposDoPerfil,
   mesesDoPeriodo,
@@ -129,5 +131,49 @@ describe("campos inteligentes", () => {
       alternativas: ["Ana Souza", "João Lima"],
     });
     expect(sugerir({ sugestao: null, tipo: "TEXTO", opcoes: [] }, ctx)).toBeNull();
+  });
+});
+
+describe("pessoas, local e números", () => {
+  it("vários nomes, sem repetir", () => {
+    const c = { tipo: "PESSOAS" as const, opcoes: [], rotulo: "Professores" };
+    expect(normalizarValor(c, JSON.stringify([" Ana  Souza", "Ana Souza", "João"]))).toEqual({ ok: true, valor: ["Ana Souza", "João"] });
+    expect(normalizarValor(c, "Maria")).toEqual({ ok: true, valor: ["Maria"] });
+  });
+
+  it("endereço: CEP formatado, UF em maiúsculas, rótulo legível", () => {
+    const c = { tipo: "ENDERECO" as const, opcoes: [], rotulo: "Local" };
+    const r = normalizarValor(c, JSON.stringify({ nome: "Escola X", cep: "30140000", logradouro: "Rua A", numero: "12", cidade: "Belo Horizonte", uf: "mg" }));
+    expect(r).toEqual({ ok: true, valor: { nome: "Escola X", cep: "30140-000", logradouro: "Rua A", numero: "12", cidade: "Belo Horizonte", uf: "MG" } });
+    expect(normalizarValor(c, JSON.stringify({ cep: "123" })).ok).toBe(false);
+    expect(normalizarValor(c, JSON.stringify({ cidade: "BH" }))).toEqual({ ok: true, valor: null });
+    expect(enderecoLabel({ nome: "Escola X", logradouro: "Rua A", numero: "12", bairro: "Centro", cidade: "Belo Horizonte", uf: "MG", cep: "30140-000" })).toBe(
+      "Escola X — Rua A, 12 - Centro, Belo Horizonte/MG · CEP 30140-000",
+    );
+  });
+
+  it("números inteiros formatados", () => {
+    expect(formatarNumero(1250)).toBe("1.250");
+    expect(normalizarValor({ tipo: "NUMERO", opcoes: [], rotulo: "x" }, "1.250")).toEqual({ ok: true, valor: 1250 });
+  });
+
+  it("sugere responsáveis para vários nomes e o local já usado", () => {
+    const base: ContextoSugestao = {
+      hoje: d("2026-11-26"),
+      inicio: d("2026-11-23"),
+      fim: null,
+      participantes: 0,
+      responsaveis: ["Ana Souza", "Bia Lima"],
+      historico: ["João"],
+      perfil: null,
+      horario: "",
+      locais: [],
+      cidade: "Belo Horizonte",
+      uf: "MG",
+    };
+    expect(sugerir({ sugestao: "RESPONSAVEIS", tipo: "PESSOAS", opcoes: [] }, base)?.valor).toEqual(["Ana Souza", "Bia Lima"]);
+    expect(sugerir({ sugestao: "LOCAL", tipo: "ENDERECO", opcoes: [] }, base)?.valor).toEqual({ cidade: "Belo Horizonte", uf: "MG" });
+    const comLocal = { ...base, locais: [{ nome: "Escola X", logradouro: "Rua A" }] };
+    expect(sugerir({ sugestao: "LOCAL", tipo: "ENDERECO", opcoes: [] }, comLocal)?.valor).toEqual({ nome: "Escola X", logradouro: "Rua A" });
   });
 });

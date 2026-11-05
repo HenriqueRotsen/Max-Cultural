@@ -19,7 +19,9 @@ export type TipoCampoPrestacao =
   | "OPCOES"
   | "SIM_NAO"
   | "MULTIPLA"
-  | "HORARIO";
+  | "HORARIO"
+  | "PESSOAS"
+  | "ENDERECO";
 
 export const EQUIPES: EquipePrestacao[] = ["PRODUCAO", "COMUNICACAO", "GESTAO"];
 
@@ -34,7 +36,36 @@ export type CampoPrestacao = {
   ativo: boolean;
 };
 
-export type ValorCampo = { v?: string | number | string[]; na?: boolean };
+/** Local da execução (campo ENDERECO). */
+export type Endereco = {
+  nome?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+};
+
+export type ValorCampo = { v?: string | number | string[] | Endereco; na?: boolean };
+
+const CAMPOS_ENDERECO: Array<keyof Endereco> = ["nome", "cep", "logradouro", "numero", "complemento", "bairro", "cidade", "uf"];
+
+/** "Escola Estadual X — Rua A, 123, sala 2 - Centro, Belo Horizonte/MG · CEP 30140-000" */
+export function enderecoLabel(e: Endereco): string {
+  const rua = [e.logradouro, e.numero, e.complemento].filter(Boolean).join(", ");
+  const lugar = [rua, e.bairro].filter(Boolean).join(" - ");
+  const cidade = [e.cidade, e.uf].filter(Boolean).join("/");
+  const corpo = [lugar, cidade].filter(Boolean).join(", ");
+  const cep = e.cep ? ` · CEP ${e.cep}` : "";
+  return [e.nome, corpo].filter(Boolean).join(" — ") + cep;
+}
+
+/** Número inteiro no formato brasileiro: 1250 → "1.250". */
+export function formatarNumero(n: number): string {
+  return Number.isFinite(n) ? Math.round(n).toLocaleString("pt-BR") : "";
+}
 export type ValoresFicha = Record<string, ValorCampo>;
 
 /** Preenchido = tem valor ou foi marcado "não se aplica". */
@@ -42,6 +73,7 @@ export function preenchido(valor: ValorCampo | undefined): boolean {
   if (!valor) return false;
   if (valor.na) return true;
   if (Array.isArray(valor.v)) return valor.v.length > 0;
+  if (valor.v && typeof valor.v === "object") return Boolean(valor.v.logradouro?.trim() || valor.v.nome?.trim());
   return valor.v != null && String(valor.v).trim() !== "";
 }
 
@@ -69,7 +101,7 @@ export function progressoEquipe(
 export function normalizarValor(
   campo: Pick<CampoPrestacao, "tipo" | "opcoes" | "rotulo"> & { chave?: string },
   bruto: string,
-): { ok: true; valor: string | number | string[] | null } | { ok: false; erro: string } {
+): { ok: true; valor: string | number | string[] | Endereco | null } | { ok: false; erro: string } {
   const t = bruto.trim();
   if (!t) return { ok: true, valor: null };
   switch (campo.tipo) {
@@ -85,6 +117,44 @@ export function normalizarValor(
       const escolhidas = [...new Set(lista.map(String))].filter((o) => campo.opcoes.includes(o));
       return { ok: true, valor: escolhidas.length ? escolhidas : null };
     }
+    case "PESSOAS": {
+      let lista: unknown;
+      try {
+        lista = JSON.parse(t);
+      } catch {
+        lista = [t];
+      }
+      if (!Array.isArray(lista)) return { ok: false, erro: `${campo.rotulo}: valor inválido.` };
+      const nomes = [...new Set(lista.map((x) => String(x).trim().replace(/\s+/g, " ")).filter(Boolean))]
+        .map((x) => x.slice(0, 120))
+        .slice(0, 30);
+      return { ok: true, valor: nomes.length ? nomes : null };
+    }
+    case "ENDERECO": {
+      let obj: unknown;
+      try {
+        obj = JSON.parse(t);
+      } catch {
+        return { ok: false, erro: `${campo.rotulo}: endereço inválido.` };
+      }
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { ok: false, erro: `${campo.rotulo}: endereço inválido.` };
+      const e: Endereco = {};
+      for (const k of CAMPOS_ENDERECO) {
+        const v = String((obj as Record<string, unknown>)[k] ?? "").trim().slice(0, 160);
+        if (v) e[k] = v;
+      }
+      if (e.cep) {
+        const d = e.cep.replace(/\D/g, "");
+        if (d.length !== 8) return { ok: false, erro: `${campo.rotulo}: CEP com 8 números.` };
+        e.cep = `${d.slice(0, 5)}-${d.slice(5)}`;
+      }
+      if (e.uf) {
+        e.uf = e.uf.toUpperCase();
+        if (!/^[A-Z]{2}$/.test(e.uf)) return { ok: false, erro: `${campo.rotulo}: UF com 2 letras.` };
+      }
+      if (!e.logradouro && !e.nome) return { ok: true, valor: null };
+      return { ok: true, valor: e };
+    }
     case "HORARIO": {
       const m = t.match(/^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/);
       if (!m) return { ok: false, erro: `${campo.rotulo}: informe o início e o fim.` };
@@ -98,7 +168,7 @@ export function normalizarValor(
     case "NUMERO": {
       const n = Number(t.replace(/\./g, "").replace(",", "."));
       if (!Number.isFinite(n) || n < 0) return { ok: false, erro: `${campo.rotulo}: informe um número.` };
-      return { ok: true, valor: n };
+      return { ok: true, valor: Math.round(n) };
     }
     case "DATA":
       if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return { ok: false, erro: `${campo.rotulo}: data inválida.` };
@@ -155,6 +225,7 @@ export const SUGESTOES = {
   RESPONSAVEIS: "Responsáveis da ação e nomes já usados",
   HISTORICO: "O que já foi usado em outras fichas",
   PERFIL: "Perfil das inscrições",
+  LOCAL: "Locais já usados na ação ou cidade, e a cidade do território",
 } as const;
 export type FonteSugestao = keyof typeof SUGESTOES;
 
@@ -169,6 +240,8 @@ export const SUGESTOES_POR_TIPO: Record<TipoCampoPrestacao, FonteSugestao[]> = {
   SIM_NAO: ["SIM"],
   MULTIPLA: ["PERFIL"],
   HORARIO: ["HISTORICO"],
+  PESSOAS: ["RESPONSAVEIS"],
+  ENDERECO: ["LOCAL"],
 };
 
 /** Grupos atendidos sugeridos pelo perfil das inscrições (contagens por rótulo). */
@@ -219,9 +292,14 @@ export type ContextoSugestao = {
   perfil: PerfilResumo | null;
   /** Horário preenchido nesta ficha (para a carga horária). */
   horario: string;
+  /** Locais já usados (mesma ação, depois mesma cidade). */
+  locais?: Endereco[];
+  /** Cidade e UF do território da execução. */
+  cidade?: string;
+  uf?: string;
 };
 
-export type Sugestao = { valor: string | number | string[]; motivo: string; alternativas: string[] };
+export type Sugestao = { valor: string | number | string[] | Endereco; motivo: string; alternativas: string[] };
 
 const diaCurto = (d: Date) => d.toISOString().slice(0, 10).split("-").reverse().slice(0, 2).join("/");
 
@@ -260,6 +338,12 @@ export function sugerir(
     case "RESPONSAVEIS": {
       const nomes = [...new Set([...ctx.responsaveis, ...ctx.historico])].filter(Boolean);
       if (!nomes.length) return null;
+      if (campo.tipo === "PESSOAS") {
+        // Vários nomes: sugere os responsáveis da ação; os já usados viram opções.
+        return ctx.responsaveis.length
+          ? { valor: [...new Set(ctx.responsaveis)], motivo: "responsáveis cadastrados na ação", alternativas: nomes }
+          : { valor: [nomes[0]!], motivo: "já usado em outra ficha", alternativas: nomes };
+      }
       return {
         valor: nomes[0]!,
         motivo: ctx.responsaveis.length ? "responsável cadastrado na ação" : "já usado em outra ficha",
@@ -268,6 +352,14 @@ export function sugerir(
     }
     case "HISTORICO":
       return ctx.historico.length ? { valor: ctx.historico[0]!, motivo: "já usado em outra ficha", alternativas: ctx.historico } : null;
+    case "LOCAL": {
+      const local = ctx.locais?.[0];
+      if (local) return { valor: local, motivo: "local já usado nesta ação ou cidade", alternativas: [] };
+      if (ctx.cidade) {
+        return { valor: { cidade: ctx.cidade, uf: ctx.uf }, motivo: "cidade do território da execução", alternativas: [] };
+      }
+      return null;
+    }
     case "PERFIL": {
       if (!ctx.perfil) return null;
       const grupos = gruposDoPerfil(ctx.perfil).filter((g) => !campo.opcoes.length || campo.opcoes.includes(g));
