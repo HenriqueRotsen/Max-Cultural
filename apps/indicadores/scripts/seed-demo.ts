@@ -3,7 +3,8 @@
  * Uso: npx tsx scripts/seed-demo.ts
  */
 import { config } from "dotenv";
-config({ path: ".env.local", override: true });
+// MAX_LOCAL_STACK=1 (npm run dev:local): o ambiente local já vem no processo.
+if (process.env.MAX_LOCAL_STACK !== "1") config({ path: ".env.local", override: true });
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";

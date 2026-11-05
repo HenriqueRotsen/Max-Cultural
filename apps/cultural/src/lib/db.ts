@@ -18,7 +18,8 @@ function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
 }
 
 function createPrismaClient() {
-  if (process.env.NODE_ENV !== "production") {
+  // MAX_LOCAL_STACK=1 (npm run dev:local): o ambiente local já vem no processo.
+  if (process.env.NODE_ENV !== "production" && process.env.MAX_LOCAL_STACK !== "1") {
     config({ path: resolve(process.cwd(), ".env.local"), override: true });
   }
   const connectionString = process.env.DATABASE_URL;

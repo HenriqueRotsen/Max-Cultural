@@ -21,7 +21,8 @@
     "db:use-local": "node scripts/dev-use-local-db.mjs local",
     "db:use-remote": "node scripts/dev-use-local-db.mjs remote",
     "db:demo": "npm run db:seed:cultural && npm run db:seed -w max-financeiro && npm run db:seed-auth -w max-indicadores && npm run db:seed-demo -w max-indicadores",
-    "audit": "node scripts/ci-audit-gate.mjs"
+    "audit": "node scripts/ci-audit-gate.mjs",
+    "dev:local": "node scripts/dev-local.mjs"
   },
   "overrides": {
     "sharp": "0.35.5",

@@ -34,6 +34,24 @@ BREAKING CHANGE: <o que quebra> (quando houver)
 - **Escopo:** o app ou pacote: `indicadores`, `financeiro`, `auditoria`, `cultural`, `auth`, `ui`.
 - **`!`** depois do escopo (`refactor(indicadores)!: …`) indica mudança que quebra compatibilidade.
 
+## Ambiente local (antes da homologação)
+
+Cada etapa é desenvolvida e testada localmente. Só vai para `develop` (homologação) quando estiver ok.
+
+```bash
+npm run db:local:up -w max-cultural-app   # Postgres local (localhost:5436), uma vez
+npm run dev:local -- setup                # banco max_local: migrações, contas e dados demo
+npm run dev:local                         # MAX Cultural :3000 + MAX Indicadores :3002
+npm run dev:local -- liberar              # simula "recurso liberado" em todos os projetos
+npm run dev:local -- reset                # apaga o banco local e refaz o setup
+```
+
+- **Login:** `admin@maxcultural.local` em http://localhost:3000. A senha está em `.env.dev-local`, na raiz, criado no primeiro setup e ignorado pelo git. Existem também `operador@` e `professor@maxcultural.local`, com a mesma senha.
+- **Segurança:**
+  - os `.env.local` continuam apontando para a produção e não são alterados;
+  - o script zera todas as variáveis deles no processo e liga `MAX_LOCAL_STACK=1`, que impede o Prisma, os seeds e o hub de recarregarem o `.env.local`;
+  - o script aborta se algum endereço apontar para fora do localhost.
+
 ## Homologação
 
 - **Banco:** projeto Supabase `max-homolog`, separado da produção. As credenciais ficam em `.env.homolog` na raiz, arquivo ignorado pelo git.
