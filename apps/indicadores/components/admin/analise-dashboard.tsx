@@ -258,7 +258,7 @@ export function AnaliseDashboard({ data }: Props) {
   const searchText = useCallback(searchAnaliseRow, []);
   const sortAccessors = useMemo(
     () => ({
-      oficina: (r: (typeof rows)[number]) => r.Nome_oficina,
+      acao: (r: (typeof rows)[number]) => r.Nome_oficina,
       projeto: (r: (typeof rows)[number]) => r.Nome_projeto,
       estado: (r: (typeof rows)[number]) => r.Estado,
       cidade: (r: (typeof rows)[number]) => r.Cidade,
@@ -283,12 +283,12 @@ export function AnaliseDashboard({ data }: Props) {
           ]),
         ),
       },
-      oficina: {
+      acao: {
         all: "Todas",
         ...Object.fromEntries(
-          filterOptions.oficinas.map((o) => [
-            o.idOficina,
-            o.nomeOficina || o.idOficina,
+          filterOptions.acoes.map((o) => [
+            o.idAcao,
+            o.nomeAcao || o.idAcao,
           ]),
         ),
       },
@@ -362,7 +362,7 @@ export function AnaliseDashboard({ data }: Props) {
         <KpiCard
           label="Inscritos"
           value={totais.Inscritos}
-          hint={`${totais.oficinas} oficina(s) · ${totais.projetos} projeto(s)`}
+          hint={`${totais.acoes} ação(s) · ${totais.projetos} projeto(s)`}
           barPct={100}
           barTone="emerald"
         />
@@ -415,20 +415,20 @@ export function AnaliseDashboard({ data }: Props) {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Oficina</Label>
+            <Label>Ação</Label>
             <Select
-              value={searchParams.get("idOficina") ?? "all"}
-              onValueChange={(v) => updateParams({ idOficina: v ?? "all" })}
-              items={filterSelectItems.oficina}
+              value={searchParams.get("idAcao") ?? "all"}
+              onValueChange={(v) => updateParams({ idAcao: v ?? "all" })}
+              items={filterSelectItems.acao}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>
-                {filterOptions.oficinas.map((o) => (
-                  <SelectItem key={o.idOficina} value={o.idOficina}>
-                    {o.nomeOficina || o.idOficina}
+                {filterOptions.acoes.map((o) => (
+                  <SelectItem key={o.idAcao} value={o.idAcao}>
+                    {o.nomeAcao || o.idAcao}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -544,7 +544,7 @@ export function AnaliseDashboard({ data }: Props) {
             </DialogTitle>
             <DialogDescription className="text-pretty">
               Ranking por vezes marcado como participante. Respeita os filtros
-              de projeto, oficina e território.
+              de projeto, ação e território.
             </DialogDescription>
           </DialogHeader>
 
@@ -610,8 +610,8 @@ export function AnaliseDashboard({ data }: Props) {
       />
 
       <DataSheet
-        title="Por oficina"
-        searchPlaceholder="Buscar oficina, projeto ou território…"
+        title="Por ação"
+        searchPlaceholder="Buscar ação, projeto ou território…"
         query={sheet.query}
         onQueryChange={sheet.setQuery}
         page={sheet.page}
@@ -661,12 +661,12 @@ export function AnaliseDashboard({ data }: Props) {
             <tr>
               <SheetTh
                 sticky
-                sortKey="oficina"
-                sortActive={sheet.sortKey === "oficina"}
+                sortKey="acao"
+                sortActive={sheet.sortKey === "acao"}
                 sortDir={sheet.sortDir}
                 onSort={sheet.toggleSort}
               >
-                Oficina
+                Ação
               </SheetTh>
               <SheetTh
                 sortKey="projeto"
@@ -749,7 +749,7 @@ export function AnaliseDashboard({ data }: Props) {
                   >
                     <SheetTd sticky className="whitespace-normal">
                       <Link
-                        href={`/projeto/${encodeURIComponent(row.id_projeto)}/${encodeURIComponent(row.id_oficina)}`}
+                        href={`/projeto/${encodeURIComponent(row.id_projeto)}/acao/${encodeURIComponent(row.id_oficina)}`}
                         className="font-medium leading-snug text-brand-deep underline-offset-2 hover:underline"
                       >
                         {row.Nome_oficina}

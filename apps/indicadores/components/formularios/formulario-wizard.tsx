@@ -5,28 +5,28 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  createOficinaAction,
+  createAcaoAction,
   listContextosSelectAction,
-  listOficinasSelectAction,
+  listAcoesSelectAction,
   listProjetosSelectAction,
 } from "@/app/actions/contextos";
 import {
   createFormularioAction,
   getFormularioModeloByTipoAction,
-  setOficinaProfessoresAction,
+  setAcaoResponsavelesAction,
 } from "@/app/actions/formularios";
 import {
   NovoContextoButton,
   NovoProjetoButton,
-  oficinaDtoToOption,
-  oficinaOndeLabel,
-  oficinaSemTerritorio,
+  acaoDtoToOption,
+  acaoOndeLabel,
+  acaoSemTerritorio,
 } from "@/components/admin/hierarchy-quick-create";
 import {
-  OficinaModalidadeFields,
-  emptyOficinaModalidade,
+  AcaoModalidadeFields,
+  emptyAcaoModalidade,
   territoriosPayload,
-} from "@/components/admin/oficina-modalidade-fields";
+} from "@/components/admin/acao-modalidade-fields";
 import { SearchSelect } from "@/components/ui/search-select";
 import { CampoEditor } from "@/components/formularios/campo-editor";
 import { CapaField } from "@/components/formularios/capa-field";
@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
 import type { FormularioCampoDraft } from "@/lib/formularios/types";
 import type {
   ContextoSelectOption,
-  OficinaSelectOption,
+  AcaoSelectOption,
   ProjetoSelectOption,
 } from "@/lib/hierarchy-list";
 
@@ -69,17 +69,17 @@ export function FormularioWizard({ professorUsers }: Props) {
   const [tipo, setTipo] = useState<TipoForm>("INSCRICAO");
   const [selContextoId, setSelContextoId] = useState("");
   const [selProjetoId, setSelProjetoId] = useState("");
-  const [selOficinaId, setSelOficinaId] = useState("");
+  const [selAcaoId, setSelAcaoId] = useState("");
   const [contextos, setContextos] = useState<ContextoSelectOption[]>([]);
   const [projetos, setProjetos] = useState<ProjetoSelectOption[]>([]);
-  const [oficinas, setOficinas] = useState<OficinaSelectOption[]>([]);
+  const [acoes, setAcoes] = useState<AcaoSelectOption[]>([]);
   const [hierarchyLoading, setHierarchyLoading] = useState(false);
   const [hierarchyPhase, setHierarchyPhase] = useState<"select" | "register">(
     "select",
   );
-  const [newOficinaNome, setNewOficinaNome] = useState("");
-  const [newOficinaModalidade, setNewOficinaModalidade] = useState(
-    emptyOficinaModalidade,
+  const [newAcaoNome, setNewAcaoNome] = useState("");
+  const [newAcaoModalidade, setNewAcaoModalidade] = useState(
+    emptyAcaoModalidade,
   );
 
   const [titulo, setTitulo] = useState("");
@@ -95,35 +95,35 @@ export function FormularioWizard({ professorUsers }: Props) {
   const stepIndex = STEPS.findIndex((s) => s.id === step);
   const missingContexto = !selContextoId;
   const missingProjeto = !selProjetoId;
-  const needCreateOficina = !selOficinaId;
-  const hierarchyComplete = Boolean(selContextoId && selProjetoId && selOficinaId);
-  const canRegister = !missingProjeto && needCreateOficina;
-  const selOficina = oficinas.find((o) => o.id === selOficinaId);
-  const selOficinaSemTerritorio = selOficina
-    ? oficinaSemTerritorio(selOficina)
+  const needCreateAcao = !selAcaoId;
+  const hierarchyComplete = Boolean(selContextoId && selProjetoId && selAcaoId);
+  const canRegister = !missingProjeto && needCreateAcao;
+  const selAcao = acoes.find((o) => o.id === selAcaoId);
+  const selAcaoSemTerritorio = selAcao
+    ? acaoSemTerritorio(selAcao)
     : false;
 
 
 
 
-  const oficinaLabel = useMemo(() => {
-    const o = oficinas.find((x) => x.id === selOficinaId);
+  const acaoLabel = useMemo(() => {
+    const o = acoes.find((x) => x.id === selAcaoId);
     if (!o) {
       const ctx = contextos.find((c) => c.id === selContextoId)?.nome;
       const proj = projetos.find((p) => p.id === selProjetoId)?.nome;
-      if (ctx && proj && newOficinaNome) {
-        return `${ctx} · ${proj} · ${newOficinaNome}`;
+      if (ctx && proj && newAcaoNome) {
+        return `${ctx} · ${proj} · ${newAcaoNome}`;
       }
       return "";
     }
     return `${o.contextoNome} · ${o.projetoNome} · ${o.nome}`;
   }, [
     contextos,
-    oficinas,
-    newOficinaNome,
+    acoes,
+    newAcaoNome,
     projetos,
     selContextoId,
-    selOficinaId,
+    selAcaoId,
     selProjetoId,
   ]);
 
@@ -164,14 +164,14 @@ export function FormularioWizard({ professorUsers }: Props) {
 
   useEffect(() => {
     if (step !== "contexto" || !selProjetoId) {
-      setOficinas([]);
+      setAcoes([]);
       return;
     }
     let cancelled = false;
     setHierarchyLoading(true);
-    void listOficinasSelectAction({ projetoId: selProjetoId })
+    void listAcoesSelectAction({ projetoId: selProjetoId })
       .then((rows) => {
-        if (!cancelled) setOficinas(rows);
+        if (!cancelled) setAcoes(rows);
       })
       .finally(() => {
         if (!cancelled) setHierarchyLoading(false);
@@ -185,30 +185,30 @@ export function FormularioWizard({ professorUsers }: Props) {
     const id = contextoId?.trim() || "";
     setSelContextoId(id);
     setSelProjetoId("");
-    setSelOficinaId("");
+    setSelAcaoId("");
     setHierarchyPhase("select");
   }
 
   function applyProjeto(projetoId: string | null) {
     const id = projetoId?.trim() || "";
     setSelProjetoId(id);
-    setSelOficinaId("");
+    setSelAcaoId("");
     setHierarchyPhase("select");
     if (!id) return;
     const p = projetos.find((x) => x.id === id);
     if (p) setSelContextoId(p.contextoId);
   }
 
-  function applyOficina(oficinaId: string | null) {
-    const id = oficinaId && oficinaId !== "__blank__" ? oficinaId : "";
+  function applyAcao(acaoId: string | null) {
+    const id = acaoId && acaoId !== "__blank__" ? acaoId : "";
     if (!id) {
-      setSelOficinaId("");
+      setSelAcaoId("");
       setHierarchyPhase("select");
       return;
     }
-    const found = oficinas.find((o) => o.id === id);
+    const found = acoes.find((o) => o.id === id);
     if (!found) return;
-    setSelOficinaId(id);
+    setSelAcaoId(id);
     setSelProjetoId(found.projetoId);
     setSelContextoId(found.contextoId);
     setHierarchyPhase("select");
@@ -234,9 +234,9 @@ export function FormularioWizard({ professorUsers }: Props) {
     start(async () => {
       try {
         if (hierarchyComplete && hierarchyPhase === "select") {
-          if (selOficinaSemTerritorio) {
+          if (selAcaoSemTerritorio) {
             toast.error(
-              "Esta oficina não tem território. Edite a oficina em Contextos e informe onde ela acontece.",
+              "Esta ação não tem território. Edite a ação em Contextos e informe onde ela acontece.",
             );
             return;
           }
@@ -251,7 +251,7 @@ export function FormularioWizard({ professorUsers }: Props) {
                 ? "Selecione um contexto"
                 : missingProjeto
                   ? "Selecione ou cadastre um projeto."
-                  : "Selecione contexto, projeto e oficina",
+                  : "Selecione contexto, projeto e ação",
             );
             return;
           }
@@ -261,33 +261,33 @@ export function FormularioWizard({ professorUsers }: Props) {
 
         if (missingProjeto) {
           toast.error(
-            "Selecione um projeto antes de cadastrar a oficina.",
+            "Selecione um projeto antes de cadastrar a ação.",
           );
           return;
         }
-        if (!newOficinaNome.trim()) {
-          toast.error("Preencha o nome da oficina");
+        if (!newAcaoNome.trim()) {
+          toast.error("Preencha o nome da ação");
           return;
         }
 
-        const createdOf = await createOficinaAction({
+        const createdOf = await createAcaoAction({
           projetoId: selProjetoId,
-          nome: newOficinaNome,
-          ofereceOnline: newOficinaModalidade.ofereceOnline,
-          oferecePresencial: newOficinaModalidade.oferecePresencial,
-          territorios: territoriosPayload(newOficinaModalidade),
+          nome: newAcaoNome,
+          ofereceOnline: newAcaoModalidade.ofereceOnline,
+          oferecePresencial: newAcaoModalidade.oferecePresencial,
+          territorios: territoriosPayload(newAcaoModalidade),
         });
         if (!createdOf.ok) {
           toast.error(createdOf.error);
           return;
         }
-        setOficinas((prev) => [oficinaDtoToOption(createdOf.oficina), ...prev]);
-        setSelContextoId(createdOf.oficina.contextoId);
-        setSelProjetoId(createdOf.oficina.projetoId);
-        setSelOficinaId(createdOf.oficina.id);
-        setNewOficinaNome("");
-        setNewOficinaModalidade(emptyOficinaModalidade());
-        toast.success("Oficina cadastrada");
+        setAcoes((prev) => [acaoDtoToOption(createdOf.acao), ...prev]);
+        setSelContextoId(createdOf.acao.contextoId);
+        setSelProjetoId(createdOf.acao.projetoId);
+        setSelAcaoId(createdOf.acao.id);
+        setNewAcaoNome("");
+        setNewAcaoModalidade(emptyAcaoModalidade());
+        toast.success("Ação cadastrada");
         router.refresh();
         await proceedToCampos();
       } catch (err) {
@@ -315,14 +315,14 @@ export function FormularioWizard({ professorUsers }: Props) {
       toast.error("Informe o título");
       return;
     }
-    if (!selOficinaId) {
-      toast.error("Oficina obrigatória");
+    if (!selAcaoId) {
+      toast.error("Ação obrigatória");
       return;
     }
     start(async () => {
       try {
         const created = await createFormularioAction({
-          oficinaId: selOficinaId,
+          acaoId: selAcaoId,
           tipo,
           titulo,
           descricao,
@@ -333,7 +333,7 @@ export function FormularioWizard({ professorUsers }: Props) {
           campos,
         });
         if (professores.length) {
-          await setOficinaProfessoresAction(selOficinaId, professores);
+          await setAcaoResponsavelesAction(selAcaoId, professores);
         }
         toast.success("Formulário criado");
         router.push(`/dashboard/formularios/${created.id}`);
@@ -375,8 +375,8 @@ export function FormularioWizard({ professorUsers }: Props) {
               Hierarquia e modelo
             </h2>
             <p className="text-sm text-muted-foreground">
-              Escolha ou cadastre contexto → projeto → oficina e o modelo base.
-              A oficina informa onde acontece (online e/ou territórios).
+              Escolha ou cadastre contexto → projeto → ação e o modelo base.
+              A ação informa onde acontece (online e/ou territórios).
             </p>
           </div>
 
@@ -393,7 +393,7 @@ export function FormularioWizard({ professorUsers }: Props) {
                   {
                     id: "AVALIACAO" as const,
                     title: "Avaliação",
-                    desc: "Feedback pós-oficina vinculado ao CPF",
+                    desc: "Feedback pós-ação vinculado ao CPF",
                   },
                 ] as const
               ).map((opt) => (
@@ -490,37 +490,37 @@ export function FormularioWizard({ professorUsers }: Props) {
               />
             </div>
             <div className="space-y-1">
-              <Label>Oficina *</Label>
+              <Label>Ação *</Label>
               <SearchSelect
-                value={selOficinaId || "__blank__"}
+                value={selAcaoId || "__blank__"}
                 options={[
-                  { value: "__blank__", label: "+ Cadastrar nova oficina" },
-                  ...oficinas.map((o) => ({
+                  { value: "__blank__", label: "+ Cadastrar nova ação" },
+                  ...acoes.map((o) => ({
                     value: o.id,
                     label: o.nome,
-                    hint: oficinaOndeLabel(o) || undefined,
+                    hint: acaoOndeLabel(o) || undefined,
                   })),
                 ]}
-                onValueChange={(v) => applyOficina(v)}
+                onValueChange={(v) => applyAcao(v)}
                 disabled={missingProjeto || hierarchyLoading}
                 placeholder={missingProjeto ? "Selecione o projeto primeiro" : "Selecione…"}
-                searchPlaceholder="Buscar oficina ou cidade…"
-                emptyText="Nenhuma oficina encontrada."
+                searchPlaceholder="Buscar ação ou cidade…"
+                emptyText="Nenhuma ação encontrada."
               />
-              {selOficina ? (
-                selOficinaSemTerritorio ? (
+              {selAcao ? (
+                selAcaoSemTerritorio ? (
                   <p className="text-xs text-destructive">
                     Sem território cadastrado.{" "}
                     <Link
-                      href="/dashboard/contextos?tab=oficinas"
+                      href="/dashboard/contextos?tab=acoes"
                       className="underline underline-offset-2"
                     >
-                      Editar oficina
+                      Editar ação
                     </Link>
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Onde: {oficinaOndeLabel(selOficina)}
+                    Onde: {acaoOndeLabel(selAcao)}
                   </p>
                 )
               ) : null}
@@ -532,14 +532,14 @@ export function FormularioWizard({ professorUsers }: Props) {
               {[
                 missingContexto ? "selecionar contexto" : null,
                 missingProjeto ? "selecionar ou cadastrar projeto" : null,
-                !missingProjeto && needCreateOficina
-                  ? "cadastrar ou selecionar oficina"
+                !missingProjeto && needCreateAcao
+                  ? "cadastrar ou selecionar ação"
                   : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
               {canRegister
-                ? ". Clique em Continuar para cadastrar a oficina."
+                ? ". Clique em Continuar para cadastrar a ação."
                 : "."}
             </p>
           ) : null}
@@ -547,19 +547,19 @@ export function FormularioWizard({ professorUsers }: Props) {
           {hierarchyPhase === "register" && canRegister ? (
             <div className="space-y-4 rounded-xl border border-brand/20 bg-[var(--navy-soft)]/70 p-4">
               <p className="text-sm font-medium text-brand-deep">
-                Cadastrar nova oficina
+                Cadastrar nova ação
               </p>
               <div className="space-y-2">
-                <Label htmlFor="formNewOficina">Nome da oficina</Label>
+                <Label htmlFor="formNewAcao">Nome da ação</Label>
                 <Input
-                  id="formNewOficina"
-                  value={newOficinaNome}
-                  onChange={(e) => setNewOficinaNome(e.target.value)}
+                  id="formNewAcao"
+                  value={newAcaoNome}
+                  onChange={(e) => setNewAcaoNome(e.target.value)}
                 />
               </div>
-              <OficinaModalidadeFields
-                value={newOficinaModalidade}
-                onChange={setNewOficinaModalidade}
+              <AcaoModalidadeFields
+                value={newAcaoModalidade}
+                onChange={setNewAcaoModalidade}
               />
             </div>
           ) : null}
@@ -580,7 +580,7 @@ export function FormularioWizard({ professorUsers }: Props) {
               type="button"
               disabled={
                 pending ||
-                (hierarchyPhase === "register" && !newOficinaNome.trim())
+                (hierarchyPhase === "register" && !newAcaoNome.trim())
               }
               onClick={goCampos}
             >
@@ -600,7 +600,7 @@ export function FormularioWizard({ professorUsers }: Props) {
                 Montar formulário
               </h2>
               <p className="text-sm text-muted-foreground">
-                {oficinaLabel} · modelo {tipo === "INSCRICAO" ? "Inscrição" : "Avaliação"}
+                {acaoLabel} · modelo {tipo === "INSCRICAO" ? "Inscrição" : "Avaliação"}
               </p>
             </div>
             <div className="space-y-1">
@@ -681,11 +681,11 @@ export function FormularioWizard({ professorUsers }: Props) {
 
           <div className="rounded-lg border border-border/80 bg-card p-4 space-y-3">
             <h3 className="font-heading text-base font-semibold text-brand-deep">
-              Professores da oficina
+              Professores da ação
             </h3>
             <p className="text-sm text-muted-foreground">
               Usuários com o papel <strong>Professor</strong> que veem as
-              respostas desta oficina e podem marcar Selecionado / Professor.
+              respostas desta ação e podem marcar Selecionado / Professor.
             </p>
             <ProfessorPicker
               users={professorUsers}

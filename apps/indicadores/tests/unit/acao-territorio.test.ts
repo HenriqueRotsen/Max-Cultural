@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   ONLINE_TERRITORIO_LABEL,
-  applyTerritorioOficinaFormToSiga,
-  buildOficinaTerritorioOpcoes,
-  oficinaTerritorioLabel,
+  applyTerritorioAcaoFormToSiga,
+  buildAcaoTerritorioOpcoes,
+  acaoTerritorioLabel,
   parseTerritorioInscricao,
-  resolveOficinaTerritorioChoice,
-  territorioOficinaFieldMeta,
-  territorioOficinaStructuredMeta,
-  type OficinaTerritorioCatalog,
-} from "@/lib/oficina-territorio";
+  resolveAcaoTerritorioChoice,
+  territorioAcaoFieldMeta,
+  territorioAcaoStructuredMeta,
+  type AcaoTerritorioCatalog,
+} from "@/lib/acao-territorio";
 import { mapHeadersHeuristic, normalizeHeaderKey } from "@/lib/column-map";
 import { normalizeRow } from "@/lib/normalize";
 import type { BatchContext } from "@/lib/schema";
 
-const catalog: OficinaTerritorioCatalog = {
+const catalog: AcaoTerritorioCatalog = {
   ofereceOnline: true,
   oferecePresencial: true,
   territorios: [
@@ -35,36 +35,36 @@ const catalog: OficinaTerritorioCatalog = {
     {
       rawNormalized: "imperatriz quilombo",
       online: false,
-      oficinaTerritorioId: "t1",
+      acaoTerritorioId: "t1",
     },
   ],
 };
 
-describe("oficinaTerritorioLabel", () => {
+describe("acaoTerritorioLabel", () => {
   it("monta labels canônicos", () => {
     expect(
-      oficinaTerritorioLabel({
+      acaoTerritorioLabel({
         cidade: "Imperatriz",
         estado: "MA",
         nome: "Quilombo X",
       }),
     ).toBe("Imperatriz/MA · Quilombo X");
     expect(
-      oficinaTerritorioLabel({ cidade: "São Luís", estado: "MA", nome: "" }),
+      acaoTerritorioLabel({ cidade: "São Luís", estado: "MA", nome: "" }),
     ).toBe("São Luís/MA");
   });
 });
 
-describe("buildOficinaTerritorioOpcoes / field meta", () => {
+describe("buildAcaoTerritorioOpcoes / field meta", () => {
   it("une Online + territórios presenciais", () => {
-    const opts = buildOficinaTerritorioOpcoes(catalog);
+    const opts = buildAcaoTerritorioOpcoes(catalog);
     expect(opts[0]).toBe(ONLINE_TERRITORIO_LABEL);
     expect(opts).toContain("Imperatriz/MA · Quilombo X");
     expect(opts).toContain("São Luís/MA");
   });
 
   it("só online → autoChoice, sem campo", () => {
-    const meta = territorioOficinaFieldMeta({
+    const meta = territorioAcaoFieldMeta({
       ofereceOnline: true,
       oferecePresencial: false,
       territorios: [],
@@ -75,22 +75,22 @@ describe("buildOficinaTerritorioOpcoes / field meta", () => {
   });
 
   it("2+ opções → pergunta obrigatória", () => {
-    const meta = territorioOficinaFieldMeta(catalog);
+    const meta = territorioAcaoFieldMeta(catalog);
     expect(meta.showField).toBe(true);
     expect(meta.obrigatorio).toBe(true);
     expect(meta.opcoes.length).toBeGreaterThanOrEqual(2);
   });
 });
 
-describe("territorioOficinaStructuredMeta / form value", () => {
+describe("territorioAcaoStructuredMeta / form value", () => {
   it("online+presencial → escolha de modalidade", () => {
-    const meta = territorioOficinaStructuredMeta(catalog);
+    const meta = territorioAcaoStructuredMeta(catalog);
     expect(meta.autoModalidade).toBeNull();
     expect(meta.ofereceOnline).toBe(true);
     expect(meta.oferecePresencial).toBe(true);
 
     const siga: Record<string, unknown> = {};
-    applyTerritorioOficinaFormToSiga(
+    applyTerritorioAcaoFormToSiga(
       siga,
       {
         modalidade: "PRESENCIAL",
@@ -120,23 +120,23 @@ describe("parseTerritorioInscricao", () => {
       catalog,
     );
     expect(byLabel.matched).toBe(true);
-    expect(byLabel.oficinaTerritorioId).toBe("t1");
+    expect(byLabel.acaoTerritorioId).toBe("t1");
     expect(byLabel.cidade).toBe("Imperatriz");
     expect(byLabel.territorio).toBe("Quilombo X");
 
     const byCity = parseTerritorioInscricao("São Luís", catalog);
     expect(byCity.matched).toBe(true);
-    expect(byCity.oficinaTerritorioId).toBe("t2");
+    expect(byCity.acaoTerritorioId).toBe("t2");
   });
 
   it("usa alias", () => {
     const r = parseTerritorioInscricao("Imperatriz Quilombo", catalog);
     expect(r.matched).toBe(true);
-    expect(r.oficinaTerritorioId).toBe("t1");
+    expect(r.acaoTerritorioId).toBe("t1");
   });
 
   it("resolve choice Online", () => {
-    const r = resolveOficinaTerritorioChoice("Online", catalog);
+    const r = resolveAcaoTerritorioChoice("Online", catalog);
     expect(r.online).toBe(true);
     expect(r.matched).toBe(true);
   });
@@ -162,8 +162,8 @@ describe("parseTerritorioInscricao", () => {
   });
 });
 
-describe("column-map território da oficina", () => {
-  it("mapeia pergunta «qual oficina?» para Territorio", () => {
+describe("column-map território da ação", () => {
+  it("mapeia pergunta «qual oficina?» (planilhas antigas) para Territorio", () => {
     expect(
       normalizeHeaderKey("Você quer se inscrever para qual oficina?"),
     ).toBe("voce_quer_se_inscrever_para_qual_oficina");
@@ -176,10 +176,24 @@ describe("column-map território da oficina", () => {
       "Territorio",
     );
   });
+
+  it("mapeia pergunta «qual ação?» para Territorio", () => {
+    expect(normalizeHeaderKey("Você quer se inscrever para qual ação?")).toBe(
+      "voce_quer_se_inscrever_para_qual_acao",
+    );
+    const result = mapHeadersHeuristic([
+      "Você quer se inscrever para qual ação?",
+      "Nome completo",
+      "CPF",
+    ]);
+    expect(result.mapping["Você quer se inscrever para qual ação?"]).toBe(
+      "Territorio",
+    );
+  });
 });
 
 describe("normalizeRow com catálogo", () => {
-  it("aplica match de território da oficina", () => {
+  it("aplica match de território da ação", () => {
     const ctx: BatchContext = {
       id_projeto: "1",
       id_oficina: "2",
@@ -188,7 +202,7 @@ describe("normalizeRow com catálogo", () => {
       Nome_projeto: "Proj",
       Identificacao_ano_projeto: "2025",
       Nome_oficina: "Of",
-      oficinaTerritorioCatalog: catalog,
+      acaoTerritorioCatalog: catalog,
     };
     const row = normalizeRow(
       {

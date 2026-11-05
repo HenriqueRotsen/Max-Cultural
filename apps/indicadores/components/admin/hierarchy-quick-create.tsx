@@ -20,9 +20,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type {
   ContextoSelectOption,
-  OficinaSelectOption,
+  AcaoSelectOption,
 } from "@/lib/hierarchy-list";
-import type { OficinaDTO, ProjetoDTO } from "@/lib/contexto";
+import type { AcaoDTO, ProjetoDTO } from "@/lib/contexto";
 
 /** Cadastro rápido de contexto (importação e formulários). */
 export function NovoContextoButton({
@@ -197,8 +197,8 @@ export function NovoProjetoButton({
   );
 }
 
-/** OficinaDTO → opção de select (mantém modalidade e territórios). */
-export function oficinaDtoToOption(o: OficinaDTO): OficinaSelectOption {
+/** AcaoDTO → opção de select (mantém modalidade e territórios). */
+export function acaoDtoToOption(o: AcaoDTO): AcaoSelectOption {
   return {
     id: o.id,
     nome: o.nome,
@@ -220,8 +220,8 @@ export function oficinaDtoToOption(o: OficinaDTO): OficinaSelectOption {
   };
 }
 
-/** Texto curto de onde a oficina acontece. */
-export function oficinaOndeLabel(o: {
+/** Texto curto de onde a ação acontece. */
+export function acaoOndeLabel(o: {
   ofereceOnline?: boolean;
   oferecePresencial?: boolean;
   territorios?: Array<{ nome: string; cidade: string; estado: string }>;
@@ -237,8 +237,8 @@ export function oficinaOndeLabel(o: {
   return parts.join(" · ");
 }
 
-/** Oficina sem modalidade definida (presencial sem território): não serve para formulário/importação. */
-export function oficinaSemTerritorio(o: {
+/** Ação sem modalidade definida (presencial sem território): não serve para formulário/importação. */
+export function acaoSemTerritorio(o: {
   ofereceOnline?: boolean;
   oferecePresencial?: boolean;
   territorios?: unknown[];

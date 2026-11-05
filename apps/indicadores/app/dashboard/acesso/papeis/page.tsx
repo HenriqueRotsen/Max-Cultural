@@ -15,7 +15,7 @@ export default async function PapeisPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Defina permissões de tela e o acesso padrão a contextos, projetos e
-          oficinas — como na criação de usuários.
+          ações — como na criação de usuários.
         </p>
       </div>
       <PapeisManager data={data} />

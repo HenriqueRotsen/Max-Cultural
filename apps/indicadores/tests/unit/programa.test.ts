@@ -18,6 +18,6 @@ describe("programa", () => {
 
   it("extrai número da edição", () => {
     expect(extractEdicaoNumero("Movimenta - 2ª edição")).toBe(2);
-    expect(extractEdicaoNumero("Oficina sem marcador")).toBeNull();
+    expect(extractEdicaoNumero("Ação sem marcador")).toBeNull();
   });
 });

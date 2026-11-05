@@ -68,7 +68,7 @@ const SECTIONS: Array<{
   cols: SigaCulturalColumn[];
 }> = [
   {
-    title: "Projeto e oficina",
+    title: "Projeto e ação",
     cols: [
       "id_projeto",
       "id_oficina",
@@ -116,7 +116,7 @@ const SECTIONS: Array<{
     cols: ["Possui_deficiencia", "RestricaoAlimentar"],
   },
   {
-    title: "Status na oficina",
+    title: "Status na ação",
     cols: ["Inscritos", "Selecionados", "Participantes", "Certificado"],
   },
 ];
@@ -358,7 +358,7 @@ export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
               <section key={section.title} className="space-y-3">
                 <h3 className="border-b border-brand/10 pb-1.5 text-sm font-medium text-brand-deep">
                   {section.title}
-                  {section.title === "Projeto e oficina" ? (
+                  {section.title === "Projeto e ação" ? (
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
                       (somente leitura)
                     </span>

@@ -1,23 +1,23 @@
 import { SiteShell } from "@/components/app-header";
 import { InscricaoForm } from "@/components/inscricao/inscricao-form";
-import { getOficinaContext } from "@/app/actions/inscricoes";
+import { getAcaoContext } from "@/app/actions/inscricoes";
 
-type Params = Promise<{ oficinaId: string }>;
+type Params = Promise<{ acaoId: string }>;
 
 export default async function InscricaoPage({ params }: { params: Params }) {
-  const { oficinaId } = await params;
+  const { acaoId } = await params;
   let context;
   try {
-    context = await getOficinaContext(decodeURIComponent(oficinaId));
+    context = await getAcaoContext(decodeURIComponent(acaoId));
   } catch {
     context = {
-      id_projeto: decodeURIComponent(oficinaId),
-      id_oficina: decodeURIComponent(oficinaId),
+      id_projeto: decodeURIComponent(acaoId),
+      id_oficina: decodeURIComponent(acaoId),
       PROPONENTE: "",
       PRONAC: "",
       Nome_projeto: "",
       Identificacao_ano_projeto: String(new Date().getFullYear()),
-      Nome_oficina: decodeURIComponent(oficinaId),
+      Nome_oficina: decodeURIComponent(acaoId),
     };
   }
 

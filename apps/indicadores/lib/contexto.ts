@@ -21,7 +21,7 @@ export type ProjetoDTO = {
   ano: string;
   contextoId: string;
   contextoNome: string;
-  oficinasCount: number;
+  acoesCount: number;
   inscricoesCount: number;
   hasEditorAccess: boolean;
   canEdit: boolean;
@@ -30,7 +30,7 @@ export type ProjetoDTO = {
   updatedAt: string;
 };
 
-export type OficinaTerritorioDTO = {
+export type AcaoTerritorioDTO = {
   id: string;
   nome: string;
   cidade: string;
@@ -38,7 +38,7 @@ export type OficinaTerritorioDTO = {
   ordem: number;
 };
 
-export type OficinaTerritorioInput = {
+export type AcaoTerritorioInput = {
   id?: string;
   nome?: string;
   cidade: string;
@@ -46,7 +46,7 @@ export type OficinaTerritorioInput = {
   ordem?: number;
 };
 
-export type OficinaDTO = {
+export type AcaoDTO = {
   id: string;
   nome: string;
   projetoId: string;
@@ -56,9 +56,12 @@ export type OficinaDTO = {
   pronac: string;
   proponente: string;
   ano: string;
+  /** Tipo da ação (ex.: "oficina"). */
+  tipoId: string;
+  tipoNome: string;
   ofereceOnline: boolean;
   oferecePresencial: boolean;
-  territorios: OficinaTerritorioDTO[];
+  territorios: AcaoTerritorioDTO[];
   inscricoesCount: number;
   hasEditorAccess: boolean;
   canEdit: boolean;
@@ -79,12 +82,16 @@ export type ProjetoInput = {
   ano?: string;
 };
 
-export type OficinaInput = {
+export type AcaoTipoDTO = { id: string; nome: string };
+
+export type AcaoInput = {
   projetoId: string;
   nome: string;
+  /** Padrão: "oficina". */
+  tipoId?: string;
   ofereceOnline?: boolean;
   oferecePresencial?: boolean;
-  territorios?: OficinaTerritorioInput[];
+  territorios?: AcaoTerritorioInput[];
 };
 
 /** Snapshot completo para carimbar importação */
@@ -93,7 +100,7 @@ export type HierarquiaBatch = BatchContext & {
   Nome_contexto: string;
 };
 
-export function oficinaToBatch(o: OficinaDTO): HierarquiaBatch {
+export function acaoToBatch(o: AcaoDTO): HierarquiaBatch {
   return {
     contextoId: o.contextoId,
     Nome_contexto: o.contextoNome,
@@ -104,7 +111,7 @@ export function oficinaToBatch(o: OficinaDTO): HierarquiaBatch {
     Nome_projeto: o.projetoNome,
     Identificacao_ano_projeto: o.ano,
     Nome_oficina: o.nome,
-    oficinaTerritorioCatalog: {
+    acaoTerritorioCatalog: {
       ofereceOnline: o.ofereceOnline,
       oferecePresencial: o.oferecePresencial,
       territorios: o.territorios.map((t) => ({

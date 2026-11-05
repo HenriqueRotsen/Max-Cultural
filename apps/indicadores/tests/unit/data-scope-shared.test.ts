@@ -19,13 +19,13 @@ describe("data-scope-shared", () => {
         { kind: "CONTEXTO", resourceId: "c1", access: "editor" },
         { kind: "PROJETO", resourceId: "p1", access: "editor" },
         { kind: "PROJETO", resourceId: "p2", access: "viewer" },
-        { kind: "OFICINA", resourceId: "o1", access: "none" },
+        { kind: "ACAO", resourceId: "o1", access: "none" },
       ],
       projetos: [
         { id: "p1", contextoId: "c1" },
         { id: "p2", contextoId: "c1" },
       ],
-      oficinas: [{ id: "o1", projetoId: "p2" }],
+      acoes: [{ id: "o1", projetoId: "p2" }],
     });
 
     expect(out.find((e) => e.kind === "CONTEXTO" && e.resourceId === "c1")).toEqual({

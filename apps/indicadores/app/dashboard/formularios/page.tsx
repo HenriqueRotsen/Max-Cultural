@@ -30,8 +30,8 @@ export default async function FormulariosPage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {professorOnly
-              ? "Oficinas em que você é professor — veja e avalie as respostas."
-              : "Crie formulários públicos por oficina. Respostas vão para avaliação antes da base."}
+              ? "Ações em que você é professor — veja e avalie as respostas."
+              : "Crie formulários públicos por ação. Respostas vão para avaliação antes da base."}
           </p>
         </div>
         {canWrite ? (
@@ -58,7 +58,7 @@ export default async function FormulariosPage() {
             <tr>
               <th className="px-3 py-2 font-medium">Título</th>
               <th className="px-3 py-2 font-medium">Tipo</th>
-              <th className="px-3 py-2 font-medium">Oficina</th>
+              <th className="px-3 py-2 font-medium">Ação</th>
               <th className="px-3 py-2 font-medium">Status</th>
               <th className="px-3 py-2 font-medium">Respostas</th>
               {canWrite ? (
@@ -90,9 +90,9 @@ export default async function FormulariosPage() {
                   {r.tipo === "AVALIACAO" ? "Avaliação" : "Inscrição"}
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">
-                  {r.oficina
-                    ? `${r.oficina.projeto.contexto.nome} · ${r.oficina.nome}`
-                    : r.oficinaId}
+                  {r.acao
+                    ? `${r.acao.projeto.contexto.nome} · ${r.acao.nome}`
+                    : r.acaoId}
                 </td>
                 <td className="px-3 py-2">{r.ativo ? "Ativo" : "Inativo"}</td>
                 <td className="px-3 py-2">
@@ -122,7 +122,7 @@ export default async function FormulariosPage() {
                   className="px-3 py-8 text-center text-muted-foreground"
                 >
                   {professorOnly
-                    ? "Nenhuma oficina atribuída a você ainda."
+                    ? "Nenhuma ação atribuída a você ainda."
                     : "Nenhum formulário ainda."}
                 </td>
               </tr>

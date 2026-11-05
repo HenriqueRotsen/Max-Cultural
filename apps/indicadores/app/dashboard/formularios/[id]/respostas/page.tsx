@@ -67,9 +67,9 @@ export default async function FormularioRespostasPage({ params }: { params: Para
     opcoes: (c.opcoes as string[] | null) ?? null,
   }));
 
-  const oficinaLabel = data.oficina
-    ? `${data.oficina.projeto.contexto.nome} · ${data.oficina.projeto.nome} · ${data.oficina.nome}`
-    : data.form.oficinaId;
+  const acaoLabel = data.acao
+    ? `${data.acao.projeto.contexto.nome} · ${data.acao.projeto.nome} · ${data.acao.nome}`
+    : data.form.acaoId;
 
   return (
     <AdminShell title={`Respostas · ${data.form.titulo}`}>
@@ -79,7 +79,7 @@ export default async function FormularioRespostasPage({ params }: { params: Para
             Respostas
           </h1>
           <p className="text-sm text-muted-foreground">
-            {oficinaLabel}
+            {acaoLabel}
             <span className="mx-1.5 text-border">·</span>
             {data.form.titulo}
           </p>
@@ -104,7 +104,7 @@ export default async function FormularioRespostasPage({ params }: { params: Para
 
       <RespostasQueue
         formularioId={id}
-        oficinaLabel={oficinaLabel}
+        acaoLabel={acaoLabel}
         respostas={respostas}
         canMerge={perms.has("formularios:merge")}
         canEditData={canEditData}

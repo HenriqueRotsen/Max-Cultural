@@ -109,15 +109,15 @@ async function stripHierarchy(dryRun: boolean) {
     }
   }
 
-  for (const o of await prisma.oficina.findMany()) {
+  for (const o of await prisma.acao.findMany()) {
     const nome = trim(o.nome);
     if (nome === o.nome) continue;
     updated++;
     if (!dryRun) {
-      await prisma.oficina.update({ where: { id: o.id }, data: { nome } });
+      await prisma.acao.update({ where: { id: o.id }, data: { nome } });
       await prisma.inscricao.updateMany({
-        where: { idOficina: o.id },
-        data: { nomeOficina: nome },
+        where: { idAcao: o.id },
+        data: { nomeAcao: nome },
       });
     }
   }

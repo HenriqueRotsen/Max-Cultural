@@ -1,5 +1,5 @@
 /**
- * Migra inscrições para hierarquia Contexto → Projeto → Oficina.
+ * Migra inscrições para hierarquia Contexto → Projeto → Ação.
  * Uso: npx tsx scripts/migrate-hierarquia-contexto.ts
  */
 import "dotenv/config";
@@ -16,7 +16,7 @@ function normKey(s: string) {
 
 async function main() {
   // Limpa hierarquia se reexecutar
-  await prisma.oficina.deleteMany();
+  await prisma.acao.deleteMany();
   await prisma.projeto.deleteMany();
   await prisma.contexto.deleteMany();
 
@@ -24,9 +24,9 @@ async function main() {
     select: {
       id: true,
       idProjeto: true,
-      idOficina: true,
+      idAcao: true,
       nomeProjeto: true,
-      nomeOficina: true,
+      nomeAcao: true,
       pronac: true,
       proponente: true,
       identificacaoAnoProjeto: true,
@@ -37,7 +37,7 @@ async function main() {
 
   // stem → contexto nome
   type ProjKey = string; // nomeProjeto|pronac
-  type OficKey = string; // nomeOficina (within project)
+  type OficKey = string; // nomeAcao (within project)
 
   const stemToCtxNome = new Map<string, string>();
   const stemProjects = new Map<
@@ -49,7 +49,7 @@ async function main() {
         pronac: string;
         proponente: string;
         ano: string;
-        oficinas: Map<OficKey, { nome: string; oldIds: Set<string> }>;
+        acoes: Map<OficKey, { nome: string; oldIds: Set<string> }>;
       }
     >
   >();
@@ -74,25 +74,25 @@ async function main() {
         ano:
           extractProjectYear(r.identificacaoAnoProjeto) ||
           r.identificacaoAnoProjeto.trim(),
-        oficinas: new Map(),
+        acoes: new Map(),
       };
       projects.set(pKey, proj);
     }
     if (!proj.proponente && r.proponente.trim()) {
       proj.proponente = r.proponente.trim();
     }
-    const oNome = r.nomeOficina.trim() || r.idOficina || "Oficina";
+    const oNome = r.nomeAcao.trim() || r.idAcao || "Ação";
     const oKey = normKey(oNome);
-    let of = proj.oficinas.get(oKey);
+    let of = proj.acoes.get(oKey);
     if (!of) {
       of = { nome: oNome, oldIds: new Set() };
-      proj.oficinas.set(oKey, of);
+      proj.acoes.set(oKey, of);
     }
-    of.oldIds.add(r.idOficina);
+    of.oldIds.add(r.idAcao);
   }
 
   // Create entities + mapping old → new for inscription updates
-  // Map: old (idProjeto|idOficina|nomeProjeto|pronac) is messy; map by inscription fields
+  // Map: old (idProjeto|idAcao|nomeProjeto|pronac) is messy; map by inscription fields
   type Mapping = {
     contextoId: string;
     nomeContexto: string;
@@ -101,11 +101,11 @@ async function main() {
     pronac: string;
     proponente: string;
     ano: string;
-    idOficina: string;
-    nomeOficina: string;
+    idAcao: string;
+    nomeAcao: string;
   };
 
-  // key: stem|nomeProjeto|pronac|nomeOficina
+  // key: stem|nomeProjeto|pronac|nomeAcao
   const mapByKeys = new Map<string, Mapping>();
 
   let nextProj = 1;
@@ -136,11 +136,11 @@ async function main() {
         },
       });
 
-      for (const [, of] of proj.oficinas) {
-        const idOficina = String(nextOfic++);
-        await prisma.oficina.create({
+      for (const [, of] of proj.acoes) {
+        const idAcao = String(nextOfic++);
+        await prisma.acao.create({
           data: {
-            id: idOficina,
+            id: idAcao,
             nome: of.nome,
             projetoId: idProjeto,
           },
@@ -154,14 +154,14 @@ async function main() {
           pronac: proj.pronac,
           proponente: proj.proponente,
           ano: proj.ano,
-          idOficina,
-          nomeOficina: of.nome,
+          idAcao,
+          nomeAcao: of.nome,
         });
       }
     }
   }
 
-  console.log(`Projetos: ${nextProj - 1}, Oficinas: ${nextOfic - 1}`);
+  console.log(`Projetos: ${nextProj - 1}, Ações: ${nextOfic - 1}`);
 
   // Update inscriptions in batches
   let updated = 0;
@@ -173,7 +173,7 @@ async function main() {
     await Promise.all(
       chunk.map(async (r) => {
         const stem = programaStem(r.nomeProjeto) || "sem-programa";
-        const oNome = r.nomeOficina.trim() || r.idOficina || "Oficina";
+        const oNome = r.nomeAcao.trim() || r.idAcao || "Ação";
         const key = `${stem}|${normKey(r.nomeProjeto)}|${normKey(r.pronac)}|${normKey(oNome)}`;
         const m = mapByKeys.get(key);
         if (!m) {
@@ -186,9 +186,9 @@ async function main() {
             contextoId: m.contextoId,
             nomeContexto: m.nomeContexto,
             idProjeto: m.idProjeto,
-            idOficina: m.idOficina,
+            idAcao: m.idAcao,
             nomeProjeto: m.nomeProjeto,
-            nomeOficina: m.nomeOficina,
+            nomeAcao: m.nomeAcao,
             pronac: m.pronac,
             proponente: m.proponente || r.proponente,
             identificacaoAnoProjeto: m.ano || r.identificacaoAnoProjeto,

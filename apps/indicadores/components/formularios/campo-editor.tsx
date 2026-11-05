@@ -37,7 +37,7 @@ const VINCULO_DISABLED_TIPOS = new Set([
   "ADDRESS_BR",
   "DECLARACAO",
   "FILE_UPLOAD",
-  "TERRITORIO_OFICINA",
+  "TERRITORIO_ACAO",
 ]);
 
 const COLUNAS_VINCULAVEIS = PERSON_COLUMNS.filter(
@@ -253,7 +253,7 @@ export function CampoEditor({ campos, onChange }: Props) {
                           ...(v === "SECTION"
                             ? { obrigatorio: false, sigaColumn: null }
                             : {}),
-                          ...(v === "TERRITORIO_OFICINA"
+                          ...(v === "TERRITORIO_ACAO"
                             ? { sigaColumn: "Territorio", obrigatorio: true }
                             : {}),
                         });
@@ -281,7 +281,7 @@ export function CampoEditor({ campos, onChange }: Props) {
                     <Label>Coluna vinculada</Label>
                     <Select
                       value={
-                        campo.tipo === "TERRITORIO_OFICINA"
+                        campo.tipo === "TERRITORIO_ACAO"
                           ? "Territorio"
                           : (campo.sigaColumn ?? "__none__")
                       }
@@ -294,7 +294,7 @@ export function CampoEditor({ campos, onChange }: Props) {
                       disabled={VINCULO_DISABLED_TIPOS.has(campo.tipo)}
                       items={{
                         __none__: "Nenhuma (pergunta extra)",
-                        ...(campo.tipo === "TERRITORIO_OFICINA"
+                        ...(campo.tipo === "TERRITORIO_ACAO"
                           ? { Territorio: columnLabel("Territorio") }
                           : {}),
                         ...(campo.sigaColumn &&
@@ -351,10 +351,10 @@ export function CampoEditor({ campos, onChange }: Props) {
             />
           </div>
 
-          {campo.tipo === "TERRITORIO_OFICINA" && (
+          {campo.tipo === "TERRITORIO_ACAO" && (
             <p className="text-xs text-muted-foreground sm:col-span-2">
               No formulário público a pessoa escolhe Online e/ou Presencial (conforme
-              a oficina) e, se presencial, informa cidade, território/comunidade e
+              a ação) e, se presencial, informa cidade, território/comunidade e
               UF. Preenche automaticamente as colunas SIGA Cidade, Estado e
               Territorio.
             </p>

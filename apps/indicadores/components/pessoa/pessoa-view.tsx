@@ -164,7 +164,7 @@ export function PessoaView({ pessoa }: Props) {
           </p>
         ) : null}
         <p className="sc-fade-up-delay mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
-          Histórico de oficinas e projetos vinculados ao CPF {pessoa.cpfDisplay}.
+          Histórico de ações e projetos vinculados ao CPF {pessoa.cpfDisplay}.
         </p>
         <div className="sc-fade-up-delay-2 mt-8 flex flex-wrap gap-3">
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
@@ -280,7 +280,7 @@ export function PessoaView({ pessoa }: Props) {
       <section className="space-y-4" id="inscricoes">
         <div>
           <h2 className="font-heading text-2xl font-semibold text-brand-deep">
-            Oficinas e projetos
+            Ações e projetos
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Cada inscrição e o status de seleção, participação e certificado.
@@ -296,10 +296,10 @@ export function PessoaView({ pessoa }: Props) {
                 <div className="min-w-0 space-y-1">
                   <h3 className="font-heading text-lg font-semibold text-brand-deep">
                     <Link
-                      href={`/projeto/${encodeURIComponent(insc.id_projeto)}/${encodeURIComponent(insc.id_oficina)}`}
+                      href={`/projeto/${encodeURIComponent(insc.id_projeto)}/acao/${encodeURIComponent(insc.id_oficina)}`}
                       className="underline-offset-2 hover:underline"
                     >
-                      {insc.Nome_oficina || "Oficina"}
+                      {insc.Nome_oficina || "Ação"}
                     </Link>
                   </h3>
                   <p className="text-sm text-muted-foreground">

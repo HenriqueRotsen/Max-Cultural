@@ -148,7 +148,7 @@ export function defaultInscricaoCampos(): FormularioCampoDraft[] {
       descricao:
         "Escolha Online ou Presencial. Se presencial, informe cidade, território/comunidade e UF.",
       obrigatorio: true,
-      tipo: "TERRITORIO_OFICINA",
+      tipo: "TERRITORIO_ACAO",
       sigaColumn: "Territorio",
       opcoes: null,
       config: null,
@@ -208,13 +208,13 @@ export function defaultInscricaoCampos(): FormularioCampoDraft[] {
   return rows.map((r, i) => ({ ...r, ordem: i }));
 }
 
-/** Template padrão de avaliação pós-oficina. */
+/** Template padrão de avaliação pós-ação. */
 export function defaultAvaliacaoCampos(): FormularioCampoDraft[] {
   const rows: Array<Omit<FormularioCampoDraft, "ordem">> = [
     {
       rotulo: "Identificação",
       descricao:
-        "Precisamos do seu CPF para localizar sua inscrição nesta oficina.",
+        "Precisamos do seu CPF para localizar sua inscrição nesta ação.",
       obrigatorio: false,
       tipo: "SECTION",
       sigaColumn: null,
@@ -240,7 +240,7 @@ export function defaultAvaliacaoCampos(): FormularioCampoDraft[] {
       config: null,
     },
     {
-      rotulo: "Sobre a oficina",
+      rotulo: "Sobre a ação",
       descricao: "Conte como foi sua experiência.",
       obrigatorio: false,
       tipo: "SECTION",
@@ -249,7 +249,7 @@ export function defaultAvaliacaoCampos(): FormularioCampoDraft[] {
       config: null,
     },
     {
-      rotulo: "Como você avalia a oficina no geral?",
+      rotulo: "Como você avalia a ação no geral?",
       descricao: "",
       obrigatorio: true,
       tipo: "MULTIPLE_CHOICE",
@@ -294,7 +294,7 @@ export function defaultAvaliacaoCampos(): FormularioCampoDraft[] {
       config: null,
     },
     {
-      rotulo: "Recomendaria esta oficina a outras pessoas?",
+      rotulo: "Recomendaria esta ação a outras pessoas?",
       descricao: "",
       obrigatorio: true,
       tipo: "MULTIPLE_CHOICE",
@@ -322,7 +322,7 @@ export function defaultFormularioModelos(): FormularioModeloSeed[] {
     {
       tipo: "INSCRICAO",
       nome: "Inscrição",
-      tituloDefault: "Inscrição na oficina",
+      tituloDefault: "Inscrição na ação",
       descricaoDefault:
         "Preencha com atenção. Queremos conhecer um pouco sobre você.",
       mensagemConfirmacao:
@@ -333,7 +333,7 @@ export function defaultFormularioModelos(): FormularioModeloSeed[] {
     {
       tipo: "AVALIACAO",
       nome: "Avaliação",
-      tituloDefault: "Avaliação da oficina",
+      tituloDefault: "Avaliação da ação",
       descricaoDefault:
         "Sua opinião é muito importante para aprimorarmos as próximas edições.",
       mensagemConfirmacao:

@@ -9,10 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { GENEROS, ETNIAS } from "@/lib/schema";
 import type { FormularioCampoTipoCode } from "@/lib/formularios/types";
 import {
-  EMPTY_TERRITORIO_OFICINA_FORM,
-  asTerritorioOficinaFormValue,
-  type TerritorioOficinaFormValue,
-} from "@/lib/oficina-territorio";
+  EMPTY_TERRITORIO_ACAO_FORM,
+  asTerritorioAcaoFormValue,
+  type TerritorioAcaoFormValue,
+} from "@/lib/acao-territorio";
 import { executeRecaptcha } from "@/components/formularios/recaptcha-execute";
 
 type CampoPublico = {
@@ -175,8 +175,8 @@ function validatePageFields(
       if (v !== true) errors[campo.id] = "É necessário declarar o cumprimento.";
       continue;
     }
-    if (campo.tipo === "TERRITORIO_OFICINA") {
-      const terr = asTerritorioOficinaFormValue(v);
+    if (campo.tipo === "TERRITORIO_ACAO") {
+      const terr = asTerritorioAcaoFormValue(v);
       if (!terr.modalidade) {
         errors[campo.id] = "Escolha Online ou Presencial.";
       } else if (
@@ -551,7 +551,7 @@ export function PublicFormClient({
       );
     }
 
-    if (campo.tipo === "TERRITORIO_OFICINA") {
+    if (campo.tipo === "TERRITORIO_ACAO") {
       if (campo.config?.hidden === true) return null;
       const canOnline =
         campo.config?.ofereceOnline == null
@@ -566,16 +566,16 @@ export function PublicFormClient({
         campo.config?.autoModalidade === "PRESENCIAL"
           ? campo.config.autoModalidade
           : null;
-      const stored = asTerritorioOficinaFormValue(values[campo.id]);
-      const terr: TerritorioOficinaFormValue = {
-        ...EMPTY_TERRITORIO_OFICINA_FORM,
+      const stored = asTerritorioAcaoFormValue(values[campo.id]);
+      const terr: TerritorioAcaoFormValue = {
+        ...EMPTY_TERRITORIO_ACAO_FORM,
         ...stored,
         modalidade: stored.modalidade || autoMod || "",
       };
       const showModalityPick = canOnline && canPresencial && !autoMod;
       const isPresencial = terr.modalidade === "PRESENCIAL";
 
-      const setTerr = (patch: Partial<TerritorioOficinaFormValue>) => {
+      const setTerr = (patch: Partial<TerritorioAcaoFormValue>) => {
         const next = { ...terr, ...patch };
         if (next.modalidade === "ONLINE") {
           next.cidade = "";

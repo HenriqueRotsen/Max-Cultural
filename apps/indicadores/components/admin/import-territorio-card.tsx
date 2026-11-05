@@ -32,7 +32,7 @@ function OpcaoSelect({
   );
 }
 
-/** Onde a oficina aconteceu para cada inscrição do lote (só opções da oficina). */
+/** Onde a ação aconteceu para cada inscrição do lote (só opções da ação). */
 export function ImportTerritorioCard({
   opcoes,
   values,
@@ -60,14 +60,14 @@ export function ImportTerritorioCard({
     >
       <div className="flex items-center gap-1.5 text-sm font-medium text-brand-deep">
         <MapPin className="size-4 text-brand" />
-        Território da oficina
+        Território da ação
       </div>
 
       {opcoes.length === 0 ? (
         <p className="text-sm text-amber-900">{pendencia}</p>
       ) : unica ? (
         <p className="text-sm text-muted-foreground">
-          A oficina acontece só em{" "}
+          A ação acontece só em{" "}
           <span className="font-medium text-brand-deep">{opcoes[0]}</span> — todas as
           inscrições do lote ficam neste território.
         </p>
@@ -94,7 +94,7 @@ export function ImportTerritorioCard({
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              A planilha não tem coluna de território. Escolha onde a oficina aconteceu
+              A planilha não tem coluna de território. Escolha onde a ação aconteceu
               para estas inscrições.
             </p>
           )}
@@ -102,7 +102,7 @@ export function ImportTerritorioCard({
           {state.modo === "planilha" && temColuna ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Ligue cada valor da planilha a um território cadastrado na oficina. A
+                Ligue cada valor da planilha a um território cadastrado na ação. A
                 ligação fica salva para as próximas importações.
               </p>
               <div className="grid gap-2">

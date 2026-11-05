@@ -29,7 +29,7 @@ export type PessoaInscricaoResumo = {
 export type PessoaAnalise = {
   totalInscricoes: number;
   projetosUnicos: number;
-  oficinasUnicas: number;
+  acoesUnicas: number;
   vezesSelecionado: number;
   vezesParticipante: number;
   vezesCertificado: number;
@@ -196,7 +196,7 @@ function buildAnalise(inscricoes: PessoaInscricaoResumo[]): PessoaAnalise {
   return {
     totalInscricoes,
     projetosUnicos: projetos.size,
-    oficinasUnicas: new Set(inscricoes.map((i) => i.id_oficina)).size,
+    acoesUnicas: new Set(inscricoes.map((i) => i.id_oficina)).size,
     vezesSelecionado,
     vezesParticipante,
     vezesCertificado,
@@ -260,7 +260,7 @@ export async function getPessoaByCpfAction(
       return {
         ok: false,
         error:
-          "Este CPF existe na base, mas fora do seu acesso (contextos/projetos/oficinas).",
+          "Este CPF existe na base, mas fora do seu acesso (contextos/projetos/ações).",
       };
     }
     return { ok: false, error: "Nenhuma inscrição encontrada para este CPF." };

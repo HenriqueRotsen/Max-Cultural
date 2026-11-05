@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   const format = sp.get("format") ?? "csv";
   const data = await getAnaliseAction({
     idProjeto: sp.get("idProjeto") ?? undefined,
-    idOficina: sp.get("idOficina") ?? undefined,
+    idAcao: sp.get("idAcao") ?? undefined,
     estado: sp.get("estado") ?? undefined,
     cidade: sp.get("cidade") ?? undefined,
     territorio: sp.get("territorio") ?? undefined,

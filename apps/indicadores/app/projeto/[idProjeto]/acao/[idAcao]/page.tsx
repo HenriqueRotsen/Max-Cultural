@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import {
-  getOficinaPageAction,
-  type OficinaLocalizacao,
-  type OficinaPageData,
+  getAcaoPageAction,
+  type AcaoLocalizacao,
+  type AcaoPageData,
 } from "@/app/actions/projeto";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { SiteShell } from "@/components/app-header";
@@ -16,24 +16,24 @@ import { isOnlineRow } from "@/lib/territorio-online";
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Indicadores";
 
 type Props = {
-  params: Promise<{ idProjeto: string; idOficina: string }>;
+  params: Promise<{ idProjeto: string; idAcao: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { idProjeto, idOficina } = await params;
-  const result = await getOficinaPageAction(idProjeto, idOficina);
-  if (!result.ok) return { title: `Oficina · ${appName}` };
+  const { idProjeto, idAcao } = await params;
+  const result = await getAcaoPageAction(idProjeto, idAcao);
+  if (!result.ok) return { title: `Ação · ${appName}` };
   return {
     title: `${result.data.Nome_oficina} · ${appName}`,
-    description: `Inscritos da oficina ${result.data.Nome_oficina}`,
+    description: `Inscritos da ação ${result.data.Nome_oficina}`,
   };
 }
 
-export default async function OficinaPage({ params, searchParams }: Props) {
-  const { idProjeto, idOficina } = await params;
+export default async function AcaoPage({ params, searchParams }: Props) {
+  const { idProjeto, idAcao } = await params;
   const cohort = parseSocioCohort((await searchParams).perfil);
-  const result = await getOficinaPageAction(idProjeto, idOficina, cohort);
+  const result = await getAcaoPageAction(idProjeto, idAcao, cohort);
   const back = result.ok
     ? {
         href: `/projeto/${encodeURIComponent(result.data.id_projeto)}`,
@@ -54,18 +54,18 @@ export default async function OficinaPage({ params, searchParams }: Props) {
       {!result.ok ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-8 text-center">
           <h1 className="font-heading text-2xl font-semibold text-brand-deep">
-            Oficina não encontrada
+            Ação não encontrada
           </h1>
           <p className="mt-2 text-sm text-amber-900">{result.error}</p>
         </div>
       ) : (
-        <OficinaView data={result.data} cohort={cohort} />
+        <AcaoView data={result.data} cohort={cohort} />
       )}
     </SiteShell>
   );
 }
 
-function LocalizacaoList({ items }: { items: OficinaLocalizacao[] }) {
+function LocalizacaoList({ items }: { items: AcaoLocalizacao[] }) {
   if (items.length === 0) return null;
 
   const presenciais = items.filter((l) => l.kind === "presencial");
@@ -126,11 +126,11 @@ function LocalizacaoList({ items }: { items: OficinaLocalizacao[] }) {
   );
 }
 
-function OficinaView({
+function AcaoView({
   data,
   cohort,
 }: {
-  data: OficinaPageData;
+  data: AcaoPageData;
   cohort: ReturnType<typeof parseSocioCohort>;
 }) {
   const { totais } = data;
@@ -139,7 +139,7 @@ function OficinaView({
     <div className="space-y-10">
       <section className="rounded-[1.75rem] border border-brand/10 bg-white px-6 py-10 md:px-10">
         <p className="font-heading text-sm font-semibold tracking-[0.18em] text-[var(--gray-400)] uppercase">
-          Oficina
+          Ação
         </p>
         <h1 className="mt-3 font-heading text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-tight text-brand-deep">
           {data.Nome_oficina}
@@ -211,7 +211,7 @@ function OficinaView({
             Inscritos
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {totais.inscritos} pessoa(s) nesta oficina.
+            {totais.inscritos} pessoa(s) nesta ação.
           </p>
         </div>
 

@@ -8,7 +8,7 @@ import { scopeKey } from "@/lib/data-scope-shared";
 export type HierarchyNode = {
   contextos: Array<{ id: string; nome: string }>;
   projetos: Array<{ id: string; nome: string; contextoId: string }>;
-  oficinas: Array<{ id: string; nome: string; projetoId: string }>;
+  acoes: Array<{ id: string; nome: string; projetoId: string }>;
 };
 
 export type ScopeAccessMap = Record<string, ScopeAccessLevel>;
@@ -27,7 +27,7 @@ export function emptyScopeMap(tree: HierarchyNode): ScopeAccessMap {
   const map: ScopeAccessMap = {};
   for (const c of tree.contextos) map[scopeKey("CONTEXTO", c.id)] = "none";
   for (const p of tree.projetos) map[scopeKey("PROJETO", p.id)] = "none";
-  for (const o of tree.oficinas) map[scopeKey("OFICINA", o.id)] = "none";
+  for (const o of tree.acoes) map[scopeKey("ACAO", o.id)] = "none";
   return map;
 }
 
@@ -61,8 +61,8 @@ export function hydrateScopeMap(
     const inherited = map[scopeKey("CONTEXTO", p.contextoId)] ?? "none";
     map[key] = explicit.has(key) ? explicit.get(key)! : inherited;
   }
-  for (const o of tree.oficinas) {
-    const key = scopeKey("OFICINA", o.id);
+  for (const o of tree.acoes) {
+    const key = scopeKey("ACAO", o.id);
     const inherited = map[scopeKey("PROJETO", o.projetoId)] ?? "none";
     map[key] = explicit.has(key) ? explicit.get(key)! : inherited;
   }
@@ -89,15 +89,15 @@ function setAccessCascading(
   if (kind === "CONTEXTO") {
     for (const p of tree.projetos.filter((x) => x.contextoId === resourceId)) {
       next[scopeKey("PROJETO", p.id)] = access;
-      for (const o of tree.oficinas.filter((x) => x.projetoId === p.id)) {
-        next[scopeKey("OFICINA", o.id)] = access;
+      for (const o of tree.acoes.filter((x) => x.projetoId === p.id)) {
+        next[scopeKey("ACAO", o.id)] = access;
       }
     }
   }
 
   if (kind === "PROJETO") {
-    for (const o of tree.oficinas.filter((x) => x.projetoId === resourceId)) {
-      next[scopeKey("OFICINA", o.id)] = access;
+    for (const o of tree.acoes.filter((x) => x.projetoId === resourceId)) {
+      next[scopeKey("ACAO", o.id)] = access;
     }
   }
 
@@ -173,7 +173,7 @@ export function UserScopeMatrix({
     return (value[scopeKey("CONTEXTO", p.contextoId)] ?? "none") !== "none";
   });
 
-  const visibleOficinas = tree.oficinas.filter((o) => {
+  const visibleAcoes = tree.acoes.filter((o) => {
     const anyOpen = visibleProjetos.some(
       (p) => (value[scopeKey("PROJETO", p.id)] ?? "none") !== "none",
     );
@@ -205,12 +205,12 @@ export function UserScopeMatrix({
 
   const allContextoIds = tree.contextos.map((c) => c.id);
   const allProjetoIds = visibleProjetos.map((p) => p.id);
-  const allOficinaIds = visibleOficinas.map((o) => o.id);
+  const allAcaoIds = visibleAcoes.map((o) => o.id);
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Alterar um nível superior aplica o mesmo acesso a projetos e oficinas
+        Alterar um nível superior aplica o mesmo acesso a projetos e ações
         abaixo. Você pode ajustar item a item depois.
       </p>
       <div className="grid gap-3 lg:grid-cols-3">
@@ -263,24 +263,24 @@ export function UserScopeMatrix({
         </ScopeColumn>
 
         <ScopeColumn
-          title="Oficinas"
-          count={visibleOficinas.length}
-          onBulk={(access) => setAll("OFICINA", allOficinaIds, access)}
+          title="Ações"
+          count={visibleAcoes.length}
+          onBulk={(access) => setAll("ACAO", allAcaoIds, access)}
         >
-          {visibleOficinas.length === 0 ? (
+          {visibleAcoes.length === 0 ? (
             <p className="px-2 py-4 text-xs text-muted-foreground">
-              Nenhuma oficina neste filtro.
+              Nenhuma ação neste filtro.
             </p>
           ) : (
-            visibleOficinas.map((o) => {
+            visibleAcoes.map((o) => {
               const proj = tree.projetos.find((p) => p.id === o.projetoId);
               return (
                 <ScopeRow
                   key={o.id}
                   label={o.nome}
                   hint={proj?.nome}
-                  level={value[scopeKey("OFICINA", o.id)] ?? "none"}
-                  onChange={(v) => setLevel("OFICINA", o.id, v)}
+                  level={value[scopeKey("ACAO", o.id)] ?? "none"}
+                  onChange={(v) => setLevel("ACAO", o.id, v)}
                 />
               );
             })

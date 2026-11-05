@@ -14,6 +14,10 @@ export const HEADER_SYNONYMS: Record<string, SigaCulturalColumn> = {
   id_oficina: "id_oficina",
   idoficina: "id_oficina",
   oficina: "id_oficina",
+  // Oficina virou um tipo de ação: planilhas novas podem vir com "ação".
+  id_acao: "id_oficina",
+  idacao: "id_oficina",
+  acao: "id_oficina",
   proponente: "PROPONENTE",
   pronac: "PRONAC",
   nome_projeto: "Nome_projeto",
@@ -24,6 +28,8 @@ export const HEADER_SYNONYMS: Record<string, SigaCulturalColumn> = {
   ano: "Identificacao_ano_projeto",
   nome_oficina: "Nome_oficina",
   nomeoficina: "Nome_oficina",
+  nome_acao: "Nome_oficina",
+  nomeacao: "Nome_oficina",
   data_inscricao: "Data_inscricao",
   datainscricao: "Data_inscricao",
   inscricao: "Data_inscricao",
@@ -109,6 +115,10 @@ export const HEADER_SYNONYMS: Record<string, SigaCulturalColumn> = {
   qual_territorio: "Territorio",
   territorio_da_oficina: "Territorio",
   local_da_oficina: "Territorio",
+  voce_quer_se_inscrever_para_qual_acao: "Territorio",
+  qual_acao: "Territorio",
+  territorio_da_acao: "Territorio",
+  local_da_acao: "Territorio",
   inscritos: "Inscritos",
   selecionados: "Selecionados",
   selecionado: "Selecionados",
@@ -187,7 +197,7 @@ export const CONTEXT_COLUMNS: SigaCulturalColumn[] = [
   "Identificacao_ano_projeto",
 ];
 
-/** 7 colunas de lote (contexto + oficina) — ocultas na prévia */
+/** 7 colunas de lote (contexto + ação) — ocultas na prévia */
 export const LOTE_CONTEXT_COLUMNS: SigaCulturalColumn[] = [
   ...CONTEXT_COLUMNS,
   "Nome_oficina",
@@ -247,9 +257,9 @@ export function normalizeHeaderKey(key: string): string {
  * Match por inclusão: "CPF do aluno" → CPF, "e-mail pessoal" → E-mail
  */
 function matchHeaderByIncludes(key: string): SigaCulturalColumn | null {
-  // «Você quer se inscrever para qual oficina?» → escolha de território/local
+  // «Você quer se inscrever para qual oficina/ação?» → escolha de território/local
   if (
-    /qual_oficina|inscrever.*oficina|oficina_desej|qual_territorio|territorio_da_oficina|local_da_oficina/.test(
+    /qual_(oficina|acao)|inscrever.*(oficina|acao)|(oficina|acao)_desej|qual_territorio|territorio_da_(oficina|acao)|local_da_(oficina|acao)/.test(
       key,
     )
   ) {

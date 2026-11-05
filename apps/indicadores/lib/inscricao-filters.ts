@@ -9,7 +9,7 @@ import { extractProjectYear } from "@/lib/normalize";
 
 export type InscricaoFilterOptions = {
   projetos: Array<{ idProjeto: string; nomeProjeto: string }>;
-  oficinas: Array<{ idOficina: string; nomeOficina: string }>;
+  acoes: Array<{ idAcao: string; nomeAcao: string }>;
   proponentes: string[];
   pronacs: string[];
   anos: string[];
@@ -17,14 +17,14 @@ export type InscricaoFilterOptions = {
 
 export type AnaliseGeoFilterOptions = {
   projetos: Array<{ idProjeto: string; nomeProjeto: string }>;
-  oficinas: Array<{ idOficina: string; nomeOficina: string }>;
+  acoes: Array<{ idAcao: string; nomeAcao: string }>;
   estados: string[];
   cidades: string[];
   territorios: string[];
 };
 
 /**
- * Opções de filtro da Base: vem de Projeto/Oficina (+ anos/pronac/proponente),
+ * Opções de filtro da Base: vem de Projeto/Ação (+ anos/pronac/proponente),
  * sem distinct pesado em todas as inscrições.
  */
 export const getInscricaoFilterOptions = cache(
@@ -42,8 +42,8 @@ export const getInscricaoFilterOptions = cache(
               ...(scope.contextoIds?.length
                 ? [{ contextoId: { in: scope.contextoIds } }]
                 : []),
-              ...(scope.oficinaIds?.length
-                ? [{ oficinas: { some: { id: { in: scope.oficinaIds } } } }]
+              ...(scope.acaoIds?.length
+                ? [{ acoes: { some: { id: { in: scope.acaoIds } } } }]
                 : []),
             ],
           };
@@ -54,12 +54,12 @@ export const getInscricaoFilterOptions = cache(
       !(
         (scope.projetoIds?.length ?? 0) ||
         (scope.contextoIds?.length ?? 0) ||
-        (scope.oficinaIds?.length ?? 0)
+        (scope.acaoIds?.length ?? 0)
       )
     ) {
       return {
         projetos: [],
-        oficinas: [],
+        acoes: [],
         proponentes: [],
         pronacs: [],
         anos: [],
@@ -86,13 +86,13 @@ export const getInscricaoFilterOptions = cache(
       : [];
 
     const projetoIds = projetos.map((p) => p.id);
-    const oficinaWhere: Prisma.OficinaWhereInput =
+    const acaoWhere: Prisma.AcaoWhereInput =
       scope.mode === "ALL"
         ? {}
-        : scope.oficinaIds?.length
+        : scope.acaoIds?.length
           ? {
               OR: [
-                { id: { in: scope.oficinaIds } },
+                { id: { in: scope.acaoIds } },
                 ...(projetoIds.length
                   ? [{ projetoId: { in: projetoIds } }]
                   : []),
@@ -102,8 +102,8 @@ export const getInscricaoFilterOptions = cache(
             ? { projetoId: { in: projetoIds } }
             : { id: "__none__" };
 
-    const oficinas = await prisma.oficina.findMany({
-      where: oficinaWhere,
+    const acoes = await prisma.acao.findMany({
+      where: acaoWhere,
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     });
@@ -127,9 +127,9 @@ export const getInscricaoFilterOptions = cache(
         idProjeto: p.id,
         nomeProjeto: p.nome || p.id,
       })),
-      oficinas: oficinas.map((o) => ({
-        idOficina: o.id,
-        nomeOficina: o.nome || o.id,
+      acoes: acoes.map((o) => ({
+        idAcao: o.id,
+        nomeAcao: o.nome || o.id,
       })),
       proponentes,
       pronacs,
@@ -138,7 +138,7 @@ export const getInscricaoFilterOptions = cache(
   },
 );
 
-/** Filtros geográficos da Análise (groupBy leve + projetos/oficinas). */
+/** Filtros geográficos da Análise (groupBy leve + projetos/ações). */
 export const getAnaliseFilterOptions = cache(
   async (userId: string): Promise<AnaliseGeoFilterOptions> => {
     const scope = await resolveDataScope(userId);
@@ -165,7 +165,7 @@ export const getAnaliseFilterOptions = cache(
 
     return {
       projetos: base.projetos,
-      oficinas: base.oficinas,
+      acoes: base.acoes,
       estados: estados.map((e) => e.estado).filter(Boolean),
       cidades: cidades.map((c) => c.cidade).filter(Boolean),
       territorios: territorios.map((t) => t.territorio).filter(Boolean),

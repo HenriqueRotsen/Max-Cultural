@@ -23,7 +23,7 @@ export default async function AnalisePage({
     <AdminShell title="Análise">
       <div className="mb-6 space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-brand-deep">
-          Análise por oficina
+          Análise por ação
         </h1>
         <p className="text-sm text-muted-foreground">
           Totais de inscritos, selecionados, participantes e certificados — com visão
@@ -51,7 +51,7 @@ async function AnaliseContent({
   try {
     data = await getAnaliseAction({
       idProjeto: str(params.idProjeto),
-      idOficina: str(params.idOficina),
+      idAcao: str(params.idAcao),
       estado: str(params.estado),
       cidade: str(params.cidade),
       territorio: str(params.territorio),

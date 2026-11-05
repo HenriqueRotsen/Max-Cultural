@@ -26,7 +26,7 @@ export type DataScopeResolved = {
   /** null = ALL (sem filtro) */
   contextoIds: string[] | null;
   projetoIds: string[] | null;
-  oficinaIds: string[] | null;
+  acaoIds: string[] | null;
   /** acesso efetivo por recurso (após herança) */
   accessByKey: Map<string, ScopeAccessLevel>;
 };
@@ -49,13 +49,13 @@ const ALL_SCOPE: DataScopeResolved = {
   mode: "ALL",
   contextoIds: null,
   projetoIds: null,
-  oficinaIds: null,
+  acaoIds: null,
   accessByKey: new Map(),
 };
 
 /**
  * Expande só a subárvore relevante aos escopos explícitos
- * (evita carregar todos os projetos/oficinas da base).
+ * (evita carregar todos os projetos/ações da base).
  */
 async function resolveLimitedFromEntries(
   entries: ScopeRow[],
@@ -75,14 +75,14 @@ async function resolveLimitedFromEntries(
     .filter((s) => s.kind === "PROJETO")
     .map((s) => s.resourceId);
   const seedOfIds = entries
-    .filter((s) => s.kind === "OFICINA")
+    .filter((s) => s.kind === "ACAO")
     .map((s) => s.resourceId);
 
   const projetoOr: Prisma.ProjetoWhereInput[] = [];
   if (seedCtxIds.length) projetoOr.push({ contextoId: { in: seedCtxIds } });
   if (seedProjIds.length) projetoOr.push({ id: { in: seedProjIds } });
   if (seedOfIds.length) {
-    projetoOr.push({ oficinas: { some: { id: { in: seedOfIds } } } });
+    projetoOr.push({ acoes: { some: { id: { in: seedOfIds } } } });
   }
 
   const projetos =
@@ -94,16 +94,16 @@ async function resolveLimitedFromEntries(
       : [];
 
   const projetoIdsSeed = projetos.map((p) => p.id);
-  const oficinaOr: Prisma.OficinaWhereInput[] = [];
+  const acaoOr: Prisma.AcaoWhereInput[] = [];
   if (projetoIdsSeed.length) {
-    oficinaOr.push({ projetoId: { in: projetoIdsSeed } });
+    acaoOr.push({ projetoId: { in: projetoIdsSeed } });
   }
-  if (seedOfIds.length) oficinaOr.push({ id: { in: seedOfIds } });
+  if (seedOfIds.length) acaoOr.push({ id: { in: seedOfIds } });
 
-  const oficinas =
-    oficinaOr.length > 0
-      ? await prisma.oficina.findMany({
-          where: { OR: oficinaOr },
+  const acoes =
+    acaoOr.length > 0
+      ? await prisma.acao.findMany({
+          where: { OR: acaoOr },
           select: { id: true, projetoId: true },
         })
       : [];
@@ -130,28 +130,28 @@ async function resolveLimitedFromEntries(
     if (canRead(level)) projetoIds.add(p.id);
   }
 
-  const oficinaIds = new Set<string>();
-  for (const o of oficinas) {
-    const key = scopeKey("OFICINA", o.id);
+  const acaoIds = new Set<string>();
+  for (const o of acoes) {
+    const key = scopeKey("ACAO", o.id);
     const inherited = accessByKey.get(scopeKey("PROJETO", o.projetoId));
     const level = explicit.has(key)
       ? explicit.get(key)!
       : (inherited ?? "none");
     accessByKey.set(key, level);
-    if (canRead(level)) oficinaIds.add(o.id);
+    if (canRead(level)) acaoIds.add(o.id);
   }
 
   return {
     mode: "LIMITED",
     contextoIds: [...contextoIds],
     projetoIds: [...projetoIds],
-    oficinaIds: [...oficinaIds],
+    acaoIds: [...acaoIds],
     accessByKey,
   };
 }
 
 /**
- * Resolve escopo com herança: contexto → projeto → oficina.
+ * Resolve escopo com herança: contexto → projeto → ação.
  * Usuário LIMITED sem escopos próprios herda o escopo padrão do papel.
  *
  * Com SSO do hub: quem tem operação (`indicadores.operacao` → inscricoes/contextos)
@@ -201,15 +201,15 @@ export const resolveDataScope = cache(
   },
 );
 
-/** Contextos visíveis no escopo limitado (direto ou via projetos/oficinas). */
+/** Contextos visíveis no escopo limitado (direto ou via projetos/ações). */
 export function contextoWhereFromScope(
   scope: DataScopeResolved,
 ): Prisma.ContextoWhereInput {
   if (scope.mode === "ALL") return {};
   const contextoIds = scope.contextoIds ?? [];
   const projetoIds = scope.projetoIds ?? [];
-  const oficinaIds = scope.oficinaIds ?? [];
-  if (!contextoIds.length && !projetoIds.length && !oficinaIds.length) {
+  const acaoIds = scope.acaoIds ?? [];
+  if (!contextoIds.length && !projetoIds.length && !acaoIds.length) {
     return { id: "__none__" };
   }
   const or: Prisma.ContextoWhereInput[] = [];
@@ -217,10 +217,10 @@ export function contextoWhereFromScope(
   if (projetoIds.length) {
     or.push({ projetos: { some: { id: { in: projetoIds } } } });
   }
-  if (oficinaIds.length) {
+  if (acaoIds.length) {
     or.push({
       projetos: {
-        some: { oficinas: { some: { id: { in: oficinaIds } } } },
+        some: { acoes: { some: { id: { in: acaoIds } } } },
       },
     });
   }
@@ -234,32 +234,32 @@ export function projetoWhereFromScope(
   if (scope.mode === "ALL") return {};
   const contextoIds = scope.contextoIds ?? [];
   const projetoIds = scope.projetoIds ?? [];
-  const oficinaIds = scope.oficinaIds ?? [];
-  if (!contextoIds.length && !projetoIds.length && !oficinaIds.length) {
+  const acaoIds = scope.acaoIds ?? [];
+  if (!contextoIds.length && !projetoIds.length && !acaoIds.length) {
     return { id: "__none__" };
   }
   const or: Prisma.ProjetoWhereInput[] = [];
   if (projetoIds.length) or.push({ id: { in: projetoIds } });
   if (contextoIds.length) or.push({ contextoId: { in: contextoIds } });
-  if (oficinaIds.length) {
-    or.push({ oficinas: { some: { id: { in: oficinaIds } } } });
+  if (acaoIds.length) {
+    or.push({ acoes: { some: { id: { in: acaoIds } } } });
   }
   return { OR: or };
 }
 
-/** Oficinas visíveis no escopo limitado. */
-export function oficinaWhereFromScope(
+/** Ações visíveis no escopo limitado. */
+export function acaoWhereFromScope(
   scope: DataScopeResolved,
-): Prisma.OficinaWhereInput {
+): Prisma.AcaoWhereInput {
   if (scope.mode === "ALL") return {};
   const contextoIds = scope.contextoIds ?? [];
   const projetoIds = scope.projetoIds ?? [];
-  const oficinaIds = scope.oficinaIds ?? [];
-  if (!contextoIds.length && !projetoIds.length && !oficinaIds.length) {
+  const acaoIds = scope.acaoIds ?? [];
+  if (!contextoIds.length && !projetoIds.length && !acaoIds.length) {
     return { id: "__none__" };
   }
-  const or: Prisma.OficinaWhereInput[] = [];
-  if (oficinaIds.length) or.push({ id: { in: oficinaIds } });
+  const or: Prisma.AcaoWhereInput[] = [];
+  if (acaoIds.length) or.push({ id: { in: acaoIds } });
   if (projetoIds.length) or.push({ projetoId: { in: projetoIds } });
   if (contextoIds.length) {
     or.push({ projeto: { contextoId: { in: contextoIds } } });
@@ -272,18 +272,18 @@ export function inscricaoWhereFromScope(
   scope: DataScopeResolved,
 ): Prisma.InscricaoWhereInput {
   if (scope.mode === "ALL") return {};
-  const oficinaIds = scope.oficinaIds ?? [];
+  const acaoIds = scope.acaoIds ?? [];
   const projetoIds = scope.projetoIds ?? [];
   const contextoIds = scope.contextoIds ?? [];
   if (
-    oficinaIds.length === 0 &&
+    acaoIds.length === 0 &&
     projetoIds.length === 0 &&
     contextoIds.length === 0
   ) {
     return { id: "__none__" };
   }
   const or: Prisma.InscricaoWhereInput[] = [];
-  if (oficinaIds.length) or.push({ idOficina: { in: oficinaIds } });
+  if (acaoIds.length) or.push({ idAcao: { in: acaoIds } });
   if (projetoIds.length) or.push({ idProjeto: { in: projetoIds } });
   if (contextoIds.length) or.push({ contextoId: { in: contextoIds } });
   return { OR: or };
@@ -294,13 +294,13 @@ function effectiveLevelForTarget(
   target: {
     contextoId?: string | null;
     idProjeto?: string | null;
-    idOficina?: string | null;
+    idAcao?: string | null;
   },
 ): ScopeAccessLevel {
   if (scope.mode === "ALL") return "editor";
-  if (target.idOficina) {
+  if (target.idAcao) {
     return (
-      scope.accessByKey.get(scopeKey("OFICINA", target.idOficina)) ?? "none"
+      scope.accessByKey.get(scopeKey("ACAO", target.idAcao)) ?? "none"
     );
   }
   if (target.idProjeto) {
@@ -334,7 +334,7 @@ export async function assertDataAccess(
   target: {
     contextoId?: string | null;
     idProjeto?: string | null;
-    idOficina?: string | null;
+    idAcao?: string | null;
   },
   opts?: { write?: boolean },
 ): Promise<boolean> {
@@ -348,7 +348,7 @@ export function hasScopeAccess(
   target: {
     contextoId?: string | null;
     idProjeto?: string | null;
-    idOficina?: string | null;
+    idAcao?: string | null;
   },
   opts?: { write?: boolean },
 ): boolean {

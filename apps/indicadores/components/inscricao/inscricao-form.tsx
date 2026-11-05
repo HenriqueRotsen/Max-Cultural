@@ -166,7 +166,7 @@ export function InscricaoForm({ context, turnstileSiteKey = "" }: Props) {
         <CardDescription>
           {context.Nome_projeto
             ? `${context.Nome_projeto} · PRONAC ${context.PRONAC || "—"}`
-            : "Preencha seus dados para se inscrever na oficina."}
+            : "Preencha seus dados para se inscrever na ação."}
         </CardDescription>
       </CardHeader>
       <CardContent>

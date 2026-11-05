@@ -1,5 +1,5 @@
 /**
- * Dados demo para Postgres local do Indicadores (contexto → projeto → oficina).
+ * Dados demo para Postgres local do Indicadores (contexto → projeto → ação).
  * Uso: npx tsx scripts/seed-demo.ts
  */
 import { config } from "dotenv";
@@ -73,7 +73,7 @@ async function main() {
       },
     });
 
-    const of1 = await prisma.oficina.upsert({
+    const of1 = await prisma.acao.upsert({
       where: { id: "demo-of-teatro" },
       update: { nome: "Oficina de Teatro", projetoId: proj1.id },
       create: {
@@ -82,7 +82,7 @@ async function main() {
         projetoId: proj1.id,
       },
     });
-    const of2 = await prisma.oficina.upsert({
+    const of2 = await prisma.acao.upsert({
       where: { id: "demo-of-musica" },
       update: { nome: "Oficina de Música", projetoId: proj1.id },
       create: {
@@ -91,7 +91,7 @@ async function main() {
         projetoId: proj1.id,
       },
     });
-    const of3 = await prisma.oficina.upsert({
+    const of3 = await prisma.acao.upsert({
       where: { id: "demo-of-danca" },
       update: { nome: "Oficina de Dança", projetoId: proj2.id },
       create: {
@@ -106,17 +106,17 @@ async function main() {
       select: { id: true },
     });
     if (professor) {
-      await prisma.oficinaProfessor.upsert({
+      await prisma.acaoResponsavel.upsert({
         where: {
-          oficinaId_userId: {
-            oficinaId: of1.id,
+          acaoId_userId: {
+            acaoId: of1.id,
             userId: professor.id,
           },
         },
         update: {},
-        create: { oficinaId: of1.id, userId: professor.id },
+        create: { acaoId: of1.id, userId: professor.id },
       });
-      console.log(`  Professor demo → oficina ${of1.nome}`);
+      console.log(`  Professor demo → ação ${of1.nome}`);
     }
 
     console.log("Demo Indicadores OK:");

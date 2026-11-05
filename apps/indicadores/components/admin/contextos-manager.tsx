@@ -7,15 +7,16 @@ import { toast } from "sonner";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   createContextoAction,
-  createOficinaAction,
+  createAcaoAction,
   createProjetoAction,
   deleteContextoAction,
-  deleteOficinaAction,
+  deleteAcaoAction,
   deleteProjetoAction,
   listContextosSelectAction,
   listProjetosSelectAction,
+  listAcaoTiposAction,
   updateContextoAction,
-  updateOficinaAction,
+  updateAcaoAction,
   updateProjetoAction,
 } from "@/app/actions/contextos";
 import {
@@ -28,7 +29,7 @@ import type {
 } from "@/lib/hierarchy-list";
 import type {
   ContextoDTO,
-  OficinaDTO,
+  AcaoDTO,
   ProjetoDTO,
 } from "@/lib/contexto";
 import { ListPager } from "@/components/admin/list-pager";
@@ -46,9 +47,9 @@ import {
 import { cn } from "@/lib/utils";
 import { SortableTableHead } from "@/components/sortable-table-head";
 import { SearchSelect } from "@/components/ui/search-select";
-import { OficinaModalidadeFields } from "@/components/admin/oficina-modalidade-fields";
+import { AcaoModalidadeFields } from "@/components/admin/acao-modalidade-fields";
 
-type Tab = "contextos" | "projetos" | "oficinas";
+type Tab = "contextos" | "projetos" | "acoes";
 
 type Props = {
   tab: Tab;
@@ -58,7 +59,7 @@ type Props = {
   q: string;
   contextos: ContextoDTO[];
   projetos: ProjetoDTO[];
-  oficinas: OficinaDTO[];
+  acoes: AcaoDTO[];
   canCreate?: boolean;
   canWrite?: boolean;
   sort: string;
@@ -73,7 +74,7 @@ export function ContextosManager({
   q,
   contextos,
   projetos,
-  oficinas,
+  acoes,
   canCreate = false,
   canWrite = false,
   sort,
@@ -106,6 +107,7 @@ export function ContextosManager({
     contextoId: "",
     projetoId: "",
     nome: "",
+    tipoId: "oficina",
     ofereceOnline: false,
     oferecePresencial: true,
     territorios: [] as Array<{
@@ -117,6 +119,14 @@ export function ContextosManager({
   });
   const [ofContextos, setOfContextos] = useState<ContextoSelectOption[]>([]);
   const [ofProjetos, setOfProjetos] = useState<ProjetoSelectOption[]>([]);
+  const [acaoTipos, setAcaoTipos] = useState<Array<{ id: string; nome: string }>>([]);
+
+  useEffect(() => {
+    if (!ofOpen || acaoTipos.length) return;
+    void listAcaoTiposAction()
+      .then(setAcaoTipos)
+      .catch(() => setAcaoTipos([{ id: "oficina", nome: "Oficina" }]));
+  }, [ofOpen, acaoTipos.length]);
 
   useEffect(() => {
     setSearchDraft(q);
@@ -351,6 +361,7 @@ export function ContextosManager({
       contextoId: ctxId,
       projetoId,
       nome: "",
+      tipoId: "oficina",
       ofereceOnline: false,
       oferecePresencial: true,
       territorios: [
@@ -360,12 +371,13 @@ export function ContextosManager({
     setOfOpen(true);
   }
 
-  function openEditOf(o: OficinaDTO) {
+  function openEditOf(o: AcaoDTO) {
     setOfEditId(o.id);
     setOfForm({
       contextoId: o.contextoId,
       projetoId: o.projetoId,
       nome: o.nome,
+      tipoId: o.tipoId,
       ofereceOnline: o.ofereceOnline,
       oferecePresencial: o.oferecePresencial,
       territorios:
@@ -388,6 +400,7 @@ export function ContextosManager({
       const payload = {
         projetoId: ofForm.projetoId,
         nome: ofForm.nome,
+        tipoId: ofForm.tipoId,
         ofereceOnline: ofForm.ofereceOnline,
         oferecePresencial: ofForm.oferecePresencial,
         territorios: ofForm.oferecePresencial
@@ -400,19 +413,19 @@ export function ContextosManager({
           : [],
       };
       if (ofEditId) {
-        const r = await updateOficinaAction(ofEditId, payload);
+        const r = await updateAcaoAction(ofEditId, payload);
         if (!r.ok) {
           toast.error(r.error);
           return;
         }
-        toast.success("Oficina atualizada");
+        toast.success("Ação atualizada");
       } else {
-        const r = await createOficinaAction(payload);
+        const r = await createAcaoAction(payload);
         if (!r.ok) {
           toast.error(r.error);
           return;
         }
-        toast.success("Oficina criada");
+        toast.success("Ação criada");
       }
       setOfOpen(false);
       refreshList();
@@ -421,12 +434,12 @@ export function ContextosManager({
 
   async function removeOf(id: string) {
     startTransition(async () => {
-      const r = await deleteOficinaAction(id);
+      const r = await deleteAcaoAction(id);
       if (!r.ok) {
         toast.error(r.error);
         return;
       }
-      toast.success("Oficina excluída");
+      toast.success("Ação excluída");
       refreshList();
     });
   }
@@ -434,7 +447,7 @@ export function ContextosManager({
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "contextos", label: "Contextos" },
     { id: "projetos", label: "Projetos" },
-    { id: "oficinas", label: "Oficinas" },
+    { id: "acoes", label: "Ações" },
   ];
 
   return (
@@ -464,7 +477,7 @@ export function ContextosManager({
             onClick={() => {
               if (tab === "contextos") openCreateCtx();
               else if (tab === "projetos") openCreateProj();
-              else if (tab === "oficinas") void openCreateOf();
+              else if (tab === "acoes") void openCreateOf();
             }}
           >
             <Plus className="size-3.5" />
@@ -494,7 +507,7 @@ export function ContextosManager({
                   ? "Nome do contexto…"
                   : tab === "projetos"
                     ? "Nome, PRONAC ou proponente…"
-                    : "Nome da oficina ou projeto…"
+                    : "Nome da ação ou projeto…"
               }
               className="pl-9"
               onChange={(e) => setSearchDraft(e.target.value)}
@@ -639,7 +652,7 @@ export function ContextosManager({
               onSort={toggleSort}
             />
             <span className="text-xs font-semibold text-brand-deep text-right">
-              Ações
+              Opções
             </span>
           </div>
           <ul className="divide-y divide-border/60">
@@ -676,7 +689,7 @@ export function ContextosManager({
                     </Link>
                     <div className="text-xs text-muted-foreground">
                       {p.pronac ? `PRONAC ${p.pronac}` : "Sem PRONAC"}
-                      {p.ano ? ` · ${p.ano}` : ""} · {p.oficinasCount} oficina(s)
+                      {p.ano ? ` · ${p.ano}` : ""} · {p.acoesCount} ação(s)
                       {p.inscricoesCount > 0
                         ? ` · ${p.inscricoesCount} inscrição(ões)`
                         : ""}
@@ -710,7 +723,7 @@ export function ContextosManager({
                         title={
                           p.canDelete
                             ? "Excluir"
-                            : "Há oficinas ou inscrições vinculadas"
+                            : "Há ações ou inscrições vinculadas"
                         }
                         onClick={() => removeProj(p.id)}
                       >
@@ -732,7 +745,7 @@ export function ContextosManager({
         </div>
       ) : null}
 
-      {tab === "oficinas" ? (
+      {tab === "acoes" ? (
         <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">
           <div className="hidden items-center gap-2 border-b border-border/60 bg-brand-mist/50 px-4 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]">
             <SortableTableHead
@@ -743,25 +756,25 @@ export function ContextosManager({
               onSort={toggleSort}
             />
             <SortableTableHead
-              label="Oficina"
+              label="Ação"
               sortKey="nome"
               activeKey={sort}
               activeDir={sortDir}
               onSort={toggleSort}
             />
             <span className="text-xs font-semibold text-brand-deep text-right">
-              Ações
+              Opções
             </span>
           </div>
           <ul className="divide-y divide-border/60">
-            {oficinas.length === 0 ? (
+            {acoes.length === 0 ? (
               <li className="px-4 py-8 text-center text-sm text-muted-foreground">
                 {q
-                  ? "Nenhuma oficina encontrada para esta busca."
-                  : "Nenhuma oficina. Vincule a um projeto."}
+                  ? "Nenhuma ação encontrada para esta busca."
+                  : "Nenhuma ação. Vincule a um projeto."}
               </li>
             ) : (
-              oficinas.map((o) => (
+              acoes.map((o) => (
                 <li
                   key={o.id}
                   className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
@@ -790,12 +803,17 @@ export function ContextosManager({
                         "(projeto)"
                       )}
                     </div>
-                    <Link
-                      href={`/projeto/${encodeURIComponent(o.projetoId)}/${encodeURIComponent(o.id)}`}
-                      className="font-medium text-brand-deep underline-offset-2 hover:underline"
-                    >
-                      {o.nome}
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/projeto/${encodeURIComponent(o.projetoId)}/acao/${encodeURIComponent(o.id)}`}
+                        className="font-medium text-brand-deep underline-offset-2 hover:underline"
+                      >
+                        {o.nome}
+                      </Link>
+                      <span className="rounded-full border border-brand/15 bg-brand-mist/60 px-2 py-0.5 text-[11px] font-medium text-brand-deep">
+                        {o.tipoNome}
+                      </span>
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {o.inscricoesCount > 0
                         ? `${o.inscricoesCount} inscrição(ões)`
@@ -973,10 +991,10 @@ export function ContextosManager({
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {ofEditId ? "Editar oficina" : "Nova oficina"}
+              {ofEditId ? "Editar ação" : "Nova ação"}
             </DialogTitle>
             <DialogDescription>
-              A oficina pode ser online e/ou presencial (com um ou mais territórios).
+              A ação pode ser online e/ou presencial (com um ou mais territórios).
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-3">
@@ -1019,17 +1037,33 @@ export function ContextosManager({
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Nome da oficina</Label>
-              <Input
-                value={ofForm.nome}
-                onChange={(e) =>
-                  setOfForm((f) => ({ ...f, nome: e.target.value }))
-                }
-                placeholder="Ex.: Oficina de IA"
-              />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <div className="space-y-1.5">
+                <Label>Tipo de ação</Label>
+                <SearchSelect
+                  value={ofForm.tipoId}
+                  options={(acaoTipos.length ? acaoTipos : [{ id: "oficina", nome: "Oficina" }]).map((t) => ({
+                    value: t.id,
+                    label: t.nome,
+                  }))}
+                  onValueChange={(tipoId) => setOfForm((f) => ({ ...f, tipoId }))}
+                  placeholder="Selecione o tipo"
+                  searchPlaceholder="Buscar tipo…"
+                  emptyText="Nenhum tipo encontrado."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nome da ação</Label>
+                <Input
+                  value={ofForm.nome}
+                  onChange={(e) =>
+                    setOfForm((f) => ({ ...f, nome: e.target.value }))
+                  }
+                  placeholder="Ex.: Oficina de Teatro"
+                />
+              </div>
             </div>
-            <OficinaModalidadeFields
+            <AcaoModalidadeFields
               value={ofForm}
               onChange={(next) => setOfForm((f) => ({ ...f, ...next }))}
             />

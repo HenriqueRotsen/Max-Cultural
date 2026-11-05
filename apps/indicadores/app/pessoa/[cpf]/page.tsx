@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
   return {
     title: `${result.pessoa.nome} · ${appName}`,
-    description: `Histórico de oficinas e análise de ${result.pessoa.nome}`,
+    description: `Histórico de ações e análise de ${result.pessoa.nome}`,
   };
 }
 

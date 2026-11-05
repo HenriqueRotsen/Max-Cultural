@@ -118,8 +118,8 @@ export type BatchContext = {
    */
   territorioLote?: string;
   territorioLoteModo?: "todos" | "vazios";
-  /** Catálogo da oficina para casar coluna de território no import. */
-  oficinaTerritorioCatalog?: {
+  /** Catálogo da ação para casar coluna de território no import. */
+  acaoTerritorioCatalog?: {
     ofereceOnline: boolean;
     oferecePresencial: boolean;
     territorios: Array<{
@@ -131,7 +131,7 @@ export type BatchContext = {
     aliases?: Array<{
       rawNormalized: string;
       online: boolean;
-      oficinaTerritorioId?: string | null;
+      acaoTerritorioId?: string | null;
       cidade?: string;
       estado?: string;
       territorio?: string;
@@ -248,12 +248,12 @@ export type PrismaInscricaoInput = {
   contextoId?: string | null;
   nomeContexto?: string;
   idProjeto: string;
-  idOficina: string;
+  idAcao: string;
   proponente: string;
   pronac: string;
   nomeProjeto: string;
   identificacaoAnoProjeto: string;
-  nomeOficina: string;
+  nomeAcao: string;
   dataInscricao: string;
   nome: string;
   apelido: string;
@@ -292,12 +292,12 @@ export function rowToPrisma(
     contextoId: extra?.contextoId ?? null,
     nomeContexto: extra?.nomeContexto ?? "",
     idProjeto: row.id_projeto,
-    idOficina: row.id_oficina,
+    idAcao: row.id_oficina,
     proponente: row.PROPONENTE,
     pronac: row.PRONAC,
     nomeProjeto: row.Nome_projeto,
     identificacaoAnoProjeto: row.Identificacao_ano_projeto,
-    nomeOficina: row.Nome_oficina,
+    nomeAcao: row.Nome_oficina,
     dataInscricao: row.Data_inscricao,
     nome: row.Nome,
     apelido: row.Apelido,
@@ -331,12 +331,12 @@ export function rowToPrisma(
 
 export function prismaToRow(record: {
   idProjeto: string;
-  idOficina: string;
+  idAcao: string;
   proponente: string;
   pronac: string;
   nomeProjeto: string;
   identificacaoAnoProjeto: string;
-  nomeOficina: string;
+  nomeAcao: string;
   dataInscricao: string;
   nome: string;
   apelido: string;
@@ -368,12 +368,12 @@ export function prismaToRow(record: {
 }): SigaCulturalRow {
   return {
     id_projeto: record.idProjeto,
-    id_oficina: record.idOficina,
+    id_oficina: record.idAcao,
     PROPONENTE: record.proponente,
     PRONAC: record.pronac,
     Nome_projeto: record.nomeProjeto,
     Identificacao_ano_projeto: record.identificacaoAnoProjeto,
-    Nome_oficina: record.nomeOficina,
+    Nome_oficina: record.nomeAcao,
     Data_inscricao: record.dataInscricao,
     Nome: record.nome,
     Apelido: record.apelido,

@@ -20,7 +20,7 @@ import { requireAuth } from "@/lib/auth";
 import { andScope, assertDataAccess, resolveDataScope } from "@/lib/data-scope";
 import { getEffectivePermissions } from "@/lib/permissions";
 
-export type OficinaResumo = {
+export type AcaoResumo = {
   id_oficina: string;
   Nome_oficina: string;
   inscritos: number;
@@ -29,7 +29,7 @@ export type OficinaResumo = {
   certificados: number;
 };
 
-export type ProjetoOficinaInscrito = {
+export type ProjetoAcaoInscrito = {
   id: string;
   Nome: string;
   CPF: string;
@@ -46,7 +46,7 @@ export type ProjetoOficinaInscrito = {
   Certificado: number;
 };
 
-export type OficinaLocalizacao = {
+export type AcaoLocalizacao = {
   kind: "online" | "presencial";
   label: string;
   href: string;
@@ -62,13 +62,13 @@ export type ProjetoPageData = {
   PROPONENTE: string;
   PRONAC: string;
   Identificacao_ano_projeto: string;
-  oficinas: OficinaResumo[];
+  acoes: AcaoResumo[];
   totais: {
     inscritos: number;
     selecionados: number;
     participantes: number;
     certificados: number;
-    oficinas: number;
+    acoes: number;
   };
   socio: SocioBreakdown;
   programa: { id: string; label: string; siblings: number } | null;
@@ -77,7 +77,7 @@ export type ProjetoPageData = {
   canEditContexto: boolean;
 };
 
-export type OficinaPageData = {
+export type AcaoPageData = {
   id_projeto: string;
   Nome_projeto: string;
   id_oficina: string;
@@ -85,7 +85,7 @@ export type OficinaPageData = {
   PROPONENTE: string;
   PRONAC: string;
   Identificacao_ano_projeto: string;
-  localizacoes: OficinaLocalizacao[];
+  localizacoes: AcaoLocalizacao[];
   totais: {
     inscritos: number;
     selecionados: number;
@@ -95,7 +95,7 @@ export type OficinaPageData = {
     taxaParticipacao: number;
     taxaCertificado: number;
   };
-  inscritos: ProjetoOficinaInscrito[];
+  inscritos: ProjetoAcaoInscrito[];
   socio: SocioBreakdown;
 };
 
@@ -121,22 +121,22 @@ function collectLocalizacoes(
     estado: string;
     cidade: string;
     territorio: string;
-    nomeOficina: string;
+    nomeAcao: string;
   }>,
-): OficinaLocalizacao[] {
-  const map = new Map<string, OficinaLocalizacao>();
+): AcaoLocalizacao[] {
+  const map = new Map<string, AcaoLocalizacao>();
 
   for (const r of records) {
     const online = isOnlineRow({
       territorio: r.territorio,
       cidade: r.cidade,
-      nomeOficina: r.nomeOficina,
+      nomeAcao: r.nomeAcao,
     });
 
     if (online) {
       const label = onlineLabel({
         territorio: r.territorio,
-        nomeOficina: r.nomeOficina,
+        nomeAcao: r.nomeAcao,
       });
       const key = `online|${label.toLowerCase()}`;
       const cur = map.get(key);
@@ -149,7 +149,7 @@ function collectLocalizacoes(
           href: buildTerritorioPath({
             online: true,
             territorio: label,
-            nomeOficina: r.nomeOficina,
+            nomeAcao: r.nomeAcao,
           }),
           inscritos: 1,
           territorio: label,
@@ -208,7 +208,7 @@ export async function getProjetoPageAction(
     where: { id: idProjeto },
     include: {
       contexto: { select: { id: true, nome: true } },
-      oficinas: { orderBy: { nome: "asc" } },
+      acoes: { orderBy: { nome: "asc" } },
     },
   });
   if (!projeto) {
@@ -238,12 +238,12 @@ export async function getProjetoPageAction(
   const scope = await resolveDataScope(user.id);
   const records = await prisma.inscricao.findMany({
     where: andScope(scope, { idProjeto }),
-    orderBy: [{ idOficina: "asc" }, { nome: "asc" }],
+    orderBy: [{ idAcao: "asc" }, { nome: "asc" }],
   });
 
-  const byOficina = new Map<string, OficinaResumo>();
-  for (const o of projeto.oficinas) {
-    byOficina.set(o.id, {
+  const byAcao = new Map<string, AcaoResumo>();
+  for (const o of projeto.acoes) {
+    byAcao.set(o.id, {
       id_oficina: o.id,
       Nome_oficina: o.nome,
       inscritos: 0,
@@ -254,10 +254,10 @@ export async function getProjetoPageAction(
   }
 
   for (const r of records) {
-    const key = r.idOficina;
-    const cur = byOficina.get(key) ?? {
-      id_oficina: r.idOficina,
-      Nome_oficina: r.nomeOficina || r.idOficina,
+    const key = r.idAcao;
+    const cur = byAcao.get(key) ?? {
+      id_oficina: r.idAcao,
+      Nome_oficina: r.nomeAcao || r.idAcao,
       inscritos: 0,
       selecionados: 0,
       participantes: 0,
@@ -267,15 +267,15 @@ export async function getProjetoPageAction(
     cur.selecionados += r.selecionados || 0;
     cur.participantes += r.participantes || 0;
     cur.certificados += r.certificado || 0;
-    if (!cur.Nome_oficina && r.nomeOficina) cur.Nome_oficina = r.nomeOficina;
-    byOficina.set(key, cur);
+    if (!cur.Nome_oficina && r.nomeAcao) cur.Nome_oficina = r.nomeAcao;
+    byAcao.set(key, cur);
   }
 
-  const oficinas = [...byOficina.values()].sort((a, b) =>
+  const acoes = [...byAcao.values()].sort((a, b) =>
     a.Nome_oficina.localeCompare(b.Nome_oficina, "pt-BR"),
   );
 
-  const totais = oficinas.reduce(
+  const totais = acoes.reduce(
     (acc, o) => {
       acc.inscritos += o.inscritos;
       acc.selecionados += o.selecionados;
@@ -283,9 +283,9 @@ export async function getProjetoPageAction(
       acc.certificados += o.certificados;
       return acc;
     },
-    { inscritos: 0, selecionados: 0, participantes: 0, certificados: 0, oficinas: 0 },
+    { inscritos: 0, selecionados: 0, participantes: 0, certificados: 0, acoes: 0 },
   );
-  totais.oficinas = oficinas.length;
+  totais.acoes = acoes.length;
 
   const emptySocio: SocioBreakdown = {
     total: 0,
@@ -316,7 +316,7 @@ export async function getProjetoPageAction(
       contextoId: projeto.contextoId,
       contextoNome: projeto.contexto.nome,
       canEditContexto,
-      oficinas,
+      acoes,
       totais,
       socio,
       programa,
@@ -324,11 +324,11 @@ export async function getProjetoPageAction(
   };
 }
 
-export async function getOficinaPageAction(
+export async function getAcaoPageAction(
   idProjetoRaw: string,
-  idOficinaRaw: string,
+  idAcaoRaw: string,
   socioCohort: SocioCohort = "inscritos",
-): Promise<{ ok: true; data: OficinaPageData } | { ok: false; error: string }> {
+): Promise<{ ok: true; data: AcaoPageData } | { ok: false; error: string }> {
   const user = await requireAuth();
   const perms = await getEffectivePermissions(user.id);
   if (
@@ -336,33 +336,33 @@ export async function getOficinaPageAction(
     !perms.has("inscricoes:read") &&
     !perms.has("analise:read")
   ) {
-    return { ok: false, error: "Sem permissão para consultar esta oficina." };
+    return { ok: false, error: "Sem permissão para consultar esta ação." };
   }
 
   const idProjeto = decodeURIComponent(idProjetoRaw).trim();
-  const idOficina = decodeURIComponent(idOficinaRaw).trim();
-  if (!idProjeto || !idOficina) {
-    return { ok: false, error: "Projeto ou oficina inválidos." };
+  const idAcao = decodeURIComponent(idAcaoRaw).trim();
+  if (!idProjeto || !idAcao) {
+    return { ok: false, error: "Projeto ou ação inválidos." };
   }
 
   const allowed = await assertDataAccess(user.id, {
     idProjeto,
-    idOficina,
+    idAcao,
   });
   if (!allowed) {
-    return { ok: false, error: "Fora do seu acesso a esta oficina." };
+    return { ok: false, error: "Fora do seu acesso a esta ação." };
   }
 
   const scope = await resolveDataScope(user.id);
   const records = await prisma.inscricao.findMany({
-    where: andScope(scope, { idProjeto, idOficina }),
+    where: andScope(scope, { idProjeto, idAcao }),
     orderBy: [{ nome: "asc" }],
   });
 
   if (records.length === 0) {
     return {
       ok: false,
-      error: "Nenhum registro encontrado para esta oficina neste projeto.",
+      error: "Nenhum registro encontrado para esta ação neste projeto.",
     };
   }
 
@@ -372,7 +372,7 @@ export async function getOficinaPageAction(
   let selecionados = 0;
   let participantes = 0;
   let certificados = 0;
-  const inscritosList: ProjetoOficinaInscrito[] = rows.map((row, i) => {
+  const inscritosList: ProjetoAcaoInscrito[] = rows.map((row, i) => {
     if (row.Selecionados === 1) selecionados += 1;
     if (row.Participantes === 1) participantes += 1;
     if (row.Certificado === 1) certificados += 1;
@@ -397,7 +397,7 @@ export async function getOficinaPageAction(
   const inscritos = inscritosList.length;
   const localizacoes = collectLocalizacoes(records);
   const socio = await aggregateSocio(
-    andSocioCohort(andScope(scope, { idProjeto, idOficina }), socioCohort),
+    andSocioCohort(andScope(scope, { idProjeto, idAcao }), socioCohort),
   );
 
   return {
@@ -405,8 +405,8 @@ export async function getOficinaPageAction(
     data: {
       id_projeto: idProjeto,
       Nome_projeto: first.nomeProjeto || idProjeto,
-      id_oficina: idOficina,
-      Nome_oficina: first.nomeOficina || idOficina,
+      id_oficina: idAcao,
+      Nome_oficina: first.nomeAcao || idAcao,
       PROPONENTE: first.proponente,
       PRONAC: first.pronac,
       Identificacao_ano_projeto: first.identificacaoAnoProjeto,

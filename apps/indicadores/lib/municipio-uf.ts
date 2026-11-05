@@ -83,7 +83,7 @@ export function parseUfSuffix(cidadeRaw: string): {
 }
 
 /** " – Ma: 20 A 23 De Julho" / ": 11 a 14 de julho" */
-function stripOficinaAgendaSuffix(raw: string): string {
+function stripAcaoAgendaSuffix(raw: string): string {
   let s = String(raw ?? "").trim();
   s = s.replace(/\s*[-–—]\s*[A-Za-zÀ-ÿ]{2}\s*:\s*.+$/i, "").trim();
   s = s.replace(
@@ -100,7 +100,7 @@ function titleCommunity(value: string): string {
 }
 
 /**
- * Rótulo de oficina presencial no import (ex. Cultura na Praça):
+ * Rótulo de ação presencial no import (ex. Cultura na Praça):
  * `Açailândia (assentamento Novo Oriente) – Ma: 20 A 23 De Julho`
  * `Canaã Dos Carajás – Pa: 11 A 14 De Julho`
  */
@@ -111,7 +111,7 @@ export function parseAgendaLocalLabel(raw: unknown): {
 } | null {
   const original = String(raw ?? "").trim();
   if (!original) return null;
-  const stripped = stripOficinaAgendaSuffix(original);
+  const stripped = stripAcaoAgendaSuffix(original);
   if (stripped === original && !/\(.+\)/.test(original)) return null;
 
   let cidadePart = stripped;

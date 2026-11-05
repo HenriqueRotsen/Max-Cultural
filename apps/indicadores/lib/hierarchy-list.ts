@@ -10,7 +10,7 @@ export type ProjetoSelectOption = {
   contextoId: string;
 };
 
-export type OficinaSelectOption = {
+export type AcaoSelectOption = {
   id: string;
   nome: string;
   projetoId: string;
