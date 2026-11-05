@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { getEffectivePermissions } from "@/lib/permissions";
@@ -8,16 +9,32 @@ import type { PermissionCode } from "@/lib/permission-catalog";
 import { hasScopeAccess, projetoWhereFromScope, resolveDataScope } from "@/lib/data-scope";
 import { writeAuditLog } from "@/lib/audit";
 import {
-  pedeAtencao,
+  diaEmBrasilia,
+  diasAposPrazo,
   percentualConcluido,
   statusGestao,
+  type ModeloTarefa,
 } from "@/lib/acompanhamento/regras";
-import { garantirAcompanhamento, sincronizarTarefas } from "@/lib/acompanhamento/sync";
+import {
+  copiaDaPreDefinicao,
+  garantirAcompanhamento,
+  sincronizarTarefas,
+  verificarRecurso,
+} from "@/lib/acompanhamento/sync";
+import {
+  buscarProjetoFinanceiroPorId,
+  financeiroLabel,
+  listarProjetosFinanceiro,
+} from "@/lib/acompanhamento/financeiro";
+import { territorioLabel } from "@/lib/acompanhamento/types";
 import type {
   AcompanhamentoDTO,
   AreaTarefa,
   ComentarioDTO,
   FaseTarefa,
+  ListaAcompanhamentoDTO,
+  ListaAcompanhamentoParams,
+  PrazoBase,
   ProjetoAcompResumoDTO,
   StatusTarefa,
 } from "@/lib/acompanhamento/types";
@@ -58,25 +75,67 @@ function parseDia(v: string | null | undefined): Date | null | "invalida" {
   return new Date(`${v}T00:00:00Z`);
 }
 
-/** Lista dos projetos com o resumo do acompanhamento. */
-export async function listAcompanhamentoProjetosAction(): Promise<ProjetoAcompResumoDTO[]> {
+const PAGE_SIZE = 25;
+
+const fonte = (v: string | null | undefined) => (v === "GESTAO" ? "GESTAO" : v === "FINANCEIRO" ? "FINANCEIRO" : null);
+
+/**
+ * Lista dos projetos com o resumo do acompanhamento: busca (nome, PRONAC,
+ * proponente, contexto), filtros e paginação. Atrasadas/vencendo são calculadas
+ * (não fica gravado), por isso o filtro e a ordem são feitos em memória.
+ */
+export async function listAcompanhamentoProjetosAction(
+  params: ListaAcompanhamentoParams = {},
+): Promise<ListaAcompanhamentoDTO> {
   const { scope } = await contexto();
-  const projetos = await prisma.projeto.findMany({
-    where: projetoWhereFromScope(scope),
-    orderBy: [{ ano: "desc" }, { nome: "asc" }],
-    select: {
-      id: true,
-      nome: true,
-      pronac: true,
-      contexto: { select: { nome: true } },
-      acompanhamento: { select: { recursoLiberadoEm: true } },
-      _count: { select: { acoes: true } },
-      tarefas: { select: { area: true, status: true, prazo: true } },
-    },
-  });
+  const q = params.q?.trim();
+  const escopo = projetoWhereFromScope(scope);
+  const where: Prisma.ProjetoWhereInput = {
+    AND: [
+      escopo,
+      params.contextoId ? { contextoId: params.contextoId } : {},
+      params.recurso === "liberado" ? { acompanhamento: { recursoLiberadoEm: { not: null } } } : {},
+      params.recurso === "aguardando"
+        ? { OR: [{ acompanhamento: null }, { acompanhamento: { recursoLiberadoEm: null } }] }
+        : {},
+      q
+        ? {
+            OR: [
+              { nome: { contains: q, mode: "insensitive" } },
+              { pronac: { contains: q.replace(/\D/g, "") || q } },
+              { proponente: { contains: q, mode: "insensitive" } },
+              { contexto: { nome: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {},
+    ],
+  };
+  const [projetos, contextos] = await Promise.all([
+    prisma.projeto.findMany({
+      where,
+      orderBy: [{ nome: "asc" }],
+      select: {
+        id: true,
+        nome: true,
+        pronac: true,
+        contexto: { select: { nome: true } },
+        acompanhamento: { select: { recursoLiberadoEm: true, recursoFonte: true } },
+        _count: { select: { acoes: true } },
+        tarefas: { select: { area: true, status: true, prazo: true } },
+      },
+    }),
+    prisma.contexto.findMany({
+      where: { projetos: { some: escopo } },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+  ]);
   const hoje = new Date();
-  return projetos.map((p) => {
+  let items: ProjetoAcompResumoDTO[] = projetos.map((p) => {
     const liberado = Boolean(p.acompanhamento?.recursoLiberadoEm);
+    const gestao = p.tarefas.map((t) => statusGestao({ status: t.status, prazo: t.prazo, recursoLiberado: liberado, hoje }));
+    const emAtraso = gestao.filter((g) => g === "EM_ATRASO").length;
+    const vencendo = gestao.filter((g) => g === "PRAZO_PROXIMO").length;
     const daArea = (a: AreaTarefa) => p.tarefas.filter((t) => t.area === a).map((t) => t.status);
     return {
       id: p.id,
@@ -85,13 +144,31 @@ export async function listAcompanhamentoProjetosAction(): Promise<ProjetoAcompRe
       contextoNome: p.contexto.nome,
       acoes: p._count.acoes,
       recursoLiberado: liberado,
+      recursoFonte: liberado ? fonte(p.acompanhamento?.recursoFonte) : null,
       comunicacao: { pct: percentualConcluido(daArea("COMUNICACAO")), total: daArea("COMUNICACAO").length },
       producao: { pct: percentualConcluido(daArea("PRODUCAO")), total: daArea("PRODUCAO").length },
-      pedemAtencao: p.tarefas.filter((t) =>
-        pedeAtencao(statusGestao({ status: t.status, prazo: t.prazo, recursoLiberado: liberado, hoje })),
-      ).length,
+      emAtraso,
+      vencendo,
+      pedemAtencao: emAtraso + vencendo,
     };
   });
+  if (params.atencao) items = items.filter((i) => i.pedemAtencao > 0);
+  if (params.ordem === "atencao") {
+    items.sort(
+      (a, b) => b.emAtraso - a.emAtraso || b.vencendo - a.vencendo || a.nome.localeCompare(b.nome, "pt-BR"),
+    );
+  }
+  const total = items.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(Math.max(1, Math.floor(params.page || 1)), pageCount);
+  return {
+    items: items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    total,
+    page,
+    pageCount,
+    pageSize: PAGE_SIZE,
+    contextos,
+  };
 }
 
 /** Página do projeto: garante o acompanhamento, sincroniza as tarefas e devolve tudo. */
@@ -113,7 +190,24 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
         nome: true,
         tipoId: true,
         tipo: { select: { nome: true } },
-        agenda: { orderBy: { data: "asc" }, select: { id: true, acaoId: true, titulo: true, cidade: true, uf: true, data: true } },
+        ofereceOnline: true,
+        oferecePresencial: true,
+        territorios: { orderBy: { ordem: "asc" }, select: { id: true, nome: true, cidade: true, estado: true } },
+        agenda: {
+          orderBy: { data: "asc" },
+          select: {
+            id: true,
+            acaoId: true,
+            titulo: true,
+            cidade: true,
+            uf: true,
+            data: true,
+            dataFim: true,
+            online: true,
+            territorioId: true,
+            territorio: { select: { nome: true, cidade: true, estado: true } },
+          },
+        },
       },
     }),
     prisma.tarefa.findMany({
@@ -127,6 +221,24 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
   ]);
   const liberado = Boolean(acomp?.recursoLiberadoEm);
   const hoje = new Date();
+  const doProjeto = Array.isArray(acomp?.modelos) ? (acomp.modelos as unknown as ModeloTarefa[]) : [];
+  const geral = new Map(
+    (
+      await prisma.tarefaModelo.findMany({
+        where: { id: { in: doProjeto.map((m) => m.id) }, ativo: true },
+        select: { id: true, prazoBase: true, prazoDias: true },
+      })
+    ).map((m) => [m.id, m]),
+  );
+  const nomeTipo = new Map(
+    (
+      await prisma.acaoTipo.findMany({
+        where: { id: { in: [...new Set(doProjeto.flatMap((m) => m.tiposAcao ?? []))] } },
+        select: { id: true, nome: true },
+      })
+    ).map((t) => [t.id, t.nome]),
+  );
+  const fin = acomp?.financeiroProjectId ? await buscarProjetoFinanceiroPorId(acomp.financeiroProjectId) : null;
 
   return {
     projeto: {
@@ -140,12 +252,49 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
     fimExecucao: isoDia(acomp?.fimExecucao),
     recursoLiberadoEm: isoDia(acomp?.recursoLiberadoEm),
     financeiroVinculado: Boolean(acomp?.financeiroProjectId),
+    recursoFonte: liberado ? fonte(acomp?.recursoFonte) : null,
+    financeiro: fin
+      ? { id: fin.id, nome: fin.nome || fin.codigo, label: financeiroLabel(fin), captadoTransferido: fin.captadoTransferido }
+      : null,
+    financeiroManual: Boolean(acomp?.financeiroManual),
+    preDefinicaoEm: isoDia(acomp?.modelosEm),
+    prazos: doProjeto
+      .filter((m) => m.ativo !== false)
+      .map((m) => {
+        const g = geral.get(m.id);
+        return {
+          modeloId: m.id,
+          area: m.area,
+          nivel: m.nivel,
+          fase: m.fase,
+          titulo: m.titulo,
+          unidade: m.unidade,
+          tiposNomes: (m.tiposAcao ?? []).map((t) => nomeTipo.get(t) ?? t),
+          ordem: m.ordem,
+          prazoBase: m.prazoBase,
+          prazoDias: m.prazoDias,
+          padrao: g ? { prazoBase: g.prazoBase, prazoDias: g.prazoDias } : null,
+          editadasAMao: tarefas.filter((t) => t.modeloId === m.id && t.prazoManual).length,
+        };
+      }),
     acoes: acoes.map((a) => ({
       id: a.id,
       nome: a.nome,
       tipoId: a.tipoId,
       tipoNome: a.tipo.nome,
-      agenda: a.agenda.map((g) => ({ ...g, data: isoDia(g.data)! })),
+      ofereceOnline: a.ofereceOnline,
+      oferecePresencial: a.oferecePresencial,
+      territorios: a.territorios.map((t) => ({ id: t.id, label: territorioLabel(t) })),
+      agenda: a.agenda.map(({ territorio, ...g }) => ({
+        ...g,
+        data: isoDia(g.data)!,
+        dataFim: isoDia(g.dataFim),
+        local: g.online
+          ? "Online"
+          : territorio
+            ? territorioLabel(territorio)
+            : [g.cidade, g.uf].filter(Boolean).join(", "),
+      })),
     })),
     tarefas: tarefas.map((t) => ({
       id: t.id,
@@ -162,6 +311,8 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
       status: t.status,
       gestao: statusGestao({ status: t.status, prazo: t.prazo, recursoLiberado: liberado, hoje }),
       prazo: isoDia(t.prazo),
+      concluidaEm: t.status === "CONCLUIDA" && t.concluidaEm ? isoDia(diaEmBrasilia(t.concluidaEm)) : null,
+      diasAposPrazo: t.status === "CONCLUIDA" ? diasAposPrazo(t.prazo, t.concluidaEm) : null,
       avulsa: !t.modeloId,
       comentarios: t._count.comentarios,
       escaladasAbertas: t.comentarios.length,
@@ -199,7 +350,8 @@ export async function setTarefaStatusAction(tarefaId: string, status: StatusTare
     where: { id: tarefaId },
     data: {
       status,
-      concluidaEm: status === "CONCLUIDA" ? new Date() : null,
+      // Guarda o dia em que foi concluída (marcar "Concluída" de novo não muda a data).
+      concluidaEm: status === "CONCLUIDA" ? (r.tarefa.status === "CONCLUIDA" ? r.tarefa.concluidaEm : null) ?? new Date() : null,
       atualizadoPor: r.user.id,
     },
   });
@@ -207,10 +359,10 @@ export async function setTarefaStatusAction(tarefaId: string, status: StatusTare
   return { ok: true };
 }
 
-/** Edita título, detalhamento e prazo (a equipe da área). */
+/** Edita título, detalhamento, prazo e o dia da conclusão (a equipe da área). */
 export async function editTarefaAction(
   tarefaId: string,
-  input: { titulo: string; detalhamento: string; prazo: string | null },
+  input: { titulo: string; detalhamento: string; prazo: string | null; concluidaEm?: string | null },
 ): Promise<Result> {
   const r = await tarefaComPermissao(tarefaId);
   if ("erro" in r) return { ok: false, error: r.erro! };
@@ -219,13 +371,21 @@ export async function editTarefaAction(
   if (!titulo) return { ok: false, error: "Informe o título." };
   const prazo = parseDia(input.prazo);
   if (prazo === "invalida") return { ok: false, error: "Prazo inválido." };
+  // Dia da conclusão corrigido à mão (só para tarefa concluída; meio-dia de Brasília).
+  let concluidaEm: Date | undefined;
+  if (r.tarefa.status === "CONCLUIDA" && input.concluidaEm) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.concluidaEm)) return { ok: false, error: "Data de conclusão inválida." };
+    concluidaEm = new Date(`${input.concluidaEm}T12:00:00-03:00`);
+    if (concluidaEm.getTime() > Date.now()) return { ok: false, error: "A conclusão não pode ser no futuro." };
+  }
   await prisma.tarefa.update({
     where: { id: tarefaId },
     data: {
       titulo: titulo.slice(0, 200),
       detalhamento: input.detalhamento.trim().slice(0, 2000),
       prazo,
-      // Prazo mudado à mão deixa de seguir o modelo (a tarefa continua ligada a ele).
+      ...(concluidaEm ? { concluidaEm } : {}),
+      // Prazo mudado à mão deixa de seguir a pré-definição (a tarefa continua ligada a ela).
       ...((r.tarefa.prazo?.getTime() ?? null) !== (prazo?.getTime() ?? null) ? { prazoManual: true } : {}),
       atualizadoPor: r.user.id,
     },
@@ -364,23 +524,170 @@ export async function setDatasProjetoAction(
   return { ok: true };
 }
 
-/** Nova realização de uma ação (gestão). Gera as tarefas de nível 2. */
+/**
+ * Troca a pré-definição guardada no projeto pela atual (gestão). Tarefas novas
+ * da pré-definição entram; datas não editadas à mão são recalculadas.
+ */
+export async function atualizarPreDefinicaoProjetoAction(projetoId: string): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão atualiza a pré-definição do projeto." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { modelos: await copiaDaPreDefinicao(), modelosEm: new Date() },
+  });
+  await sincronizarTarefas(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.predefinicao_projeto",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: {},
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
+/**
+ * Prazo de uma tarefa só neste projeto (gestão): muda a regra D±N na
+ * pré-definição guardada no projeto e recalcula as tarefas dela que não
+ * tiveram o prazo editado à mão. A pré-definição geral não muda.
+ */
+export async function setPrazoProjetoAction(
+  projetoId: string,
+  modeloId: string,
+  input: { prazoBase: PrazoBase | null; prazoDias: number | null },
+): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera os prazos do projeto." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  const acomp = await prisma.acompanhamentoProjeto.findUnique({ where: { projetoId }, select: { modelos: true } });
+  const modelos = Array.isArray(acomp?.modelos) ? (acomp.modelos as unknown as ModeloTarefa[]) : null;
+  const m = modelos?.find((x) => x.id === modeloId);
+  if (!modelos || !m) return { ok: false, error: "Tarefa não encontrada neste projeto." };
+  const semPrazo = input.prazoBase == null || input.prazoDias == null;
+  const bases: PrazoBase[] = m.nivel === 1 ? ["INICIO_EXECUCAO", "FIM_EXECUCAO"] : ["INICIO_ACAO", "FIM_ACAO"];
+  if (!semPrazo && (!bases.includes(input.prazoBase!) || !Number.isInteger(input.prazoDias) || Math.abs(input.prazoDias!) > 3650)) {
+    return { ok: false, error: "Prazo inválido." };
+  }
+  const novo = { prazoBase: semPrazo ? null : input.prazoBase, prazoDias: semPrazo ? null : input.prazoDias };
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { modelos: modelos.map((x) => (x.id === modeloId ? { ...x, ...novo } : x)) as unknown as Prisma.InputJsonValue },
+  });
+  await sincronizarTarefas(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.prazo_projeto",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: { modeloId, antes: { prazoBase: m.prazoBase, prazoDias: m.prazoDias }, depois: novo },
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
+/** Projetos do MAX Financeiro para a gestão vincular (projetos de outras leis, sem PRONAC). */
+export async function buscarFinanceiroAction(q: string): Promise<Array<{ id: string; nome: string; label: string }>> {
+  const { perms } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return [];
+  const lista = await listarProjetosFinanceiro(q.slice(0, 80));
+  return lista.map((f) => ({ id: f.id, nome: f.nome || f.codigo, label: financeiroLabel(f) }));
+}
+
+/**
+ * Liga o projeto a um projeto do MAX Financeiro (gestão). `null` desfaz o
+ * vínculo manual e volta a procurar pelo PRONAC.
+ */
+export async function vincularFinanceiroAction(projetoId: string, financeiroId: string | null): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera o vínculo." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  if (financeiroId && !(await buscarProjetoFinanceiroPorId(financeiroId))) {
+    return { ok: false, error: "Projeto não encontrado no MAX Financeiro." };
+  }
+  await garantirAcompanhamento(projetoId);
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { financeiroProjectId: financeiroId, financeiroManual: Boolean(financeiroId) },
+  });
+  await verificarRecurso(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.financeiro_vinculo",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: { financeiroId },
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
+/**
+ * Recurso liberado informado pela gestão (data em yyyy-mm-dd), para corrigir a
+ * data ou para projeto fora do Financeiro. `null` volta para "aguardando" e
+ * deixa o Financeiro detectar de novo.
+ */
+export async function setRecursoLiberadoAction(projetoId: string, data: string | null): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera o recurso." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  const dia = parseDia(data);
+  if (dia === "invalida") return { ok: false, error: "Data inválida." };
+  // Meio-dia de Brasília: o dia não muda com o fuso.
+  const quando = dia ? new Date(`${data}T12:00:00-03:00`) : null;
+  if (quando && quando.getTime() > Date.now()) return { ok: false, error: "A liberação não pode ser no futuro." };
+  await garantirAcompanhamento(projetoId);
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { recursoLiberadoEm: quando, recursoFonte: quando ? "GESTAO" : null },
+  });
+  if (!quando) await verificarRecurso(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.recurso",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: { recursoLiberadoEm: data },
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
+/**
+ * Nova execução de uma ação (gestão): período e local, que é um dos territórios
+ * cadastrados na ação ou "online". Gera as tarefas de nível 2.
+ */
 export async function addAgendaAction(
   acaoId: string,
-  input: { titulo: string; cidade: string; uf: string; data: string },
+  input: { titulo: string; data: string; dataFim?: string | null; territorioId?: string | null; online?: boolean },
 ): Promise<Result> {
   const { perms, scope } = await contexto();
   if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera a agenda." };
-  const acao = await prisma.acao.findUnique({ where: { id: acaoId }, select: { id: true, projetoId: true } });
+  const acao = await prisma.acao.findUnique({
+    where: { id: acaoId },
+    select: { id: true, projetoId: true, ofereceOnline: true, territorios: { select: { id: true, cidade: true, estado: true } } },
+  });
   if (!acao || !(await projetoVisivel(acao.projetoId, scope))) return { ok: false, error: "Ação não encontrada." };
   const data = parseDia(input.data);
-  if (!data || data === "invalida") return { ok: false, error: "Informe a data." };
-  const cidade = input.cidade.trim();
-  const uf = input.uf.trim().toUpperCase();
-  if (!cidade) return { ok: false, error: "Informe a cidade." };
-  if (!/^[A-Z]{2}$/.test(uf)) return { ok: false, error: "UF com 2 letras." };
+  if (!data || data === "invalida") return { ok: false, error: "Informe o início." };
+  const dataFim = parseDia(input.dataFim);
+  if (dataFim === "invalida") return { ok: false, error: "Fim inválido." };
+  if (dataFim && dataFim < data) return { ok: false, error: "O fim não pode ser antes do início." };
+  const territorio = input.online ? null : acao.territorios.find((t) => t.id === input.territorioId);
+  if (input.online && !acao.ofereceOnline) return { ok: false, error: "Esta ação não é online." };
+  if (!input.online && !territorio) return { ok: false, error: "Escolha um dos territórios da ação." };
   await prisma.acaoAgenda.create({
-    data: { acaoId, titulo: input.titulo.trim().slice(0, 120), cidade, uf, data },
+    data: {
+      acaoId,
+      titulo: input.titulo.trim().slice(0, 120),
+      online: Boolean(input.online),
+      territorioId: territorio?.id ?? null,
+      cidade: territorio?.cidade.trim() ?? "",
+      uf: territorio?.estado.trim().toUpperCase() ?? "",
+      data,
+      dataFim: dataFim && dataFim > data ? dataFim : null,
+    },
   });
   await sincronizarTarefas(acao.projetoId);
   revalidar(acao.projetoId);

@@ -25,6 +25,10 @@ export const PERMISSION_CODES = [
   "comunicacao:write",
   "producao:write",
   "acompanhamento:gestao",
+  "prestacao:read",
+  "prestacao:producao",
+  "prestacao:comunicacao",
+  "prestacao:gestao",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -171,6 +175,28 @@ export const PERMISSION_CATALOG: Array<{
     label: "Gestão do acompanhamento",
     group: "Acompanhamento",
     description: "Datas do projeto, agenda das ações, ocorrências e escaladas.",
+  },
+  {
+    code: "prestacao:read",
+    label: "Ver prestação de contas",
+    group: "Prestação de contas",
+    description: "Ver as fichas de prestação de contas dos projetos.",
+  },
+  {
+    code: "prestacao:producao",
+    label: "Preencher a parte da Produção",
+    group: "Prestação de contas",
+  },
+  {
+    code: "prestacao:comunicacao",
+    label: "Preencher a parte da Comunicação",
+    group: "Prestação de contas",
+  },
+  {
+    code: "prestacao:gestao",
+    label: "Gestão da prestação de contas",
+    group: "Prestação de contas",
+    description: "Dados do projeto, produtos e metas, parte da gestão e modelo da ficha.",
   },
 ];
 

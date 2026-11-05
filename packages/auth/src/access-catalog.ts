@@ -304,6 +304,42 @@ export const ACCESS_CATALOG = [
     product: "indicadores",
     parentId: "indicadores.acompanhamento",
   },
+  {
+    id: "indicadores.prestacao",
+    label: "Prestação de contas",
+    description: "Ver as fichas de prestação de contas dos projetos.",
+    kind: "screen",
+    group: "Indicadores",
+    product: "indicadores",
+    parentId: "indicadores.app",
+  },
+  {
+    id: "indicadores.prestacao.producao",
+    label: "Prestação de contas · Produção",
+    description: "Preenche a parte da Produção nas fichas.",
+    kind: "capability",
+    group: "Indicadores",
+    product: "indicadores",
+    parentId: "indicadores.prestacao",
+  },
+  {
+    id: "indicadores.prestacao.comunicacao",
+    label: "Prestação de contas · Comunicação",
+    description: "Preenche a parte da Comunicação nas fichas.",
+    kind: "capability",
+    group: "Indicadores",
+    product: "indicadores",
+    parentId: "indicadores.prestacao",
+  },
+  {
+    id: "indicadores.prestacao.gestao",
+    label: "Gestão da prestação de contas",
+    description: "Dados do projeto, produtos e metas, parte da gestão e modelo da ficha.",
+    kind: "capability",
+    group: "Indicadores",
+    product: "indicadores",
+    parentId: "indicadores.prestacao",
+  },
 ] as const satisfies readonly AccessCatalogEntry[];
 
 export type AccessPermissionId = (typeof ACCESS_CATALOG)[number]["id"];
@@ -348,6 +384,10 @@ export const HUB_TO_INDICADORES_PERMISSIONS: Record<string, readonly string[]> =
   "indicadores.acompanhamento.comunicacao": ["acompanhamento:read", "comunicacao:write"],
   "indicadores.acompanhamento.producao": ["acompanhamento:read", "producao:write"],
   "indicadores.acompanhamento.gestao": ["acompanhamento:read", "acompanhamento:gestao"],
+  "indicadores.prestacao": ["prestacao:read"],
+  "indicadores.prestacao.producao": ["prestacao:read", "prestacao:producao"],
+  "indicadores.prestacao.comunicacao": ["prestacao:read", "prestacao:comunicacao"],
+  "indicadores.prestacao.gestao": ["prestacao:read", "prestacao:gestao"],
   /**
    * IAM do hub → gestão de usuários/escopos no Indicadores (menu Acesso).
    * Escopo de contextos/projetos/oficinas só existe no satélite.

@@ -84,6 +84,10 @@ model Projeto {
   contexto   Contexto @relation(fields: [contextoId], references: [id], onDelete: Restrict)
   acoes      Acao[]
   acompanhamento AcompanhamentoProjeto?
+  prestacao      PrestacaoProjeto?
+  produtos       PrestacaoProduto[]
+  fichas         PrestacaoFicha[]
+  relatorios     PrestacaoRelatorio[]
   tarefas        Tarefa[]
   ocorrencias    Ocorrencia[]
   createdAt  DateTime @default(now())
@@ -142,6 +146,7 @@ model AcaoTerritorio {
   estado    String
   ordem     Int                      @default(0)
   aliases   AcaoTerritorioAlias[]
+  agenda    AcaoAgenda[]
   createdAt DateTime                 @default(now())
   updatedAt DateTime                 @updatedAt
 
@@ -548,7 +553,8 @@ enum UnidadeTarefa {
 enum PrazoBase {
   INICIO_EXECUCAO
   FIM_EXECUCAO
-  DATA_ACAO
+  INICIO_ACAO
+  FIM_ACAO
 }
 
 enum StatusTarefa {
@@ -578,8 +584,8 @@ model TarefaModelo {
   titulo       String
   detalhamento String         @default("")
   unidade      UnidadeTarefa
+  /// Prazo: data base + dias (D±N; negativo = antes). Nulo = sem prazo.
   prazoBase    PrazoBase?     @map("prazo_base")
-  /// Dias somados à data base (negativo = antes). Nulo = sem prazo.
   prazoDias    Int?           @map("prazo_dias")
   /// Tipos de ação a que se aplica (ids de acao_tipos). Vazio = todos.
   tiposAcao    String[]       @default([]) @map("tipos_acao")
@@ -600,9 +606,18 @@ model AcompanhamentoProjeto {
   projeto             Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   inicioExecucao      DateTime? @map("inicio_execucao")
   fimExecucao         DateTime? @map("fim_execucao")
-  /// Detectado no Financeiro (captadoTransferido > 0). Antes disso as tarefas aguardam.
+  /// Detectado no Financeiro (captadoTransferido > 0) ou informado pela gestão. Antes disso as tarefas aguardam.
   recursoLiberadoEm   DateTime? @map("recurso_liberado_em")
+  /// FINANCEIRO (detectado) ou GESTAO (informado à mão).
+  recursoFonte        String?   @map("recurso_fonte")
+  /// Projeto do Planejamento (MAX Financeiro): pelo PRONAC, ou escolhido pela gestão nas outras leis.
   financeiroProjectId String?   @map("financeiro_project_id")
+  /// Vínculo escolhido pela gestão (não é refeito pelo PRONAC).
+  financeiroManual    Boolean   @default(false) @map("financeiro_manual")
+  /// Cópia da pré-definição (tarefa_modelos ativos) feita quando o projeto entrou
+  /// no acompanhamento: mudanças na pré-definição só valem para projetos novos.
+  modelos             Json?
+  modelosEm           DateTime? @map("modelos_em")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -615,15 +630,26 @@ model AcaoAgenda {
   acaoId    String   @map("acao_id")
   acao      Acao     @relation(fields: [acaoId], references: [id], onDelete: Cascade)
   titulo    String   @default("")
+  /// Território cadastrado na ação (zona, cidade, UF). Nulo quando online.
+  territorioId String?         @map("territorio_id")
+  territorio   AcaoTerritorio? @relation(fields: [territorioId], references: [id], onDelete: SetNull)
+  /// Execução online (sem território; não gera tarefas por cidade).
+  online    Boolean  @default(false)
+  /// Cópia da cidade/UF do território (o mapa e as tarefas por cidade usam só estes).
   cidade    String
   uf        String
+  /// Início da execução desta realização.
   data      DateTime
+  /// Fim da execução; nulo = um dia só (fim = início).
+  dataFim   DateTime? @map("data_fim")
   tarefas   Tarefa[]
+  ficha     PrestacaoFicha?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([acaoId, data])
   @@index([cidade, uf])
+  @@index([territorioId])
   @@map("acao_agendas")
 }
 
@@ -702,4 +728,168 @@ model Ocorrencia {
 
   @@index([projetoId, status])
   @@map("ocorrencias")
+}
+
+// ── Prestação de contas ────────────────────────────────────────────────────
+
+enum EquipePrestacao {
+  PRODUCAO
+  COMUNICACAO
+  GESTAO
+}
+
+enum TipoCampoPrestacao {
+  TEXTO
+  TEXTO_LONGO
+  NUMERO
+  DATA
+  LINK
+  OPCOES
+  SIM_NAO
+  /// Várias opções marcáveis.
+  MULTIPLA
+  /// Horário de início e fim (HH:MM-HH:MM).
+  HORARIO
+  /// Vários nomes (texto livre; usuários do sistema aparecem como opção).
+  PESSOAS
+  /// Local: nome, CEP, logradouro, número, complemento, bairro, cidade e UF.
+  ENDERECO
+}
+
+/// Dados do projeto para a prestação de contas (gestão).
+model PrestacaoProjeto {
+  id            String    @id @default(cuid())
+  projetoId     String    @unique @map("projeto_id")
+  projeto       Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// FEDERAL | ESTADUAL | MUNICIPAL | EDITAL | RECURSOS_PROPRIOS | OUTRA
+  lei           String?
+  /// PRONAC, LEIC CA ou outra identificação do projeto na lei.
+  identificacao String    @default("")
+  patrocinador  String    @default("")
+  /// Prestação de contas entregue (conta o prazo de arquivamento dos arquivos).
+  entregueEm    DateTime? @map("entregue_em")
+  entreguePor   String?   @map("entregue_por")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("prestacao_projetos")
+}
+
+/// Produto prometido no projeto, com a sua meta (gestão; pode mudar ao longo do processo).
+model PrestacaoProduto {
+  id        String           @id @default(cuid())
+  projetoId String           @map("projeto_id")
+  projeto   Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  nome      String
+  meta      String           @default("")
+  /// Ações do projeto que contam para este produto (cada ação em um produto só).
+  acaoIds   String[]         @default([]) @map("acao_ids")
+  ordem     Int              @default(0)
+  fichas    PrestacaoFicha[]
+  relatorios PrestacaoRelatorio[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([projetoId, ordem])
+  @@map("prestacao_produtos")
+}
+
+/// Campo do modelo da ficha (Configurações). A equipe responsável preenche.
+model PrestacaoCampo {
+  id          String             @id @default(cuid())
+  /// Identificador estável do campo nos valores das fichas e na exportação.
+  chave       String             @unique
+  rotulo      String
+  ajuda       String             @default("")
+  tipo        TipoCampoPrestacao
+  opcoes      String[]           @default([])
+  equipe      EquipePrestacao
+  /// Sugestão automática (STATUS_DATA, SIM, PARTICIPANTES, CARGA_HORARIA, RESPONSAVEIS, HISTORICO, PERFIL).
+  sugestao    String?
+  obrigatorio Boolean            @default(false)
+  ordem       Int                @default(0)
+  ativo       Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([equipe, ordem])
+  @@map("prestacao_campos")
+}
+
+/// Ficha de uma execução da ação (item da agenda).
+model PrestacaoFicha {
+  id            String            @id @default(cuid())
+  agendaId      String            @unique @map("agenda_id")
+  agenda        AcaoAgenda        @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  projetoId     String            @map("projeto_id")
+  projeto       Projeto           @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  produtoId     String?           @map("produto_id")
+  produto       PrestacaoProduto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+  /// { [chave]: { v: valor, na?: true } } — "na" = não se aplica.
+  valores       Json              @default("{}")
+  /// Correções dos dados que vêm do sistema: { [chave]: valor }.
+  ajustes       Json              @default("{}")
+  arquivos      PrestacaoArquivo[]
+  atualizadoPor String?           @map("atualizado_por")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([projetoId])
+  @@map("prestacao_fichas")
+}
+
+/// Foto ou documento de uma ficha. Guardado no Storage (e, depois, no drive).
+model PrestacaoArquivo {
+  id          String         @id @default(cuid())
+  fichaId     String         @map("ficha_id")
+  ficha       PrestacaoFicha @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  projetoId   String         @map("projeto_id")
+  /// FOTO ou DOCUMENTO
+  tipo        String
+  /// Onde entra no relatório (comprovacao, acessibilidade, divulgacao…).
+  categoria   String
+  /// Legenda no relatório.
+  descricao   String         @default("")
+  ordem       Int            @default(0)
+  noRelatorio Boolean        @default(true) @map("no_relatorio")
+  /// sb://bucket/chave (Supabase) ou local://chave (testes).
+  storagePath String         @map("storage_path")
+  nomeOriginal String        @default("") @map("nome_original")
+  mime        String
+  tamanho     Int
+  largura     Int?
+  altura      Int?
+  /// Cópia no drive (etapa E).
+  driveFileId String?        @map("drive_file_id")
+  enviadoPor  String?        @map("enviado_por")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([fichaId, categoria, ordem])
+  @@index([projetoId])
+  @@map("prestacao_arquivos")
+}
+
+/// Relatório em PDF gerado pelo sistema (histórico).
+model PrestacaoRelatorio {
+  id          String            @id @default(cuid())
+  projetoId   String            @map("projeto_id")
+  projeto     Projeto           @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// Nulo = todos os produtos.
+  produtoId   String?           @map("produto_id")
+  produto     PrestacaoProduto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+  /// Modelo do relatório (ex.: PRESTACAO_POR_PRODUTO).
+  modelo      String
+  titulo      String
+  storagePath String            @map("storage_path")
+  tamanho     Int
+  paginas     Int?
+  /// Inclui a lista nominal de participantes.
+  listaNominal Boolean          @default(false) @map("lista_nominal")
+  driveFileId String?           @map("drive_file_id")
+  geradoPor   String?           @map("gerado_por")
+  createdAt   DateTime          @default(now())
+
+  @@index([projetoId, createdAt])
+  @@map("prestacao_relatorios")
 }

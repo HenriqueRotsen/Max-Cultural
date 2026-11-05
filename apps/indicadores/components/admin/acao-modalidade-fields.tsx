@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchSelect } from "@/components/ui/search-select";
+import { useMunicipios } from "@/lib/municipios-client";
 
 const UF_OPTIONS = (
   [
@@ -127,42 +128,42 @@ export function AcaoModalidadeFields({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Onde a ação acontece. Cidade e UF são obrigatórios;
-            comunidade/território é opcional.
+            Onde a ação acontece: escolha a UF e depois a cidade. A zona ou
+            bairro é opcional (ex.: Buritis, Belo Horizonte, MG); o mapa usa
+            só a cidade e a UF.
           </p>
           <div className="grid grid-cols-1 gap-3">
             {value.territorios.map((t, idx) => (
               <div
                 key={t.key}
-                className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2 rounded-md border p-2.5 sm:grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,1fr)_auto] sm:items-end"
+                className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2 rounded-md border p-2.5 sm:grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-start"
               >
-                <div className="space-y-1">
-                  <Label className="text-xs">Cidade</Label>
-                  <Input
-                    value={t.cidade}
-                    onChange={(e) => setRow(idx, { cidade: e.target.value })}
-                    placeholder="Imperatriz"
-                  />
-                </div>
                 <div className="space-y-1">
                   <Label className="text-xs">UF</Label>
                   <SearchSelect
                     value={t.estado}
                     options={UF_OPTIONS}
-                    onValueChange={(estado) => setRow(idx, { estado })}
+                    onValueChange={(estado) =>
+                      // Trocar a UF limpa a cidade (ela é escolhida dentro da UF).
+                      setRow(idx, estado === t.estado ? { estado } : { estado, cidade: "" })
+                    }
                     placeholder="UF"
                     searchPlaceholder="Buscar estado…"
                     aria-label="UF"
                     showHintInTrigger={false}
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Cidade</Label>
+                  <CidadeSelect uf={t.estado} value={t.cidade} onChange={(cidade) => setRow(idx, { cidade })} />
+                </div>
                 <div className="col-span-2 flex items-end gap-2 sm:col-span-2">
                   <div className="min-w-0 flex-1 space-y-1">
-                    <Label className="text-xs">Comunidade (opcional)</Label>
+                    <Label className="text-xs">Zona ou bairro (opcional)</Label>
                     <Input
                       value={t.nome}
                       onChange={(e) => setRow(idx, { nome: e.target.value })}
-                      placeholder="Quilombo X"
+                      placeholder="Ex.: Buritis, Zona Sul"
                     />
                   </div>
                   <Button
@@ -189,5 +190,25 @@ export function AcaoModalidadeFields({
         </div>
       )}
     </>
+  );
+}
+
+/** Cidade escolhida entre os municípios da UF (IBGE), com pesquisa. */
+function CidadeSelect({ uf, value, onChange }: { uf: string; value: string; onChange: (v: string) => void }) {
+  const { cidades, carregando } = useMunicipios(uf);
+  const options = cidades.map((c) => ({ value: c, label: c }));
+  // Cidade gravada antes (fora da lista oficial) continua aparecendo para não sumir.
+  if (value && !cidades.includes(value)) options.unshift({ value, label: value });
+  return (
+    <SearchSelect
+      value={value}
+      options={options}
+      onValueChange={onChange}
+      disabled={!uf}
+      placeholder={!uf ? "Escolha a UF primeiro" : carregando ? "Carregando cidades…" : "Escolha a cidade"}
+      searchPlaceholder="Buscar cidade…"
+      emptyText="Nenhuma cidade encontrada."
+      aria-label="Cidade"
+    />
   );
 }

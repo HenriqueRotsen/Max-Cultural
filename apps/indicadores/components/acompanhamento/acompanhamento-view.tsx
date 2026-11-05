@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { BarChart3, CheckCircle2, ChevronDown, FileCheck2, ChevronRight, Flag, MessageSquare, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,15 +17,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker, DateRangePicker } from "@/components/ui/date-picker";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { cn } from "@/lib/utils";
 import {
   addAgendaAction,
   addComentarioAction,
+  atualizarPreDefinicaoProjetoAction,
+  buscarFinanceiroAction,
+  setRecursoLiberadoAction,
+  vincularFinanceiroAction,
   createTarefaAvulsaAction,
   editTarefaAction,
   listComentariosAction,
   removeAgendaAction,
   setDatasProjetoAction,
+  setPrazoProjetoAction,
   setTarefaStatusAction,
 } from "@/app/actions/acompanhamento";
 import {
@@ -34,8 +41,10 @@ import {
   FASES_NIVEL1,
   FASES_NIVEL2,
   GESTAO_LABEL,
+  regraLabel,
   STATUS_LABEL,
   type AcompanhamentoDTO,
+  type PrazoProjetoDTO,
   type AreaTarefa,
   type ComentarioDTO,
   type FaseTarefa,
@@ -43,6 +52,9 @@ import {
   type StatusTarefa,
   type TarefaDTO,
 } from "@/lib/acompanhamento/types";
+import { useConfirm } from "@/components/ui/confirm";
+import { RegraCampo } from "@/components/acompanhamento/predefinicao-editor";
+import { AbasArea, TarefasPorFase } from "@/components/acompanhamento/tarefas-por-fase";
 
 export type Aba = "comunicacao" | "producao" | "configuracao";
 
@@ -52,6 +64,13 @@ const ABA_AREA: Record<"comunicacao" | "producao", AreaTarefa> = {
 };
 
 const STATUS_ORDEM: StatusTarefa[] = ["NAO_CONTEMPLADA", "NAO_INICIADA", "EM_ANDAMENTO", "CONCLUIDA"];
+
+const STATUS_DOT: Record<StatusTarefa, string> = {
+  NAO_CONTEMPLADA: "bg-slate-300",
+  NAO_INICIADA: "bg-slate-500",
+  EM_ANDAMENTO: "bg-amber-500",
+  CONCLUIDA: "bg-emerald-600",
+};
 
 const STATUS_CHIP: Record<StatusTarefa, string> = {
   NAO_CONTEMPLADA: "border-border bg-white text-muted-foreground",
@@ -92,6 +111,26 @@ function fmtCurto(iso: string | null) {
   return `${d}/${m}`;
 }
 
+/** "09/11" ou "09/11 a 11/11" (período da realização). */
+function periodoCurto(g: { data: string; dataFim: string | null }) {
+  return g.dataFim && g.dataFim !== g.data ? `${fmtCurto(g.data)} a ${fmtCurto(g.dataFim)}` : fmtCurto(g.data);
+}
+
+/** "Concluída em 15/11 · 2 dias depois do prazo" (vermelho se atrasou). */
+function ConclusaoInfo({ t }: { t: TarefaDTO }) {
+  if (!t.concluidaEm) return null;
+  const d = t.diasAposPrazo;
+  const comparacao =
+    d == null ? "" : d === 0 ? "no dia do prazo" : `${Math.abs(d)} ${Math.abs(d) === 1 ? "dia" : "dias"} ${d > 0 ? "depois" : "antes"} do prazo`;
+  return (
+    <span className={cn("text-xs tabular-nums", d != null && d > 0 ? "font-medium text-red-700" : "text-emerald-700")}>
+      {"Concluída em "}
+      {fmtCurto(t.concluidaEm)}
+      {comparacao ? ` · ${comparacao}` : ""}
+    </span>
+  );
+}
+
 function pct(ts: TarefaDTO[]) {
   const validas = ts.filter((t) => t.status !== "NAO_CONTEMPLADA");
   if (!validas.length) return 0;
@@ -110,18 +149,33 @@ function GestaoBadge({ s }: { s: StatusGestao }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
       <span className={cn("h-2 w-2 shrink-0 rounded-full", GESTAO_COR[s])} />
-      <span className={cn(s === "EM_ATRASO" && "font-medium text-red-700", s === "PRAZO_PROXIMO" && "text-amber-800")}>
+      <span
+        className={cn(
+          s === "EM_ATRASO" && "font-medium text-red-700",
+          s === "PRAZO_PROXIMO" && "text-amber-800",
+        )}
+      >
         {GESTAO_LABEL[s]}
       </span>
     </span>
   );
 }
 
-export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoDTO; abaInicial: Aba }) {
+export function AcompanhamentoView({
+  data,
+  abaInicial,
+  podePrestacao = false,
+}: {
+  data: AcompanhamentoDTO;
+  abaInicial: Aba;
+  podePrestacao?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [aba, setAba] = useState<Aba>(abaInicial);
-  const [aberta, setAberta] = useState<TarefaDTO | null>(null);
+  // Pelo id: depois de salvar, o diálogo mostra os dados atualizados da tarefa.
+  const [abertaId, setAbertaId] = useState<string | null>(null);
+  const aberta = abertaId ? (data.tarefas.find((t) => t.id === abertaId) ?? null) : null;
   const [avulsa, setAvulsa] = useState<{ area: AreaTarefa; nivel: 1 | 2 } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -151,7 +205,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
     const nome = t.acaoId ? acaoNome.get(t.acaoId) ?? "Ação" : "Ação";
     const g = t.agendaId ? agendaPorId.get(t.agendaId) : null;
     if (!g) return `${nome} · sem data`;
-    return [nome, g.titulo || fmtCurto(g.data), `${g.cidade}/${g.uf}`].filter(Boolean).join(" · ");
+    return [nome, g.titulo || periodoCurto(g), g.local].filter(Boolean).join(" · ");
   }
 
   const liberado = Boolean(data.recursoLiberadoEm);
@@ -171,11 +225,26 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
               ? ` · Execução ${fmtDia(data.inicioExecucao)} a ${fmtDia(data.fimExecucao)}`
               : " · Execução sem datas"}
           </p>
+          <Link
+            href={`/projeto/${encodeURIComponent(data.projeto.id)}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-teal-800 hover:underline"
+          >
+            <BarChart3 className="size-4" /> Indicadores do projeto (inscrições e ações)
+          </Link>
+          {podePrestacao ? (
+            <Link
+              href={`/dashboard/prestacao/${encodeURIComponent(data.projeto.id)}`}
+              className="ml-4 inline-flex items-center gap-1 text-sm font-medium text-teal-800 hover:underline"
+            >
+              <FileCheck2 className="size-4" /> Prestação de contas
+            </Link>
+          ) : null}
         </div>
         <div className="text-right text-xs">
           {liberado ? (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
               Recurso liberado em {fmtDia(data.recursoLiberadoEm)}
+              {data.recursoFonte === "GESTAO" ? " (informado pela gestão)" : ""}
             </span>
           ) : (
             <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
@@ -233,7 +302,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
           podeEditar={podeArea(ABA_AREA[aba])}
           pending={pending}
           onStatus={mudarStatus}
-          onAbrir={setAberta}
+          onAbrir={(t) => setAbertaId(t.id)}
           onAvulsa={(nivel) => setAvulsa({ area: ABA_AREA[aba], nivel })}
           rotuloRealizacao={rotuloRealizacao}
         />
@@ -244,8 +313,8 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
           tarefa={aberta}
           podeEditar={podeArea(aberta.area)}
           podeComentar={podeArea(aberta.area) || data.pode.gestao}
-          contexto={aberta.nivel === 2 ? (aberta.unidade === "CIDADE" ? `${aberta.cidade}/${aberta.uf}` : rotuloRealizacao(aberta)) : null}
-          onClose={() => setAberta(null)}
+          contexto={aberta.nivel === 2 ? (aberta.unidade === "CIDADE" ? `${aberta.cidade}, ${aberta.uf}` : rotuloRealizacao(aberta)) : null}
+          onClose={() => setAbertaId(null)}
           onStatus={(s) => mudarStatus(aberta, s)}
         />
       ) : null}
@@ -275,22 +344,15 @@ function StatusChip({
     );
   }
   return (
-    <select
+    <SimpleSelect
       aria-label={`Status de ${t.titulo}`}
       value={t.status}
       disabled={pending}
-      onChange={(e) => onStatus(t, e.target.value as StatusTarefa)}
-      className={cn(
-        "cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-        STATUS_CHIP[t.status],
-      )}
-    >
-      {STATUS_ORDEM.map((s) => (
-        <option key={s} value={s}>
-          {STATUS_LABEL[s]}
-        </option>
-      ))}
-    </select>
+      size="sm"
+      onChange={(v) => onStatus(t, v as StatusTarefa)}
+      className={cn("h-7 cursor-pointer rounded-full px-2.5 text-xs font-medium", STATUS_CHIP[t.status])}
+      options={STATUS_ORDEM.map((s) => ({ value: s, label: STATUS_LABEL[s], dot: STATUS_DOT[s] }))}
+    />
   );
 }
 
@@ -355,15 +417,30 @@ function AreaPainel(props: AreaProps) {
                         type="button"
                         onClick={() => props.onAbrir(t)}
                         className={cn(
-                          "text-left text-sm leading-snug hover:text-brand-deep hover:underline",
+                          "inline-flex items-start gap-1.5 text-left text-sm leading-snug hover:text-brand-deep hover:underline",
+                          t.status === "CONCLUIDA" && "text-muted-foreground",
                           t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
                         )}
                       >
+                        {t.status === "CONCLUIDA" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" /> : null}
                         {t.titulo}
                       </button>
+                      {t.prazo || t.concluidaEm ? (
+                        <div className="text-xs tabular-nums text-muted-foreground">
+                          {t.prazo ? `Prazo ${fmtCurto(t.prazo)}` : ""}
+                          {t.concluidaEm ? (
+                            <>
+                              {t.prazo ? " · " : ""}
+                              <ConclusaoInfo t={t} />
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
-                        {t.gestao === "EM_ATRASO" || t.gestao === "PRAZO_PROXIMO" ? <GestaoBadge s={t.gestao} /> : null}
+                        {t.gestao === "EM_ATRASO" || t.gestao === "PRAZO_PROXIMO" ? (
+                          <GestaoBadge s={t.gestao} />
+                        ) : null}
                         {t.escaladasAbertas ? <Flag className="size-3.5 text-red-600" aria-label="Escalada à gestão" /> : null}
                       </div>
                     </li>
@@ -384,7 +461,6 @@ type Grupo = { chave: string; titulo: string; subtitulo: string; tarefas: Tarefa
 
 function Nivel2(props: AreaProps & { corBarra: string }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
-  const [mostrarConcluidas, setMostrarConcluidas] = useState<Set<string>>(new Set());
 
   const grupos = useMemo<Grupo[]>(() => {
     const m = new Map<string, Grupo>();
@@ -395,7 +471,7 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
       if (props.area === "PRODUCAO") {
         // Produção se organiza por cidade (uma cidade pode receber várias ações).
         chave = t.cidade ? `${t.cidade}/${t.uf}`.toLowerCase() : `sem-cidade:${t.acaoId ?? ""}`;
-        titulo = t.cidade ? `${t.cidade}/${t.uf}` : props.rotuloRealizacao(t);
+        titulo = t.cidade ? `${t.cidade}, ${t.uf}` : props.rotuloRealizacao(t);
       } else {
         chave = t.agendaId ?? `acao:${t.acaoId ?? "?"}`;
         titulo = props.rotuloRealizacao(t);
@@ -450,8 +526,9 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                 : piorTarefa.gestao === "PRAZO_PROXIMO"
                   ? `${piorTarefa.titulo}: prazo próximo`
                   : null;
-            const concluidas = g.tarefas.filter((t) => t.status === "CONCLUIDA" || t.status === "NAO_CONTEMPLADA");
-            const visiveis = mostrarConcluidas.has(g.chave) ? g.tarefas : g.tarefas.filter((t) => !concluidas.includes(t));
+            // Concluídas e não contempladas continuam na lista, no fim e mais apagadas.
+            const fechada = (t: TarefaDTO) => t.status === "CONCLUIDA" || t.status === "NAO_CONTEMPLADA";
+            const visiveis = [...g.tarefas.filter((t) => !fechada(t)), ...g.tarefas.filter(fechada)];
             return (
               <div key={g.chave}>
                 <button
@@ -494,9 +571,18 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                       </thead>
                       <tbody className="divide-y divide-border/40">
                         {visiveis.map((t) => (
-                          <tr key={t.id}>
+                          <tr key={t.id} className={cn(fechada(t) && "bg-muted/20")}>
                             <td className="py-2 pr-3">
-                              <button type="button" onClick={() => props.onAbrir(t)} className="text-left hover:text-brand-deep hover:underline">
+                              <button
+                                type="button"
+                                onClick={() => props.onAbrir(t)}
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 text-left hover:text-brand-deep hover:underline",
+                                  t.status === "CONCLUIDA" && "text-muted-foreground",
+                                  t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
+                                )}
+                              >
+                                {t.status === "CONCLUIDA" ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : null}
                                 {t.titulo}
                               </button>
                               {props.area === "PRODUCAO" && t.unidade === "ACAO" ? (
@@ -507,7 +593,7 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                               ) : null}
                             </td>
                             <td className="hidden py-2 pr-3 text-xs text-muted-foreground sm:table-cell">{FASE_LABEL[t.fase]}</td>
-                            <td className="py-2 pr-3 text-xs tabular-nums">{fmtCurto(t.prazo)}</td>
+                            <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{fmtCurto(t.prazo)}</td>
                             <td className="py-2 pr-3">
                               <span className="inline-flex items-center gap-2">
                                 <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
@@ -521,23 +607,12 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                               </span>
                             </td>
                             <td className="hidden py-2 md:table-cell">
-                              <GestaoBadge s={t.gestao} />
+                              {t.concluidaEm ? <ConclusaoInfo t={t} /> : <GestaoBadge s={t.gestao} />}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {concluidas.length ? (
-                      <button
-                        type="button"
-                        className="mt-2 text-xs font-medium text-teal-800 hover:underline"
-                        onClick={() => setMostrarConcluidas((s) => toggle(s, g.chave))}
-                      >
-                        {mostrarConcluidas.has(g.chave)
-                          ? "Esconder concluídas e não contempladas"
-                          : `Mostrar ${concluidas.length} concluída(s) ou não contemplada(s)`}
-                      </button>
-                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -569,6 +644,7 @@ function TarefaDialog({
   const [titulo, setTitulo] = useState(tarefa.titulo);
   const [detalhamento, setDetalhamento] = useState(tarefa.detalhamento);
   const [prazo, setPrazo] = useState(tarefa.prazo ?? "");
+  const [concluidaEm, setConcluidaEm] = useState(tarefa.concluidaEm ?? "");
   const [comentarios, setComentarios] = useState<ComentarioDTO[] | null>(null);
   const [texto, setTexto] = useState("");
   const [escalar, setEscalar] = useState(false);
@@ -583,7 +659,12 @@ function TarefaDialog({
 
   function salvar() {
     startTransition(async () => {
-      const r = await editTarefaAction(tarefa.id, { titulo, detalhamento, prazo: prazo || null });
+      const r = await editTarefaAction(tarefa.id, {
+        titulo,
+        detalhamento,
+        prazo: prazo || null,
+        concluidaEm: concluidaEm && concluidaEm !== tarefa.concluidaEm ? concluidaEm : null,
+      });
       if (!r.ok) return void toast.error(r.error);
       toast.success("Tarefa atualizada");
       router.refresh();
@@ -617,7 +698,7 @@ function TarefaDialog({
 
         <div className="flex flex-wrap items-center gap-3">
           <StatusChip t={tarefa} podeEditar={podeEditar} pending={pending} onStatus={(_, s) => onStatus(s)} />
-          <GestaoBadge s={tarefa.gestao} />
+          {tarefa.concluidaEm ? <ConclusaoInfo t={tarefa} /> : <GestaoBadge s={tarefa.gestao} />}
         </div>
 
         {podeEditar ? (
@@ -630,15 +711,38 @@ function TarefaDialog({
               <Label>Detalhamento</Label>
               <Textarea rows={3} value={detalhamento} onChange={(e) => setDetalhamento(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label>Prazo</Label>
-              <Input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} className="w-44" />
+            <div className="flex flex-wrap gap-3">
+              <div className="space-y-1.5">
+                <Label>Prazo</Label>
+                <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
+              </div>
+              {tarefa.status === "CONCLUIDA" ? (
+                <div className="space-y-1.5">
+                  <Label>Concluída em</Label>
+                  <DatePicker
+                    value={concluidaEm}
+                    onChange={(v) => v && setConcluidaEm(v)}
+                    clearable={false}
+                    className="w-52"
+                    aria-label="Dia da conclusão"
+                  />
+                </div>
+              ) : null}
             </div>
+            {tarefa.status === "CONCLUIDA" ? (
+              <p className="text-xs text-muted-foreground">
+                O dia da conclusão é gravado quando a tarefa é marcada como concluída. Corrija aqui se ela foi
+                concluída antes de ser marcada.
+              </p>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-1 text-sm">
             {tarefa.detalhamento ? <p className="text-muted-foreground">{tarefa.detalhamento}</p> : null}
-            <p>Prazo: {fmtDia(tarefa.prazo)}</p>
+            <p>
+              Prazo: {fmtDia(tarefa.prazo)}
+              {tarefa.concluidaEm ? ` · Concluída em ${fmtDia(tarefa.concluidaEm)}` : ""}
+            </p>
           </div>
         )}
 
@@ -736,7 +840,7 @@ function AvulsaDialog({
     });
   }
 
-  const cidades = [...new Map(realizacoes.map(({ g }) => [`${g.cidade}|${g.uf}`, g])).values()];
+  const cidades = [...new Map(realizacoes.filter(({ g }) => !g.online).map(({ g }) => [`${g.cidade}|${g.uf}`, g])).values()];
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -752,40 +856,37 @@ function AvulsaDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Fase</Label>
-            <select
+            <SimpleSelect
               value={fase}
-              onChange={(e) => setFase(e.target.value as FaseTarefa)}
-              className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-            >
-              {(nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2).map((f) => (
-                <option key={f} value={f}>
-                  {FASE_LABEL[f]}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setFase(v as FaseTarefa)}
+              className="h-9 w-full"
+              aria-label="Fase"
+              options={(nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2).map((f) => ({ value: f, label: FASE_LABEL[f] }))}
+            />
           </div>
           {nivel === 2 ? (
             <div className="space-y-1.5">
               <Label>{area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}</Label>
-              <select value={alvo} onChange={(e) => setAlvo(e.target.value)} className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm">
-                {realizacoes.map(({ a, g }) => (
-                  <option key={g.id} value={`ag:${g.id}`}>
-                    {a.nome} · {g.titulo || fmtCurto(g.data)} · {g.cidade}/{g.uf}
-                  </option>
-                ))}
-                {area === "PRODUCAO"
-                  ? cidades.map((g) => (
-                      <option key={`cid:${g.cidade}|${g.uf}`} value={`cid:${g.cidade}|${g.uf}`}>
-                        Cidade: {g.cidade}/{g.uf}
-                      </option>
-                    ))
-                  : null}
-              </select>
+              <SimpleSelect
+                value={alvo}
+                onChange={setAlvo}
+                className="h-9 w-full"
+                aria-label={area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}
+                options={[
+                  ...realizacoes.map(({ a, g }) => ({
+                    value: `ag:${g.id}`,
+                    label: `${a.nome} · ${g.titulo || periodoCurto(g)} · ${g.local}`,
+                  })),
+                  ...(area === "PRODUCAO"
+                    ? cidades.map((g) => ({ value: `cid:${g.cidade}|${g.uf}`, label: `Cidade: ${g.cidade}, ${g.uf}` }))
+                    : []),
+                ]}
+              />
             </div>
           ) : null}
           <div className="space-y-1.5">
             <Label>Prazo (opcional)</Label>
-            <Input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} className="w-44" />
+            <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
           </div>
         </div>
         <DialogFooter>
@@ -803,11 +904,27 @@ function AvulsaDialog({
 
 function Configuracao({ data }: { data: AcompanhamentoDTO }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [inicio, setInicio] = useState(data.inicioExecucao ?? "");
   const [fim, setFim] = useState(data.fimExecucao ?? "");
-  const [nova, setNova] = useState<Record<string, { titulo: string; data: string; cidade: string; uf: string }>>({});
+  const [nova, setNova] = useState<Record<string, { titulo: string; data: string; dataFim: string; local: string }>>({});
   const pode = data.pode.gestao;
+
+  async function atualizarPreDefinicao() {
+    const ok = await confirmar({
+      title: "Usar a pré-definição atual?",
+      description: "As tarefas novas da pré-definição entram neste projeto, e os prazos que não foram editados à mão são recalculados.",
+      confirmLabel: "Usar a atual",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const r = await atualizarPreDefinicaoProjetoAction(data.projeto.id);
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("Projeto atualizado para a pré-definição atual");
+      router.refresh();
+    });
+  }
 
   function salvarDatas() {
     startTransition(async () => {
@@ -822,16 +939,27 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
     const v = nova[acaoId];
     if (!v) return;
     startTransition(async () => {
-      const r = await addAgendaAction(acaoId, v);
+      const r = await addAgendaAction(acaoId, {
+        titulo: v.titulo,
+        data: v.data,
+        dataFim: v.dataFim,
+        online: v.local === "online",
+        territorioId: v.local === "online" ? null : v.local,
+      });
       if (!r.ok) return void toast.error(r.error);
-      toast.success("Data adicionada; tarefas geradas");
-      setNova((s) => ({ ...s, [acaoId]: { titulo: "", data: "", cidade: v.cidade, uf: v.uf } }));
+      toast.success("Execução adicionada; tarefas geradas");
+      setNova((s) => ({ ...s, [acaoId]: { titulo: "", data: "", dataFim: "", local: v.local } }));
       router.refresh();
     });
   }
 
-  function remover(agendaId: string) {
-    if (!window.confirm("Remover esta data? As tarefas dela também saem.")) return;
+  async function remover(agendaId: string) {
+    const ok = await confirmar({
+      title: "Remover esta execução da agenda?",
+      description: "As tarefas e a ficha da prestação de contas desta execução também saem, incluindo fotos e documentos.",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       const r = await removeAgendaAction(agendaId);
       if (!r.ok) return void toast.error(r.error);
@@ -851,13 +979,18 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
           <p className="text-sm text-muted-foreground">Base dos prazos do nível 1 (ex.: datas do SALIC).</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1.5">
-            <Label>Início</Label>
-            <Input type="date" value={inicio} disabled={!pode} onChange={(e) => setInicio(e.target.value)} className="w-44" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Fim</Label>
-            <Input type="date" value={fim} disabled={!pode} onChange={(e) => setFim(e.target.value)} className="w-44" />
+          <div className="w-full max-w-sm space-y-1.5">
+            <Label>Período de execução</Label>
+            <DateRangePicker
+              inicio={inicio}
+              fim={fim}
+              disabled={!pode}
+              aria-label="Período de execução do projeto"
+              onChange={(a, b) => {
+                setInicio(a);
+                setFim(b);
+              }}
+            />
           </div>
           {pode ? (
             <Button disabled={pending} onClick={salvarDatas}>
@@ -865,20 +998,18 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
             </Button>
           ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {data.recursoLiberadoEm
-            ? `Recurso liberado em ${fmtDia(data.recursoLiberadoEm)} (detectado no MAX Financeiro).`
-            : data.financeiroVinculado
-              ? "Projeto encontrado no MAX Financeiro; ainda sem transferência para a conta de movimentação."
-              : "Projeto ainda não encontrado no MAX Financeiro pelo PRONAC."}
-        </p>
       </section>
+
+      <RecursoSecao data={data} />
+
+<PrazosProjeto data={data} pending={pending} onAtualizar={atualizarPreDefinicao} />
 
       <section className="space-y-3">
         <div>
           <h2 className="font-heading text-lg font-semibold text-brand-deep">Agenda das ações</h2>
           <p className="text-sm text-muted-foreground">
-            Cada data e cidade em que a ação acontece. As tarefas de nível 2 são geradas a partir daqui.
+            Cada execução da ação: período e território (os cadastrados na ação, em Contextos). As tarefas de
+            nível 2 são geradas a partir daqui, com o prazo contado do início ou do fim da execução da ação.
           </p>
         </div>
         {data.acoes.length === 0 ? (
@@ -886,7 +1017,11 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {data.acoes.map((a) => {
-              const v = nova[a.id] ?? { titulo: "", data: "", cidade: "", uf: "" };
+              const locais = [
+                ...a.territorios.map((t) => ({ value: t.id, label: t.label })),
+                ...(a.ofereceOnline ? [{ value: "online", label: "Online" }] : []),
+              ];
+              const v = nova[a.id] ?? { titulo: "", data: "", dataFim: "", local: locais.length === 1 ? locais[0]!.value : "" };
               const set = (k: keyof typeof v, val: string) => setNova((s) => ({ ...s, [a.id]: { ...v, [k]: val } }));
               return (
                 <div key={a.id} className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
@@ -901,7 +1036,11 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                       {a.agenda.map((g) => (
                         <li key={g.id} className="flex items-center justify-between gap-2 py-1.5">
                           <span>
-                            <span className="tabular-nums">{fmtDia(g.data)}</span> · {g.cidade}/{g.uf}
+                            <span className="tabular-nums">
+                              {fmtDia(g.data)}
+                              {g.dataFim && g.dataFim !== g.data ? ` a ${fmtDia(g.dataFim)}` : ""}
+                            </span>{" "}
+                            · {g.local}
                             {g.titulo ? <span className="text-muted-foreground"> · {g.titulo}</span> : null}
                           </span>
                           {pode ? (
@@ -916,20 +1055,50 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                     <p className="mb-3 text-xs text-muted-foreground">Sem datas.</p>
                   )}
                   {pode ? (
-                    <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2 sm:grid-cols-[9.5rem_minmax(0,1fr)_4rem]">
-                      <Input type="date" value={v.data} onChange={(e) => set("data", e.target.value)} aria-label="Data" />
-                      <Input value={v.cidade} onChange={(e) => set("cidade", e.target.value)} placeholder="Cidade" aria-label="Cidade" />
-                      <Input value={v.uf} maxLength={2} onChange={(e) => set("uf", e.target.value.toUpperCase())} placeholder="UF" aria-label="UF" />
-                      <Input
-                        value={v.titulo}
-                        onChange={(e) => set("titulo", e.target.value)}
-                        placeholder="Rótulo (opcional), ex.: Oficina 2"
-                        aria-label="Rótulo"
-                        className="col-span-2 sm:col-span-2"
-                      />
-                      <Button variant="outline" disabled={pending || !v.data || !v.cidade || v.uf.length !== 2} onClick={() => adicionar(a.id)}>
-                        <Plus className="size-4" /> Data
-                      </Button>
+                    <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <span>Período da execução (um clique no início e outro no fim; um dia só = um clique)</span>
+                        <DateRangePicker
+                          inicio={v.data}
+                          fim={v.dataFim}
+                          aria-label={`Período de execução de ${a.nome}`}
+                          onChange={(ini, fimNovo) => setNova((st) => ({ ...st, [a.id]: { ...v, data: ini, dataFim: fimNovo } }))}
+                        />
+                      </div>
+                      {locais.length ? (
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          <span>Onde (território cadastrado na ação)</span>
+                          <SimpleSelect
+                            value={v.local}
+                            onChange={(val) => set("local", val)}
+                            className="h-9 w-full"
+                            aria-label={`Território de ${a.nome}`}
+                            options={[{ value: "", label: "Escolha o território" }, ...locais]}
+                          />
+                        </div>
+                      ) : (
+                        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          Esta ação ainda não tem território.{" "}
+                          <Link
+                            href={`/dashboard/contextos?tab=acoes&q=${encodeURIComponent(a.nome)}`}
+                            className="font-semibold underline"
+                          >
+                            Cadastre em Contextos
+                          </Link>{" "}
+                          (zona, cidade e UF, ou online).
+                        </p>
+                      )}
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                        <Input
+                          value={v.titulo}
+                          onChange={(e) => set("titulo", e.target.value)}
+                          placeholder="Rótulo (opcional), ex.: Oficina 2"
+                          aria-label="Rótulo"
+                        />
+                        <Button variant="outline" disabled={pending || !v.data || !v.local} onClick={() => adicionar(a.id)}>
+                          <Plus className="size-4" /> Adicionar
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -939,5 +1108,354 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         )}
       </section>
     </div>
+  );
+}
+
+const mesmoPrazo = (a: { prazoBase: unknown; prazoDias: unknown }, b: { prazoBase: unknown; prazoDias: unknown }) =>
+  a.prazoBase === b.prazoBase && a.prazoDias === b.prazoDias;
+
+/**
+ * Tarefas e prazos deste projeto: começam com a pré-definição (atalho) e a gestão
+ * ajusta o prazo de cada tarefa só aqui, quando o cronograma do projeto pede.
+ */
+function PrazosProjeto({ data, pending, onAtualizar }: { data: AcompanhamentoDTO; pending: boolean; onAtualizar: () => void }) {
+  const [area, setArea] = useState<AreaTarefa>("COMUNICACAO");
+  const [aberto, setAberto] = useState(false);
+  const [editando, setEditando] = useState<PrazoProjetoDTO | null>(null);
+  const pode = data.pode.gestao;
+  const ajustados = data.prazos.filter((p) => p.padrao && !mesmoPrazo(p, p.padrao)).length;
+  const itens = data.prazos
+    .filter((p) => p.area === area)
+    .sort((a, b) => a.ordem - b.ordem)
+    .map((p) => ({ ...p, id: p.modeloId }));
+
+  return (
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <div className="max-w-2xl">
+        <h2 className="font-heading text-lg font-semibold text-brand-deep">Tarefas e prazos deste projeto</h2>
+        <p className="text-sm text-muted-foreground">
+          Começam com a{" "}
+          <Link href="/dashboard/acompanhamento/pre-definicao" className="font-medium text-teal-800 hover:underline">
+            pré-definição das tarefas
+          </Link>{" "}
+          de {fmtDia(data.preDefinicaoEm)}. Se o cronograma deste projeto for diferente, ajuste o prazo: vale só para
+          este projeto.
+          {ajustados ? (
+            <strong className="font-semibold text-foreground">
+              {" "}
+              {ajustados === 1 ? "1 prazo ajustado." : `${ajustados} prazos ajustados.`}
+            </strong>
+          ) : null}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => setAberto(true)}>
+          {pode ? "Ver e ajustar prazos" : "Ver prazos"}
+        </Button>
+        {pode ? (
+          <Button variant="outline" disabled={pending} onClick={onAtualizar}>
+            Usar a pré-definição atual
+          </Button>
+        ) : null}
+      </div>
+
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>Tarefas e prazos deste projeto</DialogTitle>
+            <DialogDescription>
+              {data.projeto.nome} · mesma organização da pré-definição. O D é o início ou o fim da execução do projeto
+              (nível 1) ou da ação (nível 2). Ajustar aqui não muda a pré-definição geral.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <AbasArea area={area} onChange={setArea} />
+            <TarefasPorFase
+              itens={itens}
+              extra={(p) =>
+                p.padrao && !mesmoPrazo(p, p.padrao) ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-900 ring-1 ring-amber-200">
+                      Ajustado neste projeto
+                    </span>
+                    <span className="text-muted-foreground">pré-definição: {regraLabel(p.padrao.prazoBase, p.padrao.prazoDias)}</span>
+                  </div>
+                ) : null
+              }
+              acoes={
+                pode
+                  ? (p) => (
+                      <Button variant="ghost" size="icon-sm" aria-label={`Ajustar prazo de ${p.titulo}`} onClick={() => setEditando(p)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                    )
+                  : undefined
+              }
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {editando ? <PrazoDialog projetoId={data.projeto.id} prazo={editando} onClose={() => setEditando(null)} /> : null}
+    </section>
+  );
+}
+
+function PrazoDialog({ projetoId, prazo, onClose }: { projetoId: string; prazo: PrazoProjetoDTO; onClose: () => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [regra, setRegra] = useState({ prazoBase: prazo.prazoBase, prazoDias: prazo.prazoDias });
+  const padrao = prazo.padrao;
+
+  function salvar(valor: typeof regra, msg: string) {
+    startTransition(async () => {
+      const r = await setPrazoProjetoAction(projetoId, prazo.modeloId, valor);
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(msg);
+      router.refresh();
+      onClose();
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Prazo neste projeto</DialogTitle>
+          <DialogDescription>
+            {prazo.titulo} · {AREA_LABEL[prazo.area]} · Nível {prazo.nivel}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <RegraCampo
+            titulo="Prazo"
+            nivel={prazo.nivel}
+            base={regra.prazoBase}
+            dias={regra.prazoDias}
+            onChange={(prazoBase, prazoDias) => setRegra({ prazoBase, prazoDias })}
+          />
+          {padrao ? (
+            <p className="text-xs text-muted-foreground">Na pré-definição: {regraLabel(padrao.prazoBase, padrao.prazoDias)}.</p>
+          ) : null}
+          <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Os prazos das tarefas deste projeto são recalculados. Vale só para este projeto; a pré-definição geral não muda.
+            {prazo.editadasAMao
+              ? ` ${prazo.editadasAMao} tarefa(s) com o prazo mudado à mão continuam com a data que a equipe pôs.`
+              : ""}
+          </p>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          {padrao && !mesmoPrazo(prazo, padrao) ? (
+            <Button variant="ghost" disabled={pending} onClick={() => salvar(padrao, "Prazo voltou ao da pré-definição")}>
+              <RotateCcw className="size-4" /> Voltar ao da pré-definição
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button disabled={pending || mesmoPrazo(regra, prazo)} onClick={() => salvar(regra, "Prazo ajustado neste projeto")}>
+              Salvar
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const reais = (v: number | null) =>
+  v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+/**
+ * Recurso liberado: vem do projeto do MAX Financeiro ligado a este (PRONAC ou
+ * escolhido pela gestão nas outras leis). A gestão também pode informar a data.
+ */
+function RecursoSecao({ data }: { data: AcompanhamentoDTO }) {
+  const router = useRouter();
+  const confirmar = useConfirm();
+  const [pending, startTransition] = useTransition();
+  const [busca, setBusca] = useState("");
+  const [resultados, setResultados] = useState<Array<{ id: string; nome: string; label: string }> | null>(null);
+  const [trocar, setTrocar] = useState(false);
+  const [dataManual, setDataManual] = useState("");
+  const pode = data.pode.gestao;
+  const fin = data.financeiro;
+
+  function buscar() {
+    startTransition(async () => setResultados(await buscarFinanceiroAction(busca)));
+  }
+
+  function rodar(fn: () => Promise<{ ok: boolean; error?: string }>, msg: string) {
+    startTransition(async () => {
+      const r = await fn();
+      if (!r.ok) return void toast.error(r.error ?? "Não foi possível salvar.");
+      toast.success(msg);
+      setTrocar(false);
+      setDataManual("");
+      setResultados(null);
+      setBusca("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <div>
+        <h2 className="font-heading text-lg font-semibold text-brand-deep">Recurso liberado</h2>
+        <p className="text-sm text-muted-foreground">
+          Os prazos das tarefas só contam depois da liberação. Ela vem do projeto no MAX Financeiro: quando há valor
+          transferido para a conta de movimentação (do SALIC no federal; lançado à mão nas outras leis).
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {data.recursoLiberadoEm ? (
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+            Liberado em {fmtDia(data.recursoLiberadoEm)} ·{" "}
+            {data.recursoFonte === "GESTAO" ? "informado pela gestão" : "detectado no MAX Financeiro"}
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">Aguardando liberação</span>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Projeto no MAX Financeiro</div>
+        {fin && !trocar ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm">
+              <div className="font-medium text-brand-deep">{fin.nome}</div>
+              <div className="text-xs text-muted-foreground">
+                {fin.label} · transferido {reais(fin.captadoTransferido)}
+                {data.financeiroManual ? " · escolhido pela gestão" : " · pelo PRONAC"}
+              </div>
+            </div>
+            {pode ? (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setTrocar(true)}>
+                  Trocar
+                </Button>
+                {data.financeiroManual ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => rodar(() => vincularFinanceiroAction(data.projeto.id, null), "Vínculo desfeito")}
+                  >
+                    Desfazer vínculo
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {!fin ? (
+              <p className="text-sm text-muted-foreground">
+                {data.projeto.pronac
+                  ? `Nenhum projeto do MAX Financeiro com o PRONAC ${data.projeto.pronac}.`
+                  : "Projeto sem PRONAC (outras leis)."}{" "}
+                {pode ? "Escolha o projeto correspondente no MAX Financeiro." : ""}
+              </p>
+            ) : null}
+            {pode ? (
+              <div className="space-y-2">
+                <form
+                  className="flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    buscar();
+                  }}
+                >
+                  <Input
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Nome ou código do projeto no MAX Financeiro"
+                    aria-label="Buscar projeto no MAX Financeiro"
+                    className="h-9 w-full max-w-md bg-white"
+                  />
+                  <Button type="submit" variant="outline" size="sm" className="h-9" disabled={pending}>
+                    Buscar
+                  </Button>
+                  {trocar ? (
+                    <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setTrocar(false)}>
+                      Cancelar
+                    </Button>
+                  ) : null}
+                </form>
+                {resultados ? (
+                  resultados.length ? (
+                    <ul className="max-w-xl divide-y divide-border/60 rounded-lg border border-border/60 bg-white">
+                      {resultados.map((f) => (
+                        <li key={f.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-brand-deep">{f.nome}</span>
+                            <span className="block text-xs text-muted-foreground">{f.label}</span>
+                          </span>
+                          <Button
+                            size="sm"
+                            disabled={pending || f.id === fin?.id}
+                            onClick={() =>
+                              rodar(() => vincularFinanceiroAction(data.projeto.id, f.id), "Projeto do MAX Financeiro vinculado")
+                            }
+                          >
+                            {f.id === fin?.id ? "Vinculado" : "Vincular"}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nenhum projeto encontrado no MAX Financeiro.</p>
+                  )
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {pode ? (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informar à mão</div>
+          <p className="text-xs text-muted-foreground">
+            Para corrigir a data ou para um projeto que não está no MAX Financeiro.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <DatePicker value={dataManual} onChange={setDataManual} className="w-52" aria-label="Data da liberação" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              disabled={pending || !dataManual}
+              onClick={() => rodar(() => setRecursoLiberadoAction(data.projeto.id, dataManual), "Liberação informada")}
+            >
+              Salvar data
+            </Button>
+            {data.recursoFonte === "GESTAO" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9"
+                disabled={pending}
+                onClick={async () => {
+                  const ok = await confirmar({
+                    title: "Voltar para aguardando liberação?",
+                    description: "A data informada pela gestão sai e o MAX Financeiro volta a ser consultado.",
+                    confirmLabel: "Voltar para aguardando",
+                    destructive: true,
+                  });
+                  if (ok) rodar(() => setRecursoLiberadoAction(data.projeto.id, null), "Voltou para aguardando");
+                }}
+              >
+                Voltar para aguardando
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }

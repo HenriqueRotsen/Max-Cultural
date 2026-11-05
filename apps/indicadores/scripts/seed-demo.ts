@@ -3,7 +3,8 @@
  * Uso: npx tsx scripts/seed-demo.ts
  */
 import { config } from "dotenv";
-config({ path: ".env.local", override: true });
+// MAX_LOCAL_STACK=1 (npm run dev:local): o ambiente local já vem no processo.
+if (process.env.MAX_LOCAL_STACK !== "1") config({ path: ".env.local", override: true });
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -100,6 +101,18 @@ async function main() {
         projetoId: proj2.id,
       },
     });
+
+    // Territórios das ações (zona, cidade, UF): a agenda do acompanhamento usa estes.
+    const territorios = [
+      { id: "demo-ter-teatro-buritis", acaoId: of1.id, nome: "Buritis", cidade: "Belo Horizonte", estado: "MG", ordem: 0 },
+      { id: "demo-ter-teatro-zonasul", acaoId: of1.id, nome: "Zona Sul", cidade: "Belo Horizonte", estado: "MG", ordem: 1 },
+      { id: "demo-ter-musica-centro", acaoId: of2.id, nome: "Centro", cidade: "Januária", estado: "MG", ordem: 0 },
+      { id: "demo-ter-danca-norte", acaoId: of3.id, nome: "Zona Norte", cidade: "Montes Claros", estado: "MG", ordem: 0 },
+    ];
+    for (const t of territorios) {
+      await prisma.acaoTerritorio.upsert({ where: { id: t.id }, update: t, create: t });
+    }
+    await prisma.acao.update({ where: { id: of2.id }, data: { ofereceOnline: true } });
 
     const professor = await prisma.user.findUnique({
       where: { email: "professor@maxcultural.local" },

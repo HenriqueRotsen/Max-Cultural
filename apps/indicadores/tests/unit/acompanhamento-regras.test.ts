@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   calcularPrazo,
   chaveTarefa,
+  diaEmBrasilia,
+  diasAposPrazo,
   gerarTarefas,
   pedeAtencao,
   percentualConcluido,
@@ -20,7 +22,7 @@ function modelo(p: Partial<ModeloTarefa> & Pick<ModeloTarefa, "id" | "unidade">)
     fase: p.unidade === "PROJETO" ? "PLANEJAMENTO" : "ANTES",
     titulo: p.id,
     detalhamento: "",
-    prazoBase: p.unidade === "PROJETO" ? "INICIO_EXECUCAO" : "DATA_ACAO",
+    prazoBase: p.unidade === "PROJETO" ? "INICIO_EXECUCAO" : "INICIO_ACAO",
     prazoDias: 0,
     tiposAcao: [],
     ordem: 0,
@@ -32,17 +34,19 @@ function modelo(p: Partial<ModeloTarefa> & Pick<ModeloTarefa, "id" | "unidade">)
 const datas = { inicioExecucao: d("2026-03-01"), fimExecucao: d("2026-12-31") };
 
 describe("calcularPrazo", () => {
-  it("soma dias ao início, ao fim ou à data da ação", () => {
+  it("D±N a partir do início/fim da execução do projeto ou da ação", () => {
+    const acao = { inicio: d("2026-11-09"), fim: d("2026-11-11") };
     expect(iso(calcularPrazo({ prazoBase: "INICIO_EXECUCAO", prazoDias: 15 }, datas))).toBe("2026-03-16");
     expect(iso(calcularPrazo({ prazoBase: "FIM_EXECUCAO", prazoDias: 30 }, datas))).toBe("2027-01-30");
-    expect(iso(calcularPrazo({ prazoBase: "DATA_ACAO", prazoDias: -7 }, datas, d("2026-11-09")))).toBe("2026-11-02");
+    expect(iso(calcularPrazo({ prazoBase: "INICIO_ACAO", prazoDias: -7 }, datas, acao))).toBe("2026-11-02");
+    expect(iso(calcularPrazo({ prazoBase: "FIM_ACAO", prazoDias: 7 }, datas, acao))).toBe("2026-11-18");
   });
 
   it("sem base ou sem dias não há prazo", () => {
     expect(calcularPrazo({ prazoBase: null, prazoDias: 3 }, datas)).toBeNull();
     expect(calcularPrazo({ prazoBase: "INICIO_EXECUCAO", prazoDias: null }, datas)).toBeNull();
     expect(calcularPrazo({ prazoBase: "INICIO_EXECUCAO", prazoDias: 5 }, { inicioExecucao: null, fimExecucao: null })).toBeNull();
-    expect(calcularPrazo({ prazoBase: "DATA_ACAO", prazoDias: 5 }, datas, null)).toBeNull();
+    expect(calcularPrazo({ prazoBase: "INICIO_ACAO", prazoDias: 5 }, datas, null)).toBeNull();
   });
 });
 
@@ -75,6 +79,19 @@ describe("statusGestao", () => {
   });
 });
 
+describe("conclusão × prazo", () => {
+  it("compara o dia (horário de Brasília) da conclusão com o prazo", () => {
+    const prazo = d("2026-11-13");
+    expect(diasAposPrazo(prazo, new Date("2026-11-15T14:00:00Z"))).toBe(2);
+    expect(diasAposPrazo(prazo, new Date("2026-11-10T12:00:00Z"))).toBe(-3);
+    // 23h de 13/11 em Brasília já é 14/11 em UTC: continua sendo no dia.
+    expect(diasAposPrazo(prazo, new Date("2026-11-14T02:00:00Z"))).toBe(0);
+    expect(diasAposPrazo(null, new Date())).toBeNull();
+    expect(diasAposPrazo(prazo, null)).toBeNull();
+    expect(iso(diaEmBrasilia(new Date("2026-11-14T02:00:00Z")))).toBe("2026-11-13");
+  });
+});
+
 describe("percentualConcluido", () => {
   it("ignora as não contempladas", () => {
     expect(percentualConcluido(["CONCLUIDA", "NAO_INICIADA", "NAO_CONTEMPLADA", "CONCLUIDA"])).toBe(67);
@@ -103,6 +120,27 @@ describe("gerarTarefas", () => {
     expect(iso(out[0]!.prazo)).toBe("2026-03-16");
   });
 
+  it("prazo pelo fim da realização (várias datas) e sem fim = um dia só", () => {
+    const out = gerarTarefas({
+      modelos: [modelo({ id: "pos", unidade: "ACAO", fase: "DEPOIS", prazoBase: "FIM_ACAO", prazoDias: 7 })],
+      datas,
+      acoes: [
+        {
+          id: "of",
+          tipoId: "oficina",
+          agenda: [
+            { id: "a1", cidade: "Januária", uf: "MG", data: d("2026-11-09"), dataFim: d("2026-11-11") },
+            { id: "a2", cidade: "Januária", uf: "MG", data: d("2026-11-20") },
+          ],
+        },
+      ],
+    });
+    expect(out.map((t) => [t.agendaId, iso(t.prazo)])).toEqual([
+      ["a1", "2026-11-18"],
+      ["a2", "2026-11-27"],
+    ]);
+  });
+
   it("por ação: uma por realização; ação sem agenda fica sem prazo", () => {
     const out = gerarTarefas({ modelos: [modelo({ id: "mob", unidade: "ACAO", prazoDias: -7 })], datas, acoes });
     expect(out.map((t) => [t.acaoId, t.agendaId, iso(t.prazo)])).toEqual([
@@ -123,11 +161,11 @@ describe("gerarTarefas", () => {
     expect(out).toHaveLength(3);
   });
 
-  it("por cidade: junta as datas da cidade (sem acento/caixa) e usa a 1ª ou a última", () => {
+  it("por cidade: junta as datas da cidade (sem acento/caixa): 1º início e último fim", () => {
     const out = gerarTarefas({
       modelos: [
         modelo({ id: "espaco", unidade: "CIDADE", area: "PRODUCAO", fase: "ANTES", prazoDias: -21 }),
-        modelo({ id: "fecha", unidade: "CIDADE", area: "PRODUCAO", fase: "DEPOIS", prazoDias: 10 }),
+        modelo({ id: "fecha", unidade: "CIDADE", area: "PRODUCAO", fase: "DEPOIS", prazoBase: "FIM_ACAO", prazoDias: 10 }),
       ],
       datas,
       acoes,
@@ -138,6 +176,18 @@ describe("gerarTarefas", () => {
       ["fecha", "2026-11-19"],
     ]);
     expect(out.filter((t) => t.cidade === "Montes Claros")).toHaveLength(2);
+  });
+
+  it("execução online gera tarefa por ação, mas não por cidade", () => {
+    const out = gerarTarefas({
+      modelos: [
+        modelo({ id: "pec", unidade: "ACAO", prazoDias: -10 }),
+        modelo({ id: "espaco", unidade: "CIDADE", area: "PRODUCAO", prazoDias: -21 }),
+      ],
+      datas,
+      acoes: [{ id: "on", tipoId: "palestra", agenda: [{ id: "g1", cidade: "", uf: "", data: d("2026-11-20"), online: true }] }],
+    });
+    expect(out.map((t) => [t.modeloId, t.agendaId, t.cidade, iso(t.prazo)])).toEqual([["pec", "g1", null, "2026-11-10"]]);
   });
 
   it("modelo inativo não gera tarefa", () => {

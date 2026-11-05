@@ -1,5 +1,6 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ContextosManager } from "@/components/admin/contextos-manager";
+import { podeVerAcompanhamento, podeVerPrestacao } from "@/lib/acompanhamento/acesso";
 import {
   listContextosPageAction,
   listAcoesPageAction,
@@ -122,6 +123,8 @@ export default async function ContextosPage({
           acoes={empty.acoes}
           canCreate={canCreate}
           canWrite={canWrite}
+          canAcompanhamento={await podeVerAcompanhamento()}
+          canPrestacao={await podeVerPrestacao()}
         />
       )}
     </AdminShell>

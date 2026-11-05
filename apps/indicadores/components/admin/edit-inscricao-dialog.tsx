@@ -17,6 +17,7 @@ import { columnLabel } from "@/lib/column-labels";
 import { normalizeSimComDetalhe } from "@/lib/normalize";
 import { formatCellDisplay, parseCellInput } from "@/lib/validate";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -129,6 +130,7 @@ type Props = {
 
 export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState<Partial<SigaCulturalRow>>({});
 
@@ -184,15 +186,15 @@ export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
     });
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!record) return;
-    if (
-      !confirm(
-        "Excluir este registro da base? Essa ação não pode ser desfeita.",
-      )
-    ) {
-      return;
-    }
+    const ok = await confirmar({
+      title: "Excluir esta inscrição?",
+      description: "O registro sai da base e dos indicadores. Essa ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await deleteInscricaoAction(record.id);
       if (!result.ok) {
