@@ -746,6 +746,10 @@ enum TipoCampoPrestacao {
   LINK
   OPCOES
   SIM_NAO
+  /// Várias opções marcáveis.
+  MULTIPLA
+  /// Horário de início e fim (HH:MM-HH:MM).
+  HORARIO
 }
 
 /// Dados do projeto para a prestação de contas (gestão).
@@ -794,6 +798,8 @@ model PrestacaoCampo {
   tipo        TipoCampoPrestacao
   opcoes      String[]           @default([])
   equipe      EquipePrestacao
+  /// Sugestão automática (STATUS_DATA, SIM, PARTICIPANTES, CARGA_HORARIA, RESPONSAVEIS, HISTORICO, PERFIL).
+  sugestao    String?
   obrigatorio Boolean            @default(false)
   ordem       Int                @default(0)
   ativo       Boolean            @default(true)

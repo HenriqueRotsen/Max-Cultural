@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  diasDaExecucao,
+  gruposDoPerfil,
   mesesDoPeriodo,
+  minutosDoHorario,
+  sugerir,
+  type ContextoSugestao,
   minutosEmHoras,
   normalizarValor,
   preenchido,
@@ -66,5 +71,63 @@ describe("dados do período", () => {
     expect(minutosEmHoras(90)).toBe("1h30");
     expect(minutosEmHoras(240)).toBe("4h");
     expect(minutosEmHoras(0)).toBe("");
+  });
+});
+
+describe("campos inteligentes", () => {
+  it("valida várias opções, horário e link do Instagram", () => {
+    const multi = { tipo: "MULTIPLA" as const, opcoes: ["Jovens", "Mulheres"], rotulo: "Grupos" };
+    expect(normalizarValor(multi, JSON.stringify(["Jovens", "Inventado"]))).toEqual({ ok: true, valor: ["Jovens"] });
+    expect(normalizarValor(multi, "[]")).toEqual({ ok: true, valor: null });
+    const hora = { tipo: "HORARIO" as const, opcoes: [], rotulo: "Horário" };
+    expect(normalizarValor(hora, "14:00-17:00")).toEqual({ ok: true, valor: "14:00-17:00" });
+    expect(normalizarValor(hora, "17:00-14:00").ok).toBe(false);
+    const insta = { tipo: "LINK" as const, opcoes: [], rotulo: "Instagram", chave: "instagram" };
+    expect(normalizarValor(insta, "https://drive.google.com/x").ok).toBe(false);
+    expect(normalizarValor(insta, "https://www.instagram.com/p/abc/").ok).toBe(true);
+  });
+
+  it("carga horária pelo horário × dias", () => {
+    expect(minutosDoHorario("14:00-17:30")).toBe(210);
+    expect(minutosDoHorario("x")).toBeNull();
+    expect(diasDaExecucao(d("2026-11-23"), d("2026-11-25"))).toBe(3);
+    expect(diasDaExecucao(d("2026-11-23"), null)).toBe(1);
+  });
+
+  it("grupos atendidos pelo perfil das inscrições", () => {
+    expect(
+      gruposDoPerfil({
+        total: 10,
+        genero: { Feminino: 6, Masculino: 4 },
+        etnia: { Preta: 3, Parda: 3, Branca: 4 },
+        idade: { "15–17": 4, "18–29": 3, "30–44": 3 },
+        pcd: 1,
+      }),
+    ).toEqual(["Crianças e adolescentes", "Jovens", "Mulheres", "Pessoas negras", "Pessoas com deficiência"]);
+    expect(gruposDoPerfil({ total: 0, genero: {}, etnia: {}, idade: {}, pcd: 0 })).toEqual([]);
+  });
+
+  it("sugere status pela data, público, carga horária e professor", () => {
+    const ctx: ContextoSugestao = {
+      hoje: d("2026-11-26"),
+      inicio: d("2026-11-23"),
+      fim: d("2026-11-25"),
+      participantes: 14,
+      responsaveis: ["Ana Souza"],
+      historico: ["João Lima"],
+      perfil: null,
+      horario: "14:00-17:00",
+    };
+    const op = { opcoes: ["Confirmada", "Agendada", "Realizada"] };
+    expect(sugerir({ sugestao: "STATUS_DATA", tipo: "OPCOES", ...op }, ctx)?.valor).toBe("Realizada");
+    expect(sugerir({ sugestao: "STATUS_DATA", tipo: "OPCOES", ...op }, { ...ctx, hoje: d("2026-11-20") })?.valor).toBe("Agendada");
+    expect(sugerir({ sugestao: "PARTICIPANTES", tipo: "NUMERO", opcoes: [] }, ctx)?.valor).toBe(14);
+    const carga = sugerir({ sugestao: "CARGA_HORARIA", tipo: "NUMERO", opcoes: [] }, ctx);
+    expect(carga).toMatchObject({ valor: 540, motivo: "3h por dia × 3 dias" });
+    expect(sugerir({ sugestao: "RESPONSAVEIS", tipo: "TEXTO", opcoes: [] }, ctx)).toMatchObject({
+      valor: "Ana Souza",
+      alternativas: ["Ana Souza", "João Lima"],
+    });
+    expect(sugerir({ sugestao: null, tipo: "TEXTO", opcoes: [] }, ctx)).toBeNull();
   });
 });

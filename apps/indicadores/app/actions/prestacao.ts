@@ -14,16 +14,21 @@ import {
   mesesDoPeriodo,
   normalizarValor,
   progressoEquipe,
+  SUGESTOES_POR_TIPO,
   type CampoPrestacao,
+  type FonteSugestao,
   type EquipePrestacao,
   type TipoCampoPrestacao,
   type ValoresFicha,
 } from "@/lib/prestacao/regras";
 import { CATEGORIAS_DOC, CATEGORIAS_FOTO, LEIS } from "@/lib/prestacao/types";
 import { removerArquivoPrivado } from "@/lib/storage/privado";
+import { aggregateSocio } from "@/lib/socio";
+import type { PerfilResumo } from "@/lib/prestacao/regras";
 import type {
   ArquivoDTO,
   CampoDTO,
+  ContextoSugestaoDTO,
   FichaDTO,
   ListaPrestacaoDTO,
   PrestacaoProjetoDTO,
@@ -412,6 +417,67 @@ async function numerosDaAcao(acaoId: string): Promise<Record<(typeof NUMEROS)[nu
   };
 }
 
+/** Perfil das inscrições da ação, por rótulo (para sugerir os grupos atendidos). */
+async function perfilDaAcao(acaoId: string): Promise<PerfilResumo | null> {
+  const socio = await aggregateSocio({ idAcao: acaoId });
+  if (!socio.total) return null;
+  const mapa = (b: Array<{ label: string; count: number }>) => Object.fromEntries(b.map((x) => [x.label, x.count]));
+  return {
+    total: socio.total,
+    genero: mapa(socio.genero),
+    etnia: mapa(socio.etnia),
+    idade: mapa(socio.idade),
+    pcd: socio.deficienca.filter((x) => /^sim/i.test(x.label)).reduce((acc, x) => acc + x.count, 0),
+  };
+}
+
+/**
+ * Contexto das sugestões: datas, participantes, responsáveis, perfil e o que já
+ * foi usado em cada campo nas outras fichas (mesma ação, depois mesma cidade,
+ * depois o resto).
+ */
+async function contextoSugestoes(p: {
+  agendaId: string;
+  acaoId: string;
+  cidade: string;
+  inicio: Date;
+  fim: Date | null;
+  participantes: number;
+  responsaveis: string[];
+  campos: CampoDTO[];
+}): Promise<ContextoSugestaoDTO> {
+  const comHistorico = p.campos.filter((c) => c.sugestao === "HISTORICO" || c.sugestao === "RESPONSAVEIS");
+  const historico: Record<string, string[]> = {};
+  if (comHistorico.length) {
+    const outras = await prisma.prestacaoFicha.findMany({
+      where: { agendaId: { not: p.agendaId } },
+      orderBy: { updatedAt: "desc" },
+      take: 400,
+      select: { valores: true, agenda: { select: { acaoId: true, cidade: true } } },
+    });
+    const peso = (o: (typeof outras)[number]) => (o.agenda.acaoId === p.acaoId ? 0 : o.agenda.cidade === p.cidade ? 1 : 2);
+    const ordenadas = [...outras].sort((a, b) => peso(a) - peso(b));
+    for (const c of comHistorico) {
+      const vistos = new Set<string>();
+      for (const o of ordenadas) {
+        const v = comoValores(o.valores)[c.chave]?.v;
+        if (typeof v === "string" && v.trim() && !vistos.has(v.trim())) vistos.add(v.trim());
+        if (vistos.size >= 12) break;
+      }
+      historico[c.chave] = [...vistos];
+    }
+  }
+  return {
+    hoje: new Date().toISOString().slice(0, 10),
+    inicio: isoDia(p.inicio)!,
+    fim: isoDia(p.fim),
+    participantes: p.participantes,
+    responsaveis: [...new Set(p.responsaveis)],
+    perfil: p.campos.some((c) => c.sugestao === "PERFIL") ? await perfilDaAcao(p.acaoId) : null,
+    historico,
+  };
+}
+
 export async function getFichaAction(agendaId: string): Promise<FichaDTO | null> {
   const { scope, pode } = await contexto();
   const vis = await agendaVisivel(agendaId, scope);
@@ -463,6 +529,7 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
     opcoes: c.opcoes,
     equipe: c.equipe,
     obrigatorio: c.obrigatorio,
+    sugestao: c.sugestao,
     ordem: c.ordem,
     ativo: c.ativo,
   }));
@@ -489,6 +556,18 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
       }),
     ),
     sistema,
+    sugestoes: await contextoSugestoes({
+      agendaId,
+      acaoId: g.acao.id,
+      cidade: g.cidade,
+      inicio: g.data,
+      fim: g.dataFim,
+      participantes: sistema.numeros.find((n) => n.chave === "participantes")?.valor ?? 0,
+      responsaveis: (
+        await prisma.acaoResponsavel.findMany({ where: { acaoId: g.acao.id }, select: { user: { select: { name: true, email: true } } } })
+      ).map((r) => r.user.name || r.user.email),
+      campos: camposDTO,
+    }),
     progresso: progressoFicha(camposDTO, valores),
     atualizadoEm: ficha.updatedAt.toISOString(),
     pode,
@@ -638,6 +717,7 @@ export async function listCamposAction(): Promise<{ campos: CampoDTO[]; pode: bo
       tipo: c.tipo,
       opcoes: c.opcoes,
       equipe: c.equipe,
+      sugestao: c.sugestao,
       obrigatorio: c.obrigatorio,
       ordem: c.ordem,
       ativo: c.ativo,
@@ -646,7 +726,7 @@ export async function listCamposAction(): Promise<{ campos: CampoDTO[]; pode: bo
   };
 }
 
-const TIPOS: TipoCampoPrestacao[] = ["TEXTO", "TEXTO_LONGO", "NUMERO", "DATA", "LINK", "OPCOES", "SIM_NAO"];
+const TIPOS: TipoCampoPrestacao[] = ["TEXTO", "TEXTO_LONGO", "NUMERO", "DATA", "LINK", "OPCOES", "SIM_NAO", "MULTIPLA", "HORARIO"];
 
 function chaveDe(rotulo: string): string {
   return (
@@ -667,6 +747,7 @@ export async function salvarCampoAction(input: {
   tipo: TipoCampoPrestacao;
   opcoes: string[];
   equipe: EquipePrestacao;
+  sugestao?: string | null;
   obrigatorio: boolean;
 }): Promise<Result> {
   const { user, pode } = await contexto();
@@ -674,14 +755,17 @@ export async function salvarCampoAction(input: {
   const rotulo = input.rotulo.trim();
   if (!rotulo) return { ok: false, error: "Informe o nome do campo." };
   if (!TIPOS.includes(input.tipo) || !EQUIPES.includes(input.equipe)) return { ok: false, error: "Dados inválidos." };
-  const opcoes = input.tipo === "OPCOES" ? [...new Set(input.opcoes.map((o) => o.trim()).filter(Boolean))].slice(0, 30) : [];
-  if (input.tipo === "OPCOES" && opcoes.length < 2) return { ok: false, error: "Informe pelo menos duas opções." };
+  const comOpcoes = input.tipo === "OPCOES" || input.tipo === "MULTIPLA";
+  const opcoes = comOpcoes ? [...new Set(input.opcoes.map((o) => o.trim()).filter(Boolean))].slice(0, 30) : [];
+  if (comOpcoes && opcoes.length < 2) return { ok: false, error: "Informe pelo menos duas opções." };
+  const sugestao = input.sugestao && SUGESTOES_POR_TIPO[input.tipo].includes(input.sugestao as FonteSugestao) ? input.sugestao : null;
   const data = {
     rotulo: rotulo.slice(0, 200),
     ajuda: input.ajuda.trim().slice(0, 500),
     tipo: input.tipo,
     opcoes,
     equipe: input.equipe,
+    sugestao,
     obrigatorio: Boolean(input.obrigatorio),
   };
   if (input.id) {

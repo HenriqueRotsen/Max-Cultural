@@ -19,7 +19,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { moverCampoAction, salvarCampoAction, setCampoAtivoAction } from "@/app/actions/prestacao";
-import { EQUIPES, type EquipePrestacao, type TipoCampoPrestacao } from "@/lib/prestacao/regras";
+import {
+  EQUIPES,
+  SUGESTOES,
+  SUGESTOES_POR_TIPO,
+  type EquipePrestacao,
+  type FonteSugestao,
+  type TipoCampoPrestacao,
+} from "@/lib/prestacao/regras";
 import { EQUIPE_LABEL, TIPO_CAMPO_LABEL, type CampoDTO } from "@/lib/prestacao/types";
 import { useConfirm } from "@/components/ui/confirm";
 
@@ -30,6 +37,7 @@ type Edicao = {
   tipo: TipoCampoPrestacao;
   opcoes: string;
   equipe: EquipePrestacao;
+  sugestao: string;
   obrigatorio: boolean;
 };
 
@@ -77,7 +85,9 @@ export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: 
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setEditando({ rotulo: "", ajuda: "", tipo: "TEXTO", opcoes: "", equipe, obrigatorio: false })}
+                  onClick={() =>
+                    setEditando({ rotulo: "", ajuda: "", tipo: "TEXTO", opcoes: "", equipe, sugestao: "", obrigatorio: false })
+                  }
                 >
                   <Plus className="size-4" /> Campo
                 </Button>
@@ -93,7 +103,8 @@ export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: 
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {TIPO_CAMPO_LABEL[c.tipo]}
-                      {c.tipo === "OPCOES" ? `: ${c.opcoes.join(", ")}` : ""}
+                      {c.tipo === "OPCOES" || c.tipo === "MULTIPLA" ? `: ${c.opcoes.join(", ")}` : ""}
+                      {c.sugestao && c.sugestao in SUGESTOES ? ` · sugestão: ${SUGESTOES[c.sugestao as FonteSugestao]}` : ""}
                       {c.ajuda ? ` · ${c.ajuda}` : ""}
                     </div>
                   </div>
@@ -115,7 +126,7 @@ export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: 
                         variant="ghost"
                         size="icon-sm"
                         aria-label="Editar"
-                        onClick={() => setEditando({ ...c, opcoes: c.opcoes.join("\n") })}
+                        onClick={() => setEditando({ ...c, opcoes: c.opcoes.join("\n"), sugestao: c.sugestao ?? "" })}
                       >
                         <Pencil className="size-4" />
                       </Button>
@@ -183,7 +194,7 @@ function CampoDialog({ inicial, onClose }: { inicial: Edicao; onClose: () => voi
 
   function salvar() {
     startTransition(async () => {
-      const r = await salvarCampoAction({ ...c, opcoes: c.opcoes.split("\n") });
+      const r = await salvarCampoAction({ ...c, opcoes: c.opcoes.split("\n"), sugestao: c.sugestao || null });
       if (!r.ok) return void toast.error(r.error);
       toast.success("Campo salvo");
       router.refresh();
@@ -225,10 +236,26 @@ function CampoDialog({ inicial, onClose }: { inicial: Edicao; onClose: () => voi
               />
             </div>
           </div>
-          {c.tipo === "OPCOES" ? (
+          {c.tipo === "OPCOES" || c.tipo === "MULTIPLA" ? (
             <div className="space-y-1.5">
               <Label>Opções (uma por linha)</Label>
               <Textarea rows={4} value={c.opcoes} onChange={(e) => set({ opcoes: e.target.value })} />
+            </div>
+          ) : null}
+          {SUGESTOES_POR_TIPO[c.tipo].length ? (
+            <div className="space-y-1.5">
+              <Label>Sugestão automática</Label>
+              <SimpleSelect
+                value={SUGESTOES_POR_TIPO[c.tipo].includes(c.sugestao as FonteSugestao) ? c.sugestao : ""}
+                onChange={(v) => set({ sugestao: v })}
+                className="h-9 w-full"
+                aria-label="Sugestão automática"
+                options={[
+                  { value: "", label: "Sem sugestão" },
+                  ...SUGESTOES_POR_TIPO[c.tipo].map((f) => ({ value: f, label: SUGESTOES[f] })),
+                ]}
+              />
+              <p className="text-xs text-muted-foreground">O sistema sugere o valor na ficha; a equipe confirma antes de salvar.</p>
             </div>
           ) : null}
           <div className="space-y-1.5">

@@ -1,4 +1,4 @@
-import type { EquipePrestacao, TipoCampoPrestacao, ValoresFicha } from "@/lib/prestacao/regras";
+import type { EquipePrestacao, PerfilResumo, TipoCampoPrestacao, ValoresFicha } from "@/lib/prestacao/regras";
 
 export type { EquipePrestacao, TipoCampoPrestacao, ValoresFicha };
 
@@ -16,6 +16,8 @@ export const TIPO_CAMPO_LABEL: Record<TipoCampoPrestacao, string> = {
   LINK: "Link (drive, Instagram…)",
   OPCOES: "Opções",
   SIM_NAO: "Sim ou não",
+  MULTIPLA: "Várias opções",
+  HORARIO: "Horário (início e fim)",
 };
 
 export const LEIS = [
@@ -37,9 +39,23 @@ export type CampoDTO = {
   tipo: TipoCampoPrestacao;
   opcoes: string[];
   equipe: EquipePrestacao;
+  sugestao: string | null;
   obrigatorio: boolean;
   ordem: number;
   ativo: boolean;
+};
+
+/** O que as sugestões da ficha precisam (o cálculo roda na tela, com o que a pessoa já preencheu). */
+export type ContextoSugestaoDTO = {
+  /** yyyy-mm-dd */
+  hoje: string;
+  inicio: string;
+  fim: string | null;
+  participantes: number;
+  responsaveis: string[];
+  perfil: PerfilResumo | null;
+  /** Valores já usados em cada campo (chave → valores, os mais próximos primeiro). */
+  historico: Record<string, string[]>;
 };
 
 export type ProgressoDTO = Record<EquipePrestacao, { pct: number; faltando: string[] }>;
@@ -110,6 +126,7 @@ export type FichaDTO = {
   valores: ValoresFicha;
   arquivos: ArquivoDTO[];
   sistema: SistemaDTO;
+  sugestoes: ContextoSugestaoDTO;
   progresso: ProgressoDTO;
   atualizadoEm: string | null;
   pode: Record<EquipePrestacao, boolean>;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { cn } from "@/lib/utils";
 import { salvarFichaEquipeAction, salvarFichaGestaoAction } from "@/app/actions/prestacao";
-import { EQUIPES, minutosEmHoras, type EquipePrestacao } from "@/lib/prestacao/regras";
+import { EQUIPES, minutosEmHoras, sugerir, type EquipePrestacao, type Sugestao } from "@/lib/prestacao/regras";
 import { EQUIPE_LABEL, type CampoDTO, type FichaDTO } from "@/lib/prestacao/types";
 import { BarraEquipe } from "@/components/prestacao/progresso";
 import { FotosDocumentos } from "@/components/prestacao/fotos-documentos";
@@ -174,6 +174,20 @@ function DoSistema({ ficha }: { ficha: FichaDTO }) {
   );
 }
 
+const diaDe = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+/** Valor do campo como o formulário guarda (texto; várias opções em JSON). */
+function paraEntrada(v: unknown): string {
+  if (Array.isArray(v)) return JSON.stringify(v);
+  return v != null ? String(v) : "";
+}
+
+function textoSugestao(campo: CampoDTO, valor: Sugestao["valor"]): string {
+  if (Array.isArray(valor)) return valor.join(", ");
+  if (campo.chave === "carga_horaria_min" && typeof valor === "number") return `${valor} min (${minutosEmHoras(valor)})`;
+  return String(valor);
+}
+
 function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestacao }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -182,16 +196,50 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
     Object.fromEntries(
       campos.map((c) => {
         const v = ficha.valores[c.chave];
-        return [c.chave, { v: v?.v != null ? String(v.v) : "", na: Boolean(v?.na) }];
+        return [c.chave, { v: paraEntrada(v?.v), na: Boolean(v?.na) }];
       }),
     ),
   );
   const pode = ficha.pode[equipe];
   const prog = ficha.progresso[equipe];
+
+  // Horário preenchido nesta ficha (de qualquer parte) para a carga horária.
+  const campoHorario = ficha.campos.find((c) => c.tipo === "HORARIO");
+  const horario = (campoHorario && (entrada[campoHorario.chave]?.v ?? paraEntrada(ficha.valores[campoHorario.chave]?.v))) || "";
+  const ctx = ficha.sugestoes;
+  const sugestoes = new Map(
+    campos.map((c) => [
+      c.chave,
+      sugerir(c, {
+        hoje: diaDe(ctx.hoje),
+        inicio: diaDe(ctx.inicio),
+        fim: ctx.fim ? diaDe(ctx.fim) : null,
+        participantes: ctx.participantes,
+        responsaveis: ctx.responsaveis,
+        historico: ctx.historico[c.chave] ?? [],
+        perfil: ctx.perfil,
+        horario,
+      }),
+    ]),
+  );
   if (!campos.length) return null;
 
   const set = (chave: string, patch: Partial<{ v: string; na: boolean }>) =>
     setEntrada((e) => ({ ...e, [chave]: { ...e[chave]!, ...patch } }));
+  const vazio = (chave: string) => {
+    const e = entrada[chave];
+    return !e || (!e.na && (e.v.trim() === "" || e.v === "[]"));
+  };
+  const aplicaveis = campos.filter((c) => vazio(c.chave) && sugestoes.get(c.chave));
+
+  function usarTodas() {
+    setEntrada((e) => {
+      const n = { ...e };
+      for (const c of aplicaveis) n[c.chave] = { v: paraEntrada(sugestoes.get(c.chave)!.valor), na: false };
+      return n;
+    });
+    toast.success(`${aplicaveis.length} sugestão(ões) aplicada(s). Confira e salve.`);
+  }
 
   function salvar() {
     startTransition(async () => {
@@ -213,11 +261,18 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
               : `Só consulta: quem preenche é a equipe de ${EQUIPE_LABEL[equipe]}.`}
           </p>
         </div>
-        <div className="w-40">
-          <BarraEquipe equipe={equipe} pct={prog.pct} compacta />
-          {prog.faltando.length ? (
-            <div className="mt-0.5 text-right text-[11px] text-amber-800">{prog.faltando.length} em aberto</div>
+        <div className="flex items-center gap-3">
+          {pode && aplicaveis.length ? (
+            <Button variant="outline" size="sm" onClick={usarTodas}>
+              <Sparkles className="size-4 text-amber-500" /> Usar {aplicaveis.length === 1 ? "a sugestão" : `as ${aplicaveis.length} sugestões`}
+            </Button>
           ) : null}
+          <div className="w-40">
+            <BarraEquipe equipe={equipe} pct={prog.pct} compacta />
+            {prog.faltando.length ? (
+              <div className="mt-0.5 text-right text-[11px] text-amber-800">{prog.faltando.length} em aberto</div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -228,6 +283,8 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
             campo={c}
             valor={entrada[c.chave]!}
             disabled={!pode}
+            sugestao={vazio(c.chave) ? (sugestoes.get(c.chave) ?? null) : null}
+            alternativas={sugestoes.get(c.chave)?.alternativas ?? []}
             onChange={(patch) => set(c.chave, patch)}
           />
         ))}
@@ -244,19 +301,85 @@ function ParteEquipe({ ficha, equipe }: { ficha: FichaDTO; equipe: EquipePrestac
   );
 }
 
+/** Várias opções marcáveis (etiquetas). */
+function Multipla({
+  opcoes,
+  valor,
+  disabled,
+  onChange,
+}: {
+  opcoes: string[];
+  valor: string;
+  disabled: boolean;
+  onChange: (v: string) => void;
+}) {
+  let marcadas: string[] = [];
+  try {
+    const x = JSON.parse(valor || "[]");
+    if (Array.isArray(x)) marcadas = x.map(String);
+  } catch {
+    marcadas = [];
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {opcoes.map((o) => {
+        const ativa = marcadas.includes(o);
+        return (
+          <button
+            key={o}
+            type="button"
+            disabled={disabled}
+            aria-pressed={ativa}
+            onClick={() => onChange(JSON.stringify(ativa ? marcadas.filter((x) => x !== o) : [...marcadas, o]))}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-xs transition disabled:opacity-50",
+              ativa
+                ? "border-brand-deep bg-brand-deep text-white"
+                : "border-border bg-white text-foreground hover:border-brand/40 hover:bg-brand-mist/40",
+            )}
+          >
+            {o}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Horário de início e fim, guardado como "HH:MM-HH:MM". */
+function Horario({ valor, disabled, onChange }: { valor: string; disabled: boolean; onChange: (v: string) => void }) {
+  const [ini = "", fim = ""] = valor ? valor.split("-") : [];
+  const montar = (a: string, b: string) => onChange(a || b ? `${a}-${b}` : "");
+  // Campo de hora nativo: o Input do base-ui não repassa bem a mudança do seletor de hora.
+  const estilo =
+    "h-9 w-32 rounded-lg border border-input bg-transparent px-2.5 text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
+  return (
+    <div className="flex items-center gap-2">
+      <input type="time" value={ini} disabled={disabled} onChange={(e) => montar(e.target.value, fim)} className={estilo} aria-label="Início" />
+      <span className="text-sm text-muted-foreground">às</span>
+      <input type="time" value={fim} disabled={disabled} onChange={(e) => montar(ini, e.target.value)} className={estilo} aria-label="Fim" />
+    </div>
+  );
+}
+
 function Campo({
   campo,
   valor,
   disabled,
+  sugestao,
+  alternativas,
   onChange,
 }: {
   campo: CampoDTO;
   valor: { v: string; na: boolean };
   disabled: boolean;
+  sugestao: Sugestao | null;
+  alternativas: string[];
   onChange: (patch: Partial<{ v: string; na: boolean }>) => void;
 }) {
   const off = disabled || valor.na;
-  const largo = campo.tipo === "TEXTO_LONGO";
+  const largo = campo.tipo === "TEXTO_LONGO" || campo.tipo === "MULTIPLA";
+  const listaId = `sug-${campo.chave}`;
   let controle: React.ReactNode;
   switch (campo.tipo) {
     case "TEXTO_LONGO":
@@ -264,6 +387,12 @@ function Campo({
       break;
     case "DATA":
       controle = <DatePicker value={valor.v} onChange={(v) => onChange({ v })} disabled={off} className="w-52" aria-label={campo.rotulo} />;
+      break;
+    case "MULTIPLA":
+      controle = <Multipla opcoes={campo.opcoes} valor={valor.v} disabled={off} onChange={(v) => onChange({ v })} />;
+      break;
+    case "HORARIO":
+      controle = <Horario valor={valor.v} disabled={off} onChange={(v) => onChange({ v })} />;
       break;
     case "OPCOES":
     case "SIM_NAO": {
@@ -286,7 +415,7 @@ function Campo({
           <Input
             value={valor.v}
             disabled={off}
-            placeholder="https://drive.google.com/…"
+            placeholder={campo.chave === "instagram" ? "https://www.instagram.com/p/…" : "https://…"}
             onChange={(e) => onChange({ v: e.target.value })}
             aria-label={campo.rotulo}
           />
@@ -316,7 +445,25 @@ function Campo({
       );
       break;
     default:
-      controle = <Input value={valor.v} disabled={off} onChange={(e) => onChange({ v: e.target.value })} aria-label={campo.rotulo} />;
+      controle = (
+        <>
+          <Input
+            value={valor.v}
+            disabled={off}
+            onChange={(e) => onChange({ v: e.target.value })}
+            aria-label={campo.rotulo}
+            list={alternativas.length ? listaId : undefined}
+            autoComplete="off"
+          />
+          {alternativas.length ? (
+            <datalist id={listaId}>
+              {alternativas.map((a) => (
+                <option key={a} value={a} />
+              ))}
+            </datalist>
+          ) : null}
+        </>
+      );
   }
   const horas = campo.chave === "carga_horaria_min" && valor.v ? minutosEmHoras(Number(valor.v.replace(",", "."))) : "";
 
@@ -339,6 +486,22 @@ function Campo({
         </label>
       </div>
       {controle}
+      {sugestao && !disabled && !valor.na ? (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-amber-50/70 px-2 py-1 text-xs text-amber-900">
+          <Sparkles className="size-3.5 shrink-0 text-amber-500" />
+          <span>
+            Sugestão: <strong className="font-semibold">{textoSugestao(campo, sugestao.valor)}</strong>
+            <span className="text-amber-800/80"> · {sugestao.motivo}</span>
+          </span>
+          <button
+            type="button"
+            className="font-semibold text-teal-800 underline-offset-2 hover:underline"
+            onClick={() => onChange({ v: paraEntrada(sugestao.valor) })}
+          >
+            Usar
+          </button>
+        </div>
+      ) : null}
       {campo.ajuda || horas ? (
         <p className="text-xs text-muted-foreground">
           {campo.ajuda}

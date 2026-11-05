@@ -166,7 +166,13 @@ export async function montarDadosRelatorio(
         .map((c) => {
           const v = valores[c.chave];
           if (!v || v.na || v.v == null || String(v.v).trim() === "") return null;
-          const texto = c.chave === "carga_horaria_min" ? `${v.v} min (${minutosEmHoras(Number(v.v))})` : String(v.v);
+          const texto = Array.isArray(v.v)
+            ? v.v.join(", ")
+            : c.tipo === "HORARIO"
+              ? String(v.v).replace("-", " às ")
+              : c.chave === "carga_horaria_min"
+                ? `${minutosEmHoras(Number(v.v))} (${v.v} min)`
+                : String(v.v);
           return { rotulo: c.rotulo, valor: texto };
         })
         .filter((x): x is { rotulo: string; valor: string } => x !== null);
