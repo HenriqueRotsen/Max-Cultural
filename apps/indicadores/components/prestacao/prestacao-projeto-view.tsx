@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BarChart3, ChevronRight, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
+import { BarChart3, ChevronRight, Download, FileText, ListChecks, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ import { EQUIPES } from "@/lib/prestacao/regras";
 import { EQUIPE_LABEL, LEI_LABEL, LEIS, type PrestacaoProjetoDTO, type ProdutoDTO } from "@/lib/prestacao/types";
 import { BarraEquipe } from "@/components/prestacao/progresso";
 
-export type AbaPrestacao = "fichas" | "produtos" | "dados";
+export type AbaPrestacao = "fichas" | "relatorios" | "produtos" | "dados";
 
 function fmtDia(iso: string | null) {
   if (!iso) return "—";
@@ -119,6 +119,7 @@ export function PrestacaoProjetoView({
         {(
           [
             ["fichas", `Fichas (${data.execucoes.length})`],
+            ["relatorios", `Relatórios (${data.relatorios.length})`],
             ["produtos", `Produtos e metas (${data.produtos.length})`],
             ["dados", "Dados do projeto"],
           ] as const
@@ -139,6 +140,7 @@ export function PrestacaoProjetoView({
       </nav>
 
       {aba === "fichas" ? <Fichas data={data} podeAcompanhamento={podeAcompanhamento} /> : null}
+      {aba === "relatorios" ? <Relatorios data={data} /> : null}
       {aba === "produtos" ? <Produtos data={data} /> : null}
       {aba === "dados" ? <Dados data={data} /> : null}
     </div>
@@ -460,6 +462,109 @@ function Dados({ data }: { data: PrestacaoProjetoDTO }) {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">Ainda não entregue.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function Relatorios({ data }: { data: PrestacaoProjetoDTO }) {
+  const router = useRouter();
+  const [produtoId, setProdutoId] = useState("");
+  const [listaNominal, setListaNominal] = useState(false);
+  const [gerando, setGerando] = useState(false);
+  const pode = data.pode.GESTAO;
+  const fichasComFoto = data.execucoes.length;
+
+  async function gerar() {
+    setGerando(true);
+    try {
+      const r = await fetch(`/api/prestacao/projetos/${encodeURIComponent(data.projeto.id)}/relatorios`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ produtoId: produtoId || null, listaNominal }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { id?: string; error?: string };
+      if (!r.ok || !j.id) throw new Error(j.error || `Falha (${r.status}).`);
+      toast.success("Relatório gerado");
+      window.open(`/api/prestacao/relatorios/${j.id}`, "_blank", "noopener");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="space-y-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+        <div>
+          <h2 className="font-heading text-lg font-semibold text-brand-deep">Gerar relatório em PDF</h2>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            Junta os dados do projeto e das inscrições, o perfil do público, os formulários e avaliações, o que as
+            equipes preencheram nas fichas e as fotos marcadas para o relatório, agrupadas por categoria e com a
+            descrição como legenda.
+          </p>
+        </div>
+        {pode ? (
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full max-w-sm space-y-1.5">
+              <Label>Produto</Label>
+              <SimpleSelect
+                value={produtoId}
+                onChange={setProdutoId}
+                className="h-9 w-full"
+                aria-label="Produto do relatório"
+                options={[
+                  { value: "", label: "Todos os produtos (relatório completo)" },
+                  ...data.produtos.map((p) => ({ value: p.id, label: p.nome })),
+                ]}
+              />
+            </div>
+            <label className="flex items-center gap-2 pb-2 text-sm">
+              <input type="checkbox" className="size-4" checked={listaNominal} onChange={(e) => setListaNominal(e.target.checked)} />
+              Incluir lista de participantes (só nomes)
+            </label>
+            <Button disabled={gerando || !fichasComFoto} onClick={() => void gerar()}>
+              {gerando ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+              {gerando ? "Gerando…" : "Gerar relatório"}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Só a gestão da prestação de contas gera relatórios.</p>
+        )}
+        {!fichasComFoto ? <p className="text-xs text-amber-800">O projeto ainda não tem execuções na agenda.</p> : null}
+      </section>
+
+      <section className="rounded-2xl border border-border/70 bg-white shadow-sm">
+        <h2 className="border-b border-border/60 px-4 py-3 font-heading text-base font-semibold text-brand-deep">
+          Relatórios gerados
+        </h2>
+        {data.relatorios.length ? (
+          <ul className="divide-y divide-border/60">
+            {data.relatorios.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="font-medium text-brand-deep hover:underline">
+                    {r.produtoNome ?? "Relatório completo"}
+                  </a>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(r.geradoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {r.geradoPorNome} ·{" "}
+                    {(r.tamanho / 1024 / 1024).toFixed(1)} MB
+                  </div>
+                </div>
+                <a
+                  href={`${r.url}?baixar=1`}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-xs font-medium text-brand-deep hover:bg-muted/40"
+                >
+                  <Download className="size-3.5" /> Baixar
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nenhum relatório gerado ainda.</p>
         )}
       </section>
     </div>

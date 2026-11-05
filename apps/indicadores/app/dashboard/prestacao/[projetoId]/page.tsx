@@ -12,7 +12,7 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const ABAS: AbaPrestacao[] = ["fichas", "produtos", "dados"];
+const ABAS: AbaPrestacao[] = ["fichas", "relatorios", "produtos", "dados"];
 
 export default async function PrestacaoProjetoPage({ params, searchParams }: Props) {
   await requireDashboardPermission("prestacao:read");

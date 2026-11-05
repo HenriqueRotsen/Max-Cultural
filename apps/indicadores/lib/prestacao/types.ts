@@ -76,6 +76,7 @@ export type PrestacaoProjetoDTO = {
   execucoes: ExecucaoDTO[];
   /** Ações sem nenhuma execução na agenda (ainda sem ficha). */
   acoesSemAgenda: Array<{ id: string; nome: string }>;
+  relatorios: RelatorioDTO[];
   progresso: ProgressoDTO;
   pode: Record<EquipePrestacao, boolean>;
 };
@@ -107,6 +108,7 @@ export type FichaDTO = {
   produtos: Array<{ id: string; nome: string }>;
   campos: CampoDTO[];
   valores: ValoresFicha;
+  arquivos: ArquivoDTO[];
   sistema: SistemaDTO;
   progresso: ProgressoDTO;
   atualizadoEm: string | null;
@@ -133,4 +135,55 @@ export type ListaPrestacaoDTO = {
   pageCount: number;
   pageSize: number;
   contextos: Array<{ id: string; nome: string }>;
+};
+
+/** Categorias das fotos: definem a seção do relatório onde cada uma entra. */
+export const CATEGORIAS_FOTO = [
+  { value: "comprovacao", label: "Comprovação da realização" },
+  { value: "acessibilidade", label: "Acessibilidade" },
+  { value: "divulgacao", label: "Divulgação (posts, prints)" },
+  { value: "presenca", label: "Lista de presença ou borderô" },
+  { value: "certificados", label: "Certificados" },
+  { value: "pos_evento", label: "Making of ou pós-evento" },
+  { value: "materiais", label: "Materiais (apostila)" },
+  { value: "outros", label: "Outros" },
+] as const;
+
+/** Categorias dos documentos (PDF), que entram como anexos. */
+export const CATEGORIAS_DOC = [
+  { value: "presenca", label: "Lista de presença ou borderô" },
+  { value: "certificados", label: "Certificados" },
+  { value: "clipping", label: "Clipping" },
+  { value: "apostila", label: "Apostila" },
+  { value: "redes", label: "Relatório de redes sociais" },
+  { value: "outros", label: "Outros" },
+] as const;
+
+export const CATEGORIA_LABEL: Record<string, string> = Object.fromEntries(
+  [...CATEGORIAS_FOTO, ...CATEGORIAS_DOC].map((c) => [c.value, c.label]),
+);
+
+export type ArquivoDTO = {
+  id: string;
+  tipo: "FOTO" | "DOCUMENTO";
+  categoria: string;
+  descricao: string;
+  ordem: number;
+  noRelatorio: boolean;
+  nomeOriginal: string;
+  tamanho: number;
+  /** URL para ver/baixar (rota protegida). */
+  url: string;
+  enviadoEm: string;
+};
+
+export type RelatorioDTO = {
+  id: string;
+  titulo: string;
+  produtoNome: string | null;
+  tamanho: number;
+  paginas: number | null;
+  geradoEm: string;
+  geradoPorNome: string;
+  url: string;
 };

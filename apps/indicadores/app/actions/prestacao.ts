@@ -19,8 +19,10 @@ import {
   type TipoCampoPrestacao,
   type ValoresFicha,
 } from "@/lib/prestacao/regras";
-import { LEIS } from "@/lib/prestacao/types";
+import { CATEGORIAS_DOC, CATEGORIAS_FOTO, LEIS } from "@/lib/prestacao/types";
+import { removerArquivoPrivado } from "@/lib/storage/privado";
 import type {
+  ArquivoDTO,
   CampoDTO,
   FichaDTO,
   ListaPrestacaoDTO,
@@ -216,6 +218,17 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
     prisma.prestacaoFicha.findMany({ where: { projetoId }, select: { agendaId: true, valores: true, produtoId: true } }),
     camposAtivos(),
   ]);
+  const relatorios = await prisma.prestacaoRelatorio.findMany({
+    where: { projetoId },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    include: { produto: { select: { nome: true } } },
+  });
+  const autores = await prisma.user.findMany({
+    where: { id: { in: [...new Set(relatorios.map((r) => r.geradoPor).filter((x): x is string => Boolean(x)))] } },
+    select: { id: true, name: true, email: true },
+  });
+  const autor = new Map(autores.map((u) => [u.id, u.name || u.email]));
   const fichaPorAgenda = new Map(fichas.map((f) => [f.agendaId, f]));
   const execucoes = acoes.flatMap((a) =>
     a.agenda.map((g) => {
@@ -253,6 +266,16 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
     produtos: produtos.map((p) => ({ id: p.id, nome: p.nome, meta: p.meta, fichas: p._count.fichas })),
     execucoes,
     acoesSemAgenda: acoes.filter((a) => !a.agenda.length).map((a) => ({ id: a.id, nome: a.nome })),
+    relatorios: relatorios.map((r) => ({
+      id: r.id,
+      titulo: r.titulo,
+      produtoNome: r.produto?.nome ?? null,
+      tamanho: r.tamanho,
+      paginas: r.paginas,
+      geradoEm: r.createdAt.toISOString(),
+      geradoPorNome: (r.geradoPor && autor.get(r.geradoPor)) || "—",
+      url: `/api/prestacao/relatorios/${r.id}`,
+    })),
     progresso: progressoProjeto(campos, fichas.map((f) => comoValores(f.valores)), execucoes.length),
     pode,
   };
@@ -399,6 +422,7 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
       where: { agendaId },
       create: { agendaId, projetoId: projeto.id },
       update: {},
+      include: { arquivos: { orderBy: [{ categoria: "asc" }, { ordem: "asc" }] } },
     }),
     prisma.prestacaoCampo.findMany({ where: { ativo: true }, orderBy: [{ equipe: "asc" }, { ordem: "asc" }] }),
     prisma.prestacaoProduto.findMany({ where: { projetoId: projeto.id }, orderBy: [{ ordem: "asc" }], select: { id: true, nome: true } }),
@@ -450,6 +474,20 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
     produtos,
     campos: camposDTO,
     valores,
+    arquivos: ficha.arquivos.map(
+      (a): ArquivoDTO => ({
+        id: a.id,
+        tipo: a.tipo === "DOCUMENTO" ? "DOCUMENTO" : "FOTO",
+        categoria: a.categoria,
+        descricao: a.descricao,
+        ordem: a.ordem,
+        noRelatorio: a.noRelatorio,
+        nomeOriginal: a.nomeOriginal,
+        tamanho: a.tamanho,
+        url: `/api/prestacao/arquivos/${a.id}`,
+        enviadoEm: a.createdAt.toISOString(),
+      }),
+    ),
     sistema,
     progresso: progressoFicha(camposDTO, valores),
     atualizadoEm: ficha.updatedAt.toISOString(),
@@ -521,6 +559,68 @@ export async function salvarFichaGestaoAction(
     update: { produtoId: input.produtoId, ajustes, atualizadoPor: user.id },
   });
   revalidar(vis.projeto.id, agendaId);
+  return { ok: true };
+}
+
+// ── Fotos e documentos da ficha ──────────────────────────────────────────
+
+async function arquivoEditavel(id: string) {
+  const ctx = await contexto();
+  if (!ctx.pode.PRODUCAO && !ctx.pode.COMUNICACAO && !ctx.pode.GESTAO) return { erro: "Sem permissão." } as const;
+  const arq = await prisma.prestacaoArquivo.findUnique({ where: { id }, include: { ficha: { select: { agendaId: true } } } });
+  if (!arq || !(await projetoVisivel(arq.projetoId, ctx.scope))) return { erro: "Arquivo não encontrado." } as const;
+  return { ...ctx, arq } as const;
+}
+
+/** Categoria, descrição (legenda no relatório) e se entra no relatório. */
+export async function atualizarArquivoAction(
+  id: string,
+  input: { categoria: string; descricao: string; noRelatorio: boolean },
+): Promise<Result> {
+  const r = await arquivoEditavel(id);
+  if ("erro" in r) return { ok: false, error: r.erro! };
+  const categorias: readonly { value: string }[] = r.arq.tipo === "DOCUMENTO" ? CATEGORIAS_DOC : CATEGORIAS_FOTO;
+  if (!categorias.some((c) => c.value === input.categoria)) return { ok: false, error: "Categoria inválida." };
+  await prisma.prestacaoArquivo.update({
+    where: { id },
+    data: { categoria: input.categoria, descricao: input.descricao.trim().slice(0, 600), noRelatorio: Boolean(input.noRelatorio) },
+  });
+  revalidar(r.arq.projetoId, r.arq.ficha.agendaId);
+  return { ok: true };
+}
+
+/** Sobe ou desce a foto dentro da categoria (ordem no relatório). */
+export async function moverArquivoAction(id: string, direcao: -1 | 1): Promise<Result> {
+  const r = await arquivoEditavel(id);
+  if ("erro" in r) return { ok: false, error: r.erro! };
+  const irmaos = await prisma.prestacaoArquivo.findMany({
+    where: { fichaId: r.arq.fichaId, categoria: r.arq.categoria, tipo: r.arq.tipo },
+    orderBy: [{ ordem: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+  const i = irmaos.findIndex((x) => x.id === id);
+  const j = i + direcao;
+  if (i < 0 || j < 0 || j >= irmaos.length) return { ok: true };
+  [irmaos[i], irmaos[j]] = [irmaos[j]!, irmaos[i]!];
+  await prisma.$transaction(irmaos.map((x, k) => prisma.prestacaoArquivo.update({ where: { id: x.id }, data: { ordem: k + 1 } })));
+  revalidar(r.arq.projetoId, r.arq.ficha.agendaId);
+  return { ok: true };
+}
+
+export async function removerArquivoAction(id: string): Promise<Result> {
+  const r = await arquivoEditavel(id);
+  if ("erro" in r) return { ok: false, error: r.erro! };
+  await prisma.prestacaoArquivo.delete({ where: { id } });
+  // O registro sai primeiro; se o Storage falhar, sobra só um arquivo órfão.
+  await removerArquivoPrivado(r.arq.storagePath).catch(() => undefined);
+  await writeAuditLog({
+    actorUserId: r.user.id,
+    action: "prestacao.arquivo_removido",
+    entityType: "PrestacaoArquivo",
+    entityId: id,
+    meta: { projetoId: r.arq.projetoId, nome: r.arq.nomeOriginal, categoria: r.arq.categoria },
+  });
+  revalidar(r.arq.projetoId, r.arq.ficha.agendaId);
   return { ok: true };
 }
 

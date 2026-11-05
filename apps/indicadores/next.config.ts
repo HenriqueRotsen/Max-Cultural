@@ -14,6 +14,8 @@ const allowedDevOrigins = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@max/auth", "@max/mobile-nav", "@max/security-headers"],
+  // Gerador de PDF da prestação de contas: roda no Node, fora do bundle.
+  serverExternalPackages: ["@react-pdf/renderer"],
   allowedDevOrigins,
   async headers() {
     return [

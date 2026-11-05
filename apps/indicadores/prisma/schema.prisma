@@ -87,6 +87,7 @@ model Projeto {
   prestacao      PrestacaoProjeto?
   produtos       PrestacaoProduto[]
   fichas         PrestacaoFicha[]
+  relatorios     PrestacaoRelatorio[]
   tarefas        Tarefa[]
   ocorrencias    Ocorrencia[]
   createdAt  DateTime @default(now())
@@ -775,6 +776,7 @@ model PrestacaoProduto {
   meta      String           @default("")
   ordem     Int              @default(0)
   fichas    PrestacaoFicha[]
+  relatorios PrestacaoRelatorio[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
@@ -815,10 +817,65 @@ model PrestacaoFicha {
   valores       Json              @default("{}")
   /// Correções dos dados que vêm do sistema: { [chave]: valor }.
   ajustes       Json              @default("{}")
+  arquivos      PrestacaoArquivo[]
   atualizadoPor String?           @map("atualizado_por")
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
   @@index([projetoId])
   @@map("prestacao_fichas")
+}
+
+/// Foto ou documento de uma ficha. Guardado no Storage (e, depois, no drive).
+model PrestacaoArquivo {
+  id          String         @id @default(cuid())
+  fichaId     String         @map("ficha_id")
+  ficha       PrestacaoFicha @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  projetoId   String         @map("projeto_id")
+  /// FOTO ou DOCUMENTO
+  tipo        String
+  /// Onde entra no relatório (comprovacao, acessibilidade, divulgacao…).
+  categoria   String
+  /// Legenda no relatório.
+  descricao   String         @default("")
+  ordem       Int            @default(0)
+  noRelatorio Boolean        @default(true) @map("no_relatorio")
+  /// sb://bucket/chave (Supabase) ou local://chave (testes).
+  storagePath String         @map("storage_path")
+  nomeOriginal String        @default("") @map("nome_original")
+  mime        String
+  tamanho     Int
+  largura     Int?
+  altura      Int?
+  /// Cópia no drive (etapa E).
+  driveFileId String?        @map("drive_file_id")
+  enviadoPor  String?        @map("enviado_por")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([fichaId, categoria, ordem])
+  @@index([projetoId])
+  @@map("prestacao_arquivos")
+}
+
+/// Relatório em PDF gerado pelo sistema (histórico).
+model PrestacaoRelatorio {
+  id          String            @id @default(cuid())
+  projetoId   String            @map("projeto_id")
+  projeto     Projeto           @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// Nulo = todos os produtos.
+  produtoId   String?           @map("produto_id")
+  produto     PrestacaoProduto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+  /// Modelo do relatório (ex.: PRESTACAO_POR_PRODUTO).
+  modelo      String
+  titulo      String
+  storagePath String            @map("storage_path")
+  tamanho     Int
+  paginas     Int?
+  driveFileId String?           @map("drive_file_id")
+  geradoPor   String?           @map("gerado_por")
+  createdAt   DateTime          @default(now())
+
+  @@index([projetoId, createdAt])
+  @@map("prestacao_relatorios")
 }

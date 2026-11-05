@@ -16,6 +16,7 @@ import { salvarFichaEquipeAction, salvarFichaGestaoAction } from "@/app/actions/
 import { EQUIPES, minutosEmHoras, type EquipePrestacao } from "@/lib/prestacao/regras";
 import { EQUIPE_LABEL, type CampoDTO, type FichaDTO } from "@/lib/prestacao/types";
 import { BarraEquipe } from "@/components/prestacao/progresso";
+import { FotosDocumentos } from "@/components/prestacao/fotos-documentos";
 
 function fmtDia(iso: string) {
   const [y, m, d] = iso.split("-");
@@ -51,6 +52,8 @@ export function FichaView({ ficha }: { ficha: FichaDTO }) {
       </div>
 
       <DoSistema ficha={ficha} />
+
+      <FotosDocumentos ficha={ficha} />
 
       {EQUIPES.map((e) => (
         <ParteEquipe key={e} ficha={ficha} equipe={e} />

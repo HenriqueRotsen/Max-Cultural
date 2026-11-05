@@ -23,6 +23,10 @@ Na saída, a gestão gera **um relatório por produto**, mais os anexos (clippin
 | Cidade/Estado, local (território) | Território da execução, na agenda |
 | Data de início, data final, mês, quantidade de meses | Período da execução, na agenda |
 | Inscritos, selecionados, participantes, PCDs, certificados | Inscrições da ação (importação e formulários) |
+| Formulário de inscrição e planilha de respostas | Formulários da ação no próprio sistema (título, período, perguntas, respostas) |
+| Lista de selecionados, de participantes e de certificados | Inscrições da ação (quem foi selecionado, participou e recebeu certificado); o sistema gera a lista |
+| Pesquisa de avaliação e depoimentos | Formulários de avaliação da ação (respostas de múltipla escolha somadas; textos para escolher como depoimento) |
+| Perfil do público (gênero, raça/cor, idade, PCD, território) | Inscrições (o mesmo perfil sociodemográfico que o Indicadores já mostra) |
 
 Esses campos aparecem já preenchidos. A equipe pode corrigir um valor quando o dado do sistema estiver incompleto.
 
@@ -82,16 +86,57 @@ A chave da conta de serviço fica guardada como segredo na Vercel, nunca no cód
 - **Estimativa:** cerca de 10 fotos e prints (≈ 3 MB) mais 1 a 3 PDFs (≈ 3 MB) por execução de ação, ou ≈ 6 MB por execução. Com 1.000 execuções por ano (50 projetos × 20), são ≈ 6 GB por ano. Somando os PDFs gerados, ≈ 8 GB por ano.
 - **Conclusão:** como os arquivos saem do Supabase 1 ano depois da entrega, o Supabase guarda no máximo cerca de 1 a 2 anos de arquivos (≈ 6 a 16 GB). Esse uso não cresce com o tempo, e o drive guarda tudo de forma permanente.
 
-**O PDF gerado** (por projeto, ou por produto, que é como vai ao SALIC):
-1. Capa: projeto, proponente, lei e identificação, patrocinador, período.
-2. Produtos e metas.
-3. Para cada execução da ação:
-   - dados (tipo, local, datas, carga horária, professor/artista);
-   - números das inscrições, gerados pelo sistema (inscritos, selecionados, participantes, PCDs, certificados), com gráfico;
-   - fotos em grade, com legenda.
-4. Anexos: lista dos documentos (presença, certificados, clipping, apostila), com o link de cada um.
+## 4.1 Fotos com descrição
 
-Gerado no servidor com `@react-pdf/renderer`, que roda na Vercel sem navegador. Dados pessoais dos participantes (CPF, telefone, e-mail) não entram no PDF; listas nominais só quando forem exigidas (LGPD).
+Em cada ficha, as equipes vão juntando as **fotos e documentos** da execução. Cada foto tem:
+- **categoria**, que define onde ela entra no relatório:
+  - comprovação da realização;
+  - acessibilidade;
+  - divulgação (posts, prints);
+  - lista de presença ou borderô;
+  - certificados;
+  - making of ou pós-evento;
+  - materiais (apostila);
+  - outros;
+- **descrição**, que vira a legenda no relatório (ex.: "Intérprete de Libras durante a oficina, 23/11/2026");
+- **ordem** e **"entra no relatório"** (sim/não), para escolher as melhores.
+
+Documentos em PDF (listas de presença, certificados, clipping) entram como **anexos**.
+
+## 4.2 Relatórios em PDF, gerados pelo sistema
+
+Todos os relatórios saem daqui. O sistema junta:
+- o que já tem: projeto, ações, agenda, territórios, números das inscrições;
+- o que as equipes preencheram na ficha;
+- as fotos com descrição.
+
+Com isso, monta o PDF num **modelo bonito e organizado**, com as cores e a marca do MAX.
+
+**O que o relatório monta sozinho, a partir do que já está no sistema:**
+- números das inscrições, com gráfico;
+- perfil do público (gênero, raça/cor, faixa etária, PCD, território), com gráficos;
+- formulário de inscrição usado (título, período, total de respostas);
+- lista de selecionados, de participantes e de certificados, só com os nomes, como anexo gerado pelo sistema;
+- avaliação: as respostas de múltipla escolha somadas e os depoimentos escolhidos pela equipe.
+
+Assim, campos da ficha que hoje pedem link ou print disso deixam de ser necessários: formulário de inscrição, planilha de respostas, print da lista de selecionados, lista de certificados e pesquisa de avaliação. Eles saem do modelo inicial e só voltam se a equipe quiser. Continuam na ficha o que só as pessoas têm: fotos, lista de presença assinada ou borderô digitalizado, release, clipping e relatório de redes.
+
+**Tipos de relatório** (cada um é um modelo; começamos pelo primeiro):
+1. **Prestação de contas por produto** (o que vai ao SALIC ou à plataforma da lei):
+   - capa;
+   - produto e meta;
+   - para cada execução: dados, números com gráfico, e fotos agrupadas por categoria (comprovação, acessibilidade, divulgação…) com as legendas;
+   - anexos.
+2. Depois: **relatório de atividades para o patrocinador** (mais visual) e **portfólio/book do projeto**, com todas as edições.
+
+**Cada relatório gerado:**
+- fica guardado no sistema, com a data e quem gerou, e pode ser baixado de novo;
+- é copiado para o drive, na pasta *Relatórios* do projeto;
+- pode ser gerado de novo quando as fichas mudarem, e o anterior continua no histórico.
+
+**Como é gerado:** no servidor, com `@react-pdf/renderer` (roda na Vercel, sem navegador), com as fotos já comprimidas.
+
+**Dados pessoais:** CPF, telefone e e-mail dos participantes não entram (LGPD). Listas nominais só como anexo, quando exigidas.
 
 ## 5. Etapas
 
@@ -99,10 +144,10 @@ Gerado no servidor com `@react-pdf/renderer`, que roda na Vercel sem navegador. 
 |---|---|
 | **A** | Dados do projeto (lei, identificação, patrocinador), produtos e metas, modelo da ficha com os campos da apresentação, menu lateral e atalhos |
 | **B** | Ficha por execução da ação (três blocos, permissões por equipe, "Não se aplica", campos automáticos), pendências e % preenchido |
-| **C** | Envio de imagens (com legenda) e documentos na ficha, comprimidos, no Supabase Storage |
-| **D** | Cópia automática para o drive organizado, "Prestação de contas entregue" e limpeza do Supabase 1 ano depois (depende do drive compartilhado e da conta de serviço) |
-| **E** | PDF da prestação de contas (por projeto e por produto), guardado também no drive, e exportação Excel/CSV com filtros |
-| **F** (depois) | Painel de dados e integração com o MAX Financeiro (notas e comprovantes) |
+| **C** | Fotos e documentos na ficha: envio com categoria, descrição e ordem; compressão no navegador; Supabase (ou disco local nos testes) |
+| **D** | Relatórios em PDF: modelo "prestação de contas por produto", histórico de relatórios gerados e download |
+| **E** | Drive: cópia automática de fotos, documentos e relatórios para o drive organizado; limpeza do Supabase 1 ano depois da entrega (depende do drive compartilhado e da conta de serviço) |
+| **F** (depois) | Outros modelos (atividades para patrocinador, portfólio), exportação Excel/CSV, painel de dados, ligação com o MAX Financeiro |
 
 Fora do escopo por agora, como sugestões que a apresentação levanta para estudo:
 - unir os PDFs dos anexos;
