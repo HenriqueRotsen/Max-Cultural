@@ -18,6 +18,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { resolve } from "node:path";
 import pg from "pg";
 
@@ -156,7 +157,23 @@ async function liberar() {
   });
 }
 
-function start() {
+function portaLivre(port) {
+  return new Promise((ok) => {
+    const srv = createServer()
+      .once("error", () => ok(false))
+      .once("listening", () => srv.close(() => ok(true)))
+      .listen(port);
+  });
+}
+
+async function start() {
+  for (const port of [3000, 3002]) {
+    if (!(await portaLivre(port))) {
+      console.error(`❌ A porta ${port} já está em uso (o ambiente local já está aberto em outro terminal?).`);
+      console.error(`   Para ver quem usa: lsof -i :${port}`);
+      process.exit(1);
+    }
+  }
   const s = segredosLocais();
   const procs = [
     { app: "cultural", port: 3000, extra: [] },
@@ -189,7 +206,7 @@ function start() {
 if (cmd === "setup") await setup({ reset: false });
 else if (cmd === "reset") await setup({ reset: true });
 else if (cmd === "liberar") await liberar();
-else if (cmd === "start") start();
+else if (cmd === "start") await start();
 else {
   console.error("Uso: npm run dev:local [-- setup|reset|liberar]");
   process.exit(1);
