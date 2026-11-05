@@ -13,6 +13,7 @@ import {
   statusGestao,
 } from "@/lib/acompanhamento/regras";
 import { copiaDaPreDefinicao, garantirAcompanhamento, sincronizarTarefas } from "@/lib/acompanhamento/sync";
+import { territorioLabel } from "@/lib/acompanhamento/types";
 import type {
   AcompanhamentoDTO,
   AreaTarefa,
@@ -113,7 +114,24 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
         nome: true,
         tipoId: true,
         tipo: { select: { nome: true } },
-        agenda: { orderBy: { data: "asc" }, select: { id: true, acaoId: true, titulo: true, cidade: true, uf: true, data: true, dataFim: true } },
+        ofereceOnline: true,
+        oferecePresencial: true,
+        territorios: { orderBy: { ordem: "asc" }, select: { id: true, nome: true, cidade: true, estado: true } },
+        agenda: {
+          orderBy: { data: "asc" },
+          select: {
+            id: true,
+            acaoId: true,
+            titulo: true,
+            cidade: true,
+            uf: true,
+            data: true,
+            dataFim: true,
+            online: true,
+            territorioId: true,
+            territorio: { select: { nome: true, cidade: true, estado: true } },
+          },
+        },
       },
     }),
     prisma.tarefa.findMany({
@@ -146,7 +164,19 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
       nome: a.nome,
       tipoId: a.tipoId,
       tipoNome: a.tipo.nome,
-      agenda: a.agenda.map((g) => ({ ...g, data: isoDia(g.data)!, dataFim: isoDia(g.dataFim) })),
+      ofereceOnline: a.ofereceOnline,
+      oferecePresencial: a.oferecePresencial,
+      territorios: a.territorios.map((t) => ({ id: t.id, label: territorioLabel(t) })),
+      agenda: a.agenda.map(({ territorio, ...g }) => ({
+        ...g,
+        data: isoDia(g.data)!,
+        dataFim: isoDia(g.dataFim),
+        local: g.online
+          ? "Online"
+          : territorio
+            ? territorioLabel(territorio)
+            : [g.cidade, g.uf].filter(Boolean).join(", "),
+      })),
     })),
     tarefas: tarefas.map((t) => ({
       id: t.id,
@@ -389,26 +419,40 @@ export async function atualizarPreDefinicaoProjetoAction(projetoId: string): Pro
   return { ok: true };
 }
 
-/** Nova realização de uma ação (gestão). Gera as tarefas de nível 2. */
+/**
+ * Nova execução de uma ação (gestão): período e local, que é um dos territórios
+ * cadastrados na ação ou "online". Gera as tarefas de nível 2.
+ */
 export async function addAgendaAction(
   acaoId: string,
-  input: { titulo: string; cidade: string; uf: string; data: string; dataFim?: string | null },
+  input: { titulo: string; data: string; dataFim?: string | null; territorioId?: string | null; online?: boolean },
 ): Promise<Result> {
   const { perms, scope } = await contexto();
   if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera a agenda." };
-  const acao = await prisma.acao.findUnique({ where: { id: acaoId }, select: { id: true, projetoId: true } });
+  const acao = await prisma.acao.findUnique({
+    where: { id: acaoId },
+    select: { id: true, projetoId: true, ofereceOnline: true, territorios: { select: { id: true, cidade: true, estado: true } } },
+  });
   if (!acao || !(await projetoVisivel(acao.projetoId, scope))) return { ok: false, error: "Ação não encontrada." };
   const data = parseDia(input.data);
   if (!data || data === "invalida") return { ok: false, error: "Informe o início." };
   const dataFim = parseDia(input.dataFim);
   if (dataFim === "invalida") return { ok: false, error: "Fim inválido." };
   if (dataFim && dataFim < data) return { ok: false, error: "O fim não pode ser antes do início." };
-  const cidade = input.cidade.trim();
-  const uf = input.uf.trim().toUpperCase();
-  if (!cidade) return { ok: false, error: "Informe a cidade." };
-  if (!/^[A-Z]{2}$/.test(uf)) return { ok: false, error: "UF com 2 letras." };
+  const territorio = input.online ? null : acao.territorios.find((t) => t.id === input.territorioId);
+  if (input.online && !acao.ofereceOnline) return { ok: false, error: "Esta ação não é online." };
+  if (!input.online && !territorio) return { ok: false, error: "Escolha um dos territórios da ação." };
   await prisma.acaoAgenda.create({
-    data: { acaoId, titulo: input.titulo.trim().slice(0, 120), cidade, uf, data, dataFim: dataFim && dataFim > data ? dataFim : null },
+    data: {
+      acaoId,
+      titulo: input.titulo.trim().slice(0, 120),
+      online: Boolean(input.online),
+      territorioId: territorio?.id ?? null,
+      cidade: territorio?.cidade.trim() ?? "",
+      uf: territorio?.estado.trim().toUpperCase() ?? "",
+      data,
+      dataFim: dataFim && dataFim > data ? dataFim : null,
+    },
   });
   await sincronizarTarefas(acao.projetoId);
   revalidar(acao.projetoId);

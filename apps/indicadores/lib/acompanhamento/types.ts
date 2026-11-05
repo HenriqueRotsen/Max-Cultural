@@ -92,13 +92,25 @@ export type AgendaDTO = {
   data: string;
   /** Fim da realização (yyyy-mm-dd); nulo = um dia só. */
   dataFim: string | null;
+  territorioId: string | null;
+  online: boolean;
+  /** "Buritis, Belo Horizonte, MG" ou "Online". */
+  local: string;
 };
+
+/** "Buritis, Belo Horizonte, MG" (zona opcional). */
+export function territorioLabel(t: { nome: string; cidade: string; estado: string }): string {
+  return [t.nome, t.cidade, t.estado].map((x) => x.trim()).filter(Boolean).join(", ");
+}
 
 export type AcaoAcompDTO = {
   id: string;
   nome: string;
   tipoId: string;
   tipoNome: string;
+  ofereceOnline: boolean;
+  oferecePresencial: boolean;
+  territorios: Array<{ id: string; label: string }>;
   agenda: AgendaDTO[];
 };
 

@@ -163,6 +163,18 @@ describe("gerarTarefas", () => {
     expect(out.filter((t) => t.cidade === "Montes Claros")).toHaveLength(2);
   });
 
+  it("execução online gera tarefa por ação, mas não por cidade", () => {
+    const out = gerarTarefas({
+      modelos: [
+        modelo({ id: "pec", unidade: "ACAO", prazoDias: -10 }),
+        modelo({ id: "espaco", unidade: "CIDADE", area: "PRODUCAO", prazoDias: -21 }),
+      ],
+      datas,
+      acoes: [{ id: "on", tipoId: "palestra", agenda: [{ id: "g1", cidade: "", uf: "", data: d("2026-11-20"), online: true }] }],
+    });
+    expect(out.map((t) => [t.modeloId, t.agendaId, t.cidade, iso(t.prazo)])).toEqual([["pec", "g1", null, "2026-11-10"]]);
+  });
+
   it("modelo inativo não gera tarefa", () => {
     expect(gerarTarefas({ modelos: [modelo({ id: "x", unidade: "PROJETO", ativo: false })], datas, acoes })).toEqual([]);
   });

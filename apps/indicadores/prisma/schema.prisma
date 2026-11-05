@@ -142,6 +142,7 @@ model AcaoTerritorio {
   estado    String
   ordem     Int                      @default(0)
   aliases   AcaoTerritorioAlias[]
+  agenda    AcaoAgenda[]
   createdAt DateTime                 @default(now())
   updatedAt DateTime                 @updatedAt
 
@@ -620,6 +621,12 @@ model AcaoAgenda {
   acaoId    String   @map("acao_id")
   acao      Acao     @relation(fields: [acaoId], references: [id], onDelete: Cascade)
   titulo    String   @default("")
+  /// Território cadastrado na ação (zona, cidade, UF). Nulo quando online.
+  territorioId String?         @map("territorio_id")
+  territorio   AcaoTerritorio? @relation(fields: [territorioId], references: [id], onDelete: SetNull)
+  /// Execução online (sem território; não gera tarefas por cidade).
+  online    Boolean  @default(false)
+  /// Cópia da cidade/UF do território (o mapa e as tarefas por cidade usam só estes).
   cidade    String
   uf        String
   /// Início da execução desta realização.
@@ -632,6 +639,7 @@ model AcaoAgenda {
 
   @@index([acaoId, data])
   @@index([cidade, uf])
+  @@index([territorioId])
   @@map("acao_agendas")
 }
 

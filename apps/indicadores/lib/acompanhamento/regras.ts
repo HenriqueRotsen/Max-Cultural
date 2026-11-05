@@ -124,7 +124,7 @@ export type AcaoParaGerar = {
   id: string;
   tipoId: string;
   /** `data` = início da realização; `dataFim` nulo = um dia só. */
-  agenda: Array<{ id: string; cidade: string; uf: string; data: Date; dataFim?: Date | null }>;
+  agenda: Array<{ id: string; cidade: string; uf: string; data: Date; dataFim?: Date | null; online?: boolean }>;
 };
 
 export type TarefaGerada = {
@@ -178,8 +178,8 @@ function seAplicaAoTipo(modelo: ModeloTarefa, tipoId: string): boolean {
  * - Nível 1: uma por modelo.
  * - Unidade ACAO: uma por realização (data) de cada ação do tipo certo;
  *   ação sem agenda recebe uma tarefa sem prazo.
- * - Unidade CIDADE: uma por cidade da agenda; o período da cidade vai do
- *   primeiro início ao último fim das realizações nela.
+ * - Unidade CIDADE: uma por cidade da agenda (execuções online não contam); o
+ *   período da cidade vai do primeiro início ao último fim das execuções nela.
  */
 export function gerarTarefas(params: {
   modelos: ModeloTarefa[];
@@ -196,6 +196,7 @@ export function gerarTarefas(params: {
   const cidades = new Map<string, { cidade: string; uf: string; periodo: PeriodoAcao; tipos: Set<string> }>();
   for (const a of params.acoes) {
     for (const ag of a.agenda) {
+      if (ag.online || !ag.cidade.trim()) continue;
       const k = `${normalizarCidade(ag.cidade)}/${ag.uf.toUpperCase()}`;
       const p = periodo(ag);
       const c = cidades.get(k);
@@ -234,8 +235,8 @@ export function gerarTarefas(params: {
             ...base,
             acaoId: a.id,
             agendaId: ag.id,
-            cidade: ag.cidade.trim(),
-            uf: ag.uf.toUpperCase(),
+            cidade: ag.cidade.trim() || null,
+            uf: ag.uf.toUpperCase() || null,
             prazo: calcularPrazo(m, params.datas, periodo(ag)),
           });
         }

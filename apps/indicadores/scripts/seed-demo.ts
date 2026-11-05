@@ -102,6 +102,18 @@ async function main() {
       },
     });
 
+    // Territórios das ações (zona, cidade, UF): a agenda do acompanhamento usa estes.
+    const territorios = [
+      { id: "demo-ter-teatro-buritis", acaoId: of1.id, nome: "Buritis", cidade: "Belo Horizonte", estado: "MG", ordem: 0 },
+      { id: "demo-ter-teatro-zonasul", acaoId: of1.id, nome: "Zona Sul", cidade: "Belo Horizonte", estado: "MG", ordem: 1 },
+      { id: "demo-ter-musica-centro", acaoId: of2.id, nome: "Centro", cidade: "Januária", estado: "MG", ordem: 0 },
+      { id: "demo-ter-danca-norte", acaoId: of3.id, nome: "Zona Norte", cidade: "Montes Claros", estado: "MG", ordem: 0 },
+    ];
+    for (const t of territorios) {
+      await prisma.acaoTerritorio.upsert({ where: { id: t.id }, update: t, create: t });
+    }
+    await prisma.acao.update({ where: { id: of2.id }, data: { ofereceOnline: true } });
+
     const professor = await prisma.user.findUnique({
       where: { email: "professor@maxcultural.local" },
       select: { id: true },

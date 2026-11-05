@@ -84,7 +84,7 @@ export async function sincronizarTarefas(projetoId: string) {
         tx.acompanhamentoProjeto.findUnique({ where: { projetoId } }),
         tx.acao.findMany({
           where: { projetoId },
-          select: { id: true, tipoId: true, agenda: { select: { id: true, cidade: true, uf: true, data: true, dataFim: true } } },
+          select: { id: true, tipoId: true, agenda: { select: { id: true, cidade: true, uf: true, data: true, dataFim: true, online: true } } },
         }),
         tx.tarefa.findMany({
           where: { projetoId },

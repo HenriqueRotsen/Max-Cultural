@@ -171,7 +171,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
     const nome = t.acaoId ? acaoNome.get(t.acaoId) ?? "Ação" : "Ação";
     const g = t.agendaId ? agendaPorId.get(t.agendaId) : null;
     if (!g) return `${nome} · sem data`;
-    return [nome, g.titulo || periodoCurto(g), `${g.cidade}/${g.uf}`].filter(Boolean).join(" · ");
+    return [nome, g.titulo || periodoCurto(g), g.local].filter(Boolean).join(" · ");
   }
 
   const liberado = Boolean(data.recursoLiberadoEm);
@@ -270,7 +270,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
           tarefa={aberta}
           podeEditar={podeArea(aberta.area)}
           podeComentar={podeArea(aberta.area) || data.pode.gestao}
-          contexto={aberta.nivel === 2 ? (aberta.unidade === "CIDADE" ? `${aberta.cidade}/${aberta.uf}` : rotuloRealizacao(aberta)) : null}
+          contexto={aberta.nivel === 2 ? (aberta.unidade === "CIDADE" ? `${aberta.cidade}, ${aberta.uf}` : rotuloRealizacao(aberta)) : null}
           onClose={() => setAberta(null)}
           onStatus={(s) => mudarStatus(aberta, s)}
         />
@@ -419,7 +419,7 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
       if (props.area === "PRODUCAO") {
         // Produção se organiza por cidade (uma cidade pode receber várias ações).
         chave = t.cidade ? `${t.cidade}/${t.uf}`.toLowerCase() : `sem-cidade:${t.acaoId ?? ""}`;
-        titulo = t.cidade ? `${t.cidade}/${t.uf}` : props.rotuloRealizacao(t);
+        titulo = t.cidade ? `${t.cidade}, ${t.uf}` : props.rotuloRealizacao(t);
       } else {
         chave = t.agendaId ?? `acao:${t.acaoId ?? "?"}`;
         titulo = props.rotuloRealizacao(t);
@@ -760,7 +760,7 @@ function AvulsaDialog({
     });
   }
 
-  const cidades = [...new Map(realizacoes.map(({ g }) => [`${g.cidade}|${g.uf}`, g])).values()];
+  const cidades = [...new Map(realizacoes.filter(({ g }) => !g.online).map(({ g }) => [`${g.cidade}|${g.uf}`, g])).values()];
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -795,10 +795,10 @@ function AvulsaDialog({
                 options={[
                   ...realizacoes.map(({ a, g }) => ({
                     value: `ag:${g.id}`,
-                    label: `${a.nome} · ${g.titulo || periodoCurto(g)} · ${g.cidade}/${g.uf}`,
+                    label: `${a.nome} · ${g.titulo || periodoCurto(g)} · ${g.local}`,
                   })),
                   ...(area === "PRODUCAO"
-                    ? cidades.map((g) => ({ value: `cid:${g.cidade}|${g.uf}`, label: `Cidade: ${g.cidade}/${g.uf}` }))
+                    ? cidades.map((g) => ({ value: `cid:${g.cidade}|${g.uf}`, label: `Cidade: ${g.cidade}, ${g.uf}` }))
                     : []),
                 ]}
               />
@@ -827,7 +827,7 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
   const [pending, startTransition] = useTransition();
   const [inicio, setInicio] = useState(data.inicioExecucao ?? "");
   const [fim, setFim] = useState(data.fimExecucao ?? "");
-  const [nova, setNova] = useState<Record<string, { titulo: string; data: string; dataFim: string; cidade: string; uf: string }>>({});
+  const [nova, setNova] = useState<Record<string, { titulo: string; data: string; dataFim: string; local: string }>>({});
   const pode = data.pode.gestao;
 
   function atualizarPreDefinicao() {
@@ -853,10 +853,16 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
     const v = nova[acaoId];
     if (!v) return;
     startTransition(async () => {
-      const r = await addAgendaAction(acaoId, v);
+      const r = await addAgendaAction(acaoId, {
+        titulo: v.titulo,
+        data: v.data,
+        dataFim: v.dataFim,
+        online: v.local === "online",
+        territorioId: v.local === "online" ? null : v.local,
+      });
       if (!r.ok) return void toast.error(r.error);
-      toast.success("Data adicionada; tarefas geradas");
-      setNova((s) => ({ ...s, [acaoId]: { titulo: "", data: "", dataFim: "", cidade: v.cidade, uf: v.uf } }));
+      toast.success("Execução adicionada; tarefas geradas");
+      setNova((s) => ({ ...s, [acaoId]: { titulo: "", data: "", dataFim: "", local: v.local } }));
       router.refresh();
     });
   }
@@ -932,8 +938,8 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         <div>
           <h2 className="font-heading text-lg font-semibold text-brand-deep">Agenda das ações</h2>
           <p className="text-sm text-muted-foreground">
-            Cada execução da ação: início, fim e cidade. As tarefas de nível 2 são geradas a partir daqui, com o
-            prazo contado do início ou do fim da execução da ação.
+            Cada execução da ação: período e território (os cadastrados na ação, em Contextos). As tarefas de
+            nível 2 são geradas a partir daqui, com o prazo contado do início ou do fim da execução da ação.
           </p>
         </div>
         {data.acoes.length === 0 ? (
@@ -941,7 +947,11 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {data.acoes.map((a) => {
-              const v = nova[a.id] ?? { titulo: "", data: "", dataFim: "", cidade: "", uf: "" };
+              const locais = [
+                ...a.territorios.map((t) => ({ value: t.id, label: t.label })),
+                ...(a.ofereceOnline ? [{ value: "online", label: "Online" }] : []),
+              ];
+              const v = nova[a.id] ?? { titulo: "", data: "", dataFim: "", local: locais.length === 1 ? locais[0]!.value : "" };
               const set = (k: keyof typeof v, val: string) => setNova((s) => ({ ...s, [a.id]: { ...v, [k]: val } }));
               return (
                 <div key={a.id} className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
@@ -960,7 +970,7 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                               {fmtDia(g.data)}
                               {g.dataFim && g.dataFim !== g.data ? ` a ${fmtDia(g.dataFim)}` : ""}
                             </span>{" "}
-                            · {g.cidade}/{g.uf}
+                            · {g.local}
                             {g.titulo ? <span className="text-muted-foreground"> · {g.titulo}</span> : null}
                           </span>
                           {pode ? (
@@ -985,10 +995,29 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                           onChange={(ini, fimNovo) => setNova((st) => ({ ...st, [a.id]: { ...v, data: ini, dataFim: fimNovo } }))}
                         />
                       </div>
-                      <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2">
-                        <Input value={v.cidade} onChange={(e) => set("cidade", e.target.value)} placeholder="Cidade" aria-label="Cidade" />
-                        <Input value={v.uf} maxLength={2} onChange={(e) => set("uf", e.target.value.toUpperCase())} placeholder="UF" aria-label="UF" />
-                      </div>
+                      {locais.length ? (
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          <span>Onde (território cadastrado na ação)</span>
+                          <SimpleSelect
+                            value={v.local}
+                            onChange={(val) => set("local", val)}
+                            className="h-9 w-full"
+                            aria-label={`Território de ${a.nome}`}
+                            options={[{ value: "", label: "Escolha o território" }, ...locais]}
+                          />
+                        </div>
+                      ) : (
+                        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          Esta ação ainda não tem território.{" "}
+                          <Link
+                            href={`/dashboard/contextos?tab=acoes&q=${encodeURIComponent(a.nome)}`}
+                            className="font-semibold underline"
+                          >
+                            Cadastre em Contextos
+                          </Link>{" "}
+                          (zona, cidade e UF, ou online).
+                        </p>
+                      )}
                       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                         <Input
                           value={v.titulo}
@@ -996,7 +1025,7 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                           placeholder="Rótulo (opcional), ex.: Oficina 2"
                           aria-label="Rótulo"
                         />
-                        <Button variant="outline" disabled={pending || !v.data || !v.cidade || v.uf.length !== 2} onClick={() => adicionar(a.id)}>
+                        <Button variant="outline" disabled={pending || !v.data || !v.local} onClick={() => adicionar(a.id)}>
                           <Plus className="size-4" /> Adicionar
                         </Button>
                       </div>
