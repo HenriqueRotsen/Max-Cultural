@@ -150,6 +150,11 @@ export type ProjetoAcompResumoDTO = {
   recursoLiberado: boolean;
   comunicacao: { pct: number; total: number };
   producao: { pct: number; total: number };
+  /** Tarefas não concluídas com o prazo já vencido. */
+  emAtraso: number;
+  /** Tarefas não concluídas que vencem nos próximos 3 dias. */
+  vencendo: number;
+  /** emAtraso + vencendo. */
   pedemAtencao: number;
 };
 
@@ -160,7 +165,7 @@ export type ListaAcompanhamentoParams = {
   q?: string;
   contextoId?: string;
   recurso?: FiltroRecurso;
-  /** Só projetos com tarefas em atraso ou prazo próximo. */
+  /** Só projetos com tarefas atrasadas ou vencendo em até 3 dias. */
   atencao?: boolean;
   ordem?: OrdemLista;
   page?: number;

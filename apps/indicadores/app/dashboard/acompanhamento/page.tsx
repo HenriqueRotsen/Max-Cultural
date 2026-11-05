@@ -52,6 +52,11 @@ export default async function AcompanhamentoPage({ searchParams }: Props) {
           <p className="text-sm text-muted-foreground">
             Comunicação e Produção de cada projeto: o que está em andamento, atrasado e concluído.
           </p>
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-red-700">Em atraso</span>: prazo já passou e a tarefa não foi
+            concluída. <span className="font-medium text-amber-800">Vencem em até 3 dias</span>: ainda dá tempo.
+            Os prazos só contam depois que o recurso é liberado.
+          </p>
         </div>
         <Link
           href="/dashboard/acompanhamento/pre-definicao"
@@ -72,7 +77,7 @@ export default async function AcompanhamentoPage({ searchParams }: Props) {
               <th className="px-4 py-2 font-semibold">Projeto</th>
               <th className="px-4 py-2 font-semibold">Comunicação</th>
               <th className="px-4 py-2 font-semibold">Produção</th>
-              <th className="px-4 py-2 font-semibold">Pedem atenção</th>
+              <th className="px-4 py-2 font-semibold">Prazos das tarefas</th>
               <th className="px-4 py-2 font-semibold">Recurso</th>
             </tr>
           </thead>
@@ -105,10 +110,25 @@ export default async function AcompanhamentoPage({ searchParams }: Props) {
                     {p.producao.total ? <Barra pct={p.producao.pct} cor="bg-orange-500" /> : <span className="text-xs text-muted-foreground">Abrir para gerar</span>}
                   </td>
                   <td className="px-4 py-3">
-                    {p.pedemAtencao > 0 ? (
-                      <span className="font-semibold text-red-700">{p.pedemAtencao}</span>
+                    {!p.recursoLiberado ? (
+                      <span className="text-xs text-muted-foreground">Contam após a liberação</span>
+                    ) : p.pedemAtencao === 0 ? (
+                      <span className="text-xs font-medium text-emerald-700">Tudo em dia</span>
                     ) : (
-                      <span className="text-muted-foreground">0</span>
+                      <div className="space-y-0.5 whitespace-nowrap text-xs">
+                        {p.emAtraso ? (
+                          <div className="flex items-center gap-1.5 font-semibold text-red-700">
+                            <span className="size-2 rounded-full bg-red-600" />
+                            {p.emAtraso} em atraso
+                          </div>
+                        ) : null}
+                        {p.vencendo ? (
+                          <div className="flex items-center gap-1.5 text-amber-800">
+                            <span className="size-2 rounded-full bg-amber-500" />
+                            {p.vencendo} {p.vencendo === 1 ? "vence" : "vencem"} em até 3 dias
+                          </div>
+                        ) : null}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs">

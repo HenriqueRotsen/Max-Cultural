@@ -82,7 +82,7 @@ export function AcompanhamentoFiltros({ contextos }: { contextos: Array<{ id: st
           onChange={(v) => aplicar({ ordem: v || null })}
           options={[
             { value: "", label: "Ordem: nome" },
-            { value: "atencao", label: "Mais atenção primeiro" },
+            { value: "atencao", label: "Mais atrasados primeiro" },
           ]}
         />
         <button
@@ -96,7 +96,7 @@ export function AcompanhamentoFiltros({ contextos }: { contextos: Array<{ id: st
               : "border-input bg-white text-muted-foreground hover:bg-muted/40",
           )}
         >
-          <span className="size-2 rounded-full bg-red-600" /> Só os que pedem atenção
+          <span className="size-2 rounded-full bg-red-600" /> Só com tarefas atrasadas ou vencendo
         </button>
         {temFiltro ? (
           <button

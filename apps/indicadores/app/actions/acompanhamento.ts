@@ -11,7 +11,6 @@ import { writeAuditLog } from "@/lib/audit";
 import {
   diaEmBrasilia,
   diasAposPrazo,
-  pedeAtencao,
   percentualConcluido,
   statusGestao,
 } from "@/lib/acompanhamento/regras";
@@ -68,7 +67,7 @@ const PAGE_SIZE = 25;
 
 /**
  * Lista dos projetos com o resumo do acompanhamento: busca (nome, PRONAC,
- * proponente, contexto), filtros e paginação. "Pedem atenção" é calculado
+ * proponente, contexto), filtros e paginação. Atrasadas/vencendo são calculadas
  * (não fica gravado), por isso o filtro e a ordem são feitos em memória.
  */
 export async function listAcompanhamentoProjetosAction(
@@ -120,6 +119,9 @@ export async function listAcompanhamentoProjetosAction(
   const hoje = new Date();
   let items: ProjetoAcompResumoDTO[] = projetos.map((p) => {
     const liberado = Boolean(p.acompanhamento?.recursoLiberadoEm);
+    const gestao = p.tarefas.map((t) => statusGestao({ status: t.status, prazo: t.prazo, recursoLiberado: liberado, hoje }));
+    const emAtraso = gestao.filter((g) => g === "EM_ATRASO").length;
+    const vencendo = gestao.filter((g) => g === "PRAZO_PROXIMO").length;
     const daArea = (a: AreaTarefa) => p.tarefas.filter((t) => t.area === a).map((t) => t.status);
     return {
       id: p.id,
@@ -130,14 +132,16 @@ export async function listAcompanhamentoProjetosAction(
       recursoLiberado: liberado,
       comunicacao: { pct: percentualConcluido(daArea("COMUNICACAO")), total: daArea("COMUNICACAO").length },
       producao: { pct: percentualConcluido(daArea("PRODUCAO")), total: daArea("PRODUCAO").length },
-      pedemAtencao: p.tarefas.filter((t) =>
-        pedeAtencao(statusGestao({ status: t.status, prazo: t.prazo, recursoLiberado: liberado, hoje })),
-      ).length,
+      emAtraso,
+      vencendo,
+      pedemAtencao: emAtraso + vencendo,
     };
   });
   if (params.atencao) items = items.filter((i) => i.pedemAtencao > 0);
   if (params.ordem === "atencao") {
-    items.sort((a, b) => b.pedemAtencao - a.pedemAtencao || a.nome.localeCompare(b.nome, "pt-BR"));
+    items.sort(
+      (a, b) => b.emAtraso - a.emAtraso || b.vencendo - a.vencendo || a.nome.localeCompare(b.nome, "pt-BR"),
+    );
   }
   const total = items.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
