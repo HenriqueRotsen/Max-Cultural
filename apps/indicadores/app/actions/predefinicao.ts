@@ -146,7 +146,8 @@ export async function setModeloAtivoAction(id: string, ativo: boolean): Promise<
 }
 
 /** Sobe ou desce a tarefa dentro da fase. */
-export async function moverModeloAction(id: string, direcao: -1 | 1): Promise<Result> {
+/** Leva o item para a posição `para` (0 = primeiro) entre os irmãos (arrastar e soltar). */
+export async function moverModeloAction(id: string, para: number): Promise<Result> {
   const { pode } = await contexto();
   if (!pode) return { ok: false, error: "Só a gestão altera a pré-definição." };
   const m = await prisma.tarefaModelo.findUnique({ where: { id } });
@@ -157,9 +158,9 @@ export async function moverModeloAction(id: string, direcao: -1 | 1): Promise<Re
     select: { id: true },
   });
   const i = irmas.findIndex((x) => x.id === id);
-  const j = i + direcao;
-  if (i < 0 || j < 0 || j >= irmas.length) return { ok: true };
-  [irmas[i], irmas[j]] = [irmas[j]!, irmas[i]!];
+  const j = Math.max(0, Math.min(irmas.length - 1, Math.trunc(para)));
+  if (i < 0 || i === j) return { ok: true };
+  irmas.splice(j, 0, irmas.splice(i, 1)[0]!);
   // Renumera a fase toda (ordem única e sem buracos), mantendo a fase depois das anteriores.
   const base = Math.min(
     ...(await prisma.tarefaModelo.findMany({

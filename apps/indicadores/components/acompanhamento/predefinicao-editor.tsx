@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { cn } from "@/lib/utils";
+import { SortableList } from "@/components/ui/sortable-list";
 import { moverModeloAction, salvarModeloAction, setModeloAtivoAction, type ModeloInput } from "@/app/actions/predefinicao";
 import {
   AREA_LABEL,
@@ -79,9 +80,10 @@ export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: Mode
     });
   }
 
-  function Linha({ m, primeira, ultima }: { m: ModeloDTO; primeira: boolean; ultima: boolean }) {
+  function linha(m: ModeloDTO, alca: ReactNode) {
     return (
-      <li className="flex flex-wrap items-start justify-between gap-2 py-2.5">
+      <div className="flex items-start gap-1.5 py-2.5">
+        {alca}
         <div className="min-w-0 flex-1">
           <div className="font-medium text-brand-deep">{m.titulo}</div>
           <div className="mt-0.5 text-xs text-muted-foreground">
@@ -102,12 +104,6 @@ export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: Mode
         </div>
         {pode ? (
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button variant="ghost" size="icon-sm" aria-label="Subir" disabled={pending || primeira} onClick={() => acao(() => moverModeloAction(m.id, -1))}>
-              <ArrowUp className="size-4" />
-            </Button>
-            <Button variant="ghost" size="icon-sm" aria-label="Descer" disabled={pending || ultima} onClick={() => acao(() => moverModeloAction(m.id, 1))}>
-              <ArrowDown className="size-4" />
-            </Button>
             <Button variant="ghost" size="icon-sm" aria-label="Editar" onClick={() => setEditando({ ...m })}>
               <Pencil className="size-4" />
             </Button>
@@ -130,7 +126,7 @@ export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: Mode
             </Button>
           </div>
         ) : null}
-      </li>
+      </div>
     );
   }
 
@@ -149,11 +145,15 @@ export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: Mode
           ) : null}
         </div>
         {ts.length ? (
-          <ul className="mt-1 divide-y divide-border/50">
-            {ts.map((m, i) => (
-              <Linha key={m.id} m={m} primeira={i === 0} ultima={i === ts.length - 1} />
-            ))}
-          </ul>
+          <SortableList
+            itens={ts}
+            disabled={!pode || pending}
+            className="mt-1 divide-y divide-border/50"
+            rotulo={(m) => m.titulo}
+            onMover={(id, para) => acao(() => moverModeloAction(id, para))}
+          >
+            {(m, { alca }) => linha(m, alca)}
+          </SortableList>
         ) : (
           <p className="mt-2 text-xs text-muted-foreground">Nenhuma tarefa nesta fase.</p>
         )}
@@ -261,7 +261,7 @@ export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: Mode
 }
 
 /** Data da tarefa em notação D: "D" + dias (negativo = antes) relativo a uma data de referência. */
-function RegraCampo({
+export function RegraCampo({
   titulo,
   nivel,
   base,

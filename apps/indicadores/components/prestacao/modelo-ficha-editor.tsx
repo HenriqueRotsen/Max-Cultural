@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,7 @@ import {
 } from "@/lib/prestacao/regras";
 import { EQUIPE_LABEL, TIPO_CAMPO_LABEL, type CampoDTO } from "@/lib/prestacao/types";
 import { useConfirm } from "@/components/ui/confirm";
+import { SortableList } from "@/components/ui/sortable-list";
 
 type Edicao = {
   id?: string;
@@ -93,9 +94,16 @@ export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: 
                 </Button>
               ) : null}
             </div>
-            <ul className="mt-2 divide-y divide-border/50">
-              {lista.map((c, i) => (
-                <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <SortableList
+              itens={lista}
+              disabled={!pode || pending}
+              className="mt-2 divide-y divide-border/50"
+              rotulo={(c) => c.rotulo}
+              onMover={(id, para) => acao(() => moverCampoAction(id, para))}
+            >
+              {(c, { alca }) => (
+                <div className="flex items-center gap-1.5 py-2">
+                  {alca}
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-brand-deep">
                       {c.rotulo}
@@ -110,18 +118,6 @@ export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: 
                   </div>
                   {pode ? (
                     <div className="flex items-center gap-0.5">
-                      <Button variant="ghost" size="icon-sm" aria-label="Subir" disabled={pending || i === 0} onClick={() => acao(() => moverCampoAction(c.id, -1))}>
-                        <ArrowUp className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Descer"
-                        disabled={pending || i === lista.length - 1}
-                        onClick={() => acao(() => moverCampoAction(c.id, 1))}
-                      >
-                        <ArrowDown className="size-4" />
-                      </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -149,9 +145,9 @@ export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: 
                       </Button>
                     </div>
                   ) : null}
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+            </SortableList>
           </section>
         );
       })}

@@ -132,9 +132,25 @@ export type AcompanhamentoDTO = {
   financeiroManual: boolean;
   /** Dia em que o projeto guardou a pré-definição (yyyy-mm-dd). */
   preDefinicaoEm: string | null;
+  /** Tarefas da pré-definição guardada no projeto, com o prazo deste projeto e o da pré-definição geral. */
+  prazos: PrazoProjetoDTO[];
   acoes: AcaoAcompDTO[];
   tarefas: TarefaDTO[];
   pode: { comunicacao: boolean; producao: boolean; gestao: boolean };
+};
+
+export type PrazoProjetoDTO = {
+  modeloId: string;
+  area: AreaTarefa;
+  nivel: number;
+  fase: FaseTarefa;
+  titulo: string;
+  prazoBase: PrazoBase | null;
+  prazoDias: number | null;
+  /** Prazo na pré-definição geral (null = a tarefa não está mais nela). */
+  padrao: { prazoBase: PrazoBase | null; prazoDias: number | null } | null;
+  /** Tarefas deste projeto com o prazo mudado à mão (não seguem a regra). */
+  editadasAMao: number;
 };
 
 export type FinanceiroResumoDTO = {

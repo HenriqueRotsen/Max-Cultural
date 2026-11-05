@@ -283,6 +283,7 @@ export async function getPrestacaoProjetoAction(projetoId: string): Promise<Pres
       produtoNome: r.produto?.nome ?? null,
       tamanho: r.tamanho,
       paginas: r.paginas,
+      listaNominal: r.listaNominal,
       geradoEm: r.createdAt.toISOString(),
       geradoPorNome: (r.geradoPor && autor.get(r.geradoPor)) || "—",
       url: `/api/prestacao/relatorios/${r.id}`,
@@ -717,7 +718,8 @@ export async function atualizarArquivoAction(
 }
 
 /** Sobe ou desce a foto dentro da categoria (ordem no relatório). */
-export async function moverArquivoAction(id: string, direcao: -1 | 1): Promise<Result> {
+/** Leva o item para a posição `para` (0 = primeiro) entre os irmãos (arrastar e soltar). */
+export async function moverArquivoAction(id: string, para: number): Promise<Result> {
   const r = await arquivoEditavel(id);
   if ("erro" in r) return { ok: false, error: r.erro! };
   const irmaos = await prisma.prestacaoArquivo.findMany({
@@ -726,9 +728,9 @@ export async function moverArquivoAction(id: string, direcao: -1 | 1): Promise<R
     select: { id: true },
   });
   const i = irmaos.findIndex((x) => x.id === id);
-  const j = i + direcao;
-  if (i < 0 || j < 0 || j >= irmaos.length) return { ok: true };
-  [irmaos[i], irmaos[j]] = [irmaos[j]!, irmaos[i]!];
+  const j = Math.max(0, Math.min(irmaos.length - 1, Math.trunc(para)));
+  if (i < 0 || i === j) return { ok: true };
+  irmaos.splice(j, 0, irmaos.splice(i, 1)[0]!);
   await prisma.$transaction(irmaos.map((x, k) => prisma.prestacaoArquivo.update({ where: { id: x.id }, data: { ordem: k + 1 } })));
   revalidar(r.arq.projetoId, r.arq.ficha.agendaId);
   return { ok: true };
@@ -852,7 +854,8 @@ export async function setCampoAtivoAction(id: string, ativo: boolean): Promise<R
   return { ok: true };
 }
 
-export async function moverCampoAction(id: string, direcao: -1 | 1): Promise<Result> {
+/** Leva o item para a posição `para` (0 = primeiro) entre os irmãos (arrastar e soltar). */
+export async function moverCampoAction(id: string, para: number): Promise<Result> {
   const { pode } = await contexto();
   if (!pode.GESTAO) return { ok: false, error: "Só a gestão altera o modelo da ficha." };
   const c = await prisma.prestacaoCampo.findUnique({ where: { id } });
@@ -863,9 +866,9 @@ export async function moverCampoAction(id: string, direcao: -1 | 1): Promise<Res
     select: { id: true },
   });
   const i = irmaos.findIndex((x) => x.id === id);
-  const j = i + direcao;
-  if (i < 0 || j < 0 || j >= irmaos.length) return { ok: true };
-  [irmaos[i], irmaos[j]] = [irmaos[j]!, irmaos[i]!];
+  const j = Math.max(0, Math.min(irmaos.length - 1, Math.trunc(para)));
+  if (i < 0 || i === j) return { ok: true };
+  irmaos.splice(j, 0, irmaos.splice(i, 1)[0]!);
   await prisma.$transaction(irmaos.map((x, k) => prisma.prestacaoCampo.update({ where: { id: x.id }, data: { ordem: k + 1 } })));
   revalidatePath("/dashboard/prestacao/modelo");
   return { ok: true };

@@ -13,6 +13,7 @@ import {
   diasAposPrazo,
   percentualConcluido,
   statusGestao,
+  type ModeloTarefa,
 } from "@/lib/acompanhamento/regras";
 import {
   copiaDaPreDefinicao,
@@ -33,6 +34,7 @@ import type {
   FaseTarefa,
   ListaAcompanhamentoDTO,
   ListaAcompanhamentoParams,
+  PrazoBase,
   ProjetoAcompResumoDTO,
   StatusTarefa,
 } from "@/lib/acompanhamento/types";
@@ -219,6 +221,15 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
   ]);
   const liberado = Boolean(acomp?.recursoLiberadoEm);
   const hoje = new Date();
+  const doProjeto = Array.isArray(acomp?.modelos) ? (acomp.modelos as unknown as ModeloTarefa[]) : [];
+  const geral = new Map(
+    (
+      await prisma.tarefaModelo.findMany({
+        where: { id: { in: doProjeto.map((m) => m.id) }, ativo: true },
+        select: { id: true, prazoBase: true, prazoDias: true },
+      })
+    ).map((m) => [m.id, m]),
+  );
   const fin = acomp?.financeiroProjectId ? await buscarProjetoFinanceiroPorId(acomp.financeiroProjectId) : null;
 
   return {
@@ -239,6 +250,22 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
       : null,
     financeiroManual: Boolean(acomp?.financeiroManual),
     preDefinicaoEm: isoDia(acomp?.modelosEm),
+    prazos: doProjeto
+      .filter((m) => m.ativo !== false)
+      .map((m) => {
+        const g = geral.get(m.id);
+        return {
+          modeloId: m.id,
+          area: m.area,
+          nivel: m.nivel,
+          fase: m.fase,
+          titulo: m.titulo,
+          prazoBase: m.prazoBase,
+          prazoDias: m.prazoDias,
+          padrao: g ? { prazoBase: g.prazoBase, prazoDias: g.prazoDias } : null,
+          editadasAMao: tarefas.filter((t) => t.modeloId === m.id && t.prazoManual).length,
+        };
+      }),
     acoes: acoes.map((a) => ({
       id: a.id,
       nome: a.nome,
@@ -505,6 +532,45 @@ export async function atualizarPreDefinicaoProjetoAction(projetoId: string): Pro
     entityType: "Projeto",
     entityId: projetoId,
     meta: {},
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
+/**
+ * Prazo de uma tarefa só neste projeto (gestão): muda a regra D±N na
+ * pré-definição guardada no projeto e recalcula as tarefas dela que não
+ * tiveram o prazo editado à mão. A pré-definição geral não muda.
+ */
+export async function setPrazoProjetoAction(
+  projetoId: string,
+  modeloId: string,
+  input: { prazoBase: PrazoBase | null; prazoDias: number | null },
+): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera os prazos do projeto." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  const acomp = await prisma.acompanhamentoProjeto.findUnique({ where: { projetoId }, select: { modelos: true } });
+  const modelos = Array.isArray(acomp?.modelos) ? (acomp.modelos as unknown as ModeloTarefa[]) : null;
+  const m = modelos?.find((x) => x.id === modeloId);
+  if (!modelos || !m) return { ok: false, error: "Tarefa não encontrada neste projeto." };
+  const semPrazo = input.prazoBase == null || input.prazoDias == null;
+  const bases: PrazoBase[] = m.nivel === 1 ? ["INICIO_EXECUCAO", "FIM_EXECUCAO"] : ["INICIO_ACAO", "FIM_ACAO"];
+  if (!semPrazo && (!bases.includes(input.prazoBase!) || !Number.isInteger(input.prazoDias) || Math.abs(input.prazoDias!) > 3650)) {
+    return { ok: false, error: "Prazo inválido." };
+  }
+  const novo = { prazoBase: semPrazo ? null : input.prazoBase, prazoDias: semPrazo ? null : input.prazoDias };
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { modelos: modelos.map((x) => (x.id === modeloId ? { ...x, ...novo } : x)) as unknown as Prisma.InputJsonValue },
+  });
+  await sincronizarTarefas(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.prazo_projeto",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: { modeloId, antes: { prazoBase: m.prazoBase, prazoDias: m.prazoDias }, depois: novo },
   });
   revalidar(projetoId);
   return { ok: true };

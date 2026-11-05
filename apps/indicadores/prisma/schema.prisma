@@ -884,6 +884,8 @@ model PrestacaoRelatorio {
   storagePath String            @map("storage_path")
   tamanho     Int
   paginas     Int?
+  /// Inclui a lista nominal de participantes.
+  listaNominal Boolean          @default(false) @map("lista_nominal")
   driveFileId String?           @map("drive_file_id")
   geradoPor   String?           @map("gerado_por")
   createdAt   DateTime          @default(now())

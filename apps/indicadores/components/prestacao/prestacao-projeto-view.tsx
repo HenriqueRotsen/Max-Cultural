@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
-import { BarChart3, ChevronRight, Download, FileText, ListChecks, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { BarChart3, ChevronRight, Download, ExternalLink, FileText, ListChecks, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -119,7 +120,7 @@ export function PrestacaoProjetoView({
         ))}
       </div>
 
-      <nav className="flex flex-wrap gap-1 rounded-xl border border-border/60 bg-white p-1 text-sm" aria-label="Seções">
+      <nav className="flex gap-1 overflow-x-auto rounded-xl border border-border/60 bg-white p-1 text-sm [scrollbar-width:none]" aria-label="Seções">
         {(
           [
             ["fichas", `Fichas (${data.execucoes.length})`],
@@ -134,7 +135,7 @@ export function PrestacaoProjetoView({
             onClick={() => trocarAba(id)}
             aria-current={aba === id ? "page" : undefined}
             className={cn(
-              "rounded-lg px-3 py-1.5 font-medium transition",
+              "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 font-medium transition",
               aba === id ? "bg-brand-deep text-white" : "text-muted-foreground hover:bg-muted/50",
             )}
           >
@@ -539,13 +540,19 @@ function Dados({ data }: { data: PrestacaoProjetoDTO }) {
   );
 }
 
+const tamanhoArquivo = (bytes: number) =>
+  bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("pt-BR")} KB`
+    : `${(bytes / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+
 function Relatorios({ data }: { data: PrestacaoProjetoDTO }) {
   const router = useRouter();
   const [produtoId, setProdutoId] = useState("");
   const [listaNominal, setListaNominal] = useState(false);
   const [gerando, setGerando] = useState(false);
   const pode = data.pode.GESTAO;
-  const fichasComFoto = data.execucoes.length;
+  const temExecucoes = data.execucoes.length > 0;
+  const produto = data.produtos.find((p) => p.id === produtoId);
 
   async function gerar() {
     setGerando(true);
@@ -557,8 +564,10 @@ function Relatorios({ data }: { data: PrestacaoProjetoDTO }) {
       });
       const j = (await r.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!r.ok || !j.id) throw new Error(j.error || `Falha (${r.status}).`);
-      toast.success("Relatório gerado");
-      window.open(`/api/prestacao/relatorios/${j.id}`, "_blank", "noopener");
+      // Abrir em nova aba depois do await é bloqueado pelo navegador: o link fica no aviso e na lista.
+      toast.success("Relatório gerado", {
+        action: { label: "Abrir", onClick: () => window.open(`/api/prestacao/relatorios/${j.id}`, "_blank", "noopener") },
+      });
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -569,7 +578,7 @@ function Relatorios({ data }: { data: PrestacaoProjetoDTO }) {
 
   return (
     <div className="space-y-4">
-      <section className="space-y-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <section className="space-y-4 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
         <div>
           <h2 className="font-heading text-lg font-semibold text-brand-deep">Gerar relatório em PDF</h2>
           <p className="max-w-3xl text-sm text-muted-foreground">
@@ -579,25 +588,38 @@ function Relatorios({ data }: { data: PrestacaoProjetoDTO }) {
           </p>
         </div>
         {pode ? (
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full max-w-sm space-y-1.5">
-              <Label>Produto</Label>
-              <SimpleSelect
-                value={produtoId}
-                onChange={setProdutoId}
-                className="h-9 w-full"
-                aria-label="Produto do relatório"
-                options={[
-                  { value: "", label: "Todos os produtos (relatório completo)" },
-                  ...data.produtos.map((p) => ({ value: p.id, label: p.nome })),
-                ]}
-              />
+          <div className="grid gap-4 rounded-xl border border-border/60 bg-muted/20 p-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="min-w-0 space-y-1.5">
+                <Label>Produto</Label>
+                <SimpleSelect
+                  value={produtoId}
+                  onChange={setProdutoId}
+                  className="h-9 w-full bg-white"
+                  aria-label="Produto do relatório"
+                  options={[
+                    { value: "", label: "Todos os produtos (relatório completo)" },
+                    ...data.produtos.map((p) => ({ value: p.id, label: p.nome })),
+                  ]}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {produto
+                    ? produto.acaoIds.length
+                      ? `${produto.acaoIds.length === 1 ? "1 ação" : `${produto.acaoIds.length} ações`} · ${execucoesTexto(produto.execucoes)}`
+                      : "Este produto ainda não tem ações ligadas (em Produtos e metas)."
+                    : `${execucoesTexto(data.execucoes.length)}, agrupadas por produto.`}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lista-nominal" className="whitespace-nowrap">Lista de participantes</Label>
+                <label className="flex h-9 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg border border-input bg-white px-3 text-sm">
+                  <Switch id="lista-nominal" checked={listaNominal} onCheckedChange={setListaNominal} />
+                  {listaNominal ? "Incluir (só os nomes)" : "Não incluir"}
+                </label>
+                <p className="text-xs text-muted-foreground">Nomes dos participantes de cada ação, no fim do relatório.</p>
+              </div>
             </div>
-            <label className="flex items-center gap-2 pb-2 text-sm">
-              <input type="checkbox" className="size-4" checked={listaNominal} onChange={(e) => setListaNominal(e.target.checked)} />
-              Incluir lista de participantes (só nomes)
-            </label>
-            <Button disabled={gerando || !fichasComFoto} onClick={() => void gerar()}>
+            <Button className="justify-self-start xl:mb-5" disabled={gerando || !temExecucoes || (produto && !produto.acaoIds.length)} onClick={() => void gerar()}>
               {gerando ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
               {gerando ? "Gerando…" : "Gerar relatório"}
             </Button>
@@ -605,32 +627,49 @@ function Relatorios({ data }: { data: PrestacaoProjetoDTO }) {
         ) : (
           <p className="text-sm text-muted-foreground">Só a gestão da prestação de contas gera relatórios.</p>
         )}
-        {!fichasComFoto ? <p className="text-xs text-amber-800">O projeto ainda não tem execuções na agenda.</p> : null}
+        {!temExecucoes ? <p className="text-xs text-amber-800">O projeto ainda não tem execuções na agenda.</p> : null}
       </section>
 
       <section className="rounded-2xl border border-border/70 bg-white shadow-sm">
         <h2 className="border-b border-border/60 px-4 py-3 font-heading text-base font-semibold text-brand-deep">
-          Relatórios gerados
+          Relatórios gerados{" "}
+          {data.relatorios.length ? <span className="text-sm font-normal text-muted-foreground">· {data.relatorios.length}</span> : null}
         </h2>
         {data.relatorios.length ? (
           <ul className="divide-y divide-border/60">
             {data.relatorios.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-                <div className="min-w-0">
-                  <a href={r.url} target="_blank" rel="noreferrer" className="font-medium text-brand-deep hover:underline">
-                    {r.produtoNome ?? "Relatório completo"}
-                  </a>
+              <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                <FileText className="size-5 shrink-0 text-brand/70" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <a href={r.url} target="_blank" rel="noreferrer" className="truncate font-medium text-brand-deep hover:underline">
+                      {r.produtoNome ?? "Relatório completo"}
+                    </a>
+                    {r.listaNominal ? (
+                      <span className="rounded-full bg-brand-mist px-2 py-0.5 text-[11px] font-medium text-brand-deep">com lista de participantes</span>
+                    ) : null}
+                  </div>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(r.geradoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {r.geradoPorNome} ·{" "}
-                    {(r.tamanho / 1024 / 1024).toFixed(1)} MB
+                    {new Date(r.geradoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {r.geradoPorNome}
+                    {r.paginas ? ` · ${r.paginas} ${r.paginas === 1 ? "página" : "páginas"}` : ""} · {tamanhoArquivo(r.tamanho)}
                   </div>
                 </div>
-                <a
-                  href={`${r.url}?baixar=1`}
-                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-xs font-medium text-brand-deep hover:bg-muted/40"
-                >
-                  <Download className="size-3.5" /> Baixar
-                </a>
+                <div className="flex shrink-0 gap-1.5">
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-xs font-medium text-brand-deep hover:bg-muted/40"
+                  >
+                    <ExternalLink className="size-3.5" /> Abrir
+                  </a>
+                  <a
+                    href={`${r.url}?baixar=1`}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-xs font-medium text-brand-deep hover:bg-muted/40"
+                  >
+                    <Download className="size-3.5" /> Baixar
+                  </a>
+                </div>
               </li>
             ))}
           </ul>

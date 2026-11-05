@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle2, ChevronDown, FileCheck2, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { BarChart3, CheckCircle2, ChevronDown, FileCheck2, ChevronRight, Flag, MessageSquare, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,7 @@ import {
   listComentariosAction,
   removeAgendaAction,
   setDatasProjetoAction,
+  setPrazoProjetoAction,
   setTarefaStatusAction,
 } from "@/app/actions/acompanhamento";
 import {
@@ -40,8 +41,10 @@ import {
   FASES_NIVEL1,
   FASES_NIVEL2,
   GESTAO_LABEL,
+  regraLabel,
   STATUS_LABEL,
   type AcompanhamentoDTO,
+  type PrazoProjetoDTO,
   type AreaTarefa,
   type ComentarioDTO,
   type FaseTarefa,
@@ -50,6 +53,7 @@ import {
   type TarefaDTO,
 } from "@/lib/acompanhamento/types";
 import { useConfirm } from "@/components/ui/confirm";
+import { RegraCampo } from "@/components/acompanhamento/predefinicao-editor";
 
 export type Aba = "comunicacao" | "producao" | "configuracao";
 
@@ -997,23 +1001,7 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
 
       <RecursoSecao data={data} />
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
-        <div>
-          <h2 className="font-heading text-lg font-semibold text-brand-deep">Pré-definição</h2>
-          <p className="text-sm text-muted-foreground">
-            Este projeto segue a{" "}
-            <Link href="/dashboard/acompanhamento/pre-definicao" className="font-medium text-teal-800 hover:underline">
-              pré-definição das tarefas
-            </Link>{" "}
-            de {fmtDia(data.preDefinicaoEm)}. Mudanças feitas depois só valem para projetos novos.
-          </p>
-        </div>
-        {pode ? (
-          <Button variant="outline" disabled={pending} onClick={atualizarPreDefinicao}>
-            Usar a pré-definição atual
-          </Button>
-        ) : null}
-      </section>
+<PrazosProjeto data={data} pending={pending} onAtualizar={atualizarPreDefinicao} />
 
       <section className="space-y-3">
         <div>
@@ -1119,6 +1107,182 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         )}
       </section>
     </div>
+  );
+}
+
+const ordemFase = (fases: readonly FaseTarefa[], f: FaseTarefa) => (fases.includes(f) ? fases.indexOf(f) : fases.length);
+
+const mesmoPrazo = (a: { prazoBase: unknown; prazoDias: unknown }, b: { prazoBase: unknown; prazoDias: unknown }) =>
+  a.prazoBase === b.prazoBase && a.prazoDias === b.prazoDias;
+
+/**
+ * Tarefas e prazos deste projeto: começam com a pré-definição (atalho) e a gestão
+ * ajusta o prazo de cada tarefa só aqui, quando o cronograma do projeto pede.
+ */
+function PrazosProjeto({ data, pending, onAtualizar }: { data: AcompanhamentoDTO; pending: boolean; onAtualizar: () => void }) {
+  const [area, setArea] = useState<AreaTarefa>("COMUNICACAO");
+  const [aberto, setAberto] = useState(false);
+  const [editando, setEditando] = useState<PrazoProjetoDTO | null>(null);
+  const pode = data.pode.gestao;
+  const ajustados = data.prazos.filter((p) => p.padrao && !mesmoPrazo(p, p.padrao)).length;
+  const daArea = data.prazos.filter((p) => p.area === area);
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h2 className="font-heading text-lg font-semibold text-brand-deep">Tarefas e prazos deste projeto</h2>
+          <p className="text-sm text-muted-foreground">
+            Começam com a{" "}
+            <Link href="/dashboard/acompanhamento/pre-definicao" className="font-medium text-teal-800 hover:underline">
+              pré-definição das tarefas
+            </Link>{" "}
+            de {fmtDia(data.preDefinicaoEm)}. Se o cronograma deste projeto for diferente, ajuste o prazo aqui: vale só
+            para este projeto.
+            {ajustados ? <strong className="font-semibold text-foreground"> {ajustados} prazo(s) ajustado(s).</strong> : null}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}>
+            <ChevronDown className={cn("size-4 transition", aberto && "rotate-180")} />
+            {aberto ? "Esconder prazos" : "Ver e ajustar prazos"}
+          </Button>
+          {pode ? (
+            <Button variant="outline" disabled={pending} onClick={onAtualizar}>
+              Usar a pré-definição atual
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {aberto ? (
+        <div className="space-y-3">
+          <nav className="flex flex-wrap gap-1 rounded-xl border border-border/60 bg-muted/20 p-1 text-sm" aria-label="Área">
+            {(["COMUNICACAO", "PRODUCAO"] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setArea(a)}
+                aria-current={area === a ? "page" : undefined}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 font-medium transition",
+                  area === a ? "bg-brand-deep text-white" : "text-muted-foreground hover:bg-white",
+                )}
+              >
+                {AREA_LABEL[a]}
+              </button>
+            ))}
+          </nav>
+          {[1, 2].map((nivel) => {
+            const fases = nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2;
+            const doNivel = daArea.filter((p) => p.nivel === nivel);
+            if (!doNivel.length) return null;
+            return (
+              <div key={nivel} className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Nível {nivel} · {nivel === 1 ? "D = início ou fim da execução do projeto" : "D = início ou fim da execução da ação"}
+                </h3>
+                <ul className="divide-y divide-border/50 rounded-xl border border-border/60">
+                  {[...doNivel]
+                    .sort((a, b) => ordemFase(fases, a.fase) - ordemFase(fases, b.fase))
+                    .map((p) => {
+                        const ajustado = p.padrao && !mesmoPrazo(p, p.padrao);
+                        return (
+                          <li key={p.modeloId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-foreground">{p.titulo}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {FASE_LABEL[p.fase]} · <span className="font-medium text-brand-deep">{regraLabel(p.prazoBase, p.prazoDias)}</span>
+                                {ajustado ? <> · pré-definição: {regraLabel(p.padrao!.prazoBase, p.padrao!.prazoDias)}</> : null}
+                              </div>
+                            </div>
+                            {ajustado ? (
+                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-200">
+                                Ajustado neste projeto
+                              </span>
+                            ) : null}
+                            {pode ? (
+                              <Button variant="ghost" size="icon-sm" aria-label={`Ajustar prazo de ${p.titulo}`} onClick={() => setEditando(p)}>
+                                <Pencil className="size-4" />
+                              </Button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {editando ? <PrazoDialog projetoId={data.projeto.id} prazo={editando} onClose={() => setEditando(null)} /> : null}
+    </section>
+  );
+}
+
+function PrazoDialog({ projetoId, prazo, onClose }: { projetoId: string; prazo: PrazoProjetoDTO; onClose: () => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [regra, setRegra] = useState({ prazoBase: prazo.prazoBase, prazoDias: prazo.prazoDias });
+  const padrao = prazo.padrao;
+
+  function salvar(valor: typeof regra, msg: string) {
+    startTransition(async () => {
+      const r = await setPrazoProjetoAction(projetoId, prazo.modeloId, valor);
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(msg);
+      router.refresh();
+      onClose();
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Prazo neste projeto</DialogTitle>
+          <DialogDescription>
+            {prazo.titulo} · {AREA_LABEL[prazo.area]} · Nível {prazo.nivel}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <RegraCampo
+            titulo="Prazo"
+            nivel={prazo.nivel}
+            base={regra.prazoBase}
+            dias={regra.prazoDias}
+            onChange={(prazoBase, prazoDias) => setRegra({ prazoBase, prazoDias })}
+          />
+          {padrao ? (
+            <p className="text-xs text-muted-foreground">Na pré-definição: {regraLabel(padrao.prazoBase, padrao.prazoDias)}.</p>
+          ) : null}
+          <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Os prazos das tarefas deste projeto são recalculados. Vale só para este projeto; a pré-definição geral não muda.
+            {prazo.editadasAMao
+              ? ` ${prazo.editadasAMao} tarefa(s) com o prazo mudado à mão continuam com a data que a equipe pôs.`
+              : ""}
+          </p>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          {padrao && !mesmoPrazo(prazo, padrao) ? (
+            <Button variant="ghost" disabled={pending} onClick={() => salvar(padrao, "Prazo voltou ao da pré-definição")}>
+              <RotateCcw className="size-4" /> Voltar ao da pré-definição
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button disabled={pending || mesmoPrazo(regra, prazo)} onClick={() => salvar(regra, "Prazo ajustado neste projeto")}>
+              Salvar
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

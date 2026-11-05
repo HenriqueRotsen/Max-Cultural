@@ -18,6 +18,12 @@ async function logo(): Promise<Buffer | null> {
   }
 }
 
+/** Páginas do PDF gerado (objetos "/Type /Page" do arquivo). */
+function contarPaginas(pdf: Buffer): number | null {
+  const n = pdf.toString("latin1").match(/\/Type\s*\/Page(?![s\w])/g)?.length ?? 0;
+  return n || null;
+}
+
 /** Gera o PDF, guarda no Storage e registra no histórico do projeto. */
 export async function gerarRelatorioPrestacao(params: {
   projetoId: string;
@@ -45,6 +51,8 @@ export async function gerarRelatorioPrestacao(params: {
       titulo: `${dados.titulo} · ${dados.projeto.nome}`,
       storagePath,
       tamanho: pdf.length,
+      paginas: contarPaginas(Buffer.from(pdf)),
+      listaNominal: params.listaNominal,
       geradoPor: params.userId,
     },
   });

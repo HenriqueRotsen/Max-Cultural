@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, FileText, ImagePlus, Trash2, Upload } from "lucide-react";
+import { FileText, ImagePlus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SimpleSelect } from "@/components/ui/simple-select";
@@ -12,6 +12,7 @@ import { atualizarArquivoAction, moverArquivoAction, removerArquivoAction } from
 import { comprimirFoto } from "@/lib/prestacao/comprimir";
 import { CATEGORIA_LABEL, CATEGORIAS_DOC, CATEGORIAS_FOTO, type ArquivoDTO, type FichaDTO } from "@/lib/prestacao/types";
 import { useConfirm } from "@/components/ui/confirm";
+import { SortableList } from "@/components/ui/sortable-list";
 
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
 
@@ -153,11 +154,18 @@ export function FotosDocumentos({ ficha }: { ficha: FichaDTO }) {
               <h3 className="text-sm font-semibold text-brand-deep">
                 {c.label} <span className="font-normal text-muted-foreground">· {c.itens.length}</span>
               </h3>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {c.itens.map((f, i) => (
-                  <FotoCard key={f.id} foto={f} pode={pode} primeira={i === 0} ultima={i === c.itens.length - 1} />
-                ))}
-              </div>
+              <SortableList
+                itens={c.itens}
+                grade
+                disabled={!pode}
+                className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                rotulo={(f) => f.descricao || f.nomeOriginal}
+                onMover={(id, para) =>
+                  void moverArquivoAction(id, para).then((r) => (r.ok ? router.refresh() : toast.error(r.error)))
+                }
+              >
+                {(f, { alca }) => <FotoCard foto={f} pode={pode} alca={alca} />}
+              </SortableList>
             </div>
           ))}
         </div>
@@ -181,7 +189,7 @@ export function FotosDocumentos({ ficha }: { ficha: FichaDTO }) {
   );
 }
 
-function FotoCard({ foto, pode, primeira, ultima }: { foto: ArquivoDTO; pode: boolean; primeira: boolean; ultima: boolean }) {
+function FotoCard({ foto, pode, alca }: { foto: ArquivoDTO; pode: boolean; alca: ReactNode }) {
   const router = useRouter();
   const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
@@ -228,12 +236,7 @@ function FotoCard({ foto, pode, primeira, ultima }: { foto: ArquivoDTO; pode: bo
               options={CATEGORIAS_FOTO.map((c) => ({ value: c.value, label: c.label }))}
             />
             <div className="flex items-center gap-0.5">
-              <Button variant="ghost" size="icon-sm" aria-label="Antes" disabled={pending || primeira} onClick={() => startTransition(async () => { await moverArquivoAction(foto.id, -1); router.refresh(); })}>
-                <ArrowLeft className="size-4" />
-              </Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Depois" disabled={pending || ultima} onClick={() => startTransition(async () => { await moverArquivoAction(foto.id, 1); router.refresh(); })}>
-                <ArrowRight className="size-4" />
-              </Button>
+              {alca}
               <Button
                 variant="ghost"
                 size="icon-sm"

@@ -211,6 +211,7 @@ export type RelatorioDTO = {
   produtoNome: string | null;
   tamanho: number;
   paginas: number | null;
+  listaNominal: boolean;
   geradoEm: string;
   geradoPorNome: string;
   url: string;
