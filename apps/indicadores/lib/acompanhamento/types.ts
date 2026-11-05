@@ -77,6 +77,10 @@ export type TarefaDTO = {
   gestao: StatusGestao;
   /** yyyy-mm-dd */
   prazo: string | null;
+  /** Dia em que foi concluída (yyyy-mm-dd, Brasília); só para concluídas. */
+  concluidaEm: string | null;
+  /** Conclusão × prazo: >0 depois, <0 antes, 0 no dia. */
+  diasAposPrazo: number | null;
   avulsa: boolean;
   comentarios: number;
   escaladasAbertas: number;

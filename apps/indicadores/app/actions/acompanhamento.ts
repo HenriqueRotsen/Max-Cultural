@@ -8,6 +8,8 @@ import type { PermissionCode } from "@/lib/permission-catalog";
 import { hasScopeAccess, projetoWhereFromScope, resolveDataScope } from "@/lib/data-scope";
 import { writeAuditLog } from "@/lib/audit";
 import {
+  diaEmBrasilia,
+  diasAposPrazo,
   pedeAtencao,
   percentualConcluido,
   statusGestao,
@@ -193,6 +195,8 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
       status: t.status,
       gestao: statusGestao({ status: t.status, prazo: t.prazo, recursoLiberado: liberado, hoje }),
       prazo: isoDia(t.prazo),
+      concluidaEm: t.status === "CONCLUIDA" && t.concluidaEm ? isoDia(diaEmBrasilia(t.concluidaEm)) : null,
+      diasAposPrazo: t.status === "CONCLUIDA" ? diasAposPrazo(t.prazo, t.concluidaEm) : null,
       avulsa: !t.modeloId,
       comentarios: t._count.comentarios,
       escaladasAbertas: t.comentarios.length,
@@ -230,7 +234,8 @@ export async function setTarefaStatusAction(tarefaId: string, status: StatusTare
     where: { id: tarefaId },
     data: {
       status,
-      concluidaEm: status === "CONCLUIDA" ? new Date() : null,
+      // Guarda o dia em que foi concluída (marcar "Concluída" de novo não muda a data).
+      concluidaEm: status === "CONCLUIDA" ? (r.tarefa.status === "CONCLUIDA" ? r.tarefa.concluidaEm : null) ?? new Date() : null,
       atualizadoPor: r.user.id,
     },
   });
@@ -238,10 +243,10 @@ export async function setTarefaStatusAction(tarefaId: string, status: StatusTare
   return { ok: true };
 }
 
-/** Edita título, detalhamento e prazo (a equipe da área). */
+/** Edita título, detalhamento, prazo e o dia da conclusão (a equipe da área). */
 export async function editTarefaAction(
   tarefaId: string,
-  input: { titulo: string; detalhamento: string; prazo: string | null },
+  input: { titulo: string; detalhamento: string; prazo: string | null; concluidaEm?: string | null },
 ): Promise<Result> {
   const r = await tarefaComPermissao(tarefaId);
   if ("erro" in r) return { ok: false, error: r.erro! };
@@ -250,12 +255,20 @@ export async function editTarefaAction(
   if (!titulo) return { ok: false, error: "Informe o título." };
   const prazo = parseDia(input.prazo);
   if (prazo === "invalida") return { ok: false, error: "Prazo inválido." };
+  // Dia da conclusão corrigido à mão (só para tarefa concluída; meio-dia de Brasília).
+  let concluidaEm: Date | undefined;
+  if (r.tarefa.status === "CONCLUIDA" && input.concluidaEm) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.concluidaEm)) return { ok: false, error: "Data de conclusão inválida." };
+    concluidaEm = new Date(`${input.concluidaEm}T12:00:00-03:00`);
+    if (concluidaEm.getTime() > Date.now()) return { ok: false, error: "A conclusão não pode ser no futuro." };
+  }
   await prisma.tarefa.update({
     where: { id: tarefaId },
     data: {
       titulo: titulo.slice(0, 200),
       detalhamento: input.detalhamento.trim().slice(0, 2000),
       prazo,
+      ...(concluidaEm ? { concluidaEm } : {}),
       // Prazo mudado à mão deixa de seguir a pré-definição (a tarefa continua ligada a ela).
       ...((r.tarefa.prazo?.getTime() ?? null) !== (prazo?.getTime() ?? null) ? { prazoManual: true } : {}),
       atualizadoPor: r.user.id,

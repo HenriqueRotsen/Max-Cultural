@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   calcularPrazo,
   chaveTarefa,
+  diaEmBrasilia,
+  diasAposPrazo,
   gerarTarefas,
   pedeAtencao,
   percentualConcluido,
@@ -74,6 +76,19 @@ describe("statusGestao", () => {
     expect(pedeAtencao("PRAZO_PROXIMO")).toBe(true);
     expect(pedeAtencao("NO_PRAZO")).toBe(false);
     expect(pedeAtencao("AGUARDANDO_LIBERACAO")).toBe(false);
+  });
+});
+
+describe("conclusão × prazo", () => {
+  it("compara o dia (horário de Brasília) da conclusão com o prazo", () => {
+    const prazo = d("2026-11-13");
+    expect(diasAposPrazo(prazo, new Date("2026-11-15T14:00:00Z"))).toBe(2);
+    expect(diasAposPrazo(prazo, new Date("2026-11-10T12:00:00Z"))).toBe(-3);
+    // 23h de 13/11 em Brasília já é 14/11 em UTC: continua sendo no dia.
+    expect(diasAposPrazo(prazo, new Date("2026-11-14T02:00:00Z"))).toBe(0);
+    expect(diasAposPrazo(null, new Date())).toBeNull();
+    expect(diasAposPrazo(prazo, null)).toBeNull();
+    expect(iso(diaEmBrasilia(new Date("2026-11-14T02:00:00Z")))).toBe("2026-11-13");
   });
 });
 

@@ -107,6 +107,21 @@ function periodoCurto(g: { data: string; dataFim: string | null }) {
   return g.dataFim && g.dataFim !== g.data ? `${fmtCurto(g.data)} a ${fmtCurto(g.dataFim)}` : fmtCurto(g.data);
 }
 
+/** "Concluída em 15/11 · 2 dias depois do prazo" (vermelho se atrasou). */
+function ConclusaoInfo({ t }: { t: TarefaDTO }) {
+  if (!t.concluidaEm) return null;
+  const d = t.diasAposPrazo;
+  const comparacao =
+    d == null ? "" : d === 0 ? "no dia do prazo" : `${Math.abs(d)} ${Math.abs(d) === 1 ? "dia" : "dias"} ${d > 0 ? "depois" : "antes"} do prazo`;
+  return (
+    <span className={cn("text-xs tabular-nums", d != null && d > 0 ? "font-medium text-red-700" : "text-emerald-700")}>
+      {"Concluída em "}
+      {fmtCurto(t.concluidaEm)}
+      {comparacao ? ` · ${comparacao}` : ""}
+    </span>
+  );
+}
+
 function pct(ts: TarefaDTO[]) {
   const validas = ts.filter((t) => t.status !== "NAO_CONTEMPLADA");
   if (!validas.length) return 0;
@@ -141,7 +156,9 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
   const router = useRouter();
   const pathname = usePathname();
   const [aba, setAba] = useState<Aba>(abaInicial);
-  const [aberta, setAberta] = useState<TarefaDTO | null>(null);
+  // Pelo id: depois de salvar, o diálogo mostra os dados atualizados da tarefa.
+  const [abertaId, setAbertaId] = useState<string | null>(null);
+  const aberta = abertaId ? (data.tarefas.find((t) => t.id === abertaId) ?? null) : null;
   const [avulsa, setAvulsa] = useState<{ area: AreaTarefa; nivel: 1 | 2 } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -259,7 +276,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
           podeEditar={podeArea(ABA_AREA[aba])}
           pending={pending}
           onStatus={mudarStatus}
-          onAbrir={setAberta}
+          onAbrir={(t) => setAbertaId(t.id)}
           onAvulsa={(nivel) => setAvulsa({ area: ABA_AREA[aba], nivel })}
           rotuloRealizacao={rotuloRealizacao}
         />
@@ -271,7 +288,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
           podeEditar={podeArea(aberta.area)}
           podeComentar={podeArea(aberta.area) || data.pode.gestao}
           contexto={aberta.nivel === 2 ? (aberta.unidade === "CIDADE" ? `${aberta.cidade}, ${aberta.uf}` : rotuloRealizacao(aberta)) : null}
-          onClose={() => setAberta(null)}
+          onClose={() => setAbertaId(null)}
           onStatus={(s) => mudarStatus(aberta, s)}
         />
       ) : null}
@@ -382,8 +399,16 @@ function AreaPainel(props: AreaProps) {
                         {t.status === "CONCLUIDA" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" /> : null}
                         {t.titulo}
                       </button>
-                      {t.prazo ? (
-                        <div className="text-xs tabular-nums text-muted-foreground">Prazo {fmtCurto(t.prazo)}</div>
+                      {t.prazo || t.concluidaEm ? (
+                        <div className="text-xs tabular-nums text-muted-foreground">
+                          {t.prazo ? `Prazo ${fmtCurto(t.prazo)}` : ""}
+                          {t.concluidaEm ? (
+                            <>
+                              {t.prazo ? " · " : ""}
+                              <ConclusaoInfo t={t} />
+                            </>
+                          ) : null}
+                        </div>
                       ) : null}
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
@@ -556,7 +581,7 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                               </span>
                             </td>
                             <td className="hidden py-2 md:table-cell">
-                              <GestaoBadge s={t.gestao} />
+                              {t.concluidaEm ? <ConclusaoInfo t={t} /> : <GestaoBadge s={t.gestao} />}
                             </td>
                           </tr>
                         ))}
@@ -593,6 +618,7 @@ function TarefaDialog({
   const [titulo, setTitulo] = useState(tarefa.titulo);
   const [detalhamento, setDetalhamento] = useState(tarefa.detalhamento);
   const [prazo, setPrazo] = useState(tarefa.prazo ?? "");
+  const [concluidaEm, setConcluidaEm] = useState(tarefa.concluidaEm ?? "");
   const [comentarios, setComentarios] = useState<ComentarioDTO[] | null>(null);
   const [texto, setTexto] = useState("");
   const [escalar, setEscalar] = useState(false);
@@ -607,7 +633,12 @@ function TarefaDialog({
 
   function salvar() {
     startTransition(async () => {
-      const r = await editTarefaAction(tarefa.id, { titulo, detalhamento, prazo: prazo || null });
+      const r = await editTarefaAction(tarefa.id, {
+        titulo,
+        detalhamento,
+        prazo: prazo || null,
+        concluidaEm: concluidaEm && concluidaEm !== tarefa.concluidaEm ? concluidaEm : null,
+      });
       if (!r.ok) return void toast.error(r.error);
       toast.success("Tarefa atualizada");
       router.refresh();
@@ -641,7 +672,7 @@ function TarefaDialog({
 
         <div className="flex flex-wrap items-center gap-3">
           <StatusChip t={tarefa} podeEditar={podeEditar} pending={pending} onStatus={(_, s) => onStatus(s)} />
-          <GestaoBadge s={tarefa.gestao} />
+          {tarefa.concluidaEm ? <ConclusaoInfo t={tarefa} /> : <GestaoBadge s={tarefa.gestao} />}
         </div>
 
         {podeEditar ? (
@@ -654,15 +685,38 @@ function TarefaDialog({
               <Label>Detalhamento</Label>
               <Textarea rows={3} value={detalhamento} onChange={(e) => setDetalhamento(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label>Prazo</Label>
-              <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
+            <div className="flex flex-wrap gap-3">
+              <div className="space-y-1.5">
+                <Label>Prazo</Label>
+                <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
+              </div>
+              {tarefa.status === "CONCLUIDA" ? (
+                <div className="space-y-1.5">
+                  <Label>Concluída em</Label>
+                  <DatePicker
+                    value={concluidaEm}
+                    onChange={(v) => v && setConcluidaEm(v)}
+                    clearable={false}
+                    className="w-52"
+                    aria-label="Dia da conclusão"
+                  />
+                </div>
+              ) : null}
             </div>
+            {tarefa.status === "CONCLUIDA" ? (
+              <p className="text-xs text-muted-foreground">
+                O dia da conclusão é gravado quando a tarefa é marcada como concluída. Corrija aqui se ela foi
+                concluída antes de ser marcada.
+              </p>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-1 text-sm">
             {tarefa.detalhamento ? <p className="text-muted-foreground">{tarefa.detalhamento}</p> : null}
-            <p>Prazo: {fmtDia(tarefa.prazo)}</p>
+            <p>
+              Prazo: {fmtDia(tarefa.prazo)}
+              {tarefa.concluidaEm ? ` · Concluída em ${fmtDia(tarefa.concluidaEm)}` : ""}
+            </p>
           </div>
         )}
 

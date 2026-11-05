@@ -108,6 +108,32 @@ export function statusGestao(input: {
   return "NO_PRAZO";
 }
 
+/**
+ * Dia (no calendário de Brasília) de um instante: a conclusão é gravada com
+ * hora; o prazo é um dia. Devolve meia-noite UTC desse dia, como os prazos.
+ */
+export function diaEmBrasilia(d: Date): Date {
+  const [y, m, dia] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(d)
+    .split("-")
+    .map(Number);
+  return new Date(Date.UTC(y!, m! - 1, dia!));
+}
+
+/**
+ * Dias entre o prazo e a conclusão: positivo = concluída depois do prazo,
+ * negativo = antes, 0 = no dia. Nulo sem prazo ou sem conclusão.
+ */
+export function diasAposPrazo(prazo: Date | null, concluidaEm: Date | null): number | null {
+  if (!prazo || !concluidaEm) return null;
+  return diasEntre(prazo, diaEmBrasilia(concluidaEm));
+}
+
 /** Precisa de atenção da gestão (em atraso ou prazo próximo). */
 export function pedeAtencao(s: StatusGestao): boolean {
   return s === "EM_ATRASO" || s === "PRAZO_PROXIMO";
