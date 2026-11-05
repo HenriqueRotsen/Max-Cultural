@@ -145,6 +145,10 @@ export type PrazoProjetoDTO = {
   nivel: number;
   fase: FaseTarefa;
   titulo: string;
+  unidade: UnidadeTarefa;
+  /** Nomes dos tipos de ação a que se aplica (vazio = todos). */
+  tiposNomes: string[];
+  ordem: number;
   prazoBase: PrazoBase | null;
   prazoDias: number | null;
   /** Prazo na pré-definição geral (null = a tarefa não está mais nela). */

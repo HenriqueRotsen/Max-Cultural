@@ -54,6 +54,7 @@ import {
 } from "@/lib/acompanhamento/types";
 import { useConfirm } from "@/components/ui/confirm";
 import { RegraCampo } from "@/components/acompanhamento/predefinicao-editor";
+import { AbasArea, TarefasPorFase } from "@/components/acompanhamento/tarefas-por-fase";
 
 export type Aba = "comunicacao" | "producao" | "configuracao";
 
@@ -1110,8 +1111,6 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
   );
 }
 
-const ordemFase = (fases: readonly FaseTarefa[], f: FaseTarefa) => (fases.includes(f) ? fases.indexOf(f) : fases.length);
-
 const mesmoPrazo = (a: { prazoBase: unknown; prazoDias: unknown }, b: { prazoBase: unknown; prazoDias: unknown }) =>
   a.prazoBase === b.prazoBase && a.prazoDias === b.prazoDias;
 
@@ -1125,96 +1124,77 @@ function PrazosProjeto({ data, pending, onAtualizar }: { data: AcompanhamentoDTO
   const [editando, setEditando] = useState<PrazoProjetoDTO | null>(null);
   const pode = data.pode.gestao;
   const ajustados = data.prazos.filter((p) => p.padrao && !mesmoPrazo(p, p.padrao)).length;
-  const daArea = data.prazos.filter((p) => p.area === area);
+  const itens = data.prazos
+    .filter((p) => p.area === area)
+    .sort((a, b) => a.ordem - b.ordem)
+    .map((p) => ({ ...p, id: p.modeloId }));
 
   return (
-    <section className="space-y-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="max-w-2xl">
-          <h2 className="font-heading text-lg font-semibold text-brand-deep">Tarefas e prazos deste projeto</h2>
-          <p className="text-sm text-muted-foreground">
-            Começam com a{" "}
-            <Link href="/dashboard/acompanhamento/pre-definicao" className="font-medium text-teal-800 hover:underline">
-              pré-definição das tarefas
-            </Link>{" "}
-            de {fmtDia(data.preDefinicaoEm)}. Se o cronograma deste projeto for diferente, ajuste o prazo aqui: vale só
-            para este projeto.
-            {ajustados ? <strong className="font-semibold text-foreground"> {ajustados} prazo(s) ajustado(s).</strong> : null}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}>
-            <ChevronDown className={cn("size-4 transition", aberto && "rotate-180")} />
-            {aberto ? "Esconder prazos" : "Ver e ajustar prazos"}
-          </Button>
-          {pode ? (
-            <Button variant="outline" disabled={pending} onClick={onAtualizar}>
-              Usar a pré-definição atual
-            </Button>
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <div className="max-w-2xl">
+        <h2 className="font-heading text-lg font-semibold text-brand-deep">Tarefas e prazos deste projeto</h2>
+        <p className="text-sm text-muted-foreground">
+          Começam com a{" "}
+          <Link href="/dashboard/acompanhamento/pre-definicao" className="font-medium text-teal-800 hover:underline">
+            pré-definição das tarefas
+          </Link>{" "}
+          de {fmtDia(data.preDefinicaoEm)}. Se o cronograma deste projeto for diferente, ajuste o prazo: vale só para
+          este projeto.
+          {ajustados ? (
+            <strong className="font-semibold text-foreground">
+              {" "}
+              {ajustados === 1 ? "1 prazo ajustado." : `${ajustados} prazos ajustados.`}
+            </strong>
           ) : null}
-        </div>
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => setAberto(true)}>
+          {pode ? "Ver e ajustar prazos" : "Ver prazos"}
+        </Button>
+        {pode ? (
+          <Button variant="outline" disabled={pending} onClick={onAtualizar}>
+            Usar a pré-definição atual
+          </Button>
+        ) : null}
       </div>
 
-      {aberto ? (
-        <div className="space-y-3">
-          <nav className="flex flex-wrap gap-1 rounded-xl border border-border/60 bg-muted/20 p-1 text-sm" aria-label="Área">
-            {(["COMUNICACAO", "PRODUCAO"] as const).map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => setArea(a)}
-                aria-current={area === a ? "page" : undefined}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 font-medium transition",
-                  area === a ? "bg-brand-deep text-white" : "text-muted-foreground hover:bg-white",
-                )}
-              >
-                {AREA_LABEL[a]}
-              </button>
-            ))}
-          </nav>
-          {[1, 2].map((nivel) => {
-            const fases = nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2;
-            const doNivel = daArea.filter((p) => p.nivel === nivel);
-            if (!doNivel.length) return null;
-            return (
-              <div key={nivel} className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Nível {nivel} · {nivel === 1 ? "D = início ou fim da execução do projeto" : "D = início ou fim da execução da ação"}
-                </h3>
-                <ul className="divide-y divide-border/50 rounded-xl border border-border/60">
-                  {[...doNivel]
-                    .sort((a, b) => ordemFase(fases, a.fase) - ordemFase(fases, b.fase))
-                    .map((p) => {
-                        const ajustado = p.padrao && !mesmoPrazo(p, p.padrao);
-                        return (
-                          <li key={p.modeloId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-                            <div className="min-w-0 flex-1">
-                              <div className="text-foreground">{p.titulo}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {FASE_LABEL[p.fase]} · <span className="font-medium text-brand-deep">{regraLabel(p.prazoBase, p.prazoDias)}</span>
-                                {ajustado ? <> · pré-definição: {regraLabel(p.padrao!.prazoBase, p.padrao!.prazoDias)}</> : null}
-                              </div>
-                            </div>
-                            {ajustado ? (
-                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-200">
-                                Ajustado neste projeto
-                              </span>
-                            ) : null}
-                            {pode ? (
-                              <Button variant="ghost" size="icon-sm" aria-label={`Ajustar prazo de ${p.titulo}`} onClick={() => setEditando(p)}>
-                                <Pencil className="size-4" />
-                              </Button>
-                            ) : null}
-                          </li>
-                        );
-                      })}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>Tarefas e prazos deste projeto</DialogTitle>
+            <DialogDescription>
+              {data.projeto.nome} · mesma organização da pré-definição. O D é o início ou o fim da execução do projeto
+              (nível 1) ou da ação (nível 2). Ajustar aqui não muda a pré-definição geral.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <AbasArea area={area} onChange={setArea} />
+            <TarefasPorFase
+              itens={itens}
+              extra={(p) =>
+                p.padrao && !mesmoPrazo(p, p.padrao) ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-900 ring-1 ring-amber-200">
+                      Ajustado neste projeto
+                    </span>
+                    <span className="text-muted-foreground">pré-definição: {regraLabel(p.padrao.prazoBase, p.padrao.prazoDias)}</span>
+                  </div>
+                ) : null
+              }
+              acoes={
+                pode
+                  ? (p) => (
+                      <Button variant="ghost" size="icon-sm" aria-label={`Ajustar prazo de ${p.titulo}`} onClick={() => setEditando(p)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                    )
+                  : undefined
+              }
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {editando ? <PrazoDialog projetoId={data.projeto.id} prazo={editando} onClose={() => setEditando(null)} /> : null}
     </section>

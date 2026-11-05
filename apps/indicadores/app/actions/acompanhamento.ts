@@ -230,6 +230,14 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
       })
     ).map((m) => [m.id, m]),
   );
+  const nomeTipo = new Map(
+    (
+      await prisma.acaoTipo.findMany({
+        where: { id: { in: [...new Set(doProjeto.flatMap((m) => m.tiposAcao ?? []))] } },
+        select: { id: true, nome: true },
+      })
+    ).map((t) => [t.id, t.nome]),
+  );
   const fin = acomp?.financeiroProjectId ? await buscarProjetoFinanceiroPorId(acomp.financeiroProjectId) : null;
 
   return {
@@ -260,6 +268,9 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
           nivel: m.nivel,
           fase: m.fase,
           titulo: m.titulo,
+          unidade: m.unidade,
+          tiposNomes: (m.tiposAcao ?? []).map((t) => nomeTipo.get(t) ?? t),
+          ordem: m.ordem,
           prazoBase: m.prazoBase,
           prazoDias: m.prazoDias,
           padrao: g ? { prazoBase: g.prazoBase, prazoDias: g.prazoDias } : null,
