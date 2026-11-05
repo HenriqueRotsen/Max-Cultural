@@ -133,7 +133,12 @@ export default async function AcompanhamentoPage({ searchParams }: Props) {
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {p.recursoLiberado ? (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">Liberado</span>
+                      <span
+                        className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700"
+                        title={p.recursoFonte === "GESTAO" ? "Informado pela gestão" : "Detectado no MAX Financeiro"}
+                      >
+                        Liberado{p.recursoFonte === "GESTAO" ? " (gestão)" : ""}
+                      </span>
                     ) : (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">Aguardando</span>
                     )}

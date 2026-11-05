@@ -77,6 +77,8 @@ function envDoApp(app, s) {
     DIRECT_URL: db,
     AUTH_SECRET: s.AUTH_SECRET,
     CREDENTIALS_SECRET: s.CREDENTIALS_SECRET,
+    // Rotinas diárias (/api/cron/*) chamadas à mão no local: Authorization: Bearer <AUTH_SECRET>.
+    CRON_SECRET: s.AUTH_SECRET,
     AUTH_COOKIE_DOMAIN: "",
     AUTH_2FA_DISABLED: "true",
     AUTH_EMAIL_SIMULATE: "true",
@@ -147,7 +149,31 @@ async function setup({ reset }) {
   run("indicadores", ["tsx", "scripts/seed-auth.ts"]);
   console.log("\n▶ Dados demo do Indicadores");
   run("indicadores", ["tsx", "scripts/seed-demo.ts"]);
+  await financeiroDeTeste();
   console.log("\n✅ Ambiente local pronto. Suba (ou reinicie) com: npm run dev:local");
+}
+
+/**
+ * Só no banco local: a tabela do MAX Financeiro que o acompanhamento lê
+ * (captado transferido), com projetos de exemplo — federais (PRONAC) e de
+ * outras leis (código próprio, valores lançados à mão).
+ */
+async function financeiroDeTeste() {
+  await comBanco(DB, async (c) => {
+    await c.query(`CREATE SCHEMA IF NOT EXISTS financeiro`);
+    await c.query(`CREATE TABLE IF NOT EXISTS financeiro.planning_projects (
+      id text PRIMARY KEY, name text, "externalCode" text NOT NULL, jurisdiction text NOT NULL,
+      situacao text, "valorCaptado" numeric(14,2), "captadoTransferido" numeric(14,2),
+      "lifecycleStatus" text NOT NULL DEFAULT 'EM_ANDAMENTO', "importedAt" timestamp(3) DEFAULT now()
+    )`);
+    await c.query(`INSERT INTO financeiro.planning_projects (id, name, "externalCode", jurisdiction, "valorCaptado", "captadoTransferido") VALUES
+      ('fin-demo-240001', 'Arte em Rede — Edição Demo', '240001', 'FEDERAL', 120000, 50000),
+      ('fin-demo-250010', 'Mostra Cultural Demo', '250010', 'FEDERAL', 80000, 0),
+      ('fin-demo-mg-001', 'Circuito Cultural Mineiro (lei estadual)', 'MG-2026-001', 'MG', 60000, 30000),
+      ('fin-demo-mg-002', 'Festival de Bairro (lei municipal)', 'BH-2026-002', 'MG', 40000, 0)
+      ON CONFLICT (id) DO NOTHING`);
+  });
+  console.log("🏦 MAX Financeiro de teste (só local): 4 projetos de exemplo.");
 }
 
 async function liberar() {

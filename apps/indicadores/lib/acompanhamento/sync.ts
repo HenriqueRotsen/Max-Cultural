@@ -5,7 +5,11 @@ import {
   gerarTarefas,
   type ModeloTarefa,
 } from "@/lib/acompanhamento/regras";
-import { buscarProjetoFinanceiro, recursoFoiLiberado } from "@/lib/acompanhamento/financeiro";
+import {
+  buscarProjetoFinanceiro,
+  buscarProjetoFinanceiroPorId,
+  recursoFoiLiberado,
+} from "@/lib/acompanhamento/financeiro";
 
 const CAMPOS_MODELO = {
   id: true,
@@ -34,13 +38,10 @@ export async function copiaDaPreDefinicao(): Promise<Prisma.InputJsonValue> {
 
 /**
  * Garante a linha de acompanhamento do projeto, guarda a pré-definição do dia
- * (mudanças posteriores só valem para projetos novos) e detecta o "recurso liberado".
+ * (mudanças posteriores só valem para projetos novos) e verifica o recurso.
  */
 export async function garantirAcompanhamento(projetoId: string) {
-  const projeto = await prisma.projeto.findUnique({
-    where: { id: projetoId },
-    select: { id: true, pronac: true },
-  });
+  const projeto = await prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true } });
   if (!projeto) return null;
   let acomp = await prisma.acompanhamentoProjeto.upsert({
     where: { projetoId },
@@ -53,20 +54,37 @@ export async function garantirAcompanhamento(projetoId: string) {
       data: { modelos: await copiaDaPreDefinicao(), modelosEm: new Date() },
     });
   }
-  if (!acomp.recursoLiberadoEm) {
-    const fin = await buscarProjetoFinanceiro(projeto.pronac);
-    if (fin && (recursoFoiLiberado(fin) || fin.id !== acomp.financeiroProjectId)) {
-      acomp = await prisma.acompanhamentoProjeto.update({
-        where: { projetoId },
-        data: {
-          financeiroProjectId: fin.id,
-          // Data da detecção (o Financeiro não guarda a data da transferência).
-          ...(recursoFoiLiberado(fin) ? { recursoLiberadoEm: new Date() } : {}),
-        },
-      });
-    }
-  }
-  return acomp;
+  return (await verificarRecurso(projetoId)) ?? acomp;
+}
+
+/**
+ * "Recurso liberado": vem do projeto do MAX Financeiro ligado a este — pelo
+ * PRONAC (federal) ou escolhido pela gestão (outras leis). Liberado quando o
+ * Financeiro já tem valor transferido para a conta de movimentação. Data
+ * informada pela gestão nunca é trocada.
+ */
+export async function verificarRecurso(projetoId: string) {
+  const [projeto, acomp] = await Promise.all([
+    prisma.projeto.findUnique({ where: { id: projetoId }, select: { pronac: true } }),
+    prisma.acompanhamentoProjeto.findUnique({ where: { projetoId } }),
+  ]);
+  if (!projeto || !acomp || acomp.recursoLiberadoEm) return acomp;
+  const fin = acomp.financeiroProjectId
+    ? await buscarProjetoFinanceiroPorId(acomp.financeiroProjectId)
+    : acomp.financeiroManual
+      ? null
+      : await buscarProjetoFinanceiro(projeto.pronac);
+  if (!fin) return acomp;
+  const liberado = recursoFoiLiberado(fin);
+  if (!liberado && fin.id === acomp.financeiroProjectId) return acomp;
+  return prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: {
+      financeiroProjectId: fin.id,
+      // Data da detecção (o Financeiro guarda o valor transferido, não a data).
+      ...(liberado ? { recursoLiberadoEm: new Date(), recursoFonte: "FINANCEIRO" } : {}),
+    },
+  });
 }
 
 /**

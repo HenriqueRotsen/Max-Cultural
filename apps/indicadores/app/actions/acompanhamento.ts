@@ -14,7 +14,17 @@ import {
   percentualConcluido,
   statusGestao,
 } from "@/lib/acompanhamento/regras";
-import { copiaDaPreDefinicao, garantirAcompanhamento, sincronizarTarefas } from "@/lib/acompanhamento/sync";
+import {
+  copiaDaPreDefinicao,
+  garantirAcompanhamento,
+  sincronizarTarefas,
+  verificarRecurso,
+} from "@/lib/acompanhamento/sync";
+import {
+  buscarProjetoFinanceiroPorId,
+  financeiroLabel,
+  listarProjetosFinanceiro,
+} from "@/lib/acompanhamento/financeiro";
 import { territorioLabel } from "@/lib/acompanhamento/types";
 import type {
   AcompanhamentoDTO,
@@ -65,6 +75,8 @@ function parseDia(v: string | null | undefined): Date | null | "invalida" {
 
 const PAGE_SIZE = 25;
 
+const fonte = (v: string | null | undefined) => (v === "GESTAO" ? "GESTAO" : v === "FINANCEIRO" ? "FINANCEIRO" : null);
+
 /**
  * Lista dos projetos com o resumo do acompanhamento: busca (nome, PRONAC,
  * proponente, contexto), filtros e paginação. Atrasadas/vencendo são calculadas
@@ -105,7 +117,7 @@ export async function listAcompanhamentoProjetosAction(
         nome: true,
         pronac: true,
         contexto: { select: { nome: true } },
-        acompanhamento: { select: { recursoLiberadoEm: true } },
+        acompanhamento: { select: { recursoLiberadoEm: true, recursoFonte: true } },
         _count: { select: { acoes: true } },
         tarefas: { select: { area: true, status: true, prazo: true } },
       },
@@ -130,6 +142,7 @@ export async function listAcompanhamentoProjetosAction(
       contextoNome: p.contexto.nome,
       acoes: p._count.acoes,
       recursoLiberado: liberado,
+      recursoFonte: liberado ? fonte(p.acompanhamento?.recursoFonte) : null,
       comunicacao: { pct: percentualConcluido(daArea("COMUNICACAO")), total: daArea("COMUNICACAO").length },
       producao: { pct: percentualConcluido(daArea("PRODUCAO")), total: daArea("PRODUCAO").length },
       emAtraso,
@@ -206,6 +219,7 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
   ]);
   const liberado = Boolean(acomp?.recursoLiberadoEm);
   const hoje = new Date();
+  const fin = acomp?.financeiroProjectId ? await buscarProjetoFinanceiroPorId(acomp.financeiroProjectId) : null;
 
   return {
     projeto: {
@@ -219,6 +233,11 @@ export async function getAcompanhamentoAction(projetoId: string): Promise<Acompa
     fimExecucao: isoDia(acomp?.fimExecucao),
     recursoLiberadoEm: isoDia(acomp?.recursoLiberadoEm),
     financeiroVinculado: Boolean(acomp?.financeiroProjectId),
+    recursoFonte: liberado ? fonte(acomp?.recursoFonte) : null,
+    financeiro: fin
+      ? { id: fin.id, nome: fin.nome || fin.codigo, label: financeiroLabel(fin), captadoTransferido: fin.captadoTransferido }
+      : null,
+    financeiroManual: Boolean(acomp?.financeiroManual),
     preDefinicaoEm: isoDia(acomp?.modelosEm),
     acoes: acoes.map((a) => ({
       id: a.id,
@@ -486,6 +505,73 @@ export async function atualizarPreDefinicaoProjetoAction(projetoId: string): Pro
     entityType: "Projeto",
     entityId: projetoId,
     meta: {},
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
+/** Projetos do MAX Financeiro para a gestão vincular (projetos de outras leis, sem PRONAC). */
+export async function buscarFinanceiroAction(q: string): Promise<Array<{ id: string; nome: string; label: string }>> {
+  const { perms } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return [];
+  const lista = await listarProjetosFinanceiro(q.slice(0, 80));
+  return lista.map((f) => ({ id: f.id, nome: f.nome || f.codigo, label: financeiroLabel(f) }));
+}
+
+/**
+ * Liga o projeto a um projeto do MAX Financeiro (gestão). `null` desfaz o
+ * vínculo manual e volta a procurar pelo PRONAC.
+ */
+export async function vincularFinanceiroAction(projetoId: string, financeiroId: string | null): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera o vínculo." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  if (financeiroId && !(await buscarProjetoFinanceiroPorId(financeiroId))) {
+    return { ok: false, error: "Projeto não encontrado no MAX Financeiro." };
+  }
+  await garantirAcompanhamento(projetoId);
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { financeiroProjectId: financeiroId, financeiroManual: Boolean(financeiroId) },
+  });
+  await verificarRecurso(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.financeiro_vinculo",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: { financeiroId },
+  });
+  revalidar(projetoId);
+  return { ok: true };
+}
+
+/**
+ * Recurso liberado informado pela gestão (data em yyyy-mm-dd), para corrigir a
+ * data ou para projeto fora do Financeiro. `null` volta para "aguardando" e
+ * deixa o Financeiro detectar de novo.
+ */
+export async function setRecursoLiberadoAction(projetoId: string, data: string | null): Promise<Result> {
+  const { user, perms, scope } = await contexto();
+  if (!perms.has("acompanhamento:gestao")) return { ok: false, error: "Só a gestão altera o recurso." };
+  if (!(await projetoVisivel(projetoId, scope))) return { ok: false, error: "Sem acesso a este projeto." };
+  const dia = parseDia(data);
+  if (dia === "invalida") return { ok: false, error: "Data inválida." };
+  // Meio-dia de Brasília: o dia não muda com o fuso.
+  const quando = dia ? new Date(`${data}T12:00:00-03:00`) : null;
+  if (quando && quando.getTime() > Date.now()) return { ok: false, error: "A liberação não pode ser no futuro." };
+  await garantirAcompanhamento(projetoId);
+  await prisma.acompanhamentoProjeto.update({
+    where: { projetoId },
+    data: { recursoLiberadoEm: quando, recursoFonte: quando ? "GESTAO" : null },
+  });
+  if (!quando) await verificarRecurso(projetoId);
+  await writeAuditLog({
+    actorUserId: user.id,
+    action: "acompanhamento.recurso",
+    entityType: "Projeto",
+    entityId: projetoId,
+    meta: { recursoLiberadoEm: data },
   });
   revalidar(projetoId);
   return { ok: true };

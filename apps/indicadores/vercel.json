@@ -1,5 +1,11 @@
 {
   "regions": [
     "gru1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/acompanhamento-recurso",
+      "schedule": "30 10 * * *"
+    }
   ]
 }

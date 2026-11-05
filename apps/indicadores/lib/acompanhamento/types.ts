@@ -123,12 +123,26 @@ export type AcompanhamentoDTO = {
   inicioExecucao: string | null;
   fimExecucao: string | null;
   recursoLiberadoEm: string | null;
+  /** De onde veio a liberação: detectada no Financeiro ou informada pela gestão. */
+  recursoFonte: "FINANCEIRO" | "GESTAO" | null;
   financeiroVinculado: boolean;
+  /** Projeto do MAX Financeiro ligado a este (PRONAC ou escolhido pela gestão). */
+  financeiro: FinanceiroResumoDTO | null;
+  /** Vínculo escolhido pela gestão (não segue o PRONAC). */
+  financeiroManual: boolean;
   /** Dia em que o projeto guardou a pré-definição (yyyy-mm-dd). */
   preDefinicaoEm: string | null;
   acoes: AcaoAcompDTO[];
   tarefas: TarefaDTO[];
   pode: { comunicacao: boolean; producao: boolean; gestao: boolean };
+};
+
+export type FinanceiroResumoDTO = {
+  id: string;
+  nome: string;
+  /** "Federal · PRONAC 240001" ou "MG · código 2024-015". */
+  label: string;
+  captadoTransferido: number | null;
 };
 
 export type ComentarioDTO = {
@@ -148,6 +162,7 @@ export type ProjetoAcompResumoDTO = {
   contextoNome: string;
   acoes: number;
   recursoLiberado: boolean;
+  recursoFonte: "FINANCEIRO" | "GESTAO" | null;
   comunicacao: { pct: number; total: number };
   producao: { pct: number; total: number };
   /** Tarefas não concluídas com o prazo já vencido. */

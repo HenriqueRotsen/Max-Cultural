@@ -24,6 +24,9 @@ import {
   addAgendaAction,
   addComentarioAction,
   atualizarPreDefinicaoProjetoAction,
+  buscarFinanceiroAction,
+  setRecursoLiberadoAction,
+  vincularFinanceiroAction,
   createTarefaAvulsaAction,
   editTarefaAction,
   listComentariosAction,
@@ -219,6 +222,7 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
           {liberado ? (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
               Recurso liberado em {fmtDia(data.recursoLiberadoEm)}
+              {data.recursoFonte === "GESTAO" ? " (informado pela gestão)" : ""}
             </span>
           ) : (
             <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
@@ -961,14 +965,9 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
             </Button>
           ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {data.recursoLiberadoEm
-            ? `Recurso liberado em ${fmtDia(data.recursoLiberadoEm)} (detectado no MAX Financeiro).`
-            : data.financeiroVinculado
-              ? "Projeto encontrado no MAX Financeiro; ainda sem transferência para a conta de movimentação."
-              : "Projeto ainda não encontrado no MAX Financeiro pelo PRONAC."}
-        </p>
       </section>
+
+      <RecursoSecao data={data} />
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
         <div>
@@ -1092,5 +1091,194 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
         )}
       </section>
     </div>
+  );
+}
+
+const reais = (v: number | null) =>
+  v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+/**
+ * Recurso liberado: vem do projeto do MAX Financeiro ligado a este (PRONAC ou
+ * escolhido pela gestão nas outras leis). A gestão também pode informar a data.
+ */
+function RecursoSecao({ data }: { data: AcompanhamentoDTO }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [busca, setBusca] = useState("");
+  const [resultados, setResultados] = useState<Array<{ id: string; nome: string; label: string }> | null>(null);
+  const [trocar, setTrocar] = useState(false);
+  const [dataManual, setDataManual] = useState("");
+  const pode = data.pode.gestao;
+  const fin = data.financeiro;
+
+  function buscar() {
+    startTransition(async () => setResultados(await buscarFinanceiroAction(busca)));
+  }
+
+  function rodar(fn: () => Promise<{ ok: boolean; error?: string }>, msg: string) {
+    startTransition(async () => {
+      const r = await fn();
+      if (!r.ok) return void toast.error(r.error ?? "Não foi possível salvar.");
+      toast.success(msg);
+      setTrocar(false);
+      setDataManual("");
+      setResultados(null);
+      setBusca("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <div>
+        <h2 className="font-heading text-lg font-semibold text-brand-deep">Recurso liberado</h2>
+        <p className="text-sm text-muted-foreground">
+          Os prazos das tarefas só contam depois da liberação. Ela vem do projeto no MAX Financeiro: quando há valor
+          transferido para a conta de movimentação (do SALIC no federal; lançado à mão nas outras leis).
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {data.recursoLiberadoEm ? (
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+            Liberado em {fmtDia(data.recursoLiberadoEm)} ·{" "}
+            {data.recursoFonte === "GESTAO" ? "informado pela gestão" : "detectado no MAX Financeiro"}
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">Aguardando liberação</span>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Projeto no MAX Financeiro</div>
+        {fin && !trocar ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm">
+              <div className="font-medium text-brand-deep">{fin.nome}</div>
+              <div className="text-xs text-muted-foreground">
+                {fin.label} · transferido {reais(fin.captadoTransferido)}
+                {data.financeiroManual ? " · escolhido pela gestão" : " · pelo PRONAC"}
+              </div>
+            </div>
+            {pode ? (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setTrocar(true)}>
+                  Trocar
+                </Button>
+                {data.financeiroManual ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => rodar(() => vincularFinanceiroAction(data.projeto.id, null), "Vínculo desfeito")}
+                  >
+                    Desfazer vínculo
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {!fin ? (
+              <p className="text-sm text-muted-foreground">
+                {data.projeto.pronac
+                  ? `Nenhum projeto do MAX Financeiro com o PRONAC ${data.projeto.pronac}.`
+                  : "Projeto sem PRONAC (outras leis)."}{" "}
+                {pode ? "Escolha o projeto correspondente no MAX Financeiro." : ""}
+              </p>
+            ) : null}
+            {pode ? (
+              <div className="space-y-2">
+                <form
+                  className="flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    buscar();
+                  }}
+                >
+                  <Input
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Nome ou código do projeto no MAX Financeiro"
+                    aria-label="Buscar projeto no MAX Financeiro"
+                    className="h-9 w-full max-w-md bg-white"
+                  />
+                  <Button type="submit" variant="outline" size="sm" className="h-9" disabled={pending}>
+                    Buscar
+                  </Button>
+                  {trocar ? (
+                    <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setTrocar(false)}>
+                      Cancelar
+                    </Button>
+                  ) : null}
+                </form>
+                {resultados ? (
+                  resultados.length ? (
+                    <ul className="max-w-xl divide-y divide-border/60 rounded-lg border border-border/60 bg-white">
+                      {resultados.map((f) => (
+                        <li key={f.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-brand-deep">{f.nome}</span>
+                            <span className="block text-xs text-muted-foreground">{f.label}</span>
+                          </span>
+                          <Button
+                            size="sm"
+                            disabled={pending || f.id === fin?.id}
+                            onClick={() =>
+                              rodar(() => vincularFinanceiroAction(data.projeto.id, f.id), "Projeto do MAX Financeiro vinculado")
+                            }
+                          >
+                            {f.id === fin?.id ? "Vinculado" : "Vincular"}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nenhum projeto encontrado no MAX Financeiro.</p>
+                  )
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {pode ? (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informar à mão</div>
+          <p className="text-xs text-muted-foreground">
+            Para corrigir a data ou para um projeto que não está no MAX Financeiro.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <DatePicker value={dataManual} onChange={setDataManual} className="w-52" aria-label="Data da liberação" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              disabled={pending || !dataManual}
+              onClick={() => rodar(() => setRecursoLiberadoAction(data.projeto.id, dataManual), "Liberação informada")}
+            >
+              Salvar data
+            </Button>
+            {data.recursoFonte === "GESTAO" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9"
+                disabled={pending}
+                onClick={() => {
+                  if (window.confirm("Voltar para aguardando? O MAX Financeiro volta a ser consultado.")) {
+                    rodar(() => setRecursoLiberadoAction(data.projeto.id, null), "Voltou para aguardando")
+                  }
+                }}
+              >
+                Voltar para aguardando
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
