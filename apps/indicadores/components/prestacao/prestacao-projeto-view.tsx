@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
-import { BarChart3, ChevronRight, Download, FileText, ListChecks, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { BarChart3, ChevronRight, Download, FileText, ListChecks, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,6 +102,8 @@ export function PrestacaoProjetoView({
           )}
         </div>
       </div>
+
+      <ComoFunciona />
 
       <div className="grid gap-3 sm:grid-cols-3">
         {EQUIPES.map((e) => (
@@ -581,5 +583,87 @@ function Relatorios({ data }: { data: PrestacaoProjetoDTO }) {
         )}
       </section>
     </div>
+  );
+}
+
+const PASSOS = [
+  {
+    quem: "Gestão",
+    titulo: "Dados e produtos",
+    texto: "Uma vez por projeto: lei, identificação e patrocinador em Dados do projeto; os produtos e metas prometidos em Produtos e metas.",
+  },
+  {
+    quem: "Produção, Comunicação e Gestão",
+    titulo: "Fichas das execuções",
+    texto: "Em Fichas, abra cada execução da ação: cada equipe preenche a sua parte e envia as fotos (com categoria e descrição) e os documentos em PDF.",
+  },
+  {
+    quem: "Gestão",
+    titulo: "Relatório em PDF",
+    texto: "Em Relatórios, gere o PDF: o sistema junta as fichas e as fotos com as inscrições, o perfil do público, os formulários e as avaliações.",
+  },
+];
+
+const CHAVE_COMO_FUNCIONA = "prestacao:como-funciona:escondido";
+const EVENTO_COMO_FUNCIONA = "prestacao:como-funciona";
+
+function lerEscondido(): boolean {
+  try {
+    return window.localStorage.getItem(CHAVE_COMO_FUNCIONA) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function assinar(aviso: () => void) {
+  window.addEventListener(EVENTO_COMO_FUNCIONA, aviso);
+  return () => window.removeEventListener(EVENTO_COMO_FUNCIONA, aviso);
+}
+
+/** Os 3 passos da prestação de contas, para quem chega pela primeira vez (dá para esconder). */
+function ComoFunciona() {
+  // No servidor começa recolhido; no navegador vale o que a pessoa escolheu.
+  const escondido = useSyncExternalStore(assinar, lerEscondido, () => true);
+  function alternar(v: boolean) {
+    try {
+      window.localStorage.setItem(CHAVE_COMO_FUNCIONA, v ? "1" : "0");
+    } catch {
+      /* sem armazenamento local */
+    }
+    window.dispatchEvent(new Event(EVENTO_COMO_FUNCIONA));
+  }
+  if (escondido) {
+    return (
+      <button type="button" onClick={() => alternar(false)} className="text-sm font-medium text-teal-800 hover:underline">
+        Como funciona a prestação de contas?
+      </button>
+    );
+  }
+  return (
+    <section className="relative rounded-2xl border border-brand/15 bg-brand-mist/50 p-4">
+      <button
+        type="button"
+        onClick={() => alternar(true)}
+        aria-label="Esconder"
+        className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-white hover:text-foreground"
+      >
+        <X className="size-4" />
+      </button>
+      <h2 className="font-heading text-base font-semibold text-brand-deep">Como funciona</h2>
+      <ol className="mt-3 grid gap-3 md:grid-cols-3">
+        {PASSOS.map((p, i) => (
+          <li key={p.titulo} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-deep text-sm font-semibold text-white">
+              {i + 1}
+            </span>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{p.quem}</div>
+              <div className="font-semibold text-brand-deep">{p.titulo}</div>
+              <p className="mt-0.5 text-sm text-muted-foreground">{p.texto}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

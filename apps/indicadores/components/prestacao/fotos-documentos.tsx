@@ -92,8 +92,9 @@ export function FotosDocumentos({ ficha }: { ficha: FichaDTO }) {
       <div>
         <h2 className="font-heading text-lg font-semibold text-brand-deep">Fotos e documentos</h2>
         <p className="text-sm text-muted-foreground">
-          As fotos entram no relatório agrupadas pela categoria, com a descrição como legenda. São comprimidas no envio
-          (≈ 300 KB cada). Documentos em PDF (até 4 MB) entram como anexos.
+          Todas as equipes enviam aqui. As fotos entram no relatório agrupadas pela categoria, com a descrição como
+          legenda (são comprimidas no envio, ≈ 300 KB cada). Os documentos em PDF, até 4 MB (lista de presença,
+          certificados, release, clipping, relatórios de redes e de mídia paga, apostila), entram como anexos.
         </p>
       </div>
 

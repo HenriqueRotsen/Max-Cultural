@@ -153,9 +153,11 @@ export const CATEGORIAS_FOTO = [
 export const CATEGORIAS_DOC = [
   { value: "presenca", label: "Lista de presença ou borderô" },
   { value: "certificados", label: "Certificados" },
+  { value: "release", label: "Release de divulgação" },
   { value: "clipping", label: "Clipping" },
-  { value: "apostila", label: "Apostila" },
   { value: "redes", label: "Relatório de redes sociais" },
+  { value: "midia_paga", label: "Relatório de mídia paga" },
+  { value: "apostila", label: "Apostila" },
   { value: "outros", label: "Outros" },
 ] as const;
 
