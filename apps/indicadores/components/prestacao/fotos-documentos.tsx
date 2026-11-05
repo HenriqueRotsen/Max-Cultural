@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { atualizarArquivoAction, moverArquivoAction, removerArquivoAction } from "@/app/actions/prestacao";
 import { comprimirFoto } from "@/lib/prestacao/comprimir";
 import { CATEGORIA_LABEL, CATEGORIAS_DOC, CATEGORIAS_FOTO, type ArquivoDTO, type FichaDTO } from "@/lib/prestacao/types";
+import { useConfirm } from "@/components/ui/confirm";
 
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
 
@@ -181,6 +182,7 @@ export function FotosDocumentos({ ficha }: { ficha: FichaDTO }) {
 
 function FotoCard({ foto, pode, primeira, ultima }: { foto: ArquivoDTO; pode: boolean; primeira: boolean; ultima: boolean }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [descricao, setDescricao] = useState(foto.descricao);
 
@@ -236,8 +238,23 @@ function FotoCard({ foto, pode, primeira, ultima }: { foto: ArquivoDTO; pode: bo
                 size="icon-sm"
                 aria-label="Remover foto"
                 disabled={pending}
-                onClick={() => {
-                  if (!window.confirm("Remover esta foto?")) return;
+                onClick={async () => {
+                  const ok = await confirmar({
+                    title: "Remover esta foto?",
+                    description: "Ela sai da ficha e do relatório. Essa ação não pode ser desfeita.",
+                    destructive: true,
+                    preview: (
+                      <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- rota protegida */}
+                        <img src={foto.url} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
+                        <div className="min-w-0 text-sm">
+                          <div className="font-medium text-brand-deep">{CATEGORIA_LABEL[foto.categoria]}</div>
+                          <div className="line-clamp-2 text-muted-foreground">{foto.descricao || "Sem descrição"}</div>
+                        </div>
+                      </div>
+                    ),
+                  });
+                  if (!ok) return;
                   startTransition(async () => {
                     const r = await removerArquivoAction(foto.id);
                     if (!r.ok) return void toast.error(r.error);
@@ -269,6 +286,7 @@ function FotoCard({ foto, pode, primeira, ultima }: { foto: ArquivoDTO; pode: bo
 
 function DocLinha({ doc, pode }: { doc: ArquivoDTO; pode: boolean }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
@@ -285,8 +303,20 @@ function DocLinha({ doc, pode }: { doc: ArquivoDTO; pode: boolean }) {
           size="icon-sm"
           aria-label="Remover documento"
           disabled={pending}
-          onClick={() => {
-            if (!window.confirm(`Remover "${doc.nomeOriginal}"?`)) return;
+          onClick={async () => {
+            const ok = await confirmar({
+              title: "Remover este documento?",
+              description: "Ele sai da ficha e dos anexos do relatório. Essa ação não pode ser desfeita.",
+              destructive: true,
+              preview: (
+                <div className="flex items-center gap-2 text-sm">
+                  <FileText className="size-5 shrink-0 text-brand-deep" />
+                  <span className="min-w-0 truncate font-medium text-brand-deep">{doc.nomeOriginal}</span>
+                  <span className="shrink-0 text-muted-foreground">· {kb(doc.tamanho)}</span>
+                </div>
+              ),
+            });
+            if (!ok) return;
             startTransition(async () => {
               const r = await removerArquivoAction(doc.id);
               if (!r.ok) return void toast.error(r.error);

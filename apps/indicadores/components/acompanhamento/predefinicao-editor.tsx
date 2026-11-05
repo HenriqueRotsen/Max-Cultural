@@ -33,11 +33,13 @@ import {
   type ModeloDTO,
   type PrazoBase,
 } from "@/lib/acompanhamento/types";
+import { useConfirm } from "@/components/ui/confirm";
 
 type Tipo = { id: string; nome: string };
 
 export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: ModeloDTO[]; tiposAcao: Tipo[]; pode: boolean }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [area, setArea] = useState<AreaTarefa>("COMUNICACAO");
   const [editando, setEditando] = useState<ModeloInput | null>(null);
   const [verRemovidas, setVerRemovidas] = useState(false);
@@ -114,10 +116,14 @@ export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: Mode
               size="icon-sm"
               aria-label="Tirar da pré-definição"
               disabled={pending}
-              onClick={() => {
-                if (window.confirm(`Tirar "${m.titulo}" da pré-definição? Projetos novos não terão esta tarefa.`)) {
-                  acao(() => setModeloAtivoAction(m.id, false), "Tarefa tirada da pré-definição");
-                }
+              onClick={async () => {
+                const ok = await confirmar({
+                  title: `Tirar "${m.titulo}" da pré-definição?`,
+                  description: "Projetos novos não terão esta tarefa. Projetos que já começaram continuam com ela, e dá para devolver depois.",
+                  confirmLabel: "Tirar da pré-definição",
+                  destructive: true,
+                });
+                if (ok) acao(() => setModeloAtivoAction(m.id, false), "Tarefa tirada da pré-definição");
               }}
             >
               <Trash2 className="size-4" />

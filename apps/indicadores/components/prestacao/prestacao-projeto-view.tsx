@@ -29,6 +29,7 @@ import {
 import { EQUIPES } from "@/lib/prestacao/regras";
 import { EQUIPE_LABEL, LEI_LABEL, LEIS, type PrestacaoProjetoDTO, type ProdutoDTO } from "@/lib/prestacao/types";
 import { BarraEquipe } from "@/components/prestacao/progresso";
+import { useConfirm } from "@/components/ui/confirm";
 
 export type AbaPrestacao = "fichas" | "relatorios" | "produtos" | "dados";
 
@@ -234,13 +235,20 @@ function Fichas({ data, podeAcompanhamento }: { data: PrestacaoProjetoDTO; podeA
 
 function Produtos({ data }: { data: PrestacaoProjetoDTO }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [editando, setEditando] = useState<{ id?: string; nome: string; meta: string } | null>(null);
   const pode = data.pode.GESTAO;
 
-  function remover(p: ProdutoDTO) {
-    const aviso = p.fichas ? ` ${p.fichas} ficha(s) ficarão sem produto.` : "";
-    if (!window.confirm(`Remover o produto "${p.nome}"?${aviso}`)) return;
+  async function remover(p: ProdutoDTO) {
+    const ok = await confirmar({
+      title: `Remover o produto "${p.nome}"?`,
+      description: p.fichas
+        ? `${p.fichas} ficha(s) ligada(s) a ele ficarão sem produto. Os dados das fichas não são apagados.`
+        : "Nenhuma ficha está ligada a ele.",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       const r = await removerProdutoAction(data.projeto.id, p.id);
       if (!r.ok) return void toast.error(r.error);
@@ -351,6 +359,7 @@ function ProdutoDialog({
 
 function Dados({ data }: { data: PrestacaoProjetoDTO }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [lei, setLei] = useState(data.dados.lei ?? "");
   const [identificacao, setIdentificacao] = useState(data.dados.identificacao);
@@ -438,10 +447,14 @@ function Dados({ data }: { data: PrestacaoProjetoDTO }) {
                 variant="ghost"
                 size="sm"
                 disabled={pending}
-                onClick={() => {
-                  if (window.confirm("Desfazer a entrega? O projeto volta para \"em preparação\".")) {
-                    rodar(() => setPrestacaoEntregueAction(p.id, null), "Entrega desfeita");
-                  }
+                onClick={async () => {
+                  const ok = await confirmar({
+                    title: "Desfazer a entrega?",
+                    description: "O projeto volta para \"em preparação\" e o prazo de arquivamento dos arquivos deixa de contar.",
+                    confirmLabel: "Desfazer entrega",
+                    destructive: true,
+                  });
+                  if (ok) rodar(() => setPrestacaoEntregueAction(p.id, null), "Entrega desfeita");
                 }}
               >
                 Desfazer

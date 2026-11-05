@@ -21,6 +21,7 @@ import {
 import { moverCampoAction, salvarCampoAction, setCampoAtivoAction } from "@/app/actions/prestacao";
 import { EQUIPES, type EquipePrestacao, type TipoCampoPrestacao } from "@/lib/prestacao/regras";
 import { EQUIPE_LABEL, TIPO_CAMPO_LABEL, type CampoDTO } from "@/lib/prestacao/types";
+import { useConfirm } from "@/components/ui/confirm";
 
 type Edicao = {
   id?: string;
@@ -34,6 +35,7 @@ type Edicao = {
 
 export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: boolean }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [editando, setEditando] = useState<Edicao | null>(null);
   const [verRemovidos, setVerRemovidos] = useState(false);
@@ -122,10 +124,14 @@ export function ModeloFichaEditor({ campos, pode }: { campos: CampoDTO[]; pode: 
                         size="icon-sm"
                         aria-label="Tirar do modelo"
                         disabled={pending}
-                        onClick={() => {
-                          if (window.confirm(`Tirar "${c.rotulo}" da ficha? O que já foi preenchido fica guardado.`)) {
-                            acao(() => setCampoAtivoAction(c.id, false), "Campo tirado da ficha");
-                          }
+                        onClick={async () => {
+                          const ok = await confirmar({
+                            title: `Tirar "${c.rotulo}" da ficha?`,
+                            description: "O campo deixa de aparecer nas fichas. O que já foi preenchido fica guardado, e dá para devolver depois.",
+                            confirmLabel: "Tirar da ficha",
+                            destructive: true,
+                          });
+                          if (ok) acao(() => setCampoAtivoAction(c.id, false), "Campo tirado da ficha");
                         }}
                       >
                         <Trash2 className="size-4" />

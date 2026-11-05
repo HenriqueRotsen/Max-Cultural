@@ -3,6 +3,7 @@ import { Montserrat } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/ui/confirm";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -30,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${montserrat.variable} h-full`}>
       <body className="min-h-full antialiased" suppressHydrationWarning>
-        {children}
+        <ConfirmProvider>{children}</ConfirmProvider>
         <Toaster richColors position="top-right" />
         <Analytics />
         <SpeedInsights />

@@ -49,6 +49,7 @@ import {
   type StatusTarefa,
   type TarefaDTO,
 } from "@/lib/acompanhamento/types";
+import { useConfirm } from "@/components/ui/confirm";
 
 export type Aba = "comunicacao" | "producao" | "configuracao";
 
@@ -898,14 +899,20 @@ function AvulsaDialog({
 
 function Configuracao({ data }: { data: AcompanhamentoDTO }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [inicio, setInicio] = useState(data.inicioExecucao ?? "");
   const [fim, setFim] = useState(data.fimExecucao ?? "");
   const [nova, setNova] = useState<Record<string, { titulo: string; data: string; dataFim: string; local: string }>>({});
   const pode = data.pode.gestao;
 
-  function atualizarPreDefinicao() {
-    if (!window.confirm("Usar a pré-definição atual neste projeto? Tarefas novas entram e as datas não editadas à mão são recalculadas.")) return;
+  async function atualizarPreDefinicao() {
+    const ok = await confirmar({
+      title: "Usar a pré-definição atual?",
+      description: "As tarefas novas da pré-definição entram neste projeto, e os prazos que não foram editados à mão são recalculados.",
+      confirmLabel: "Usar a atual",
+    });
+    if (!ok) return;
     startTransition(async () => {
       const r = await atualizarPreDefinicaoProjetoAction(data.projeto.id);
       if (!r.ok) return void toast.error(r.error);
@@ -941,8 +948,13 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
     });
   }
 
-  function remover(agendaId: string) {
-    if (!window.confirm("Remover esta data? As tarefas dela também saem.")) return;
+  async function remover(agendaId: string) {
+    const ok = await confirmar({
+      title: "Remover esta execução da agenda?",
+      description: "As tarefas e a ficha da prestação de contas desta execução também saem, incluindo fotos e documentos.",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       const r = await removeAgendaAction(agendaId);
       if (!r.ok) return void toast.error(r.error);
@@ -1119,6 +1131,7 @@ const reais = (v: number | null) =>
  */
 function RecursoSecao({ data }: { data: AcompanhamentoDTO }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [busca, setBusca] = useState("");
   const [resultados, setResultados] = useState<Array<{ id: string; nome: string; label: string }> | null>(null);
@@ -1283,10 +1296,14 @@ function RecursoSecao({ data }: { data: AcompanhamentoDTO }) {
                 size="sm"
                 className="h-9"
                 disabled={pending}
-                onClick={() => {
-                  if (window.confirm("Voltar para aguardando? O MAX Financeiro volta a ser consultado.")) {
-                    rodar(() => setRecursoLiberadoAction(data.projeto.id, null), "Voltou para aguardando")
-                  }
+                onClick={async () => {
+                  const ok = await confirmar({
+                    title: "Voltar para aguardando liberação?",
+                    description: "A data informada pela gestão sai e o MAX Financeiro volta a ser consultado.",
+                    confirmLabel: "Voltar para aguardando",
+                    destructive: true,
+                  });
+                  if (ok) rodar(() => setRecursoLiberadoAction(data.projeto.id, null), "Voltou para aguardando");
                 }}
               >
                 Voltar para aguardando
