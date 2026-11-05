@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { getEffectivePermissions } from "@/lib/permissions";
@@ -21,6 +22,8 @@ import type {
   AreaTarefa,
   ComentarioDTO,
   FaseTarefa,
+  ListaAcompanhamentoDTO,
+  ListaAcompanhamentoParams,
   ProjetoAcompResumoDTO,
   StatusTarefa,
 } from "@/lib/acompanhamento/types";
@@ -61,24 +64,61 @@ function parseDia(v: string | null | undefined): Date | null | "invalida" {
   return new Date(`${v}T00:00:00Z`);
 }
 
-/** Lista dos projetos com o resumo do acompanhamento. */
-export async function listAcompanhamentoProjetosAction(): Promise<ProjetoAcompResumoDTO[]> {
+const PAGE_SIZE = 25;
+
+/**
+ * Lista dos projetos com o resumo do acompanhamento: busca (nome, PRONAC,
+ * proponente, contexto), filtros e paginação. "Pedem atenção" é calculado
+ * (não fica gravado), por isso o filtro e a ordem são feitos em memória.
+ */
+export async function listAcompanhamentoProjetosAction(
+  params: ListaAcompanhamentoParams = {},
+): Promise<ListaAcompanhamentoDTO> {
   const { scope } = await contexto();
-  const projetos = await prisma.projeto.findMany({
-    where: projetoWhereFromScope(scope),
-    orderBy: [{ ano: "desc" }, { nome: "asc" }],
-    select: {
-      id: true,
-      nome: true,
-      pronac: true,
-      contexto: { select: { nome: true } },
-      acompanhamento: { select: { recursoLiberadoEm: true } },
-      _count: { select: { acoes: true } },
-      tarefas: { select: { area: true, status: true, prazo: true } },
-    },
-  });
+  const q = params.q?.trim();
+  const escopo = projetoWhereFromScope(scope);
+  const where: Prisma.ProjetoWhereInput = {
+    AND: [
+      escopo,
+      params.contextoId ? { contextoId: params.contextoId } : {},
+      params.recurso === "liberado" ? { acompanhamento: { recursoLiberadoEm: { not: null } } } : {},
+      params.recurso === "aguardando"
+        ? { OR: [{ acompanhamento: null }, { acompanhamento: { recursoLiberadoEm: null } }] }
+        : {},
+      q
+        ? {
+            OR: [
+              { nome: { contains: q, mode: "insensitive" } },
+              { pronac: { contains: q.replace(/\D/g, "") || q } },
+              { proponente: { contains: q, mode: "insensitive" } },
+              { contexto: { nome: { contains: q, mode: "insensitive" } } },
+            ],
+          }
+        : {},
+    ],
+  };
+  const [projetos, contextos] = await Promise.all([
+    prisma.projeto.findMany({
+      where,
+      orderBy: [{ nome: "asc" }],
+      select: {
+        id: true,
+        nome: true,
+        pronac: true,
+        contexto: { select: { nome: true } },
+        acompanhamento: { select: { recursoLiberadoEm: true } },
+        _count: { select: { acoes: true } },
+        tarefas: { select: { area: true, status: true, prazo: true } },
+      },
+    }),
+    prisma.contexto.findMany({
+      where: { projetos: { some: escopo } },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+  ]);
   const hoje = new Date();
-  return projetos.map((p) => {
+  let items: ProjetoAcompResumoDTO[] = projetos.map((p) => {
     const liberado = Boolean(p.acompanhamento?.recursoLiberadoEm);
     const daArea = (a: AreaTarefa) => p.tarefas.filter((t) => t.area === a).map((t) => t.status);
     return {
@@ -95,6 +135,21 @@ export async function listAcompanhamentoProjetosAction(): Promise<ProjetoAcompRe
       ).length,
     };
   });
+  if (params.atencao) items = items.filter((i) => i.pedemAtencao > 0);
+  if (params.ordem === "atencao") {
+    items.sort((a, b) => b.pedemAtencao - a.pedemAtencao || a.nome.localeCompare(b.nome, "pt-BR"));
+  }
+  const total = items.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(Math.max(1, Math.floor(params.page || 1)), pageCount);
+  return {
+    items: items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    total,
+    page,
+    pageCount,
+    pageSize: PAGE_SIZE,
+    contextos,
+  };
 }
 
 /** Página do projeto: garante o acompanhamento, sincroniza as tarefas e devolve tudo. */

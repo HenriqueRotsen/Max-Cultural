@@ -153,6 +153,28 @@ export type ProjetoAcompResumoDTO = {
   pedemAtencao: number;
 };
 
+export type FiltroRecurso = "todos" | "liberado" | "aguardando";
+export type OrdemLista = "nome" | "atencao";
+
+export type ListaAcompanhamentoParams = {
+  q?: string;
+  contextoId?: string;
+  recurso?: FiltroRecurso;
+  /** Só projetos com tarefas em atraso ou prazo próximo. */
+  atencao?: boolean;
+  ordem?: OrdemLista;
+  page?: number;
+};
+
+export type ListaAcompanhamentoDTO = {
+  items: ProjetoAcompResumoDTO[];
+  total: number;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  contextos: Array<{ id: string; nome: string }>;
+};
+
 /** Tarefa da pré-definição (tela de edição). */
 export type ModeloDTO = {
   id: string;

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { requireDashboardPermission } from "@/lib/dashboard-gate";
 import { listAcompanhamentoProjetosAction } from "@/app/actions/acompanhamento";
+import { AcompanhamentoFiltros } from "@/components/acompanhamento/acompanhamento-filtros";
+import { ListPager } from "@/components/admin/list-pager";
+import type { FiltroRecurso, OrdemLista } from "@/lib/acompanhamento/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +19,30 @@ function Barra({ pct, cor }: { pct: number; cor: string }) {
   );
 }
 
-export default async function AcompanhamentoPage() {
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+const um = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
+
+export default async function AcompanhamentoPage({ searchParams }: Props) {
   await requireDashboardPermission("acompanhamento:read");
-  const projetos = await listAcompanhamentoProjetosAction();
+  const sp = await searchParams;
+  const filtros = {
+    q: um(sp.q),
+    contexto: um(sp.contexto),
+    recurso: um(sp.recurso),
+    atencao: um(sp.atencao),
+    ordem: um(sp.ordem),
+  };
+  const lista = await listAcompanhamentoProjetosAction({
+    q: filtros.q,
+    contextoId: filtros.contexto,
+    recurso: (["liberado", "aguardando"].includes(filtros.recurso ?? "") ? filtros.recurso : "todos") as FiltroRecurso,
+    atencao: filtros.atencao === "1",
+    ordem: (filtros.ordem === "atencao" ? "atencao" : "nome") as OrdemLista,
+    page: Number(um(sp.page)) || 1,
+  });
+  const projetos = lista.items;
+  const filtrando = Object.values(filtros).some(Boolean);
 
   return (
     <AdminShell title="Acompanhamento">
@@ -37,6 +61,10 @@ export default async function AcompanhamentoPage() {
         </Link>
       </div>
 
+      <div className="mb-4">
+        <AcompanhamentoFiltros contextos={lista.contextos} />
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-brand/10 bg-white/90 shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-brand-mist/50 text-left text-xs text-brand-deep">
@@ -52,7 +80,7 @@ export default async function AcompanhamentoPage() {
             {projetos.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  Nenhum projeto no seu acesso.
+                  {filtrando ? "Nenhum projeto com estes filtros." : "Nenhum projeto no seu acesso."}
                 </td>
               </tr>
             ) : (
@@ -95,6 +123,13 @@ export default async function AcompanhamentoPage() {
             )}
           </tbody>
         </table>
+        <ListPager
+          page={lista.page}
+          pageCount={lista.pageCount}
+          total={lista.total}
+          pageSize={lista.pageSize}
+          params={{ ...filtros, page: String(lista.page) }}
+        />
       </div>
     </AdminShell>
   );
