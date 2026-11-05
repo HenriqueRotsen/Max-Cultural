@@ -27,9 +27,9 @@ import {
 } from "@/lib/normalize";
 import type { FormularioCampoTipoCode } from "@/lib/formularios/types";
 import {
-  asTerritorioOficinaFormValue,
-  type TerritorioOficinaFormValue,
-} from "@/lib/oficina-territorio";
+  asTerritorioAcaoFormValue,
+  type TerritorioAcaoFormValue,
+} from "@/lib/acao-territorio";
 import { ETNIAS, GENEROS } from "@/lib/schema";
 
 export type RespostaRow = {
@@ -59,7 +59,7 @@ export type RespostaCampoMeta = {
 
 type Props = {
   formularioId: string;
-  oficinaLabel: string;
+  acaoLabel: string;
   respostas: RespostaRow[];
   canMerge: boolean;
   /** Quem cria/edita formulários — pode alterar dados, participação e descartar. */
@@ -251,8 +251,8 @@ function FieldValue({ field }: { field: DisplayField }) {
     }
   }
 
-  if (field.tipo === "TERRITORIO_OFICINA") {
-    const terr = asTerritorioOficinaFormValue(field.value);
+  if (field.tipo === "TERRITORIO_ACAO") {
+    const terr = asTerritorioAcaoFormValue(field.value);
     if (terr.modalidade === "ONLINE") {
       return <p>Online</p>;
     }
@@ -343,16 +343,16 @@ function answersFromRow(r: RespostaRow, campos: RespostaCampoMeta[]): Record<str
   return answers;
 }
 
-function TerritorioOficinaEditor({
+function TerritorioAcaoEditor({
   value,
   onChange,
   disabled,
 }: {
   value: unknown;
-  onChange: (next: TerritorioOficinaFormValue) => void;
+  onChange: (next: TerritorioAcaoFormValue) => void;
   disabled?: boolean;
 }) {
-  const terr = asTerritorioOficinaFormValue(value);
+  const terr = asTerritorioAcaoFormValue(value);
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap gap-4 text-sm">
@@ -480,7 +480,7 @@ function AddressEditor({
 
 export function RespostasQueue({
   formularioId,
-  oficinaLabel,
+  acaoLabel,
   respostas: initial,
   canMerge,
   canEditData = false,
@@ -878,7 +878,7 @@ export function RespostasQueue({
                           Selecionado
                         </span>
                         <span className="block text-xs text-muted-foreground">
-                          Pessoa escolhida para a oficina
+                          Pessoa escolhida para a ação
                         </span>
                       </span>
                     </label>
@@ -1012,7 +1012,7 @@ export function RespostasQueue({
                                 className={cn(
                                   "rounded-xl border border-border/60 bg-white px-3 py-2.5",
                                   (c.tipo === "ADDRESS_BR" ||
-                                    c.tipo === "TERRITORIO_OFICINA" ||
+                                    c.tipo === "TERRITORIO_ACAO" ||
                                     c.tipo === "LONG_TEXT") &&
                                     "sm:col-span-2",
                                 )}
@@ -1029,8 +1029,8 @@ export function RespostasQueue({
                                         setDraftField(c.id, next)
                                       }
                                     />
-                                  ) : c.tipo === "TERRITORIO_OFICINA" ? (
-                                    <TerritorioOficinaEditor
+                                  ) : c.tipo === "TERRITORIO_ACAO" ? (
+                                    <TerritorioAcaoEditor
                                       value={val}
                                       disabled={pending || locked}
                                       onChange={(next) =>
@@ -1175,7 +1175,7 @@ export function RespostasQueue({
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Você vai enviar <strong>{readySelected.length}</strong> inscrição(ões)
-              para a planilha oficial da oficina <strong>{oficinaLabel}</strong>.
+              para a planilha oficial da ação <strong>{acaoLabel}</strong>.
               Depois disso, esses dados entram na base completa.
             </p>
             <div className="mt-4 space-y-1">

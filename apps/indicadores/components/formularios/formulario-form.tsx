@@ -17,9 +17,9 @@ import type { FormularioCampoDraft } from "@/lib/formularios/types";
 import {
   createFormularioAction,
   updateFormularioAction,
-  setOficinaProfessoresAction,
+  setAcaoResponsavelesAction,
 } from "@/app/actions/formularios";
-type OficinaOpt = {
+type AcaoOpt = {
   id: string;
   label: string;
 };
@@ -28,10 +28,10 @@ type UserOpt = ProfessorUserOpt;
 
 type Props = {
   mode: "create" | "edit";
-  oficinas?: OficinaOpt[];
+  acoes?: AcaoOpt[];
   initial?: {
     id: string;
-    oficinaId: string;
+    acaoId: string;
     titulo: string;
     descricao: string;
     abreEm: string;
@@ -48,14 +48,14 @@ type Props = {
 
 export function FormularioForm({
   mode,
-  oficinas = [],
+  acoes = [],
   initial,
   professorUsers = [],
   selectedProfessorIds = [],
 }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [oficinaId, setOficinaId] = useState(initial?.oficinaId ?? "");
+  const [acaoId, setAcaoId] = useState(initial?.acaoId ?? "");
   const [titulo, setTitulo] = useState(initial?.titulo ?? "");
   const [descricao, setDescricao] = useState(initial?.descricao ?? "");
   const [abreEm, setAbreEm] = useState(initial?.abreEm ?? "");
@@ -83,12 +83,12 @@ export function FormularioForm({
     start(async () => {
       try {
         if (mode === "create") {
-          if (!oficinaId) {
-            toast.error("Selecione a oficina");
+          if (!acaoId) {
+            toast.error("Selecione a ação");
             return;
           }
           const created = await createFormularioAction({
-            oficinaId,
+            acaoId,
             titulo,
             descricao,
             abreEm: abreEm || null,
@@ -98,7 +98,7 @@ export function FormularioForm({
             campos,
           });
           if (professores.length) {
-            await setOficinaProfessoresAction(oficinaId, professores);
+            await setAcaoResponsavelesAction(acaoId, professores);
           }
           toast.success("Formulário criado");
           router.push(`/dashboard/formularios/${created.id}`);
@@ -113,7 +113,7 @@ export function FormularioForm({
             mensagemConfirmacao,
             campos,
           });
-          await setOficinaProfessoresAction(initial.oficinaId, professores);
+          await setAcaoResponsavelesAction(initial.acaoId, professores);
           toast.success("Formulário atualizado");
           router.refresh();
         }
@@ -131,15 +131,15 @@ export function FormularioForm({
         </h2>
         {mode === "create" ? (
           <div className="space-y-1">
-            <Label>Oficina *</Label>
+            <Label>Ação *</Label>
             <select
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-              value={oficinaId}
-              onChange={(e) => setOficinaId(e.target.value)}
+              value={acaoId}
+              onChange={(e) => setAcaoId(e.target.value)}
               required
             >
               <option value="">Selecione…</option>
-              {oficinas.map((o) => (
+              {acoes.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
                 </option>
@@ -210,11 +210,11 @@ export function FormularioForm({
 
       <section className="space-y-3 rounded-lg border border-border/80 bg-card p-4">
         <h2 className="font-heading text-lg font-semibold text-brand-deep">
-          Professores da oficina
+          Professores da ação
         </h2>
         <p className="text-sm text-muted-foreground">
           Usuários com o papel <strong>Professor</strong>. Eles só veem as
-          respostas desta oficina e podem marcar Selecionado / Professor — sem
+          respostas desta ação e podem marcar Selecionado / Professor — sem
           remover dados.
         </p>
         <ProfessorPicker

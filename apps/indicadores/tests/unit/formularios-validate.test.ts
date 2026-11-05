@@ -140,14 +140,14 @@ describe("validateFormularioAnswers", () => {
     expect(result.errors.tel).toMatch(/telefone/i);
   });
 
-  it("TERRITORIO_OFICINA presencial preenche Cidade/Estado/Territorio", () => {
+  it("TERRITORIO_ACAO presencial preenche Cidade/Estado/Territorio", () => {
     const campos: CampoValidavel[] = [
       ...baseCampos,
       {
         id: "terr",
         rotulo: "Território",
         obrigatorio: true,
-        tipo: "TERRITORIO_OFICINA",
+        tipo: "TERRITORIO_ACAO",
         sigaColumn: "Territorio",
         opcoes: null,
       },

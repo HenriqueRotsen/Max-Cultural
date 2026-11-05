@@ -44,7 +44,7 @@ export default async function AdminPage({
         </h1>
         <p className="text-sm text-muted-foreground">
           Consulte e filtre a base. Expanda a linha para um resumo, ou abra a aba
-          extendida para ver tudo. Projeto e oficina têm páginas próprias.
+          extendida para ver tudo. Projeto e ação têm páginas próprias.
         </p>
       </div>
 
@@ -70,7 +70,7 @@ async function BaseContent({
     data = await listInscricoesAction({
       q: str(params.q),
       idProjeto: str(params.idProjeto),
-      idOficina: str(params.idOficina),
+      idAcao: str(params.idAcao),
       proponente: str(params.proponente),
       pronac: str(params.pronac),
       nomeProjeto: str(params.nomeProjeto),

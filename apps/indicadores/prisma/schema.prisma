@@ -11,12 +11,13 @@ model Inscricao {
   contextoId              String?  @map("contexto_id")
   nomeContexto            String   @default("") @map("Nome_contexto")
   idProjeto               String   @map("id_projeto")
-  idOficina               String   @map("id_oficina")
+  /// Coluna no formato do SIGA (id_oficina): a ação da inscrição.
+  idAcao                  String   @map("id_oficina")
   proponente              String   @map("PROPONENTE")
   pronac                  String   @map("PRONAC")
   nomeProjeto             String   @map("Nome_projeto")
   identificacaoAnoProjeto String   @map("Identificacao_ano_projeto")
-  nomeOficina             String   @map("Nome_oficina")
+  nomeAcao                String   @map("Nome_oficina")
   dataInscricao           String   @map("Data_inscricao")
   nome                    String   @map("Nome")
   apelido                 String   @default("") @map("Apelido")
@@ -54,7 +55,7 @@ model Inscricao {
 
   @@index([contextoId])
   @@index([idProjeto])
-  @@index([idOficina])
+  @@index([idAcao])
   @@index([pronac])
   @@index([cpf])
   @@index([estado])
@@ -81,7 +82,7 @@ model Projeto {
   ano        String   @default("")
   contextoId String
   contexto   Contexto @relation(fields: [contextoId], references: [id], onDelete: Restrict)
-  oficinas   Oficina[]
+  acoes      Acao[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -90,61 +91,78 @@ model Projeto {
   @@map("projetos")
 }
 
-model Oficina {
+/// Ação do projeto (Contexto → Projeto → Ação). Oficina é um tipo de ação.
+model Acao {
   id                 String              @id
   nome               String
   projetoId          String
   projeto            Projeto             @relation(fields: [projetoId], references: [id], onDelete: Restrict)
+  tipoId             String              @default("oficina") @map("tipo_id")
+  tipo               AcaoTipo            @relation(fields: [tipoId], references: [id], onDelete: Restrict)
   /// Oferece modalidade online (opção sintética "Online" na inscrição).
   ofereceOnline      Boolean             @default(false) @map("oferece_online")
-  /// Oferece modalidade presencial (requer ≥1 OficinaTerritorio na UI).
+  /// Oferece modalidade presencial (requer ≥1 AcaoTerritorio na UI).
   oferecePresencial  Boolean             @default(true) @map("oferece_presencial")
-  territorios        OficinaTerritorio[]
-  territorioAliases  OficinaTerritorioAlias[]
+  territorios        AcaoTerritorio[]
+  territorioAliases  AcaoTerritorioAlias[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
   @@index([projetoId])
-  @@map("oficinas")
+  @@index([tipoId])
+  @@map("acoes")
 }
 
-/// Locais presenciais em que a oficina ocorre (N por oficina).
-model OficinaTerritorio {
+/// Tipo de ação (Oficina, Apresentação, Exposição…). Editável pela gestão.
+model AcaoTipo {
+  id        String   @id
+  nome      String
+  ordem     Int      @default(0)
+  ativo     Boolean  @default(true)
+  acoes     Acao[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("acao_tipos")
+}
+
+/// Locais presenciais em que a ação ocorre (N por ação).
+model AcaoTerritorio {
   id        String                   @id @default(cuid())
-  oficinaId String                   @map("oficina_id")
-  oficina   Oficina                  @relation(fields: [oficinaId], references: [id], onDelete: Cascade)
+  acaoId    String                   @map("acao_id")
+  acao      Acao                     @relation(fields: [acaoId], references: [id], onDelete: Cascade)
   /// Rótulo curto da comunidade/território (opcional se for só a cidade).
   nome      String                   @default("")
   cidade    String
   estado    String
   ordem     Int                      @default(0)
-  aliases   OficinaTerritorioAlias[]
+  aliases   AcaoTerritorioAlias[]
   createdAt DateTime                 @default(now())
   updatedAt DateTime                 @updatedAt
 
-  @@index([oficinaId, ordem])
+  @@index([acaoId, ordem])
   @@index([cidade, estado])
-  @@map("oficina_territorios")
+  @@map("acao_territorios")
 }
 
-/// Alias de texto livre (import) → Online ou um OficinaTerritorio / cidade-UF.
-model OficinaTerritorioAlias {
+/// Alias de texto livre (import) → Online ou um AcaoTerritorio / cidade-UF.
+model AcaoTerritorioAlias {
   id                  String             @id @default(cuid())
-  oficinaId           String             @map("oficina_id")
-  oficina             Oficina            @relation(fields: [oficinaId], references: [id], onDelete: Cascade)
+  acaoId              String             @map("acao_id")
+  acao                Acao               @relation(fields: [acaoId], references: [id], onDelete: Cascade)
   rawNormalized       String             @map("raw_normalized")
   online              Boolean            @default(false)
-  oficinaTerritorioId String?            @map("oficina_territorio_id")
-  oficinaTerritorio   OficinaTerritorio? @relation(fields: [oficinaTerritorioId], references: [id], onDelete: SetNull)
+  acaoTerritorioId    String?            @map("acao_territorio_id")
+  acaoTerritorio      AcaoTerritorio?    @relation(fields: [acaoTerritorioId], references: [id], onDelete: SetNull)
   cidade              String             @default("")
   estado              String             @default("")
   territorio          String             @default("")
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
-  @@unique([oficinaId, rawNormalized])
-  @@index([oficinaId])
-  @@map("oficina_territorio_aliases")
+  @@unique([acaoId, rawNormalized])
+  @@index([acaoId])
+  @@map("acao_territorio_aliases")
 }
 
 enum FormularioTipo {
@@ -179,12 +197,12 @@ enum FormularioCampoTipo {
   ADDRESS_BR
   DECLARACAO
   PARTICIPACAO
-  TERRITORIO_OFICINA
+  TERRITORIO_ACAO
 }
 
 model Formulario {
   id                   String         @id @default(cuid())
-  oficinaId            String         @map("oficina_id")
+  acaoId               String         @map("acao_id")
   titulo               String
   descricao            String         @default("") @db.Text
   slug                 String         @unique
@@ -201,7 +219,7 @@ model Formulario {
   campos               FormularioCampo[]
   respostas            FormularioResposta[]
 
-  @@index([oficinaId])
+  @@index([acaoId])
   @@index([ativo])
   @@map("formularios")
 }
@@ -250,17 +268,18 @@ model FormularioResposta {
   @@map("formulario_respostas")
 }
 
-model OficinaProfessor {
+/// Responsável pela ação (na oficina, o professor).
+model AcaoResponsavel {
   id        String   @id @default(cuid())
-  oficinaId String   @map("oficina_id")
+  acaoId    String   @map("acao_id")
   userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  @@unique([oficinaId, userId])
+  @@unique([acaoId, userId])
   @@index([userId])
-  @@index([oficinaId])
-  @@map("oficina_professores")
+  @@index([acaoId])
+  @@map("acao_responsaveis")
 }
 
 /// Modelos reutilizáveis (inscrição / avaliação) editáveis no dashboard.
@@ -307,7 +326,7 @@ enum PermissionEffect {
 enum DataScopeKind {
   CONTEXTO
   PROJETO
-  OFICINA
+  ACAO
 }
 
 /** Nível de acesso no recurso. NONE = bloqueio explícito sob ancestral liberado. */
@@ -350,7 +369,7 @@ model User {
   emailOtps        EmailOtp[]
   auditLogs        AuditLog[]           @relation("AuditActor")
   formulariosCriados Formulario[]       @relation("FormularioCreatedBy")
-  oficinasProfessor  OficinaProfessor[]
+  acoesResponsavel   AcaoResponsavel[]
 
   @@index([roleId])
   @@index([deactivatedAt])

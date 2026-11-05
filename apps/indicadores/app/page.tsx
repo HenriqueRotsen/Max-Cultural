@@ -21,7 +21,7 @@ export default function HomePage() {
               />
             </h1>
             <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--gray-500)] md:text-lg">
-              Acompanhe oficinas culturais com a base PRONAC padronizada — do
+              Acompanhe ações culturais com a base PRONAC padronizada — do
               formulário à análise do lote.
             </p>
             <div className="mt-8">

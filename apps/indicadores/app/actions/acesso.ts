@@ -83,14 +83,14 @@ async function loadHierarchyForCompact(scopes: ScopeInput[]) {
     .filter((s) => s.kind === "PROJETO")
     .map((s) => s.resourceId);
   const seedOfIds = scopes
-    .filter((s) => s.kind === "OFICINA")
+    .filter((s) => s.kind === "ACAO")
     .map((s) => s.resourceId);
 
   const projetoOr: Prisma.ProjetoWhereInput[] = [];
   if (seedCtxIds.length) projetoOr.push({ contextoId: { in: seedCtxIds } });
   if (seedProjIds.length) projetoOr.push({ id: { in: seedProjIds } });
   if (seedOfIds.length) {
-    projetoOr.push({ oficinas: { some: { id: { in: seedOfIds } } } });
+    projetoOr.push({ acoes: { some: { id: { in: seedOfIds } } } });
   }
 
   const projetos =
@@ -102,19 +102,19 @@ async function loadHierarchyForCompact(scopes: ScopeInput[]) {
       : [];
 
   const projetoIds = projetos.map((p) => p.id);
-  const oficinaOr: Prisma.OficinaWhereInput[] = [];
-  if (projetoIds.length) oficinaOr.push({ projetoId: { in: projetoIds } });
-  if (seedOfIds.length) oficinaOr.push({ id: { in: seedOfIds } });
+  const acaoOr: Prisma.AcaoWhereInput[] = [];
+  if (projetoIds.length) acaoOr.push({ projetoId: { in: projetoIds } });
+  if (seedOfIds.length) acaoOr.push({ id: { in: seedOfIds } });
 
-  const oficinas =
-    oficinaOr.length > 0
-      ? await prisma.oficina.findMany({
-          where: { OR: oficinaOr },
+  const acoes =
+    acaoOr.length > 0
+      ? await prisma.acao.findMany({
+          where: { OR: acaoOr },
           select: { id: true, projetoId: true },
         })
       : [];
 
-  return { projetos, oficinas };
+  return { projetos, acoes };
 }
 
 async function persistScopes(
@@ -125,11 +125,11 @@ async function persistScopes(
   await prisma.userDataScope.deleteMany({ where: { userId } });
   if (dataScopeMode !== "LIMITED" || scopes.length === 0) return;
 
-  const { projetos, oficinas } = await loadHierarchyForCompact(scopes);
+  const { projetos, acoes } = await loadHierarchyForCompact(scopes);
   const compacted = compactScopeEntries({
     entries: scopes,
     projetos,
-    oficinas,
+    acoes,
   });
 
   if (compacted.length === 0) return;
@@ -153,11 +153,11 @@ async function persistRoleScopes(
   await prisma.roleDataScope.deleteMany({ where: { roleId } });
   if (dataScopeMode !== "LIMITED" || scopes.length === 0) return;
 
-  const { projetos, oficinas } = await loadHierarchyForCompact(scopes);
+  const { projetos, acoes } = await loadHierarchyForCompact(scopes);
   const compacted = compactScopeEntries({
     entries: scopes,
     projetos,
-    oficinas,
+    acoes,
   });
 
   if (compacted.length === 0) return;
@@ -181,7 +181,7 @@ export async function listAccessBootstrapAction() {
     scope.mode !== "ALL" &&
     !(
       (scope.projetoIds?.length ?? 0) ||
-      (scope.oficinaIds?.length ?? 0) ||
+      (scope.acaoIds?.length ?? 0) ||
       (scope.contextoIds?.length ?? 0)
     );
 
@@ -213,11 +213,11 @@ export async function listAccessBootstrapAction() {
 
   let contextos: Array<{ id: string; nome: string }> = [];
   let projetos: Array<{ id: string; nome: string; contextoId: string }> = [];
-  let oficinas: Array<{ id: string; nome: string; projetoId: string }> = [];
+  let acoes: Array<{ id: string; nome: string; projetoId: string }> = [];
 
   if (!emptyLimited) {
     if (scope.mode === "ALL") {
-      [contextos, projetos, oficinas] = await Promise.all([
+      [contextos, projetos, acoes] = await Promise.all([
         prisma.contexto.findMany({
           orderBy: { nome: "asc" },
           select: { id: true, nome: true },
@@ -226,15 +226,15 @@ export async function listAccessBootstrapAction() {
           orderBy: { nome: "asc" },
           select: { id: true, nome: true, contextoId: true },
         }),
-        prisma.oficina.findMany({
+        prisma.acao.findMany({
           orderBy: { nome: "asc" },
           select: { id: true, nome: true, projetoId: true },
         }),
       ]);
     } else {
-      oficinas = (scope.oficinaIds?.length ?? 0)
-        ? await prisma.oficina.findMany({
-            where: { id: { in: scope.oficinaIds! } },
+      acoes = (scope.acaoIds?.length ?? 0)
+        ? await prisma.acao.findMany({
+            where: { id: { in: scope.acaoIds! } },
             orderBy: { nome: "asc" },
             select: { id: true, nome: true, projetoId: true },
           })
@@ -242,7 +242,7 @@ export async function listAccessBootstrapAction() {
       const projetoIds = [
         ...new Set([
           ...(scope.projetoIds ?? []),
-          ...oficinas.map((o) => o.projetoId),
+          ...acoes.map((o) => o.projetoId),
         ]),
       ];
       projetos = projetoIds.length
@@ -316,7 +316,7 @@ export async function listAccessBootstrapAction() {
     })),
     contextos,
     projetos,
-    oficinas,
+    acoes,
   };
 }
 

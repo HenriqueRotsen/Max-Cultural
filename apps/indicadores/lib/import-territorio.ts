@@ -1,18 +1,18 @@
 import type { BatchContext } from "@/lib/schema";
 import {
-  buildOficinaTerritorioOpcoes,
+  buildAcaoTerritorioOpcoes,
   normalizeTerritorioRawKey,
   parseTerritorioInscricao,
-  resolveOficinaTerritorioChoice,
-  type OficinaTerritorioAliasRef,
-  type OficinaTerritorioCatalog,
-} from "@/lib/oficina-territorio";
+  resolveAcaoTerritorioChoice,
+  type AcaoTerritorioAliasRef,
+  type AcaoTerritorioCatalog,
+} from "@/lib/acao-territorio";
 
 /**
- * Território da oficina no import: a planilha nunca cria território novo.
- * - "lote": uma opção da oficina vale para todas as linhas;
+ * Território da ação no import: a planilha nunca cria território novo.
+ * - "lote": uma opção da ação vale para todas as linhas;
  * - "planilha": cada valor distinto da coluna Território é ligado a uma opção
- *   da oficina; linhas sem valor usam `lote`.
+ *   da ação; linhas sem valor usam `lote`.
  */
 export type TerritorioImportState = {
   modo: "lote" | "planilha";
@@ -22,8 +22,8 @@ export type TerritorioImportState = {
 
 export type TerritorioValorPlanilha = { raw: string; count: number };
 
-export function territorioOpcoes(catalog: OficinaTerritorioCatalog | null | undefined): string[] {
-  return catalog ? buildOficinaTerritorioOpcoes(catalog) : [];
+export function territorioOpcoes(catalog: AcaoTerritorioCatalog | null | undefined): string[] {
+  return catalog ? buildAcaoTerritorioOpcoes(catalog) : [];
 }
 
 /** Valores distintos (como vieram) das colunas mapeadas para Território. */
@@ -59,7 +59,7 @@ export function distinctTerritorioValues(
 
 /** Estado inicial: opção única vira lote; senão sugere o que já casa com o catálogo/aliases. */
 export function initialTerritorioState(
-  catalog: OficinaTerritorioCatalog | null | undefined,
+  catalog: AcaoTerritorioCatalog | null | undefined,
   values: TerritorioValorPlanilha[],
 ): TerritorioImportState {
   const opcoes = territorioOpcoes(catalog);
@@ -82,16 +82,16 @@ export function territorioPendencia(
   blankCount: number,
 ): string | null {
   if (opcoes.length === 0) {
-    return "A oficina não tem território cadastrado. Edite a oficina e informe onde ela acontece.";
+    return "A ação não tem território cadastrado. Edite a ação e informe onde ela acontece.";
   }
   if (state.modo === "lote" || values.length === 0) {
     return opcoes.includes(state.lote)
       ? null
-      : "Escolha o território da oficina para este lote.";
+      : "Escolha o território da ação para este lote.";
   }
   const faltando = values.filter((v) => !opcoes.includes(state.mapa[v.raw] ?? ""));
   if (faltando.length) {
-    return `Ligue ${faltando.length} valor(es) da planilha a um território da oficina.`;
+    return `Ligue ${faltando.length} valor(es) da planilha a um território da ação.`;
   }
   if (blankCount > 0 && !opcoes.includes(state.lote)) {
     return "Escolha o território para as linhas sem território na planilha.";
@@ -102,32 +102,32 @@ export function territorioPendencia(
 function aliasForLabel(
   raw: string,
   label: string,
-  catalog: OficinaTerritorioCatalog,
-): OficinaTerritorioAliasRef | null {
-  const choice = resolveOficinaTerritorioChoice(label, catalog);
+  catalog: AcaoTerritorioCatalog,
+): AcaoTerritorioAliasRef | null {
+  const choice = resolveAcaoTerritorioChoice(label, catalog);
   if (!choice.matched) return null;
   return {
     rawNormalized: normalizeTerritorioRawKey(raw),
     online: choice.online,
-    oficinaTerritorioId: choice.oficinaTerritorioId,
+    acaoTerritorioId: choice.acaoTerritorioId,
   };
 }
 
-/** Ligações valor da planilha → território a gravar como alias da oficina. */
+/** Ligações valor da planilha → território a gravar como alias da ação. */
 export function territorioAliasesFromState(
   state: TerritorioImportState,
-  catalog: OficinaTerritorioCatalog,
+  catalog: AcaoTerritorioCatalog,
   values: TerritorioValorPlanilha[],
-): Array<{ raw: string; online: boolean; oficinaTerritorioId: string | null }> {
+): Array<{ raw: string; online: boolean; acaoTerritorioId: string | null }> {
   if (state.modo !== "planilha") return [];
-  const out: Array<{ raw: string; online: boolean; oficinaTerritorioId: string | null }> = [];
+  const out: Array<{ raw: string; online: boolean; acaoTerritorioId: string | null }> = [];
   for (const v of values) {
     const alias = aliasForLabel(v.raw, state.mapa[v.raw] ?? "", catalog);
     if (alias) {
       out.push({
         raw: v.raw,
         online: alias.online,
-        oficinaTerritorioId: alias.oficinaTerritorioId ?? null,
+        acaoTerritorioId: alias.acaoTerritorioId ?? null,
       });
     }
   }
@@ -140,7 +140,7 @@ export function applyTerritorioToContext<T extends BatchContext>(
   state: TerritorioImportState,
   values: TerritorioValorPlanilha[],
 ): T {
-  const catalog = context.oficinaTerritorioCatalog;
+  const catalog = context.acaoTerritorioCatalog;
   if (!catalog) return context;
   if (state.modo === "lote" || values.length === 0) {
     return { ...context, territorioLote: state.lote, territorioLoteModo: "todos" };
@@ -148,14 +148,14 @@ export function applyTerritorioToContext<T extends BatchContext>(
   const novos = territorioAliasesFromState(state, catalog, values).map((a) => ({
     rawNormalized: normalizeTerritorioRawKey(a.raw),
     online: a.online,
-    oficinaTerritorioId: a.oficinaTerritorioId,
+    acaoTerritorioId: a.acaoTerritorioId,
   }));
   const keys = new Set(novos.map((a) => a.rawNormalized));
   return {
     ...context,
     territorioLote: state.lote,
     territorioLoteModo: "vazios",
-    oficinaTerritorioCatalog: {
+    acaoTerritorioCatalog: {
       ...catalog,
       aliases: [...(catalog.aliases ?? []).filter((a) => !keys.has(a.rawNormalized)), ...novos],
     },

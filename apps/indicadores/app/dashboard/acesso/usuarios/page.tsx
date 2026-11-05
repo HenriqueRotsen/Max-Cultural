@@ -14,7 +14,7 @@ export default async function UsuariosPage() {
           Usuários
         </h1>
         <p className="text-sm text-muted-foreground">
-          Cadastro, papéis, overrides e escopo de contextos/projetos/oficinas.
+          Cadastro, papéis, overrides e escopo de contextos/projetos/ações.
         </p>
       </div>
       <UsuariosManager data={data} />

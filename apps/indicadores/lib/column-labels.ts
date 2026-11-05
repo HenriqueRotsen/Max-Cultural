@@ -3,12 +3,12 @@ import type { SigaCulturalColumn } from "@/lib/schema";
 /** Nomes amigáveis para exibição (sem jargão técnico) */
 export const COLUMN_LABELS: Record<SigaCulturalColumn, string> = {
   id_projeto: "ID do projeto",
-  id_oficina: "ID da oficina",
+  id_oficina: "ID da ação",
   PROPONENTE: "Proponente",
   PRONAC: "PRONAC",
   Nome_projeto: "Nome do projeto",
   Identificacao_ano_projeto: "Ano do projeto",
-  Nome_oficina: "Nome da oficina",
+  Nome_oficina: "Nome da ação",
   Data_inscricao: "Data da inscrição",
   Nome: "Nome",
   Apelido: "Apelido",

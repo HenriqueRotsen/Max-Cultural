@@ -227,11 +227,11 @@ export async function confirmImportAction(
       {
         contextoId: meta?.contextoId,
         idProjeto: sample.id_projeto,
-        idOficina: sample.id_oficina,
+        idAcao: sample.id_oficina,
       },
       { write: true },
     );
-    if (!ok) throw new Error("Oficina fora do seu escopo de dados.");
+    if (!ok) throw new Error("Ação fora do seu escopo de dados.");
   }
   const normalized = dedupeNormalizedInscricaoRows(
     rows.map((row) =>
@@ -249,7 +249,7 @@ export async function confirmImportAction(
   await writeAuditLog({
     actorUserId: user.id,
     action: "import.confirmed",
-    meta: { inserted: result.count, oficina: sample?.id_oficina },
+    meta: { inserted: result.count, acao: sample?.id_oficina },
   });
   return { inserted: result.count };
 }
@@ -269,7 +269,7 @@ export async function updateInscricaoAction(input: {
       {
         contextoId: existing.contextoId,
         idProjeto: existing.idProjeto,
-        idOficina: existing.idOficina,
+        idAcao: existing.idAcao,
       },
       { write: true },
     );
@@ -311,7 +311,7 @@ export async function deleteInscricaoAction(
       {
         contextoId: existing.contextoId,
         idProjeto: existing.idProjeto,
-        idOficina: existing.idOficina,
+        idAcao: existing.idAcao,
       },
       { write: true },
     );
@@ -333,7 +333,7 @@ export async function deleteInscricaoAction(
 export type ListFilters = {
   q?: string;
   idProjeto?: string;
-  idOficina?: string;
+  idAcao?: string;
   proponente?: string;
   pronac?: string;
   nomeProjeto?: string;
@@ -348,7 +348,7 @@ export type ListFilters = {
 
 export type ContextFilterOptions = {
   projetos: { idProjeto: string; nomeProjeto: string }[];
-  oficinas: { idOficina: string; nomeOficina: string }[];
+  acoes: { idAcao: string; nomeAcao: string }[];
   proponentes: string[];
   pronacs: string[];
   anos: string[];
@@ -381,7 +381,7 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
       { apelido: { contains: q, mode: "insensitive" } },
       { email: { contains: q, mode: "insensitive" } },
       { pronac: { contains: q, mode: "insensitive" } },
-      { nomeOficina: { contains: q, mode: "insensitive" } },
+      { nomeAcao: { contains: q, mode: "insensitive" } },
     ];
     if (cpfDigits.length >= 3) {
       or.push({ cpf: { contains: cpfDigits } });
@@ -391,8 +391,8 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
   if (filters.idProjeto?.trim()) {
     where.idProjeto = filters.idProjeto.trim();
   }
-  if (filters.idOficina?.trim()) {
-    where.idOficina = filters.idOficina.trim();
+  if (filters.idAcao?.trim()) {
+    where.idAcao = filters.idAcao.trim();
   }
   if (filters.proponente?.trim()) {
     where.proponente = filters.proponente.trim();
@@ -441,7 +441,7 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
     rows: records.map((r) => ({ id: r.id, ...prismaToRow(r) })),
-    oficinas: filterOptions.oficinas,
+    acoes: filterOptions.acoes,
     filterOptions,
   };
 }
@@ -452,14 +452,14 @@ export async function listAllRowsForExport(): Promise<SigaCulturalRow[]> {
   const where = inscricaoWhereFromScope(scope);
   const records = await prisma.inscricao.findMany({
     where,
-    orderBy: [{ idProjeto: "asc" }, { idOficina: "asc" }, { nome: "asc" }],
+    orderBy: [{ idProjeto: "asc" }, { idAcao: "asc" }, { nome: "asc" }],
   });
   return records.map(prismaToRow);
 }
 
 export type AnaliseFilters = {
   idProjeto?: string;
-  idOficina?: string;
+  idAcao?: string;
   estado?: string;
   cidade?: string;
   territorio?: string;
@@ -500,7 +500,7 @@ export type AnaliseResult = {
     Selecionados: number;
     Participantes: number;
     Certificado: number;
-    oficinas: number;
+    acoes: number;
     projetos: number;
   };
   topParticipantes: AnaliseTopPessoa[];
@@ -508,7 +508,7 @@ export type AnaliseResult = {
   programas: ProgramaListItem[];
   filterOptions: {
     projetos: { idProjeto: string; nomeProjeto: string }[];
-    oficinas: { idOficina: string; nomeOficina: string }[];
+    acoes: { idAcao: string; nomeAcao: string }[];
     estados: string[];
     cidades: string[];
     territorios: string[];
@@ -529,7 +529,7 @@ export async function getAnaliseAction(
 
   let where: Prisma.InscricaoWhereInput = {};
   if (filters.idProjeto?.trim()) where.idProjeto = filters.idProjeto.trim();
-  if (filters.idOficina?.trim()) where.idOficina = filters.idOficina.trim();
+  if (filters.idAcao?.trim()) where.idAcao = filters.idAcao.trim();
   if (filters.estado?.trim()) {
     where.estado = {
       equals: filters.estado.trim(),
@@ -553,9 +553,9 @@ export async function getAnaliseAction(
   const [grouped, filterOptions, byCpf] = await Promise.all([
     prisma.inscricao.groupBy({
       by: [
-        "idOficina",
+        "idAcao",
         "idProjeto",
-        "nomeOficina",
+        "nomeAcao",
         "nomeProjeto",
         "estado",
         "cidade",
@@ -568,7 +568,7 @@ export async function getAnaliseAction(
         participantes: true,
         certificado: true,
       },
-      orderBy: [{ idProjeto: "asc" }, { idOficina: "asc" }],
+      orderBy: [{ idProjeto: "asc" }, { idAcao: "asc" }],
     }),
     getAnaliseFilterOptions(user.id),
     prisma.inscricao.groupBy({
@@ -593,9 +593,9 @@ export async function getAnaliseAction(
     const Participantes = g._sum.participantes ?? 0;
     const Certificado = g._sum.certificado ?? 0;
     return {
-      id_oficina: g.idOficina,
+      id_oficina: g.idAcao,
       id_projeto: g.idProjeto,
-      Nome_oficina: g.nomeOficina || g.idOficina,
+      Nome_oficina: g.nomeAcao || g.idAcao,
       Nome_projeto: g.nomeProjeto || g.idProjeto,
       Estado: g.estado || "—",
       Cidade: g.cidade || "—",
@@ -621,9 +621,9 @@ export async function getAnaliseAction(
       acc.Certificado += r.Certificado;
       return acc;
     },
-    { Inscritos: 0, Selecionados: 0, Participantes: 0, Certificado: 0, oficinas: 0, projetos: 0 },
+    { Inscritos: 0, Selecionados: 0, Participantes: 0, Certificado: 0, acoes: 0, projetos: 0 },
   );
-  totais.oficinas = new Set(rows.map((r) => r.id_oficina)).size;
+  totais.acoes = new Set(rows.map((r) => r.id_oficina)).size;
   totais.projetos = new Set(rows.map((r) => r.id_projeto)).size;
 
   const mergedByCpf = new Map<
@@ -735,56 +735,56 @@ export async function createInscricaoPublicAction(
     }
 
     const existing = await prisma.inscricao.findFirst({
-      where: { idOficina: input.id_oficina },
+      where: { idAcao: input.id_oficina },
       select: {
         contextoId: true,
         nomeContexto: true,
         idProjeto: true,
-        idOficina: true,
+        idAcao: true,
         proponente: true,
         pronac: true,
         nomeProjeto: true,
         identificacaoAnoProjeto: true,
-        nomeOficina: true,
+        nomeAcao: true,
       },
     });
 
-    const oficina = await prisma.oficina.findUnique({
+    const acao = await prisma.acao.findUnique({
       where: { id: input.id_oficina },
       include: { projeto: { include: { contexto: true } } },
     });
 
     const context: BatchContext = {
       contextoId:
-        oficina?.projeto.contextoId || existing?.contextoId || undefined,
+        acao?.projeto.contextoId || existing?.contextoId || undefined,
       Nome_contexto:
-        oficina?.projeto.contexto.nome || existing?.nomeContexto || "",
+        acao?.projeto.contexto.nome || existing?.nomeContexto || "",
       id_projeto:
         input.id_projeto ||
-        oficina?.projetoId ||
+        acao?.projetoId ||
         existing?.idProjeto ||
         input.id_oficina,
       id_oficina: input.id_oficina,
       PROPONENTE:
         input.PROPONENTE ||
-        oficina?.projeto.proponente ||
+        acao?.projeto.proponente ||
         existing?.proponente ||
         "",
-      PRONAC: input.PRONAC || oficina?.projeto.pronac || existing?.pronac || "",
+      PRONAC: input.PRONAC || acao?.projeto.pronac || existing?.pronac || "",
       Nome_projeto:
         input.Nome_projeto ||
-        oficina?.projeto.nome ||
+        acao?.projeto.nome ||
         existing?.nomeProjeto ||
         "",
       Identificacao_ano_projeto:
         input.Identificacao_ano_projeto ||
-        oficina?.projeto.ano ||
+        acao?.projeto.ano ||
         existing?.identificacaoAnoProjeto ||
         String(new Date().getFullYear()),
       Nome_oficina:
         input.Nome_oficina ||
-        oficina?.nome ||
-        existing?.nomeOficina ||
+        acao?.nome ||
+        existing?.nomeAcao ||
         input.id_oficina,
     };
 
@@ -823,9 +823,9 @@ export async function createInscricaoPublicAction(
   }
 }
 
-export async function getOficinaContext(oficinaId: string) {
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: oficinaId },
+export async function getAcaoContext(acaoId: string) {
+  const acao = await prisma.acao.findUnique({
+    where: { id: acaoId },
     include: {
       projeto: {
         include: { contexto: true },
@@ -833,32 +833,32 @@ export async function getOficinaContext(oficinaId: string) {
     },
   });
 
-  if (oficina) {
+  if (acao) {
     return {
-      contextoId: oficina.projeto.contextoId,
-      Nome_contexto: oficina.projeto.contexto.nome,
-      id_projeto: oficina.projetoId,
-      id_oficina: oficina.id,
-      PROPONENTE: oficina.projeto.proponente,
-      PRONAC: oficina.projeto.pronac,
-      Nome_projeto: oficina.projeto.nome,
-      Identificacao_ano_projeto: oficina.projeto.ano,
-      Nome_oficina: oficina.nome,
+      contextoId: acao.projeto.contextoId,
+      Nome_contexto: acao.projeto.contexto.nome,
+      id_projeto: acao.projetoId,
+      id_oficina: acao.id,
+      PROPONENTE: acao.projeto.proponente,
+      PRONAC: acao.projeto.pronac,
+      Nome_projeto: acao.projeto.nome,
+      Identificacao_ano_projeto: acao.projeto.ano,
+      Nome_oficina: acao.nome,
     } satisfies BatchContext;
   }
 
   const existing = await prisma.inscricao.findFirst({
-    where: { idOficina: oficinaId },
+    where: { idAcao: acaoId },
     select: {
       contextoId: true,
       nomeContexto: true,
       idProjeto: true,
-      idOficina: true,
+      idAcao: true,
       proponente: true,
       pronac: true,
       nomeProjeto: true,
       identificacaoAnoProjeto: true,
-      nomeOficina: true,
+      nomeAcao: true,
     },
   });
 
@@ -867,22 +867,22 @@ export async function getOficinaContext(oficinaId: string) {
       contextoId: existing.contextoId ?? undefined,
       Nome_contexto: existing.nomeContexto,
       id_projeto: existing.idProjeto,
-      id_oficina: existing.idOficina,
+      id_oficina: existing.idAcao,
       PROPONENTE: existing.proponente,
       PRONAC: existing.pronac,
       Nome_projeto: existing.nomeProjeto,
       Identificacao_ano_projeto: existing.identificacaoAnoProjeto,
-      Nome_oficina: existing.nomeOficina,
+      Nome_oficina: existing.nomeAcao,
     } satisfies BatchContext;
   }
 
   return {
-    id_projeto: oficinaId,
-    id_oficina: oficinaId,
+    id_projeto: acaoId,
+    id_oficina: acaoId,
     PROPONENTE: "",
     PRONAC: "",
     Nome_projeto: "",
     Identificacao_ano_projeto: String(new Date().getFullYear()),
-    Nome_oficina: oficinaId,
+    Nome_oficina: acaoId,
   } satisfies BatchContext;
 }

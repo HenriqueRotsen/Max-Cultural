@@ -24,25 +24,25 @@ import {
   reprocessValuesAiAction,
 } from "@/app/actions/inscricoes";
 import {
-  createOficinaAction,
-  getOficinaTerritorioCatalogAction,
+  createAcaoAction,
+  getAcaoTerritorioCatalogAction,
   listContextosSelectAction,
-  listOficinasSelectAction,
+  listAcoesSelectAction,
   listProjetosSelectAction,
-  upsertOficinaTerritorioAliasAction,
+  upsertAcaoTerritorioAliasAction,
 } from "@/app/actions/contextos";
 import {
   NovoContextoButton,
   NovoProjetoButton,
-  oficinaDtoToOption,
-  oficinaOndeLabel,
-  oficinaSemTerritorio,
+  acaoDtoToOption,
+  acaoOndeLabel,
+  acaoSemTerritorio,
 } from "@/components/admin/hierarchy-quick-create";
 import {
-  OficinaModalidadeFields,
-  emptyOficinaModalidade,
+  AcaoModalidadeFields,
+  emptyAcaoModalidade,
   territoriosPayload,
-} from "@/components/admin/oficina-modalidade-fields";
+} from "@/components/admin/acao-modalidade-fields";
 import { SearchSelect } from "@/components/ui/search-select";
 import { ImportTerritorioCard } from "@/components/admin/import-territorio-card";
 import {
@@ -56,12 +56,12 @@ import {
 } from "@/lib/import-territorio";
 import type {
   ContextoSelectOption,
-  OficinaSelectOption,
+  AcaoSelectOption,
   ProjetoSelectOption,
 } from "@/lib/hierarchy-list";
 import {
   type HierarquiaBatch,
-  oficinaToBatch,
+  acaoToBatch,
 } from "@/lib/contexto";
 import {
   emptySigaCulturalRow,
@@ -125,7 +125,7 @@ type Step = "upload" | "context" | "columns" | "preview";
 
 const STEPS: { id: Step; label: string; hint: string }[] = [
   { id: "upload", label: "Arquivo", hint: "Enviar planilha" },
-  { id: "context", label: "Hierarquia", hint: "Contexto → projeto → oficina" },
+  { id: "context", label: "Hierarquia", hint: "Contexto → projeto → ação" },
   { id: "columns", label: "Colunas", hint: "O que entra" },
   { id: "preview", label: "Prévia", hint: "Ajustar e gravar" },
 ];
@@ -140,7 +140,7 @@ function acceptFile(f: File | null | undefined): File | null {
   return f;
 }
 
-function oficinaSelectToBatch(o: OficinaSelectOption): HierarquiaBatch {
+function acaoSelectToBatch(o: AcaoSelectOption): HierarquiaBatch {
   return {
     contextoId: o.contextoId,
     Nome_contexto: o.contextoNome,
@@ -151,7 +151,7 @@ function oficinaSelectToBatch(o: OficinaSelectOption): HierarquiaBatch {
     Nome_projeto: o.projetoNome,
     Identificacao_ano_projeto: o.ano,
     Nome_oficina: o.nome,
-    oficinaTerritorioCatalog: {
+    acaoTerritorioCatalog: {
       ofereceOnline: Boolean(o.ofereceOnline),
       oferecePresencial: o.oferecePresencial !== false,
       territorios: (o.territorios ?? []).map((t) => ({
@@ -175,30 +175,30 @@ export function ImportWizard() {
 
   const [selContextoId, setSelContextoId] = useState<string>("");
   const [selProjetoId, setSelProjetoId] = useState<string>("");
-  const [selOficinaId, setSelOficinaId] = useState<string>("");
+  const [selAcaoId, setSelAcaoId] = useState<string>("");
   /** Após Continuar sem hierarquia completa, pede o cadastro do que falta. */
   const [hierarchyPhase, setHierarchyPhase] = useState<"select" | "register">(
     "select",
   );
 
-  const [newOficinaNome, setNewOficinaNome] = useState("");
-  const [newOficinaModalidade, setNewOficinaModalidade] = useState(
-    emptyOficinaModalidade,
+  const [newAcaoNome, setNewAcaoNome] = useState("");
+  const [newAcaoModalidade, setNewAcaoModalidade] = useState(
+    emptyAcaoModalidade,
   );
 
   const [contextos, setContextos] = useState<ContextoSelectOption[]>([]);
   const [projetos, setProjetos] = useState<ProjetoSelectOption[]>([]);
-  const [oficinas, setOficinas] = useState<OficinaSelectOption[]>([]);
+  const [acoes, setAcoes] = useState<AcaoSelectOption[]>([]);
   const [hierarchyLoading, setHierarchyLoading] = useState(false);
 
   const missingContexto = !selContextoId;
   const missingProjeto = !selProjetoId;
-  const needCreateOficina = !selOficinaId;
+  const needCreateAcao = !selAcaoId;
   const hierarchyComplete = Boolean(
-    selContextoId && selProjetoId && selOficinaId,
+    selContextoId && selProjetoId && selAcaoId,
   );
-  const canRegister = !missingProjeto && needCreateOficina;
-  const selOficina = oficinas.find((o) => o.id === selOficinaId);
+  const canRegister = !missingProjeto && needCreateAcao;
+  const selAcao = acoes.find((o) => o.id === selAcaoId);
 
   const [context, setContext] = useState<HierarquiaBatch>({
     contextoId: "",
@@ -214,7 +214,7 @@ export function ImportWizard() {
 
   const projetosFiltrados = projetos;
 
-  const oficinasFiltradas = oficinas;
+  const acoesFiltradas = acoes;
 
   useEffect(() => {
     if (step !== "context") return;
@@ -253,14 +253,14 @@ export function ImportWizard() {
 
   useEffect(() => {
     if (step !== "context" || !selProjetoId) {
-      setOficinas([]);
+      setAcoes([]);
       return;
     }
     let cancelled = false;
     setHierarchyLoading(true);
-    void listOficinasSelectAction({ projetoId: selProjetoId })
+    void listAcoesSelectAction({ projetoId: selProjetoId })
       .then((rows) => {
-        if (!cancelled) setOficinas(rows);
+        if (!cancelled) setAcoes(rows);
       })
       .finally(() => {
         if (!cancelled) setHierarchyLoading(false);
@@ -311,22 +311,22 @@ export function ImportWizard() {
     [rawRows, territorioSources],
   );
   const territorioOpts = useMemo(
-    () => territorioOpcoes(context.oficinaTerritorioCatalog),
-    [context.oficinaTerritorioCatalog],
+    () => territorioOpcoes(context.acaoTerritorioCatalog),
+    [context.acaoTerritorioCatalog],
   );
   const [territorioState, setTerritorioState] = useState<TerritorioImportState>({
     modo: "lote",
     lote: "",
     mapa: {},
   });
-  // Recalcula a sugestão quando muda a oficina ou as colunas de território.
+  // Recalcula a sugestão quando muda a ação ou as colunas de território.
   const territorioKey = `${context.id_oficina}|${territorioSources.join("|")}`;
   const [territorioKeySeen, setTerritorioKeySeen] = useState("");
   if (step === "columns" && territorioKey !== territorioKeySeen) {
     setTerritorioKeySeen(territorioKey);
     setTerritorioState(
       initialTerritorioState(
-        context.oficinaTerritorioCatalog,
+        context.acaoTerritorioCatalog,
         territorioPlanilha.values,
       ),
     );
@@ -410,25 +410,25 @@ export function ImportWizard() {
     setFileName(ok?.name ?? "");
   }
 
-  function applyOficina(oficinaId: string | null) {
-    const id = oficinaId && oficinaId !== "__blank__" ? oficinaId : "";
+  function applyAcao(acaoId: string | null) {
+    const id = acaoId && acaoId !== "__blank__" ? acaoId : "";
     if (!id) {
-      setSelOficinaId("");
+      setSelAcaoId("");
       return;
     }
-    const found = oficinas.find((o) => o.id === id);
+    const found = acoes.find((o) => o.id === id);
     if (!found) return;
-    setSelOficinaId(id);
+    setSelAcaoId(id);
     setSelProjetoId(found.projetoId);
     setSelContextoId(found.contextoId);
-    setContext(oficinaSelectToBatch(found));
+    setContext(acaoSelectToBatch(found));
     setHierarchyPhase("select");
   }
 
   function applyProjeto(projetoId: string | null) {
     const id = projetoId?.trim() || "";
     setSelProjetoId(id);
-    setSelOficinaId("");
+    setSelAcaoId("");
     setHierarchyPhase("select");
     if (!id) return;
     const p = projetos.find((x) => x.id === id);
@@ -439,7 +439,7 @@ export function ImportWizard() {
     const id = contextoId?.trim() || "";
     setSelContextoId(id);
     setSelProjetoId("");
-    setSelOficinaId("");
+    setSelAcaoId("");
     setHierarchyPhase("select");
   }
 
@@ -592,11 +592,11 @@ export function ImportWizard() {
   }
 
   async function enrichContextCatalog(batch: HierarquiaBatch): Promise<HierarquiaBatch> {
-    const catalog = await getOficinaTerritorioCatalogAction(batch.id_oficina);
+    const catalog = await getAcaoTerritorioCatalogAction(batch.id_oficina);
     if (!catalog) return batch;
     return {
       ...batch,
-      oficinaTerritorioCatalog: {
+      acaoTerritorioCatalog: {
         ofereceOnline: catalog.ofereceOnline,
         oferecePresencial: catalog.oferecePresencial,
         territorios: catalog.territorios,
@@ -607,18 +607,18 @@ export function ImportWizard() {
 
   async function handleContextNext() {
     if (hierarchyComplete && hierarchyPhase === "select") {
-      const found = oficinas.find((o) => o.id === selOficinaId);
+      const found = acoes.find((o) => o.id === selAcaoId);
       if (!found) {
-        toast.error("Oficina inválida");
+        toast.error("Ação inválida");
         return;
       }
-      if (oficinaSemTerritorio(found)) {
+      if (acaoSemTerritorio(found)) {
         toast.error(
-          "Esta oficina não tem território. Edite a oficina em Contextos e informe onde ela acontece.",
+          "Esta ação não tem território. Edite a ação em Contextos e informe onde ela acontece.",
         );
         return;
       }
-      const batch = await enrichContextCatalog(oficinaSelectToBatch(found));
+      const batch = await enrichContextCatalog(acaoSelectToBatch(found));
       setContext(batch);
       await proceedAfterHierarchy();
       return;
@@ -631,7 +631,7 @@ export function ImportWizard() {
             ? "Selecione um contexto"
             : missingProjeto
               ? "Selecione ou cadastre um projeto."
-              : "Selecione contexto, projeto e oficina",
+              : "Selecione contexto, projeto e ação",
         );
         return;
       }
@@ -641,35 +641,35 @@ export function ImportWizard() {
 
     if (missingProjeto) {
       toast.error(
-        "Selecione um projeto antes de cadastrar a oficina.",
+        "Selecione um projeto antes de cadastrar a ação.",
       );
       return;
     }
-    if (!newOficinaNome.trim()) {
-      toast.error("Preencha o nome da oficina");
+    if (!newAcaoNome.trim()) {
+      toast.error("Preencha o nome da ação");
       return;
     }
 
     try {
-      const createdOf = await createOficinaAction({
+      const createdOf = await createAcaoAction({
         projetoId: selProjetoId,
-        nome: newOficinaNome,
-        ofereceOnline: newOficinaModalidade.ofereceOnline,
-        oferecePresencial: newOficinaModalidade.oferecePresencial,
-        territorios: territoriosPayload(newOficinaModalidade),
+        nome: newAcaoNome,
+        ofereceOnline: newAcaoModalidade.ofereceOnline,
+        oferecePresencial: newAcaoModalidade.oferecePresencial,
+        territorios: territoriosPayload(newAcaoModalidade),
       });
       if (!createdOf.ok) {
         toast.error(createdOf.error);
         return;
       }
-      setContext(await enrichContextCatalog(oficinaToBatch(createdOf.oficina)));
-      setSelContextoId(createdOf.oficina.contextoId);
-      setSelProjetoId(createdOf.oficina.projetoId);
-      setSelOficinaId(createdOf.oficina.id);
-      setOficinas((prev) => [oficinaDtoToOption(createdOf.oficina), ...prev]);
-      setNewOficinaNome("");
-      setNewOficinaModalidade(emptyOficinaModalidade());
-      toast.success("Oficina cadastrada");
+      setContext(await enrichContextCatalog(acaoToBatch(createdOf.acao)));
+      setSelContextoId(createdOf.acao.contextoId);
+      setSelProjetoId(createdOf.acao.projetoId);
+      setSelAcaoId(createdOf.acao.id);
+      setAcoes((prev) => [acaoDtoToOption(createdOf.acao), ...prev]);
+      setNewAcaoNome("");
+      setNewAcaoModalidade(emptyAcaoModalidade());
+      toast.success("Ação cadastrada");
       router.refresh();
       await proceedAfterHierarchy();
     } catch {
@@ -692,7 +692,7 @@ export function ImportWizard() {
       toast.error(territorioPend);
       return;
     }
-    const catalog = context.oficinaTerritorioCatalog;
+    const catalog = context.acaoTerritorioCatalog;
     if (catalog) {
       const aliases = territorioAliasesFromState(
         territorioState,
@@ -701,11 +701,11 @@ export function ImportWizard() {
       );
       const results = await Promise.all(
         aliases.map((a) =>
-          upsertOficinaTerritorioAliasAction({
-            oficinaId: context.id_oficina,
+          upsertAcaoTerritorioAliasAction({
+            acaoId: context.id_oficina,
             raw: a.raw,
             online: a.online,
-            oficinaTerritorioId: a.oficinaTerritorioId,
+            acaoTerritorioId: a.acaoTerritorioId,
           }).catch(() => ({ ok: false as const, error: "" })),
         ),
       );
@@ -955,10 +955,10 @@ export function ImportWizard() {
       {step === "context" ? (
         <Card className="gap-0 overflow-hidden border-[var(--border)] pt-0 shadow-sm">
           <CardHeader className="rounded-none border-b border-[var(--border)] bg-gradient-to-br from-[var(--navy-soft)] to-transparent py-4">
-            <CardTitle className="text-xl">Contexto → Projeto → Oficina</CardTitle>
+            <CardTitle className="text-xl">Contexto → Projeto → Ação</CardTitle>
             <CardDescription>
-              Selecione o que já existe ou cadastre contexto, projeto e oficina. A
-              oficina informa onde acontece (online e/ou territórios).
+              Selecione o que já existe ou cadastre contexto, projeto e ação. A
+              ação informa onde acontece (online e/ou territórios).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 pt-6">
@@ -1049,37 +1049,37 @@ export function ImportWizard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Oficina</Label>
+                <Label>Ação</Label>
                 <SearchSelect
-                  value={selOficinaId || "__blank__"}
+                  value={selAcaoId || "__blank__"}
                   options={[
-                    { value: "__blank__", label: "+ Cadastrar nova oficina" },
-                    ...oficinasFiltradas.map((o) => ({
+                    { value: "__blank__", label: "+ Cadastrar nova ação" },
+                    ...acoesFiltradas.map((o) => ({
                       value: o.id,
                       label: o.nome,
-                      hint: oficinaOndeLabel(o) || undefined,
+                      hint: acaoOndeLabel(o) || undefined,
                     })),
                   ]}
-                  onValueChange={(v) => applyOficina(v)}
+                  onValueChange={(v) => applyAcao(v)}
                   disabled={missingProjeto || hierarchyLoading}
                   placeholder={missingProjeto ? "Selecione o projeto primeiro" : "Selecione…"}
-                  searchPlaceholder="Buscar oficina ou cidade…"
-                  emptyText="Nenhuma oficina encontrada."
+                  searchPlaceholder="Buscar ação ou cidade…"
+                  emptyText="Nenhuma ação encontrada."
                 />
-                {selOficina ? (
-                  oficinaSemTerritorio(selOficina) ? (
+                {selAcao ? (
+                  acaoSemTerritorio(selAcao) ? (
                     <p className="text-xs text-destructive">
                       Sem território cadastrado.{" "}
                       <Link
-                        href="/dashboard/contextos?tab=oficinas"
+                        href="/dashboard/contextos?tab=acoes"
                         className="underline underline-offset-2"
                       >
-                        Editar oficina
+                        Editar ação
                       </Link>
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Onde: {oficinaOndeLabel(selOficina)}
+                      Onde: {acaoOndeLabel(selAcao)}
                     </p>
                   )
                 ) : null}
@@ -1091,17 +1091,17 @@ export function ImportWizard() {
                 {[
                   missingContexto ? "selecionar contexto" : null,
                   missingProjeto ? "selecionar ou cadastrar projeto" : null,
-                  !missingProjeto && needCreateOficina
-                    ? "cadastrar ou selecionar oficina"
+                  !missingProjeto && needCreateAcao
+                    ? "cadastrar ou selecionar ação"
                     : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
                 {canRegister
-                  ? ". Clique em Continuar para cadastrar a oficina."
+                  ? ". Clique em Continuar para cadastrar a ação."
                   : "."}
               </p>
-            ) : selOficinaId ? (
+            ) : selAcaoId ? (
               <p className="text-sm text-muted-foreground">
                 Lote:{" "}
                 <span className="font-medium text-brand-deep">
@@ -1114,26 +1114,26 @@ export function ImportWizard() {
                   projetos.find((p) => p.id === selProjetoId)?.nome}
                 {" → "}
                 {context.Nome_oficina ||
-                  oficinas.find((o) => o.id === selOficinaId)?.nome}
+                  acoes.find((o) => o.id === selAcaoId)?.nome}
               </p>
             ) : null}
 
             {hierarchyPhase === "register" && canRegister ? (
               <div className="space-y-4 rounded-xl border border-brand/20 bg-[var(--navy-soft)]/70 p-4">
                 <p className="text-sm font-medium text-brand-deep">
-                  Cadastrar nova oficina
+                  Cadastrar nova ação
                 </p>
                 <div className="space-y-2">
-                  <Label htmlFor="newOficina">Nome da oficina</Label>
+                  <Label htmlFor="newAcao">Nome da ação</Label>
                   <Input
-                    id="newOficina"
-                    value={newOficinaNome}
-                    onChange={(e) => setNewOficinaNome(e.target.value)}
+                    id="newAcao"
+                    value={newAcaoNome}
+                    onChange={(e) => setNewAcaoNome(e.target.value)}
                   />
                 </div>
-                <OficinaModalidadeFields
-                  value={newOficinaModalidade}
-                  onChange={setNewOficinaModalidade}
+                <AcaoModalidadeFields
+                  value={newAcaoModalidade}
+                  onChange={setNewAcaoModalidade}
                 />
               </div>
             ) : null}
@@ -1158,7 +1158,7 @@ export function ImportWizard() {
                 onClick={handleContextNext}
                 disabled={
                   busy ||
-                  (hierarchyPhase === "register" && !newOficinaNome.trim())
+                  (hierarchyPhase === "register" && !newAcaoNome.trim())
                 }
               >
                 {hierarchyPhase === "select" &&

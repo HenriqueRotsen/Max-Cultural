@@ -28,7 +28,7 @@ export type TerritorioRow = {
   estado: string;
 };
 
-export type OficinaModalidadeValue = {
+export type AcaoModalidadeValue = {
   ofereceOnline: boolean;
   oferecePresencial: boolean;
   territorios: TerritorioRow[];
@@ -38,7 +38,7 @@ export function emptyTerritorioRow(): TerritorioRow {
   return { key: crypto.randomUUID(), nome: "", cidade: "", estado: "" };
 }
 
-export function emptyOficinaModalidade(): OficinaModalidadeValue {
+export function emptyAcaoModalidade(): AcaoModalidadeValue {
   return {
     ofereceOnline: false,
     oferecePresencial: true,
@@ -46,8 +46,8 @@ export function emptyOficinaModalidade(): OficinaModalidadeValue {
   };
 }
 
-/** Payload de território para create/updateOficinaAction. */
-export function territoriosPayload(v: OficinaModalidadeValue) {
+/** Payload de território para create/updateAcaoAction. */
+export function territoriosPayload(v: AcaoModalidadeValue) {
   return v.oferecePresencial
     ? v.territorios.map((t, i) => ({
         nome: t.nome,
@@ -58,13 +58,13 @@ export function territoriosPayload(v: OficinaModalidadeValue) {
     : [];
 }
 
-/** Modalidade (online/presencial) e territórios presenciais (cidade/UF) da oficina. */
-export function OficinaModalidadeFields({
+/** Modalidade (online/presencial) e territórios presenciais (cidade/UF) da ação. */
+export function AcaoModalidadeFields({
   value,
   onChange,
 }: {
-  value: OficinaModalidadeValue;
-  onChange: (next: OficinaModalidadeValue) => void;
+  value: AcaoModalidadeValue;
+  onChange: (next: AcaoModalidadeValue) => void;
 }) {
   const setRow = (idx: number, patch: Partial<TerritorioRow>) =>
     onChange({
@@ -127,7 +127,7 @@ export function OficinaModalidadeFields({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Onde a oficina acontece. Cidade e UF são obrigatórios;
+            Onde a ação acontece. Cidade e UF são obrigatórios;
             comunidade/território é opcional.
           </p>
           <div className="grid grid-cols-1 gap-3">

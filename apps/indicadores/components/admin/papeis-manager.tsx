@@ -58,9 +58,9 @@ export function PapeisManager({ data }: { data: Bootstrap }) {
     () => ({
       contextos: data.contextos,
       projetos: data.projetos,
-      oficinas: data.oficinas,
+      acoes: data.acoes,
     }),
-    [data.contextos, data.projetos, data.oficinas],
+    [data.contextos, data.projetos, data.acoes],
   );
 
   const [form, setForm] = useState({
@@ -283,7 +283,7 @@ export function PapeisManager({ data }: { data: Bootstrap }) {
                   : "Dados do papel e permissões — acesso completo aos dados."
                 : step === 1
                   ? "Etapa 1 de 2 — permissões de tela e modo de acesso aos dados"
-                  : "Etapa 2 de 2 — defina o acesso padrão por contexto, projeto e oficina"}
+                  : "Etapa 2 de 2 — defina o acesso padrão por contexto, projeto e ação"}
             </DialogDescription>
           </DialogHeader>
 

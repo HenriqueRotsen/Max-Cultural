@@ -81,10 +81,10 @@ export default async function TerritorioComunidadePage({
 
           <section className="space-y-4">
             <h2 className="font-heading text-2xl font-semibold text-brand-deep">
-              Oficinas
+              Ações
             </h2>
             <div className="space-y-3">
-              {result.data.oficinas.map((o) => (
+              {result.data.acoes.map((o) => (
                 <Link
                   key={`${o.id_projeto}-${o.id_oficina}`}
                   href={o.href}

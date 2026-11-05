@@ -5,7 +5,7 @@ const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Indicadores";
 
 export const metadata = {
   title: `Consultar CPF · ${appName}`,
-  description: "Veja oficinas, seleção e acompanhamento vinculados a um CPF.",
+  description: "Veja ações, seleção e acompanhamento vinculados a um CPF.",
 };
 
 export default function PessoaIndexPage() {
@@ -16,7 +16,7 @@ export default function PessoaIndexPage() {
           Consultar percurso do candidato
         </h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:text-base">
-          Digite o CPF para ver projetos, oficinas, seleção e uma análise do
+          Digite o CPF para ver projetos, ações, seleção e uma análise do
           acompanhamento.
         </p>
       </div>

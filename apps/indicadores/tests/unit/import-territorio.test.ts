@@ -8,10 +8,10 @@ import {
   territorioPendencia,
 } from "@/lib/import-territorio";
 import { normalizeRow } from "@/lib/normalize";
-import type { OficinaTerritorioCatalog } from "@/lib/oficina-territorio";
+import type { AcaoTerritorioCatalog } from "@/lib/acao-territorio";
 import type { BatchContext } from "@/lib/schema";
 
-const catalog: OficinaTerritorioCatalog = {
+const catalog: AcaoTerritorioCatalog = {
   ofereceOnline: true,
   oferecePresencial: true,
   territorios: [
@@ -27,8 +27,8 @@ const baseContext: BatchContext = {
   PRONAC: "",
   Nome_projeto: "Arte em Rede",
   Identificacao_ano_projeto: "2026",
-  Nome_oficina: "Oficina",
-  oficinaTerritorioCatalog: catalog,
+  Nome_oficina: "Ação",
+  acaoTerritorioCatalog: catalog,
 };
 
 const LABEL_T1 = "Imperatriz/MA · Quilombo X";
@@ -47,8 +47,8 @@ describe("território no import", () => {
     expect(blankCount).toBe(1);
   });
 
-  it("oficina com uma só opção: vale para o lote todo", () => {
-    const single: OficinaTerritorioCatalog = {
+  it("ação com uma só opção: vale para o lote todo", () => {
+    const single: AcaoTerritorioCatalog = {
       ofereceOnline: false,
       oferecePresencial: true,
       territorios: [catalog.territorios[1]!],
@@ -58,8 +58,8 @@ describe("território no import", () => {
     expect(territorioPendencia(st, territorioOpcoes(single), [], 0)).toBeNull();
   });
 
-  it("oficina sem território bloqueia", () => {
-    const vazio: OficinaTerritorioCatalog = {
+  it("ação sem território bloqueia", () => {
+    const vazio: AcaoTerritorioCatalog = {
       ofereceOnline: false,
       oferecePresencial: true,
       territorios: [],
@@ -83,12 +83,12 @@ describe("território no import", () => {
     expect(territorioPendencia(ligado, opcoes, values, 0)).toBeNull();
     expect(territorioPendencia(ligado, opcoes, values, 2)).toMatch(/sem território/);
     expect(territorioAliasesFromState(ligado, catalog, values)).toEqual([
-      { raw: "Online", online: true, oficinaTerritorioId: null },
-      { raw: "Comunidade A", online: false, oficinaTerritorioId: "t1" },
+      { raw: "Online", online: true, acaoTerritorioId: null },
+      { raw: "Comunidade A", online: false, acaoTerritorioId: "t1" },
     ]);
   });
 
-  it("modo planilha: valor ligado vira o território da oficina; vazio usa o lote", () => {
+  it("modo planilha: valor ligado vira o território da ação; vazio usa o lote", () => {
     const values = [{ raw: "Comunidade A", count: 1 }];
     const ctx = applyTerritorioToContext(
       baseContext,

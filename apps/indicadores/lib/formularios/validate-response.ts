@@ -16,9 +16,9 @@ import {
 } from "@/lib/normalize";
 import { GENEROS, ETNIAS } from "@/lib/schema";
 import {
-  asTerritorioOficinaFormValue,
-  applyTerritorioOficinaFormToSiga,
-} from "@/lib/oficina-territorio";
+  asTerritorioAcaoFormValue,
+  applyTerritorioAcaoFormToSiga,
+} from "@/lib/acao-territorio";
 
 export type CampoValidavel = {
   id: string;
@@ -203,8 +203,8 @@ export function validateFormularioAnswers(
         }
         break;
       }
-      case "TERRITORIO_OFICINA": {
-        const terr = asTerritorioOficinaFormValue(rawVal);
+      case "TERRITORIO_ACAO": {
+        const terr = asTerritorioAcaoFormValue(rawVal);
         terr.estado = normalizeUf(terr.estado);
         values[campo.id] = terr;
         if (campo.obrigatorio && !terr.modalidade) {
@@ -222,7 +222,7 @@ export function validateFormularioAnswers(
             terr.cidade.trim() &&
             terr.estado.trim())
         ) {
-          applyTerritorioOficinaFormToSiga(sigaPartial, terr);
+          applyTerritorioAcaoFormToSiga(sigaPartial, terr);
         }
         break;
       }

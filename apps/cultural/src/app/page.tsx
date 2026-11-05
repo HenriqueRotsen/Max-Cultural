@@ -109,7 +109,7 @@ export default async function HomePage() {
                   />
                   <p className="text-sm text-[var(--gray-600)]">
                     {indicadoresFormulariosOnly
-                      ? "Avaliação das respostas das suas oficinas."
+                      ? "Avaliação das respostas das suas ações."
                       : "Inscrições, análise e território."}
                   </p>
                 </a>

@@ -124,8 +124,8 @@ function projetoHref(row: Row) {
   return `/projeto/${encodeURIComponent(row.id_projeto)}`;
 }
 
-function oficinaHref(row: Row) {
-  return `/projeto/${encodeURIComponent(row.id_projeto)}/${encodeURIComponent(row.id_oficina)}`;
+function acaoHref(row: Row) {
+  return `/projeto/${encodeURIComponent(row.id_projeto)}/acao/${encodeURIComponent(row.id_oficina)}`;
 }
 
 export function InscricoesTable({
@@ -157,12 +157,12 @@ export function InscricoesTable({
           ]),
         ),
       },
-      oficina: {
+      acao: {
         all: "Todas",
         ...Object.fromEntries(
-          filterOptions.oficinas.map((o) => [
-            o.idOficina,
-            o.nomeOficina || o.idOficina,
+          filterOptions.acoes.map((o) => [
+            o.idAcao,
+            o.nomeAcao || o.idAcao,
           ]),
         ),
       },
@@ -235,7 +235,7 @@ export function InscricoesTable({
 
   const activeFilterCount = [
     "idProjeto",
-    "idOficina",
+    "idAcao",
     "proponente",
     "pronac",
     "anoProjeto",
@@ -267,7 +267,7 @@ export function InscricoesTable({
                 id="q"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Nome, CPF, e-mail ou oficina"
+                placeholder="Nome, CPF, e-mail ou ação"
                 className="flex-1"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -333,7 +333,7 @@ export function InscricoesTable({
               <Select
                 value={searchParams.get("idProjeto") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ idProjeto: value ?? "all", idOficina: "all" })
+                  updateParams({ idProjeto: value ?? "all", idAcao: "all" })
                 }
                 items={filterSelectItems.projeto}
               >
@@ -352,22 +352,22 @@ export function InscricoesTable({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Oficina</Label>
+              <Label className="text-xs">Ação</Label>
               <Select
-                value={searchParams.get("idOficina") ?? "all"}
+                value={searchParams.get("idAcao") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ idOficina: value ?? "all" })
+                  updateParams({ idAcao: value ?? "all" })
                 }
-                items={filterSelectItems.oficina}
+                items={filterSelectItems.acao}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  {filterOptions.oficinas.map((o) => (
-                    <SelectItem key={o.idOficina} value={o.idOficina}>
-                      {o.nomeOficina || o.idOficina}
+                  {filterOptions.acoes.map((o) => (
+                    <SelectItem key={o.idAcao} value={o.idAcao}>
+                      {o.nomeAcao || o.idAcao}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -564,8 +564,8 @@ export function InscricoesTable({
               </TableHead>
               <TableHead className="hidden lg:table-cell">
                 <SortableTableHead
-                  label="Oficina"
-                  sortKey="oficina"
+                  label="Ação"
+                  sortKey="acao"
                   activeKey={sortKey}
                   activeDir={sortDir}
                   onSort={toggleSort}
@@ -651,7 +651,7 @@ export function InscricoesTable({
                       </TableCell>
                       <TableCell className="hidden min-w-0 max-w-[12rem] whitespace-normal lg:table-cell">
                         <Link
-                          href={oficinaHref(row)}
+                          href={acaoHref(row)}
                           className="block underline-offset-2 hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -758,10 +758,10 @@ export function InscricoesTable({
                               </div>
                               <div className="min-w-0">
                                 <div className="text-xs text-muted-foreground">
-                                  Oficina
+                                  Ação
                                 </div>
                                 <Link
-                                  href={oficinaHref(row)}
+                                  href={acaoHref(row)}
                                   className="block text-sm font-medium break-words text-brand-deep underline-offset-2 hover:underline"
                                   onClick={(e) => e.stopPropagation()}
                                 >
@@ -842,10 +842,10 @@ export function InscricoesTable({
                     Ver projeto
                   </Link>
                   <Link
-                    href={oficinaHref(extended)}
+                    href={acaoHref(extended)}
                     className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                   >
-                    Ver oficina
+                    Ver ação
                   </Link>
                   {extended.CPF ? (
                     <Link

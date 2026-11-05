@@ -44,9 +44,9 @@ export default async function EditarFormularioPage({ params }: { params: Params 
             Editar formulário
           </h1>
           <p className="text-sm text-muted-foreground">
-            {data.oficina
-              ? `${data.oficina.projeto.contexto.nome} · ${data.oficina.projeto.nome} · ${data.oficina.nome}`
-              : form.oficinaId}
+            {data.acao
+              ? `${data.acao.projeto.contexto.nome} · ${data.acao.projeto.nome} · ${data.acao.nome}`
+              : form.acaoId}
           </p>
         </div>
         <a
@@ -62,7 +62,7 @@ export default async function EditarFormularioPage({ params }: { params: Params 
         selectedProfessorIds={selectedProfessorIds}
         initial={{
           id: form.id,
-          oficinaId: form.oficinaId,
+          acaoId: form.acaoId,
           titulo: form.titulo,
           descricao: form.descricao,
           abreEm: toLocalInput(form.abreEm),

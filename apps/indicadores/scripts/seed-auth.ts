@@ -87,13 +87,13 @@ async function main() {
       create: {
         name: PROFESSOR_ROLE_NAME,
         description:
-          "Só avalia respostas das oficinas em que está vinculado como professor",
+          "Só avalia respostas das ações em que está vinculado como professor",
         isSystem: true,
         dataScopeMode: "LIMITED",
       },
       update: {
         description:
-          "Só avalia respostas das oficinas em que está vinculado como professor",
+          "Só avalia respostas das ações em que está vinculado como professor",
         isSystem: true,
       },
     });

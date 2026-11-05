@@ -35,27 +35,27 @@ function parseTerritorioComposto(value: unknown): {
   };
 }
 
-export type OficinaTerritorioRef = {
+export type AcaoTerritorioRef = {
   id: string;
   nome: string;
   cidade: string;
   estado: string;
 };
 
-export type OficinaTerritorioAliasRef = {
+export type AcaoTerritorioAliasRef = {
   rawNormalized: string;
   online: boolean;
-  oficinaTerritorioId?: string | null;
+  acaoTerritorioId?: string | null;
   cidade?: string;
   estado?: string;
   territorio?: string;
 };
 
-export type OficinaTerritorioCatalog = {
+export type AcaoTerritorioCatalog = {
   ofereceOnline: boolean;
   oferecePresencial: boolean;
-  territorios: OficinaTerritorioRef[];
-  aliases?: OficinaTerritorioAliasRef[];
+  territorios: AcaoTerritorioRef[];
+  aliases?: AcaoTerritorioAliasRef[];
 };
 
 export type ParseTerritorioInscricaoResult = {
@@ -64,7 +64,7 @@ export type ParseTerritorioInscricaoResult = {
   estado: string;
   /** Comunidade / rótulo online / vazio */
   territorio: string;
-  oficinaTerritorioId: string | null;
+  acaoTerritorioId: string | null;
   matched: boolean;
   /** Label canônico da opção (Online ou Cidade/UF · nome) */
   label: string;
@@ -88,7 +88,7 @@ export function looksLikeOnlineKeyword(raw: unknown): boolean {
 }
 
 /** Label canônico: `Online` | `Imperatriz/MA` | `Imperatriz/MA · Quilombo X` */
-export function oficinaTerritorioLabel(t: {
+export function acaoTerritorioLabel(t: {
   nome?: string | null;
   cidade: string;
   estado: string;
@@ -103,7 +103,7 @@ export function oficinaTerritorioLabel(t: {
   return cityUf;
 }
 
-export function buildOficinaTerritorioOpcoes(catalog: OficinaTerritorioCatalog): string[] {
+export function buildAcaoTerritorioOpcoes(catalog: AcaoTerritorioCatalog): string[] {
   const opts: string[] = [];
   if (catalog.ofereceOnline) opts.push(ONLINE_TERRITORIO_LABEL);
   if (catalog.oferecePresencial) {
@@ -113,16 +113,16 @@ export function buildOficinaTerritorioOpcoes(catalog: OficinaTerritorioCatalog):
         a.nome.localeCompare(b.nome, "pt-BR"),
     );
     for (const t of sorted) {
-      const label = oficinaTerritorioLabel(t);
+      const label = acaoTerritorioLabel(t);
       if (label && !opts.includes(label)) opts.push(label);
     }
   }
   return opts;
 }
 
-export function resolveOficinaTerritorioChoice(
+export function resolveAcaoTerritorioChoice(
   choice: string,
-  catalog: OficinaTerritorioCatalog,
+  catalog: AcaoTerritorioCatalog,
 ): ParseTerritorioInscricaoResult {
   const raw = String(choice ?? "").trim();
   if (!raw) {
@@ -131,7 +131,7 @@ export function resolveOficinaTerritorioChoice(
       cidade: "",
       estado: "",
       territorio: "",
-      oficinaTerritorioId: null,
+      acaoTerritorioId: null,
       matched: false,
       label: "",
     };
@@ -146,7 +146,7 @@ export function resolveOficinaTerritorioChoice(
       cidade: "",
       estado: "",
       territorio: ONLINE_TERRITORIO_LABEL,
-      oficinaTerritorioId: null,
+      acaoTerritorioId: null,
       matched: true,
       label: ONLINE_TERRITORIO_LABEL,
     };
@@ -154,7 +154,7 @@ export function resolveOficinaTerritorioChoice(
 
   const key = normalizeTerritorioRawKey(raw);
   for (const t of catalog.territorios) {
-    const label = oficinaTerritorioLabel(t);
+    const label = acaoTerritorioLabel(t);
     if (
       normalizeTerritorioRawKey(label) === key ||
       normalizeTerritorioRawKey(t.nome) === key ||
@@ -166,7 +166,7 @@ export function resolveOficinaTerritorioChoice(
         cidade: t.cidade,
         estado: t.estado,
         territorio: String(t.nome ?? "").trim(),
-        oficinaTerritorioId: t.id,
+        acaoTerritorioId: t.id,
         matched: true,
         label,
       };
@@ -178,7 +178,7 @@ export function resolveOficinaTerritorioChoice(
     cidade: "",
     estado: "",
     territorio: raw,
-    oficinaTerritorioId: null,
+    acaoTerritorioId: null,
     matched: false,
     label: raw,
   };
@@ -186,11 +186,11 @@ export function resolveOficinaTerritorioChoice(
 
 /**
  * Normaliza valor de planilha/formulário para Cidade/Estado/Territorio,
- * casando com o catálogo da oficina quando disponível.
+ * casando com o catálogo da ação quando disponível.
  */
 export function parseTerritorioInscricao(
   raw: unknown,
-  catalog?: OficinaTerritorioCatalog | null,
+  catalog?: AcaoTerritorioCatalog | null,
 ): ParseTerritorioInscricaoResult {
   const text = String(raw ?? "").trim();
   if (!text) {
@@ -199,7 +199,7 @@ export function parseTerritorioInscricao(
       cidade: "",
       estado: "",
       territorio: "",
-      oficinaTerritorioId: null,
+      acaoTerritorioId: null,
       matched: false,
       label: "",
     };
@@ -216,14 +216,14 @@ export function parseTerritorioInscricao(
           cidade: "",
           estado: "",
           territorio: ONLINE_TERRITORIO_LABEL,
-          oficinaTerritorioId: null,
+          acaoTerritorioId: null,
           matched: true,
           label: ONLINE_TERRITORIO_LABEL,
         };
       }
-      if (alias.oficinaTerritorioId) {
+      if (alias.acaoTerritorioId) {
         const t = catalog.territorios.find(
-          (x) => x.id === alias.oficinaTerritorioId,
+          (x) => x.id === alias.acaoTerritorioId,
         );
         if (t) {
           return {
@@ -231,9 +231,9 @@ export function parseTerritorioInscricao(
             cidade: t.cidade,
             estado: t.estado,
             territorio: String(t.nome ?? "").trim(),
-            oficinaTerritorioId: t.id,
+            acaoTerritorioId: t.id,
             matched: true,
-            label: oficinaTerritorioLabel(t),
+            label: acaoTerritorioLabel(t),
           };
         }
       }
@@ -246,16 +246,16 @@ export function parseTerritorioInscricao(
           cidade,
           estado,
           territorio,
-          oficinaTerritorioId: null,
+          acaoTerritorioId: null,
           matched: true,
-          label: oficinaTerritorioLabel({ nome: territorio, cidade, estado }),
+          label: acaoTerritorioLabel({ nome: territorio, cidade, estado }),
         };
       }
     }
   }
 
   if (catalog) {
-    const fromCatalog = resolveOficinaTerritorioChoice(text, catalog);
+    const fromCatalog = resolveAcaoTerritorioChoice(text, catalog);
     if (fromCatalog.matched) return fromCatalog;
   }
 
@@ -266,7 +266,7 @@ export function parseTerritorioInscricao(
         cidade: "",
         estado: "",
         territorio: ONLINE_TERRITORIO_LABEL,
-        oficinaTerritorioId: null,
+        acaoTerritorioId: null,
         matched: Boolean(!catalog || catalog.ofereceOnline),
         label: ONLINE_TERRITORIO_LABEL,
       };
@@ -298,9 +298,9 @@ export function parseTerritorioInscricao(
             cidade: hit.cidade,
             estado: hit.estado,
             territorio: "",
-            oficinaTerritorioId: hit.id,
+            acaoTerritorioId: hit.id,
             matched: true,
-            label: oficinaTerritorioLabel(hit),
+            label: acaoTerritorioLabel(hit),
           };
         }
       }
@@ -309,9 +309,9 @@ export function parseTerritorioInscricao(
         cidade: enriched.cidade,
         estado: enriched.estado,
         territorio: "",
-        oficinaTerritorioId: null,
+        acaoTerritorioId: null,
         matched: false,
-        label: oficinaTerritorioLabel({
+        label: acaoTerritorioLabel({
           cidade: enriched.cidade,
           estado: enriched.estado,
         }),
@@ -336,9 +336,9 @@ export function parseTerritorioInscricao(
           cidade: hit.cidade,
           estado: hit.estado,
           territorio: String(hit.nome ?? "").trim(),
-          oficinaTerritorioId: hit.id,
+          acaoTerritorioId: hit.id,
           matched: true,
-          label: oficinaTerritorioLabel(hit),
+          label: acaoTerritorioLabel(hit),
         };
       }
     }
@@ -347,7 +347,7 @@ export function parseTerritorioInscricao(
       cidade: enriched.cidade,
       estado: enriched.estado,
       territorio: normalizeAddressLine(right),
-      oficinaTerritorioId: null,
+      acaoTerritorioId: null,
       matched: false,
       label: text,
     };
@@ -370,9 +370,9 @@ export function parseTerritorioInscricao(
           cidade: hit.cidade,
           estado: hit.estado,
           territorio: String(hit.nome ?? "").trim(),
-          oficinaTerritorioId: hit.id,
+          acaoTerritorioId: hit.id,
           matched: true,
-          label: oficinaTerritorioLabel(hit),
+          label: acaoTerritorioLabel(hit),
         };
       }
     }
@@ -381,9 +381,9 @@ export function parseTerritorioInscricao(
       cidade: agenda.cidade,
       estado: agenda.estado,
       territorio: agenda.territorio,
-      oficinaTerritorioId: null,
+      acaoTerritorioId: null,
       matched: true,
-      label: oficinaTerritorioLabel({
+      label: acaoTerritorioLabel({
         nome: agenda.territorio,
         cidade: agenda.cidade,
         estado: agenda.estado,
@@ -409,9 +409,9 @@ export function parseTerritorioInscricao(
           cidade: hit.cidade,
           estado: hit.estado,
           territorio: String(hit.nome ?? "").trim(),
-          oficinaTerritorioId: hit.id,
+          acaoTerritorioId: hit.id,
           matched: true,
-          label: oficinaTerritorioLabel(hit),
+          label: acaoTerritorioLabel(hit),
         };
       }
     }
@@ -420,9 +420,9 @@ export function parseTerritorioInscricao(
       cidade: enriched.cidade,
       estado: enriched.estado,
       territorio: "",
-      oficinaTerritorioId: null,
+      acaoTerritorioId: null,
       matched: false,
-      label: oficinaTerritorioLabel({
+      label: acaoTerritorioLabel({
         cidade: enriched.cidade,
         estado: enriched.estado,
       }),
@@ -441,9 +441,9 @@ export function parseTerritorioInscricao(
         cidade: hit.cidade,
         estado: hit.estado,
         territorio: String(hit.nome ?? "").trim(),
-        oficinaTerritorioId: hit.id,
+        acaoTerritorioId: hit.id,
         matched: true,
-        label: oficinaTerritorioLabel(hit),
+        label: acaoTerritorioLabel(hit),
       };
     }
   }
@@ -453,13 +453,13 @@ export function parseTerritorioInscricao(
     cidade: "",
     estado: "",
     territorio: normalizeAddressLine(text),
-    oficinaTerritorioId: null,
+    acaoTerritorioId: null,
     matched: false,
     label: text,
   };
 }
 
-export function catalogFromOficinaParts(parts: {
+export function catalogFromAcaoParts(parts: {
   ofereceOnline?: boolean;
   oferecePresencial?: boolean;
   territorios?: Array<{
@@ -468,8 +468,8 @@ export function catalogFromOficinaParts(parts: {
     cidade: string;
     estado: string;
   }>;
-  aliases?: OficinaTerritorioAliasRef[];
-}): OficinaTerritorioCatalog {
+  aliases?: AcaoTerritorioAliasRef[];
+}): AcaoTerritorioCatalog {
   return {
     ofereceOnline: Boolean(parts.ofereceOnline),
     oferecePresencial: parts.oferecePresencial !== false,
@@ -479,13 +479,13 @@ export function catalogFromOficinaParts(parts: {
 }
 
 /** Regras de UI/template: quantas opções e se a pergunta é obrigatória. */
-export function territorioOficinaFieldMeta(catalog: OficinaTerritorioCatalog): {
+export function territorioAcaoFieldMeta(catalog: AcaoTerritorioCatalog): {
   opcoes: string[];
   showField: boolean;
   obrigatorio: boolean;
   autoChoice: string | null;
 } {
-  const opcoes = buildOficinaTerritorioOpcoes(catalog);
+  const opcoes = buildAcaoTerritorioOpcoes(catalog);
   if (opcoes.length === 0) {
     return { opcoes, showField: false, obrigatorio: false, autoChoice: null };
   }
@@ -500,14 +500,14 @@ export function territorioOficinaFieldMeta(catalog: OficinaTerritorioCatalog): {
   return { opcoes, showField: true, obrigatorio: true, autoChoice: null };
 }
 
-export type TerritorioOficinaFormValue = {
+export type TerritorioAcaoFormValue = {
   modalidade: "ONLINE" | "PRESENCIAL" | "";
   cidade: string;
   estado: string;
   territorio: string;
 };
 
-export const EMPTY_TERRITORIO_OFICINA_FORM: TerritorioOficinaFormValue = {
+export const EMPTY_TERRITORIO_ACAO_FORM: TerritorioAcaoFormValue = {
   modalidade: "",
   cidade: "",
   estado: "",
@@ -515,8 +515,8 @@ export const EMPTY_TERRITORIO_OFICINA_FORM: TerritorioOficinaFormValue = {
 };
 
 /** Meta do campo composto (modalidade + cidade/UF/território). */
-export function territorioOficinaStructuredMeta(
-  catalog: OficinaTerritorioCatalog | null,
+export function territorioAcaoStructuredMeta(
+  catalog: AcaoTerritorioCatalog | null,
 ): {
   ofereceOnline: boolean;
   oferecePresencial: boolean;
@@ -558,13 +558,13 @@ export function territorioOficinaStructuredMeta(
   };
 }
 
-export function asTerritorioOficinaFormValue(
+export function asTerritorioAcaoFormValue(
   raw: unknown,
-): TerritorioOficinaFormValue {
+): TerritorioAcaoFormValue {
   if (!raw || typeof raw !== "object") {
     // Compat: string antiga (label Online ou Cidade/UF)
     const s = String(raw ?? "").trim();
-    if (!s) return { ...EMPTY_TERRITORIO_OFICINA_FORM };
+    if (!s) return { ...EMPTY_TERRITORIO_ACAO_FORM };
     if (looksLikeOnlineKeyword(s) || s === ONLINE_TERRITORIO_LABEL) {
       return {
         modalidade: "ONLINE",
@@ -596,15 +596,15 @@ export function asTerritorioOficinaFormValue(
   };
 }
 
-export function applyTerritorioOficinaFormToSiga(
+export function applyTerritorioAcaoFormToSiga(
   sigaPartial: Record<string, unknown>,
-  value: TerritorioOficinaFormValue,
-  catalog?: OficinaTerritorioCatalog | null,
-): { oficinaTerritorioId: string | null; online: boolean } {
+  value: TerritorioAcaoFormValue,
+  catalog?: AcaoTerritorioCatalog | null,
+): { acaoTerritorioId: string | null; online: boolean } {
   if (value.modalidade === "ONLINE") {
     // Mantém Cidade/Estado do endereço residencial, se já preenchidos.
     sigaPartial.Territorio = ONLINE_TERRITORIO_LABEL;
-    return { oficinaTerritorioId: null, online: true };
+    return { acaoTerritorioId: null, online: true };
   }
   if (value.modalidade === "PRESENCIAL") {
     const cidade = value.cidade.trim();
@@ -624,10 +624,10 @@ export function applyTerritorioOficinaFormToSiga(
               normalizeTerritorioRawKey(territorio)),
       );
       if (hit) {
-        return { oficinaTerritorioId: hit.id, online: false };
+        return { acaoTerritorioId: hit.id, online: false };
       }
     }
-    return { oficinaTerritorioId: null, online: false };
+    return { acaoTerritorioId: null, online: false };
   }
-  return { oficinaTerritorioId: null, online: false };
+  return { acaoTerritorioId: null, online: false };
 }

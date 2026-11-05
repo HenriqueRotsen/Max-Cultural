@@ -5,28 +5,29 @@ import { writeAuditLog } from "@/lib/audit";
 import type {
   ContextoDTO,
   ContextoInput,
-  OficinaDTO,
-  OficinaInput,
-  OficinaTerritorioDTO,
+  AcaoDTO,
+  AcaoInput,
+  AcaoTipoDTO,
+  AcaoTerritorioDTO,
   ProjetoDTO,
   ProjetoInput,
 } from "@/lib/contexto";
-import { nextIdOficina, nextIdProjeto } from "@/lib/ids";
+import { nextIdAcao, nextIdProjeto } from "@/lib/ids";
 import { normalizeAnoProjeto, normalizeUf } from "@/lib/normalize";
-import { normalizeTerritorioRawKey } from "@/lib/oficina-territorio";
+import { normalizeTerritorioRawKey } from "@/lib/acao-territorio";
 import { prisma } from "@/lib/prisma";
-import { assertDataAccess, hasScopeAccess, resolveDataScope, contextoWhereFromScope, projetoWhereFromScope, oficinaWhereFromScope } from "@/lib/data-scope";
+import { assertDataAccess, hasScopeAccess, resolveDataScope, contextoWhereFromScope, projetoWhereFromScope, acaoWhereFromScope } from "@/lib/data-scope";
 import type { Prisma } from "@prisma/client";
 import {
   HIERARQUIA_PAGE_SIZE,
   HIERARQUIA_SELECT_LIMIT,
   type ContextoSelectOption,
-  type OficinaSelectOption,
+  type AcaoSelectOption,
   type ProjetoSelectOption,
 } from "@/lib/hierarchy-list";
 import {
   contextoOrderBy,
-  oficinaOrderBy,
+  acaoOrderBy,
   parseSortDir,
   projetoOrderBy,
 } from "@/lib/table-sort";
@@ -81,12 +82,12 @@ function toProjetoDto(
     createdAt: Date;
     updatedAt: Date;
     contexto?: { nome: string };
-    _count?: { oficinas: number };
+    _count?: { acoes: number };
   },
   inscricoesCount: number,
   flags: { hasEditorAccess: boolean; canEdit: boolean; canDelete: boolean },
 ): ProjetoDTO {
-  const oficinasCount = p._count?.oficinas ?? 0;
+  const acoesCount = p._count?.acoes ?? 0;
   return {
     id: p.id,
     nome: p.nome,
@@ -95,12 +96,12 @@ function toProjetoDto(
     ano: p.ano,
     contextoId: p.contextoId,
     contextoNome: p.contexto?.nome ?? "",
-    oficinasCount,
+    acoesCount,
     inscricoesCount,
     hasEditorAccess: flags.hasEditorAccess,
     canEdit: flags.canEdit,
     canDelete:
-      flags.canDelete && oficinasCount === 0 && inscricoesCount === 0,
+      flags.canDelete && acoesCount === 0 && inscricoesCount === 0,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -112,7 +113,7 @@ function toTerritorioDto(t: {
   cidade: string;
   estado: string;
   ordem: number;
-}): OficinaTerritorioDTO {
+}): AcaoTerritorioDTO {
   return {
     id: t.id,
     nome: t.nome,
@@ -122,11 +123,13 @@ function toTerritorioDto(t: {
   };
 }
 
-function toOficinaDto(
+function toAcaoDto(
   o: {
     id: string;
     nome: string;
     projetoId: string;
+    tipoId?: string;
+    tipo?: { nome: string } | null;
     ofereceOnline?: boolean;
     oferecePresencial?: boolean;
     createdAt: Date;
@@ -149,7 +152,7 @@ function toOficinaDto(
   },
   inscricoesCount: number,
   flags: { hasEditorAccess: boolean; canEdit: boolean; canDelete: boolean },
-): OficinaDTO {
+): AcaoDTO {
   const territorios = [...(o.territorios ?? [])]
     .sort((a, b) => a.ordem - b.ordem)
     .map(toTerritorioDto);
@@ -163,6 +166,8 @@ function toOficinaDto(
     pronac: o.projeto?.pronac ?? "",
     proponente: o.projeto?.proponente ?? "",
     ano: o.projeto?.ano ?? "",
+    tipoId: o.tipoId ?? "oficina",
+    tipoNome: o.tipo?.nome ?? "Oficina",
     ofereceOnline: Boolean(o.ofereceOnline),
     oferecePresencial: o.oferecePresencial !== false,
     territorios,
@@ -175,7 +180,7 @@ function toOficinaDto(
   };
 }
 
-function validateOficinaModalidade(input: OficinaInput): string | null {
+function validateAcaoModalidade(input: AcaoInput): string | null {
   const ofereceOnline = Boolean(input.ofereceOnline);
   const oferecePresencial =
     input.oferecePresencial === undefined
@@ -187,7 +192,7 @@ function validateOficinaModalidade(input: OficinaInput): string | null {
   if (oferecePresencial) {
     const terrs = input.territorios ?? [];
     if (terrs.length === 0) {
-      return "Oficina presencial precisa de ao menos um território (cidade/UF).";
+      return "Ação presencial precisa de ao menos um território (cidade/UF).";
     }
     for (const t of terrs) {
       if (!String(t.cidade ?? "").trim()) {
@@ -202,21 +207,21 @@ function validateOficinaModalidade(input: OficinaInput): string | null {
   return null;
 }
 
-async function replaceOficinaTerritorios(
-  oficinaId: string,
-  input: OficinaInput,
+async function replaceAcaoTerritorios(
+  acaoId: string,
+  input: AcaoInput,
 ) {
   const oferecePresencial =
     input.oferecePresencial === undefined
       ? true
       : Boolean(input.oferecePresencial);
-  await prisma.oficinaTerritorio.deleteMany({ where: { oficinaId } });
+  await prisma.acaoTerritorio.deleteMany({ where: { acaoId } });
   if (!oferecePresencial) return;
   const terrs = input.territorios ?? [];
   if (!terrs.length) return;
-  await prisma.oficinaTerritorio.createMany({
+  await prisma.acaoTerritorio.createMany({
     data: terrs.map((t, i) => ({
-      oficinaId,
+      acaoId,
       nome: String(t.nome ?? "").trim(),
       cidade: String(t.cidade ?? "").trim(),
       estado: normalizeUf(t.estado),
@@ -225,7 +230,7 @@ async function replaceOficinaTerritorios(
   });
 }
 
-const OFICINA_INCLUDE = {
+const ACAO_INCLUDE = {
   projeto: {
     select: {
       nome: true,
@@ -237,7 +242,25 @@ const OFICINA_INCLUDE = {
     },
   },
   territorios: { orderBy: { ordem: "asc" as const } },
+  tipo: { select: { nome: true } },
 } as const;
+
+/** Tipo informado na ação: precisa existir e estar ativo (padrão: oficina). */
+async function resolveAcaoTipoId(tipoId: string | undefined): Promise<string | null> {
+  const id = (tipoId || "oficina").trim();
+  const tipo = await prisma.acaoTipo.findUnique({ where: { id }, select: { id: true, ativo: true } });
+  return tipo?.ativo ? tipo.id : null;
+}
+
+/** Tipos de ação ativos, para escolher no cadastro. */
+export async function listAcaoTiposAction(): Promise<AcaoTipoDTO[]> {
+  await requireAnyPermission(["contextos:read", "contextos:create", "import:write"]);
+  return prisma.acaoTipo.findMany({
+    where: { ativo: true },
+    orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+    select: { id: true, nome: true },
+  });
+}
 
 async function countInscricoesByContexto(ids: string[]) {
   if (!ids.length) return new Map<string, number>();
@@ -263,14 +286,14 @@ async function countInscricoesByProjeto(ids: string[]) {
   return new Map(rows.map((r) => [r.idProjeto, r._count._all]));
 }
 
-async function countInscricoesByOficina(ids: string[]) {
+async function countInscricoesByAcao(ids: string[]) {
   if (!ids.length) return new Map<string, number>();
   const rows = await prisma.inscricao.groupBy({
-    by: ["idOficina"],
-    where: { idOficina: { in: ids } },
+    by: ["idAcao"],
+    where: { idAcao: { in: ids } },
     _count: { _all: true },
   });
-  return new Map(rows.map((r) => [r.idOficina, r._count._all]));
+  return new Map(rows.map((r) => [r.idAcao, r._count._all]));
 }
 
 type HierarchyAccess = {
@@ -347,7 +370,7 @@ function searchProjetoWhere(q?: string): Prisma.ProjetoWhereInput {
   };
 }
 
-function searchOficinaWhere(q?: string): Prisma.OficinaWhereInput {
+function searchAcaoWhere(q?: string): Prisma.AcaoWhereInput {
   const term = q?.trim();
   if (!term) return {};
   return {
@@ -365,7 +388,7 @@ function isEmptyScoped(scope: HierarchyAccess["scope"]) {
     !(
       (scope.contextoIds?.length ?? 0) ||
       (scope.projetoIds?.length ?? 0) ||
-      (scope.oficinaIds?.length ?? 0)
+      (scope.acaoIds?.length ?? 0)
     )
   );
 }
@@ -463,7 +486,7 @@ export async function listProjetosPageAction(params?: {
     where,
     include: {
       contexto: { select: { nome: true } },
-      _count: { select: { oficinas: true } },
+      _count: { select: { acoes: true } },
     },
     orderBy: [projetoOrderBy(params?.sort, parseSortDir(params?.sortDir))],
     skip: (safePage - 1) * pageSize,
@@ -491,7 +514,7 @@ export async function listProjetosPageAction(params?: {
   };
 }
 
-export async function listOficinasPageAction(params?: {
+export async function listAcoesPageAction(params?: {
   page?: number;
   q?: string;
   projetoId?: string;
@@ -501,7 +524,7 @@ export async function listOficinasPageAction(params?: {
   sortDir?: string;
 }): Promise<
   ListPageMeta & {
-    items: OficinaDTO[];
+    items: AcaoDTO[];
     canCreate: boolean;
     canWrite: boolean;
   }
@@ -514,27 +537,27 @@ export async function listOficinasPageAction(params?: {
     return { items: [], canCreate, canWrite, ...pageMeta(0, page, pageSize) };
   }
 
-  const where = mergeWhere<Prisma.OficinaWhereInput>(
-    oficinaWhereFromScope(scope),
-    searchOficinaWhere(params?.q),
+  const where = mergeWhere<Prisma.AcaoWhereInput>(
+    acaoWhereFromScope(scope),
+    searchAcaoWhere(params?.q),
     params?.projetoId ? { projetoId: params.projetoId } : undefined,
     params?.contextoId
       ? { projeto: { contextoId: params.contextoId } }
       : undefined,
   );
 
-  const total = await prisma.oficina.count({ where });
+  const total = await prisma.acao.count({ where });
   const pageCount = Math.max(1, Math.ceil(total / pageSize) || 1);
   const safePage = Math.min(page, pageCount);
-  const rows = await prisma.oficina.findMany({
+  const rows = await prisma.acao.findMany({
     where,
-    include: OFICINA_INCLUDE,
-    orderBy: [oficinaOrderBy(params?.sort, parseSortDir(params?.sortDir))],
+    include: ACAO_INCLUDE,
+    orderBy: [acaoOrderBy(params?.sort, parseSortDir(params?.sortDir))],
     skip: (safePage - 1) * pageSize,
     take,
   });
 
-  const counts = await countInscricoesByOficina(rows.map((o) => o.id));
+  const counts = await countInscricoesByAcao(rows.map((o) => o.id));
 
   return {
     ...pageMeta(total, safePage, pageSize),
@@ -546,11 +569,11 @@ export async function listOficinasPageAction(params?: {
         {
           contextoId: o.projeto.contextoId,
           idProjeto: o.projetoId,
-          idOficina: o.id,
+          idAcao: o.id,
         },
         { write: true },
       );
-      return toOficinaDto(o, counts.get(o.id) ?? 0, {
+      return toAcaoDto(o, counts.get(o.id) ?? 0, {
         hasEditorAccess: writeAccess,
         canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
@@ -627,11 +650,11 @@ export async function listProjetosSelectAction(params: {
   }));
 }
 
-export async function listOficinasSelectAction(params: {
+export async function listAcoesSelectAction(params: {
   projetoId: string;
   q?: string;
   limit?: number;
-}): Promise<OficinaSelectOption[]> {
+}): Promise<AcaoSelectOption[]> {
   const { scope } = await requireHierarchyRead();
   if (isEmptyScoped(scope) || !params.projetoId) return [];
 
@@ -639,13 +662,13 @@ export async function listOficinasSelectAction(params: {
     Math.max(params.limit ?? HIERARQUIA_SELECT_LIMIT, 1),
     500,
   );
-  const where = mergeWhere<Prisma.OficinaWhereInput>(
-    oficinaWhereFromScope(scope),
+  const where = mergeWhere<Prisma.AcaoWhereInput>(
+    acaoWhereFromScope(scope),
     { projetoId: params.projetoId },
-    searchOficinaWhere(params.q),
+    searchAcaoWhere(params.q),
   );
 
-  const rows = await prisma.oficina.findMany({
+  const rows = await prisma.acao.findMany({
     where,
     select: {
       id: true,
@@ -694,15 +717,15 @@ export async function listOficinasSelectAction(params: {
 }
 
 /** Catálogo completo (territórios + aliases) para import/formulário. */
-export async function getOficinaTerritorioCatalogAction(oficinaId: string) {
+export async function getAcaoTerritorioCatalogAction(acaoId: string) {
   await requireAnyPermission([
     "contextos:read",
     "import:write",
     "formularios:write",
     "dashboard:access",
   ]);
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: oficinaId },
+  const acao = await prisma.acao.findUnique({
+    where: { id: acaoId },
     select: {
       ofereceOnline: true,
       oferecePresencial: true,
@@ -714,7 +737,7 @@ export async function getOficinaTerritorioCatalogAction(oficinaId: string) {
         select: {
           rawNormalized: true,
           online: true,
-          oficinaTerritorioId: true,
+          acaoTerritorioId: true,
           cidade: true,
           estado: true,
           territorio: true,
@@ -722,19 +745,19 @@ export async function getOficinaTerritorioCatalogAction(oficinaId: string) {
       },
     },
   });
-  if (!oficina) return null;
+  if (!acao) return null;
   return {
-    ofereceOnline: oficina.ofereceOnline,
-    oferecePresencial: oficina.oferecePresencial,
-    territorios: oficina.territorios,
-    aliases: oficina.territorioAliases,
+    ofereceOnline: acao.ofereceOnline,
+    oferecePresencial: acao.oferecePresencial,
+    territorios: acao.territorios,
+    aliases: acao.territorioAliases,
   };
 }
 
 export async function listHierarquiaAction(): Promise<{
   contextos: ContextoDTO[];
   projetos: ProjetoDTO[];
-  oficinas: OficinaDTO[];
+  acoes: AcaoDTO[];
   canCreate: boolean;
   canWrite: boolean;
 }> {
@@ -752,20 +775,20 @@ export async function listHierarquiaAction(): Promise<{
     scope.mode !== "ALL" &&
     !(
       (scope.projetoIds?.length ?? 0) ||
-      (scope.oficinaIds?.length ?? 0) ||
+      (scope.acaoIds?.length ?? 0) ||
       (scope.contextoIds?.length ?? 0)
     );
 
   if (emptyLimited) {
-    return { contextos: [], projetos: [], oficinas: [], canCreate, canWrite };
+    return { contextos: [], projetos: [], acoes: [], canCreate, canWrite };
   }
 
   let contextos;
   let projetos;
-  let oficinas;
+  let acoes;
 
   if (scope.mode === "ALL") {
-    [contextos, projetos, oficinas] = await Promise.all([
+    [contextos, projetos, acoes] = await Promise.all([
       prisma.contexto.findMany({
         include: { _count: { select: { projetos: true } } },
         orderBy: { nome: "asc" },
@@ -773,27 +796,27 @@ export async function listHierarquiaAction(): Promise<{
       prisma.projeto.findMany({
         include: {
           contexto: { select: { nome: true } },
-          _count: { select: { oficinas: true } },
+          _count: { select: { acoes: true } },
         },
         orderBy: { nome: "asc" },
       }),
-      prisma.oficina.findMany({
-        include: OFICINA_INCLUDE,
+      prisma.acao.findMany({
+        include: ACAO_INCLUDE,
         orderBy: { nome: "asc" },
       }),
     ]);
   } else {
-    oficinas = (scope.oficinaIds?.length ?? 0)
-      ? await prisma.oficina.findMany({
-          where: { id: { in: scope.oficinaIds! } },
-          include: OFICINA_INCLUDE,
+    acoes = (scope.acaoIds?.length ?? 0)
+      ? await prisma.acao.findMany({
+          where: { id: { in: scope.acaoIds! } },
+          include: ACAO_INCLUDE,
           orderBy: { nome: "asc" },
         })
       : [];
     const projetoIds = [
       ...new Set([
         ...(scope.projetoIds ?? []),
-        ...oficinas.map((o) => o.projetoId),
+        ...acoes.map((o) => o.projetoId),
       ]),
     ];
     projetos = projetoIds.length
@@ -801,7 +824,7 @@ export async function listHierarquiaAction(): Promise<{
           where: { id: { in: projetoIds } },
           include: {
             contexto: { select: { nome: true } },
-            _count: { select: { oficinas: true } },
+            _count: { select: { acoes: true } },
           },
           orderBy: { nome: "asc" },
         })
@@ -823,12 +846,12 @@ export async function listHierarquiaAction(): Promise<{
 
   const contextosF = contextos;
   const projetosF = projetos;
-  const oficinasF = oficinas;
+  const acoesF = acoes;
 
   const [ctxCounts, projCounts, ofCounts] = await Promise.all([
     countInscricoesByContexto(contextosF.map((c) => c.id)),
     countInscricoesByProjeto(projetosF.map((p) => p.id)),
-    countInscricoesByOficina(oficinasF.map((o) => o.id)),
+    countInscricoesByAcao(acoesF.map((o) => o.id)),
   ]);
 
   return {
@@ -856,17 +879,17 @@ export async function listHierarquiaAction(): Promise<{
         canDelete: (canWrite || canCreate) && writeAccess,
       });
     }),
-    oficinas: oficinasF.map((o) => {
+    acoes: acoesF.map((o) => {
       const writeAccess = hasScopeAccess(
         scope,
         {
           contextoId: o.projeto.contextoId,
           idProjeto: o.projetoId,
-          idOficina: o.id,
+          idAcao: o.id,
         },
         { write: true },
       );
-      return toOficinaDto(o, ofCounts.get(o.id) ?? 0, {
+      return toAcaoDto(o, ofCounts.get(o.id) ?? 0, {
         hasEditorAccess: writeAccess,
         canEdit: (canWrite || canCreate) && writeAccess,
         canDelete: (canWrite || canCreate) && writeAccess,
@@ -1046,7 +1069,7 @@ export async function createProjetoAction(
     },
     include: {
       contexto: { select: { nome: true } },
-      _count: { select: { oficinas: true } },
+      _count: { select: { acoes: true } },
     },
   });
   await writeAuditLog({
@@ -1114,7 +1137,7 @@ export async function updateProjetoAction(
     },
     include: {
       contexto: { select: { nome: true } },
-      _count: { select: { oficinas: true } },
+      _count: { select: { acoes: true } },
     },
   });
 
@@ -1241,12 +1264,12 @@ export async function deleteProjetoAction(
     return { ok: false, error: "Sem permissão de edição neste projeto." };
   }
 
-  const oficinas = await prisma.oficina.count({ where: { projetoId: id } });
-  if (oficinas > 0) {
+  const acoes = await prisma.acao.count({ where: { projetoId: id } });
+  if (acoes > 0) {
     return {
       ok: false,
       error:
-        "Não é possível excluir: há oficinas vinculadas. Remova-as antes (se estiverem vazias).",
+        "Não é possível excluir: há ações vinculadas. Remova-as antes (se estiverem vazias).",
     };
   }
   const insc = await prisma.inscricao.count({ where: { idProjeto: id } });
@@ -1267,23 +1290,23 @@ export async function deleteProjetoAction(
   return { ok: true };
 }
 
-export async function createOficinaAction(
-  input: OficinaInput,
-): Promise<{ ok: true; oficina: OficinaDTO } | { ok: false; error: string }> {
+export async function createAcaoAction(
+  input: AcaoInput,
+): Promise<{ ok: true; acao: AcaoDTO } | { ok: false; error: string }> {
   const actor = await requireAnyPermission([
     "contextos:create",
     "import:write",
   ]);
   if (!input.projetoId.trim())
     return { ok: false, error: "Selecione um projeto." };
-  if (!input.nome.trim()) return { ok: false, error: "Informe o nome da oficina." };
+  if (!input.nome.trim()) return { ok: false, error: "Informe o nome da ação." };
 
   const ofereceOnline = Boolean(input.ofereceOnline);
   const oferecePresencial =
     input.oferecePresencial === undefined
       ? !ofereceOnline
       : Boolean(input.oferecePresencial);
-  const modalidadeError = validateOficinaModalidade({
+  const modalidadeError = validateAcaoModalidade({
     ...input,
     ofereceOnline,
     oferecePresencial,
@@ -1308,40 +1331,44 @@ export async function createOficinaAction(
     return {
       ok: false,
       error:
-        "Você precisa de acesso de edição neste projeto para cadastrar oficinas.",
+        "Você precisa de acesso de edição neste projeto para cadastrar ações.",
     };
   }
 
-  const id = await nextIdOficina();
-  const created = await prisma.oficina.create({
+  const tipoId = await resolveAcaoTipoId(input.tipoId);
+  if (!tipoId) return { ok: false, error: "Escolha um tipo de ação válido." };
+
+  const id = await nextIdAcao();
+  const created = await prisma.acao.create({
     data: {
       id,
       nome: input.nome.trim(),
       projetoId: input.projetoId,
+      tipoId,
       ofereceOnline,
       oferecePresencial,
     },
-    include: OFICINA_INCLUDE,
+    include: ACAO_INCLUDE,
   });
-  await replaceOficinaTerritorios(created.id, {
+  await replaceAcaoTerritorios(created.id, {
     ...input,
     ofereceOnline,
     oferecePresencial,
   });
-  const withTerr = await prisma.oficina.findUnique({
+  const withTerr = await prisma.acao.findUnique({
     where: { id: created.id },
-    include: OFICINA_INCLUDE,
+    include: ACAO_INCLUDE,
   });
   await writeAuditLog({
     actorUserId: actor.id,
-    action: "oficina.created",
-    entityType: "Oficina",
+    action: "acao.created",
+    entityType: "Acao",
     entityId: created.id,
     meta: { nome: created.nome, projetoId: created.projetoId },
   });
   return {
     ok: true,
-    oficina: toOficinaDto(withTerr ?? created, 0, {
+    acao: toAcaoDto(withTerr ?? created, 0, {
       hasEditorAccess: true,
       canEdit: true,
       canDelete: true,
@@ -1349,24 +1376,24 @@ export async function createOficinaAction(
   };
 }
 
-export async function updateOficinaAction(
+export async function updateAcaoAction(
   id: string,
-  input: OficinaInput,
-): Promise<{ ok: true; oficina: OficinaDTO } | { ok: false; error: string }> {
+  input: AcaoInput,
+): Promise<{ ok: true; acao: AcaoDTO } | { ok: false; error: string }> {
   const actor = await requirePermission("contextos:write");
-  const existing = await prisma.oficina.findUnique({
+  const existing = await prisma.acao.findUnique({
     where: { id },
     include: { projeto: { select: { contextoId: true } } },
   });
-  if (!existing) return { ok: false, error: "Oficina não encontrada." };
-  if (!input.nome.trim()) return { ok: false, error: "Informe o nome da oficina." };
+  if (!existing) return { ok: false, error: "Ação não encontrada." };
+  if (!input.nome.trim()) return { ok: false, error: "Informe o nome da ação." };
 
   const ofereceOnline = Boolean(input.ofereceOnline);
   const oferecePresencial =
     input.oferecePresencial === undefined
       ? true
       : Boolean(input.oferecePresencial);
-  const modalidadeError = validateOficinaModalidade({
+  const modalidadeError = validateAcaoModalidade({
     ...input,
     ofereceOnline,
     oferecePresencial,
@@ -1396,39 +1423,43 @@ export async function updateOficinaAction(
     {
       contextoId: existing.projeto.contextoId,
       idProjeto: existing.projetoId,
-      idOficina: id,
+      idAcao: id,
     },
     { write: true },
   );
-  if (!allowed) return { ok: false, error: "Sem permissão de edição nesta oficina." };
+  if (!allowed) return { ok: false, error: "Sem permissão de edição nesta ação." };
 
-  const updated = await prisma.oficina.update({
+  const tipoId = await resolveAcaoTipoId(input.tipoId ?? existing.tipoId);
+  if (!tipoId) return { ok: false, error: "Escolha um tipo de ação válido." };
+
+  const updated = await prisma.acao.update({
     where: { id },
     data: {
       nome: input.nome.trim(),
       projetoId: input.projetoId,
+      tipoId,
       ofereceOnline,
       oferecePresencial,
     },
-    include: OFICINA_INCLUDE,
+    include: ACAO_INCLUDE,
   });
 
-  await replaceOficinaTerritorios(id, {
+  await replaceAcaoTerritorios(id, {
     ...input,
     ofereceOnline,
     oferecePresencial,
   });
 
-  const withTerr = await prisma.oficina.findUnique({
+  const withTerr = await prisma.acao.findUnique({
     where: { id },
-    include: OFICINA_INCLUDE,
+    include: ACAO_INCLUDE,
   });
 
   await prisma.inscricao.updateMany({
-    where: { idOficina: id },
+    where: { idAcao: id },
     data: {
       idProjeto: updated.projetoId,
-      nomeOficina: updated.nome,
+      nomeAcao: updated.nome,
       nomeProjeto: updated.projeto.nome,
       pronac: updated.projeto.pronac,
       proponente: updated.projeto.proponente,
@@ -1438,17 +1469,17 @@ export async function updateOficinaAction(
     },
   });
 
-  const insc = await prisma.inscricao.count({ where: { idOficina: id } });
+  const insc = await prisma.inscricao.count({ where: { idAcao: id } });
   await writeAuditLog({
     actorUserId: actor.id,
-    action: "oficina.updated",
-    entityType: "Oficina",
+    action: "acao.updated",
+    entityType: "Acao",
     entityId: id,
     meta: { nome: updated.nome },
   });
   return {
     ok: true,
-    oficina: toOficinaDto(withTerr ?? updated, insc, {
+    acao: toAcaoDto(withTerr ?? updated, insc, {
       hasEditorAccess: true,
       canEdit: true,
       canDelete: true,
@@ -1456,11 +1487,11 @@ export async function updateOficinaAction(
   };
 }
 
-export async function upsertOficinaTerritorioAliasAction(input: {
-  oficinaId: string;
+export async function upsertAcaoTerritorioAliasAction(input: {
+  acaoId: string;
   raw: string;
   online?: boolean;
-  oficinaTerritorioId?: string | null;
+  acaoTerritorioId?: string | null;
   cidade?: string;
   estado?: string;
   territorio?: string;
@@ -1469,44 +1500,44 @@ export async function upsertOficinaTerritorioAliasAction(input: {
     "contextos:write",
     "import:write",
   ]);
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: input.oficinaId },
+  const acao = await prisma.acao.findUnique({
+    where: { id: input.acaoId },
     include: { projeto: { select: { contextoId: true } } },
   });
-  if (!oficina) return { ok: false, error: "Oficina não encontrada." };
+  if (!acao) return { ok: false, error: "Ação não encontrada." };
   const allowed = await assertDataAccess(
     actor.id,
     {
-      contextoId: oficina.projeto.contextoId,
-      idProjeto: oficina.projetoId,
-      idOficina: oficina.id,
+      contextoId: acao.projeto.contextoId,
+      idProjeto: acao.projetoId,
+      idAcao: acao.id,
     },
     { write: true },
   );
-  if (!allowed) return { ok: false, error: "Sem permissão nesta oficina." };
+  if (!allowed) return { ok: false, error: "Sem permissão nesta ação." };
 
   const rawNormalized = normalizeTerritorioRawKey(input.raw);
   if (!rawNormalized) return { ok: false, error: "Informe o texto de origem." };
 
-  await prisma.oficinaTerritorioAlias.upsert({
+  await prisma.acaoTerritorioAlias.upsert({
     where: {
-      oficinaId_rawNormalized: {
-        oficinaId: input.oficinaId,
+      acaoId_rawNormalized: {
+        acaoId: input.acaoId,
         rawNormalized,
       },
     },
     create: {
-      oficinaId: input.oficinaId,
+      acaoId: input.acaoId,
       rawNormalized,
       online: Boolean(input.online),
-      oficinaTerritorioId: input.oficinaTerritorioId || null,
+      acaoTerritorioId: input.acaoTerritorioId || null,
       cidade: String(input.cidade ?? "").trim(),
       estado: input.estado ? normalizeUf(input.estado) : "",
       territorio: String(input.territorio ?? "").trim(),
     },
     update: {
       online: Boolean(input.online),
-      oficinaTerritorioId: input.oficinaTerritorioId || null,
+      acaoTerritorioId: input.acaoTerritorioId || null,
       cidade: String(input.cidade ?? "").trim(),
       estado: input.estado ? normalizeUf(input.estado) : "",
       territorio: String(input.territorio ?? "").trim(),
@@ -1515,53 +1546,53 @@ export async function upsertOficinaTerritorioAliasAction(input: {
   return { ok: true };
 }
 
-export async function deleteOficinaAction(
+export async function deleteAcaoAction(
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const actor = await requireAnyPermission([
     "contextos:create",
     "contextos:write",
   ]);
-  const existing = await prisma.oficina.findUnique({
+  const existing = await prisma.acao.findUnique({
     where: { id },
     include: { projeto: { select: { contextoId: true, nome: true } } },
   });
-  if (!existing) return { ok: false, error: "Oficina não encontrada." };
+  if (!existing) return { ok: false, error: "Ação não encontrada." };
 
   const allowed = await assertDataAccess(
     actor.id,
     {
       contextoId: existing.projeto.contextoId,
       idProjeto: existing.projetoId,
-      idOficina: id,
+      idAcao: id,
     },
     { write: true },
   );
   if (!allowed) {
-    return { ok: false, error: "Sem permissão de edição nesta oficina." };
+    return { ok: false, error: "Sem permissão de edição nesta ação." };
   }
 
-  const insc = await prisma.inscricao.count({ where: { idOficina: id } });
+  const insc = await prisma.inscricao.count({ where: { idAcao: id } });
   if (insc > 0) {
     return {
       ok: false,
-      error: "Não é possível excluir: há inscrições vinculadas a esta oficina.",
+      error: "Não é possível excluir: há inscrições vinculadas a esta ação.",
     };
   }
-  await prisma.oficina.delete({ where: { id } });
+  await prisma.acao.delete({ where: { id } });
   await writeAuditLog({
     actorUserId: actor.id,
-    action: "oficina.deleted",
-    entityType: "Oficina",
+    action: "acao.deleted",
+    entityType: "Acao",
     entityId: id,
     meta: { nome: existing.nome },
   });
   return { ok: true };
 }
 
-/** @deprecated Prefer listOficinasSelectAction({ projetoId }) */
-export async function listOficinasParaImportAction(projetoId?: string) {
+/** @deprecated Prefer listAcoesSelectAction({ projetoId }) */
+export async function listAcoesParaImportAction(projetoId?: string) {
   await requireAnyPermission(["contextos:create", "import:write", "contextos:read"]);
   if (!projetoId) return [];
-  return listOficinasSelectAction({ projetoId });
+  return listAcoesSelectAction({ projetoId });
 }

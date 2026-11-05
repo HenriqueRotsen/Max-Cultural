@@ -3,16 +3,16 @@ import {
   isKnownMunicipio,
   parseAgendaLocalLabel,
 } from "@/lib/municipio-uf";
-import { looksLikeOnlineKeyword } from "@/lib/oficina-territorio";
+import { looksLikeOnlineKeyword } from "@/lib/acao-territorio";
 
-const ONLINE_OFICINA_RE =
+const ONLINE_ACAO_RE =
   /\b(online|aul[aã]o\s*online|remoto|ead|virtual|a\s*distancia|à\s*dist[aâ]ncia)\b/i;
 
-function looksLikeOnlineOficina(value: unknown): boolean {
+function looksLikeOnlineAcao(value: unknown): boolean {
   const raw = String(value ?? "").trim();
   if (!raw) return false;
   const norm = stripAccents(raw.toLowerCase());
-  return ONLINE_OFICINA_RE.test(norm) || norm.includes("online");
+  return ONLINE_ACAO_RE.test(norm) || norm.includes("online");
 }
 
 /** Rótulo explícito de modalidade online. */
@@ -23,7 +23,7 @@ export function isOnlineTerritorio(value: unknown): boolean {
 export function isOnlineRow(parts: {
   territorio?: string;
   cidade?: string;
-  nomeOficina?: string;
+  nomeAcao?: string;
 }): boolean {
   const terr = String(parts.territorio ?? "").trim();
   const cidade = String(parts.cidade ?? "").trim();
@@ -33,7 +33,7 @@ export function isOnlineRow(parts: {
   if (terr && isKnownMunicipio(terr)) return false;
   // Legado: território preenchido sem cidade e sem município conhecido
   if (terr && !cidade) return true;
-  if (looksLikeOnlineOficina(parts.nomeOficina) && !cidade) {
+  if (looksLikeOnlineAcao(parts.nomeAcao) && !cidade) {
     return true;
   }
   return false;
@@ -42,13 +42,13 @@ export function isOnlineRow(parts: {
 /** Rótulo canônico para slug online. */
 export function onlineLabel(parts: {
   territorio?: string;
-  nomeOficina?: string;
+  nomeAcao?: string;
 }): string {
   const t = String(parts.territorio ?? "").trim();
   if (t && isOnlineTerritorio(t)) return t;
   if (t && !isKnownMunicipio(t)) return t;
-  const o = String(parts.nomeOficina ?? "").trim();
-  if (o && looksLikeOnlineOficina(o)) return o;
+  const o = String(parts.nomeAcao ?? "").trim();
+  if (o && looksLikeOnlineAcao(o)) return o;
   if (t) return t;
   if (o) return o;
   return "Online";

@@ -34,7 +34,7 @@ const INSCRICAO_SORT_KEYS = new Set([
   "nome",
   "cpf",
   "projeto",
-  "oficina",
+  "acao",
   "cidade",
   "estado",
   "createdAt",
@@ -50,8 +50,8 @@ export function inscricaoOrderBy(
       return { cpf: d };
     case "projeto":
       return { nomeProjeto: d };
-    case "oficina":
-      return { nomeOficina: d };
+    case "acao":
+      return { nomeAcao: d };
     case "cidade":
       return { cidade: d };
     case "estado":
@@ -97,10 +97,10 @@ export function projetoOrderBy(
   }
 }
 
-export function oficinaOrderBy(
+export function acaoOrderBy(
   sort?: string,
   dir?: SortDir,
-): Prisma.OficinaOrderByWithRelationInput {
+): Prisma.AcaoOrderByWithRelationInput {
   const d = parseSortDir(dir);
   switch (sort) {
     case "projeto":
