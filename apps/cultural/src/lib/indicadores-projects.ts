@@ -1,5 +1,5 @@
-import { cookies } from "next/headers";
-import { AUTH_COOKIE } from "@max/auth";
+import { cookies, headers } from "next/headers";
+import { firstValidSessionToken } from "@max/auth";
 
 export type IndicadoresSocioBucket = {
   label: string;
@@ -58,7 +58,8 @@ function indicadoresUrl(path: string) {
 
 async function hubFetch(path: string) {
   const jar = await cookies();
-  const session = jar.get(AUTH_COOKIE)?.value;
+  // Cópia válida do cookie: em homologação o cookie da produção também chega (assinatura diferente).
+  const session = (await firstValidSessionToken((await headers()).get("cookie"))) ?? undefined;
   const cookie = jar
     .getAll()
     .map((c) => `${c.name}=${c.value}`)

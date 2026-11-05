@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "@e965/xlsx";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { AUTH_COOKIE, verifySessionToken } from "@/lib/auth-token";
-import {
-  AUTH_COOKIE as HUB_COOKIE,
-  parseSessionToken as parseHubSession,
-} from "@max/auth";
+import { firstValidSessionToken } from "@max/auth";
 import { getAnaliseAction } from "@/app/actions/inscricoes";
 
 async function assertAuth() {
   const jar = await cookies();
   if (await verifySessionToken(jar.get(AUTH_COOKIE)?.value)) return true;
   try {
-    return Boolean(await parseHubSession(jar.get(HUB_COOKIE)?.value));
+    // Cópia válida do cookie do hub (em homologação o da produção também chega).
+    return Boolean(await firstValidSessionToken((await headers()).get("cookie")));
   } catch {
     return false;
   }
