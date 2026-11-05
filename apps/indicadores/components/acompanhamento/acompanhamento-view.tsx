@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BarChart3, ChevronDown, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { BarChart3, CheckCircle2, ChevronDown, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -374,10 +374,12 @@ function AreaPainel(props: AreaProps) {
                         type="button"
                         onClick={() => props.onAbrir(t)}
                         className={cn(
-                          "text-left text-sm leading-snug hover:text-brand-deep hover:underline",
+                          "inline-flex items-start gap-1.5 text-left text-sm leading-snug hover:text-brand-deep hover:underline",
+                          t.status === "CONCLUIDA" && "text-muted-foreground",
                           t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
                         )}
                       >
+                        {t.status === "CONCLUIDA" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" /> : null}
                         {t.titulo}
                       </button>
                       {t.prazo ? (
@@ -408,7 +410,6 @@ type Grupo = { chave: string; titulo: string; subtitulo: string; tarefas: Tarefa
 
 function Nivel2(props: AreaProps & { corBarra: string }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
-  const [mostrarConcluidas, setMostrarConcluidas] = useState<Set<string>>(new Set());
 
   const grupos = useMemo<Grupo[]>(() => {
     const m = new Map<string, Grupo>();
@@ -474,8 +475,9 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                 : piorTarefa.gestao === "PRAZO_PROXIMO"
                   ? `${piorTarefa.titulo}: prazo próximo`
                   : null;
-            const concluidas = g.tarefas.filter((t) => t.status === "CONCLUIDA" || t.status === "NAO_CONTEMPLADA");
-            const visiveis = mostrarConcluidas.has(g.chave) ? g.tarefas : g.tarefas.filter((t) => !concluidas.includes(t));
+            // Concluídas e não contempladas continuam na lista, no fim e mais apagadas.
+            const fechada = (t: TarefaDTO) => t.status === "CONCLUIDA" || t.status === "NAO_CONTEMPLADA";
+            const visiveis = [...g.tarefas.filter((t) => !fechada(t)), ...g.tarefas.filter(fechada)];
             return (
               <div key={g.chave}>
                 <button
@@ -518,9 +520,18 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                       </thead>
                       <tbody className="divide-y divide-border/40">
                         {visiveis.map((t) => (
-                          <tr key={t.id}>
+                          <tr key={t.id} className={cn(fechada(t) && "bg-muted/20")}>
                             <td className="py-2 pr-3">
-                              <button type="button" onClick={() => props.onAbrir(t)} className="text-left hover:text-brand-deep hover:underline">
+                              <button
+                                type="button"
+                                onClick={() => props.onAbrir(t)}
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 text-left hover:text-brand-deep hover:underline",
+                                  t.status === "CONCLUIDA" && "text-muted-foreground",
+                                  t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
+                                )}
+                              >
+                                {t.status === "CONCLUIDA" ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : null}
                                 {t.titulo}
                               </button>
                               {props.area === "PRODUCAO" && t.unidade === "ACAO" ? (
@@ -551,17 +562,6 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
                         ))}
                       </tbody>
                     </table>
-                    {concluidas.length ? (
-                      <button
-                        type="button"
-                        className="mt-2 text-xs font-medium text-teal-800 hover:underline"
-                        onClick={() => setMostrarConcluidas((s) => toggle(s, g.chave))}
-                      >
-                        {mostrarConcluidas.has(g.chave)
-                          ? "Esconder concluídas e não contempladas"
-                          : `Mostrar ${concluidas.length} concluída(s) ou não contemplada(s)`}
-                      </button>
-                    ) : null}
                   </div>
                 ) : null}
               </div>
