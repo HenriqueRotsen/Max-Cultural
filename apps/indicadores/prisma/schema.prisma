@@ -83,6 +83,9 @@ model Projeto {
   contextoId String
   contexto   Contexto @relation(fields: [contextoId], references: [id], onDelete: Restrict)
   acoes      Acao[]
+  acompanhamento AcompanhamentoProjeto?
+  tarefas        Tarefa[]
+  ocorrencias    Ocorrencia[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -105,6 +108,8 @@ model Acao {
   oferecePresencial  Boolean             @default(true) @map("oferece_presencial")
   territorios        AcaoTerritorio[]
   territorioAliases  AcaoTerritorioAlias[]
+  agenda             AcaoAgenda[]
+  tarefas            Tarefa[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -511,4 +516,188 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ——— Acompanhamento: Comunicação e Produção ———
+
+enum AreaTarefa {
+  COMUNICACAO
+  PRODUCAO
+}
+
+/// Nível 1 (projeto): PLANEJAMENTO → ESTRUTURACAO → FLUXO_CONTINUO → ENCERRAMENTO.
+/// Nível 2 (ação/cidade): ANTES → DURANTE → DEPOIS.
+enum FaseTarefa {
+  PLANEJAMENTO
+  ESTRUTURACAO
+  FLUXO_CONTINUO
+  ENCERRAMENTO
+  ANTES
+  DURANTE
+  DEPOIS
+}
+
+/// A quem a tarefa se aplica: o projeto, cada realização da ação (data) ou cada cidade.
+enum UnidadeTarefa {
+  PROJETO
+  ACAO
+  CIDADE
+}
+
+/// Data de referência do prazo (prazoDias é somado a ela).
+enum PrazoBase {
+  INICIO_EXECUCAO
+  FIM_EXECUCAO
+  DATA_ACAO
+}
+
+enum StatusTarefa {
+  NAO_CONTEMPLADA
+  NAO_INICIADA
+  EM_ANDAMENTO
+  CONCLUIDA
+}
+
+enum ImpactoOcorrencia {
+  BAIXO
+  MEDIO
+  ALTO
+}
+
+enum StatusOcorrencia {
+  ABERTA
+  RESOLVIDA
+}
+
+/// Padrão de tarefas (editável). Cada projeto recebe cópias em `Tarefa`.
+model TarefaModelo {
+  id           String         @id @default(cuid())
+  area         AreaTarefa
+  nivel        Int
+  fase         FaseTarefa
+  titulo       String
+  detalhamento String         @default("")
+  unidade      UnidadeTarefa
+  prazoBase    PrazoBase?     @map("prazo_base")
+  /// Dias somados à data base (negativo = antes). Nulo = sem prazo.
+  prazoDias    Int?           @map("prazo_dias")
+  /// Tipos de ação a que se aplica (ids de acao_tipos). Vazio = todos.
+  tiposAcao    String[]       @default([]) @map("tipos_acao")
+  ordem        Int            @default(0)
+  ativo        Boolean        @default(true)
+  tarefas      Tarefa[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([area, nivel, ordem])
+  @@map("tarefa_modelos")
+}
+
+/// Datas e situação do projeto para o acompanhamento (1 por projeto).
+model AcompanhamentoProjeto {
+  id                  String    @id @default(cuid())
+  projetoId           String    @unique @map("projeto_id")
+  projeto             Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  inicioExecucao      DateTime? @map("inicio_execucao")
+  fimExecucao         DateTime? @map("fim_execucao")
+  /// Detectado no Financeiro (captadoTransferido > 0). Antes disso as tarefas aguardam.
+  recursoLiberadoEm   DateTime? @map("recurso_liberado_em")
+  financeiroProjectId String?   @map("financeiro_project_id")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("acompanhamentos")
+}
+
+/// Cada realização de uma ação (ex.: "Oficina 2 · 09/11" em Januária/MG).
+model AcaoAgenda {
+  id        String   @id @default(cuid())
+  acaoId    String   @map("acao_id")
+  acao      Acao     @relation(fields: [acaoId], references: [id], onDelete: Cascade)
+  titulo    String   @default("")
+  cidade    String
+  uf        String
+  data      DateTime
+  tarefas   Tarefa[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([acaoId, data])
+  @@index([cidade, uf])
+  @@map("acao_agendas")
+}
+
+/// Tarefa de um projeto (cópia de um modelo ou avulsa).
+model Tarefa {
+  id             String         @id @default(cuid())
+  projetoId      String         @map("projeto_id")
+  projeto        Projeto        @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  modeloId       String?        @map("modelo_id")
+  modelo         TarefaModelo?  @relation(fields: [modeloId], references: [id], onDelete: SetNull)
+  area           AreaTarefa
+  nivel          Int
+  fase           FaseTarefa
+  titulo         String
+  detalhamento   String         @default("")
+  unidade        UnidadeTarefa
+  /// Nível 2 por ação: a ação e, se houver, a realização (data).
+  acaoId         String?        @map("acao_id")
+  acao           Acao?          @relation(fields: [acaoId], references: [id], onDelete: Cascade)
+  agendaId       String?        @map("agenda_id")
+  agenda         AcaoAgenda?    @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  /// Nível 2 por cidade (produção).
+  cidade         String?
+  uf             String?
+  status         StatusTarefa   @default(NAO_INICIADA)
+  prazo          DateTime?
+  responsavelId  String?        @map("responsavel_id")
+  concluidaEm    DateTime?      @map("concluida_em")
+  atualizadoPor  String?        @map("atualizado_por")
+  ordem          Int            @default(0)
+  comentarios    TarefaComentario[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([projetoId, area, nivel])
+  @@index([acaoId])
+  @@index([agendaId])
+  @@index([modeloId])
+  @@map("tarefas")
+}
+
+/// Observação numa tarefa; `escalada` leva o assunto ao painel da gestão.
+model TarefaComentario {
+  id          String    @id @default(cuid())
+  tarefaId    String    @map("tarefa_id")
+  tarefa      Tarefa    @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  autorId     String    @map("autor_id")
+  texto       String
+  escalada    Boolean   @default(false)
+  resolvidaEm DateTime? @map("resolvida_em")
+  createdAt   DateTime  @default(now())
+
+  @@index([tarefaId])
+  @@map("tarefa_comentarios")
+}
+
+/// Problema que afeta a execução (ex.: hotel sem faturamento).
+model Ocorrencia {
+  id          String            @id @default(cuid())
+  projetoId   String            @map("projeto_id")
+  projeto     Projeto           @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  area        AreaTarefa
+  acaoId      String?           @map("acao_id")
+  cidade      String?
+  uf          String?
+  impacto     ImpactoOcorrencia @default(MEDIO)
+  descricao   String
+  decidirAte  DateTime?         @map("decidir_ate")
+  status      StatusOcorrencia  @default(ABERTA)
+  autorId     String            @map("autor_id")
+  resolvidaEm DateTime?         @map("resolvida_em")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([projetoId, status])
+  @@map("ocorrencias")
 }
