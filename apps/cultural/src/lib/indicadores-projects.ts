@@ -24,7 +24,7 @@ export type IndicadoresHubSummary = {
     nome: string;
     proponente: string;
     ano: string;
-    oficinasCount: number;
+    acoesCount: number;
     url: string;
   }>;
   totais: {
@@ -32,7 +32,7 @@ export type IndicadoresHubSummary = {
     selecionados: number;
     participantes: number;
     certificados: number;
-    oficinas: number;
+    acoes: number;
     registros: number;
     taxaSelecao: number;
     taxaParticipacao: number;
@@ -76,6 +76,22 @@ async function hubFetch(path: string) {
   });
 }
 
+/** Indicadores antigo (antes de Oficina virar Ação) responde `oficinas`/`oficinasCount`. */
+function normalizeLegacy(data: IndicadoresHubSummary): IndicadoresHubSummary {
+  const legacy = data as unknown as {
+    totais?: { oficinas?: number };
+    projetos?: Array<{ oficinasCount?: number }>;
+  };
+  return {
+    ...data,
+    totais: { ...data.totais, acoes: data.totais?.acoes ?? legacy.totais?.oficinas ?? 0 },
+    projetos: (data.projetos || []).map((p, i) => ({
+      ...p,
+      acoesCount: p.acoesCount ?? legacy.projetos?.[i]?.oficinasCount ?? 0,
+    })),
+  };
+}
+
 export async function fetchIndicadoresByPronac(
   pronac: string,
 ): Promise<{ data: IndicadoresHubSummary | null; error?: string }> {
@@ -100,7 +116,7 @@ export async function fetchIndicadoresByPronac(
         error: typeof json.error === "string" ? json.error : "Falha ao carregar o MAX Indicadores.",
       };
     }
-    return { data: json as unknown as IndicadoresHubSummary };
+    return { data: normalizeLegacy(json as unknown as IndicadoresHubSummary) };
   } catch {
     return {
       data: null,
