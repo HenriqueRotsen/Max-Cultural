@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { cn } from "@/lib/utils";
 import { moverModeloAction, salvarModeloAction, setModeloAtivoAction, type ModeloInput } from "@/app/actions/predefinicao";
 import {
@@ -34,8 +35,6 @@ import {
 } from "@/lib/acompanhamento/types";
 
 type Tipo = { id: string; nome: string };
-
-const SELECT = "h-9 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand/40";
 
 export function PreDefinicaoEditor({ modelos, tiposAcao, pode }: { modelos: ModeloDTO[]; tiposAcao: Tipo[]; pode: boolean }) {
   const router = useRouter();
@@ -304,24 +303,23 @@ function RegraCampo({
               aria-label={`${titulo}: dias em relação ao D`}
             />
             <span className="text-muted-foreground">relativo a</span>
-            <select
-              className={SELECT}
+            <SimpleSelect
               value={ref}
               aria-label={`${titulo}: o D é relativo a`}
-              onChange={(e) => onChange(e.target.value as PrazoBase, dias)}
-            >
-              {nivel === 1 ? (
-                <>
-                  <option value="INICIO_EXECUCAO">início da execução do projeto</option>
-                  <option value="FIM_EXECUCAO">fim da execução do projeto</option>
-                </>
-              ) : (
-                <>
-                  <option value="INICIO_ACAO">início da execução da ação</option>
-                  <option value="FIM_ACAO">fim da execução da ação</option>
-                </>
-              )}
-            </select>
+              className="h-9"
+              onChange={(v) => onChange(v as PrazoBase, dias)}
+              options={
+                nivel === 1
+                  ? [
+                      { value: "INICIO_EXECUCAO", label: "início da execução do projeto" },
+                      { value: "FIM_EXECUCAO", label: "fim da execução do projeto" },
+                    ]
+                  : [
+                      { value: "INICIO_ACAO", label: "início da execução da ação" },
+                      { value: "FIM_ACAO", label: "fim da execução da ação" },
+                    ]
+              }
+            />
           </div>
           <p className="text-xs text-muted-foreground">
             {notacaoD(dias)}: {dias === 0 ? "no próprio dia" : `${Math.abs(dias)} ${Math.abs(dias) === 1 ? "dia" : "dias"} ${dias < 0 ? "antes" : "depois"}`}
@@ -377,26 +375,28 @@ function ModeloDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Fase</Label>
-            <select className={cn(SELECT, "w-full")} value={m.fase} onChange={(e) => set({ fase: e.target.value as FaseTarefa })}>
-              {(m.nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2).map((f) => (
-                <option key={f} value={f}>
-                  {FASE_LABEL[f]}
-                </option>
-              ))}
-            </select>
+            <SimpleSelect
+              value={m.fase}
+              aria-label="Fase"
+              className="h-9 w-full"
+              onChange={(v) => set({ fase: v as FaseTarefa })}
+              options={(m.nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2).map((f) => ({ value: f, label: FASE_LABEL[f] }))}
+            />
           </div>
           {m.nivel === 2 ? (
             <>
               <div className="space-y-1.5">
                 <Label>Quantas vezes</Label>
-                <select
-                  className={cn(SELECT, "w-full")}
+                <SimpleSelect
                   value={m.unidade}
-                  onChange={(e) => set({ unidade: e.target.value as ModeloInput["unidade"] })}
-                >
-                  <option value="ACAO">Uma por execução da ação (cada item da agenda)</option>
-                  <option value="CIDADE">Uma por cidade (mesmo que receba várias ações)</option>
-                </select>
+                  aria-label="Quantas vezes"
+                  className="h-9 w-full"
+                  onChange={(v) => set({ unidade: v as ModeloInput["unidade"] })}
+                  options={[
+                    { value: "ACAO", label: "Uma por execução da ação (cada item da agenda)" },
+                    { value: "CIDADE", label: "Uma por cidade (mesmo que receba várias ações)" },
+                  ]}
+                />
               </div>
               <fieldset className="space-y-1.5">
                 <legend className="text-sm font-medium">Tipos de ação</legend>

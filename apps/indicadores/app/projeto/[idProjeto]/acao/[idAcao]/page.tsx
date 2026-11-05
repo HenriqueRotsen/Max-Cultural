@@ -5,6 +5,8 @@ import {
   type AcaoLocalizacao,
   type AcaoPageData,
 } from "@/app/actions/projeto";
+import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
+import { podeVerAcompanhamento } from "@/lib/acompanhamento/acesso";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { SiteShell } from "@/components/app-header";
 import { PhoneLink } from "@/components/phone-link";
@@ -33,7 +35,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function AcaoPage({ params, searchParams }: Props) {
   const { idProjeto, idAcao } = await params;
   const cohort = parseSocioCohort((await searchParams).perfil);
-  const result = await getAcaoPageAction(idProjeto, idAcao, cohort);
+  const [result, acomp] = await Promise.all([getAcaoPageAction(idProjeto, idAcao, cohort), podeVerAcompanhamento()]);
+  const semInscricoes = !result.ok && result.error.startsWith("Nenhum registro");
   const back = result.ok
     ? {
         href: `/projeto/${encodeURIComponent(result.data.id_projeto)}`,
@@ -54,12 +57,21 @@ export default async function AcaoPage({ params, searchParams }: Props) {
       {!result.ok ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-8 text-center">
           <h1 className="font-heading text-2xl font-semibold text-brand-deep">
-            Ação não encontrada
+            {semInscricoes ? "Ação ainda sem inscrições" : "Ação não encontrada"}
           </h1>
-          <p className="mt-2 text-sm text-amber-900">{result.error}</p>
+          <p className="mt-2 text-sm text-amber-900">
+            {semInscricoes
+              ? "Os indicadores aparecem aqui depois que as inscrições desta ação forem importadas."
+              : result.error}
+          </p>
+          {acomp ? (
+            <div className="mt-5 flex justify-center">
+              <AcompanhamentoLink projetoId={idProjeto} />
+            </div>
+          ) : null}
         </div>
       ) : (
-        <AcaoView data={result.data} cohort={cohort} />
+        <AcaoView data={result.data} cohort={cohort} acomp={acomp} />
       )}
     </SiteShell>
   );
@@ -129,9 +141,11 @@ function LocalizacaoList({ items }: { items: AcaoLocalizacao[] }) {
 function AcaoView({
   data,
   cohort,
+  acomp,
 }: {
   data: AcaoPageData;
   cohort: ReturnType<typeof parseSocioCohort>;
+  acomp: boolean;
 }) {
   const { totais } = data;
 
@@ -163,6 +177,11 @@ function AcaoView({
             .filter(Boolean)
             .join(" · ")}
         </p>
+        {acomp ? (
+          <div className="mt-4">
+            <AcompanhamentoLink projetoId={data.id_projeto} />
+          </div>
+        ) : null}
 
         <LocalizacaoList items={data.localizacoes} />
 

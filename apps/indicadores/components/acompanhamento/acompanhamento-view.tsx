@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker, DateRangePicker } from "@/components/ui/date-picker";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { cn } from "@/lib/utils";
 import {
   addAgendaAction,
@@ -53,6 +55,13 @@ const ABA_AREA: Record<"comunicacao" | "producao", AreaTarefa> = {
 };
 
 const STATUS_ORDEM: StatusTarefa[] = ["NAO_CONTEMPLADA", "NAO_INICIADA", "EM_ANDAMENTO", "CONCLUIDA"];
+
+const STATUS_DOT: Record<StatusTarefa, string> = {
+  NAO_CONTEMPLADA: "bg-slate-300",
+  NAO_INICIADA: "bg-slate-500",
+  EM_ANDAMENTO: "bg-amber-500",
+  CONCLUIDA: "bg-emerald-600",
+};
 
 const STATUS_CHIP: Record<StatusTarefa, string> = {
   NAO_CONTEMPLADA: "border-border bg-white text-muted-foreground",
@@ -182,6 +191,12 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
               ? ` · Execução ${fmtDia(data.inicioExecucao)} a ${fmtDia(data.fimExecucao)}`
               : " · Execução sem datas"}
           </p>
+          <Link
+            href={`/projeto/${encodeURIComponent(data.projeto.id)}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-teal-800 hover:underline"
+          >
+            <BarChart3 className="size-4" /> Indicadores do projeto (inscrições e ações)
+          </Link>
         </div>
         <div className="text-right text-xs">
           {liberado ? (
@@ -286,22 +301,15 @@ function StatusChip({
     );
   }
   return (
-    <select
+    <SimpleSelect
       aria-label={`Status de ${t.titulo}`}
       value={t.status}
       disabled={pending}
-      onChange={(e) => onStatus(t, e.target.value as StatusTarefa)}
-      className={cn(
-        "cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-        STATUS_CHIP[t.status],
-      )}
-    >
-      {STATUS_ORDEM.map((s) => (
-        <option key={s} value={s}>
-          {STATUS_LABEL[s]}
-        </option>
-      ))}
-    </select>
+      size="sm"
+      onChange={(v) => onStatus(t, v as StatusTarefa)}
+      className={cn("h-7 cursor-pointer rounded-full px-2.5 text-xs font-medium", STATUS_CHIP[t.status])}
+      options={STATUS_ORDEM.map((s) => ({ value: s, label: STATUS_LABEL[s], dot: STATUS_DOT[s] }))}
+    />
   );
 }
 
@@ -648,7 +656,7 @@ function TarefaDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Prazo</Label>
-              <Input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} className="w-44" />
+              <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
             </div>
           </div>
         ) : (
@@ -768,40 +776,37 @@ function AvulsaDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Fase</Label>
-            <select
+            <SimpleSelect
               value={fase}
-              onChange={(e) => setFase(e.target.value as FaseTarefa)}
-              className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-            >
-              {(nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2).map((f) => (
-                <option key={f} value={f}>
-                  {FASE_LABEL[f]}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setFase(v as FaseTarefa)}
+              className="h-9 w-full"
+              aria-label="Fase"
+              options={(nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2).map((f) => ({ value: f, label: FASE_LABEL[f] }))}
+            />
           </div>
           {nivel === 2 ? (
             <div className="space-y-1.5">
               <Label>{area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}</Label>
-              <select value={alvo} onChange={(e) => setAlvo(e.target.value)} className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm">
-                {realizacoes.map(({ a, g }) => (
-                  <option key={g.id} value={`ag:${g.id}`}>
-                    {a.nome} · {g.titulo || periodoCurto(g)} · {g.cidade}/{g.uf}
-                  </option>
-                ))}
-                {area === "PRODUCAO"
-                  ? cidades.map((g) => (
-                      <option key={`cid:${g.cidade}|${g.uf}`} value={`cid:${g.cidade}|${g.uf}`}>
-                        Cidade: {g.cidade}/{g.uf}
-                      </option>
-                    ))
-                  : null}
-              </select>
+              <SimpleSelect
+                value={alvo}
+                onChange={setAlvo}
+                className="h-9 w-full"
+                aria-label={area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}
+                options={[
+                  ...realizacoes.map(({ a, g }) => ({
+                    value: `ag:${g.id}`,
+                    label: `${a.nome} · ${g.titulo || periodoCurto(g)} · ${g.cidade}/${g.uf}`,
+                  })),
+                  ...(area === "PRODUCAO"
+                    ? cidades.map((g) => ({ value: `cid:${g.cidade}|${g.uf}`, label: `Cidade: ${g.cidade}/${g.uf}` }))
+                    : []),
+                ]}
+              />
             </div>
           ) : null}
           <div className="space-y-1.5">
             <Label>Prazo (opcional)</Label>
-            <Input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} className="w-44" />
+            <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
           </div>
         </div>
         <DialogFooter>
@@ -877,13 +882,18 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
           <p className="text-sm text-muted-foreground">Base dos prazos do nível 1 (ex.: datas do SALIC).</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1.5">
-            <Label>Início</Label>
-            <Input type="date" value={inicio} disabled={!pode} onChange={(e) => setInicio(e.target.value)} className="w-44" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Fim</Label>
-            <Input type="date" value={fim} disabled={!pode} onChange={(e) => setFim(e.target.value)} className="w-44" />
+          <div className="w-full max-w-sm space-y-1.5">
+            <Label>Período de execução</Label>
+            <DateRangePicker
+              inicio={inicio}
+              fim={fim}
+              disabled={!pode}
+              aria-label="Período de execução do projeto"
+              onChange={(a, b) => {
+                setInicio(a);
+                setFim(b);
+              }}
+            />
           </div>
           {pode ? (
             <Button disabled={pending} onClick={salvarDatas}>
@@ -966,15 +976,14 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
                   )}
                   {pode ? (
                     <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="space-y-1 text-xs text-muted-foreground">
-                          Início da execução
-                          <Input type="date" value={v.data} onChange={(e) => set("data", e.target.value)} />
-                        </label>
-                        <label className="space-y-1 text-xs text-muted-foreground">
-                          Fim (se durar mais de um dia)
-                          <Input type="date" value={v.dataFim} min={v.data || undefined} onChange={(e) => set("dataFim", e.target.value)} />
-                        </label>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <span>Período da execução (um clique no início e outro no fim; um dia só = um clique)</span>
+                        <DateRangePicker
+                          inicio={v.data}
+                          fim={v.dataFim}
+                          aria-label={`Período de execução de ${a.nome}`}
+                          onChange={(ini, fimNovo) => setNova((st) => ({ ...st, [a.id]: { ...v, data: ini, dataFim: fimNovo } }))}
+                        />
                       </div>
                       <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2">
                         <Input value={v.cidade} onChange={(e) => set("cidade", e.target.value)} placeholder="Cidade" aria-label="Cidade" />

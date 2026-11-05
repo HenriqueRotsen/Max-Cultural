@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import type { ProgramaEdicao } from "@/app/actions/programa";
+import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
 import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
 
 export function ContextoTimelineItem({
   edicao,
   contextoId,
   contextoNome,
+  acomp = false,
 }: {
   edicao: ProgramaEdicao;
   contextoId: string;
   contextoNome: string;
+  /** Mostra o atalho para o acompanhamento do projeto. */
+  acomp?: boolean;
 }) {
   return (
     <li className="relative">
@@ -41,9 +45,12 @@ export function ContextoTimelineItem({
               />
             ) : null}
           </div>
-          <div className="text-xs tabular-nums text-muted-foreground">
-            {edicao.inscritos} insc. · {edicao.selecionados} sel. ·{" "}
-            {edicao.acoes} ofc.
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <div className="text-xs tabular-nums text-muted-foreground">
+              {edicao.inscritos} insc. · {edicao.selecionados} sel. · {edicao.acoes}{" "}
+              {edicao.acoes === 1 ? "ação" : "ações"}
+            </div>
+            {acomp ? <AcompanhamentoLink projetoId={edicao.id_projeto} compact /> : null}
           </div>
         </div>
       </div>

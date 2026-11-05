@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -62,6 +63,8 @@ type Props = {
   acoes: AcaoDTO[];
   canCreate?: boolean;
   canWrite?: boolean;
+  /** Mostra o atalho para o acompanhamento em cada projeto. */
+  canAcompanhamento?: boolean;
   sort: string;
   sortDir: SortDir;
 };
@@ -77,6 +80,7 @@ export function ContextosManager({
   acoes,
   canCreate = false,
   canWrite = false,
+  canAcompanhamento = false,
   sort,
   sortDir,
 }: Props) {
@@ -700,7 +704,8 @@ export function ContextosManager({
                           : ""}
                     </div>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
+                    {canAcompanhamento ? <AcompanhamentoLink projetoId={p.id} compact /> : null}
                     {p.canEdit ? (
                       <Button
                         type="button"

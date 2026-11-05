@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import type { ProjetoPageData } from "@/app/actions/projeto";
 import { getProjetoPageAction } from "@/app/actions/projeto";
+import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
+import { podeVerAcompanhamento } from "@/lib/acompanhamento/acesso";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
 import { SiteShell } from "@/components/app-header";
@@ -28,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProjetoPage({ params, searchParams }: Props) {
   const { idProjeto } = await params;
   const cohort = parseSocioCohort((await searchParams).perfil);
-  const result = await getProjetoPageAction(idProjeto, cohort);
+  const [result, acomp] = await Promise.all([getProjetoPageAction(idProjeto, cohort), podeVerAcompanhamento()]);
   const back = result.ok
     ? {
         href: `/contexto/${encodeURIComponent(result.data.contextoId)}`,
@@ -51,7 +53,7 @@ export default async function ProjetoPage({ params, searchParams }: Props) {
           <p className="mt-2 text-sm text-amber-900">{result.error}</p>
         </div>
       ) : (
-        <ProjetoView data={result.data} cohort={cohort} />
+        <ProjetoView data={result.data} cohort={cohort} acomp={acomp} />
       )}
     </SiteShell>
   );
@@ -60,9 +62,11 @@ export default async function ProjetoPage({ params, searchParams }: Props) {
 function ProjetoView({
   data,
   cohort,
+  acomp,
 }: {
   data: ProjetoPageData;
   cohort: ReturnType<typeof parseSocioCohort>;
+  acomp: boolean;
 }) {
   return (
     <div className="space-y-10">
@@ -82,6 +86,11 @@ function ProjetoView({
             .filter(Boolean)
             .join(" · ")}
         </p>
+        {acomp ? (
+          <div className="mt-4">
+            <AcompanhamentoLink projetoId={data.id_projeto} />
+          </div>
+        ) : null}
         {data.canEditContexto ? (
           <ProjetoContextEditor
             projetoId={data.id_projeto}
