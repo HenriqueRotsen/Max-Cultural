@@ -81,7 +81,9 @@ Hoje é **Contexto → Projeto → Oficina**. Passa a ser **Contexto → Projeto
 
 - O Indicadores lê o `PlanningProject` pelo PRONAC: uma API só de leitura no Financeiro, `GET /api/indicadores/projeto/{pronac}`, autenticada com token interno (mesmo padrão do `/api/hub/by-pronac`).
 - Ela devolve situação, valores de captação e datas.
-- **"Recurso liberado"** é sugerido automaticamente quando `captadoTransferido > 0` ou a situação do SALIC é de execução (E10/E12…). A gestão confirma a data no Indicadores, porque o Financeiro não tem essa data hoje.
+- **"Recurso liberado" é automático** (decidido): na primeira vez que o Financeiro mostra recurso transferido para a conta de movimentação (`captadoTransferido > 0`), o acompanhamento grava `recursoLiberadoEm` com essa data.
+  - A data é a da detecção pelo sync diário, então pode atrasar até 1 dia.
+  - Não há confirmação manual na 1ª versão. Ela pode entrar depois, se a data automática não bastar.
 - **Período de execução** (início e fim): digitado no acompanhamento, com sugestão vinda do Financeiro e do SALIC quando houver.
 - Enquanto não houver "recurso liberado", as tarefas aparecem como "aguardando liberação", sem atraso.
 
@@ -159,6 +161,5 @@ Cada etapa tem testes unitários (status e prazos, geração de tarefas, permiss
 ## 11. Decisões em aberto
 
 - **Banco de homologação:** decidido, vamos criar. É um projeto Supabase separado (gratuito), criado na sua conta (seção 9).
-- **"Recurso liberado":** a gestão confirma a data no Indicadores com sugestão do Financeiro (proposta) ou ela é só automática?
 - **Escopo da 1ª entrega:** sugestão: etapas 1–5 primeiro (Ação + Comunicação e Produção funcionando); Gestão, Ocorrências e editor de modelos na sequência.
 - **Tipos de ação iniciais:** confirmar a lista da seção 3.
