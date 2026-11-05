@@ -136,7 +136,7 @@ export function AcaoModalidadeFields({
             {value.territorios.map((t, idx) => (
               <div
                 key={t.key}
-                className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2 rounded-md border p-2.5 sm:grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+                className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2 rounded-md border p-2.5 sm:grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-start"
               >
                 <div className="space-y-1">
                   <Label className="text-xs">UF</Label>
