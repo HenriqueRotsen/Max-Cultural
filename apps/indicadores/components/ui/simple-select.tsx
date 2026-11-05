@@ -32,10 +32,13 @@ export function SimpleSelect({
       <SelectTrigger size={size} aria-label={ariaLabel} className={cn("bg-white", className)}>
         <SelectValue />
       </SelectTrigger>
-      <SelectContent className={cn("min-w-[max(var(--anchor-width),10rem)] p-1", contentClassName)}>
+      {/* Largura do texto da maior opção (nunca menor que o botão), sem cortar. */}
+      <SelectContent
+        className={cn("w-max min-w-(--anchor-width) max-w-[calc(100vw-1.5rem)] p-1", contentClassName)}
+      >
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value} className="py-1.5">
-            {o.dot ? <span className={cn("size-2 shrink-0 rounded-full", o.dot)} /> : null}
+            {o.dot ? <span className={cn("size-2 shrink-0 self-center rounded-full", o.dot)} /> : null}
             {o.label}
           </SelectItem>
         ))}
