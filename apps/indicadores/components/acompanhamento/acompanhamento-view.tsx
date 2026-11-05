@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle2, ChevronDown, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { BarChart3, CheckCircle2, ChevronDown, FileCheck2, ChevronRight, Flag, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -155,7 +155,15 @@ function GestaoBadge({ s }: { s: StatusGestao }) {
   );
 }
 
-export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoDTO; abaInicial: Aba }) {
+export function AcompanhamentoView({
+  data,
+  abaInicial,
+  podePrestacao = false,
+}: {
+  data: AcompanhamentoDTO;
+  abaInicial: Aba;
+  podePrestacao?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [aba, setAba] = useState<Aba>(abaInicial);
@@ -217,6 +225,14 @@ export function AcompanhamentoView({ data, abaInicial }: { data: AcompanhamentoD
           >
             <BarChart3 className="size-4" /> Indicadores do projeto (inscrições e ações)
           </Link>
+          {podePrestacao ? (
+            <Link
+              href={`/dashboard/prestacao/${encodeURIComponent(data.projeto.id)}`}
+              className="ml-4 inline-flex items-center gap-1 text-sm font-medium text-teal-800 hover:underline"
+            >
+              <FileCheck2 className="size-4" /> Prestação de contas
+            </Link>
+          ) : null}
         </div>
         <div className="text-right text-xs">
           {liberado ? (

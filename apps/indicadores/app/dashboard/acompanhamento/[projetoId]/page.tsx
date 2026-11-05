@@ -3,6 +3,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { requireDashboardPermission } from "@/lib/dashboard-gate";
 import { getAcompanhamentoAction } from "@/app/actions/acompanhamento";
 import { AcompanhamentoView, type Aba } from "@/components/acompanhamento/acompanhamento-view";
+import { podeVerPrestacao } from "@/lib/acompanhamento/acesso";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +18,13 @@ export default async function AcompanhamentoProjetoPage({ params, searchParams }
   await requireDashboardPermission("acompanhamento:read");
   const { projetoId } = await params;
   const sp = await searchParams;
-  const data = await getAcompanhamentoAction(projetoId);
+  const [data, prest] = await Promise.all([getAcompanhamentoAction(projetoId), podeVerPrestacao()]);
   if (!data) notFound();
   const aba = ABAS.includes(sp.aba as Aba) ? (sp.aba as Aba) : "comunicacao";
 
   return (
     <AdminShell title={`Acompanhamento · ${data.projeto.nome}`}>
-      <AcompanhamentoView data={data} abaInicial={aba} />
+      <AcompanhamentoView data={data} abaInicial={aba} podePrestacao={prest} />
     </AdminShell>
   );
 }

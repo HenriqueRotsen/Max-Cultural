@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
+import { PrestacaoLink } from "@/components/prestacao/prestacao-link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -65,6 +66,8 @@ type Props = {
   canWrite?: boolean;
   /** Mostra o atalho para o acompanhamento em cada projeto. */
   canAcompanhamento?: boolean;
+  /** Mostra o atalho para a prestação de contas em cada projeto. */
+  canPrestacao?: boolean;
   sort: string;
   sortDir: SortDir;
 };
@@ -81,6 +84,7 @@ export function ContextosManager({
   canCreate = false,
   canWrite = false,
   canAcompanhamento = false,
+  canPrestacao = false,
   sort,
   sortDir,
 }: Props) {
@@ -706,6 +710,7 @@ export function ContextosManager({
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {canAcompanhamento ? <AcompanhamentoLink projetoId={p.id} compact /> : null}
+                    {canPrestacao ? <PrestacaoLink projetoId={p.id} compact /> : null}
                     {p.canEdit ? (
                       <Button
                         type="button"

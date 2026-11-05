@@ -84,6 +84,9 @@ model Projeto {
   contexto   Contexto @relation(fields: [contextoId], references: [id], onDelete: Restrict)
   acoes      Acao[]
   acompanhamento AcompanhamentoProjeto?
+  prestacao      PrestacaoProjeto?
+  produtos       PrestacaoProduto[]
+  fichas         PrestacaoFicha[]
   tarefas        Tarefa[]
   ocorrencias    Ocorrencia[]
   createdAt  DateTime @default(now())
@@ -639,6 +642,7 @@ model AcaoAgenda {
   /// Fim da execução; nulo = um dia só (fim = início).
   dataFim   DateTime? @map("data_fim")
   tarefas   Tarefa[]
+  ficha     PrestacaoFicha?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -723,4 +727,98 @@ model Ocorrencia {
 
   @@index([projetoId, status])
   @@map("ocorrencias")
+}
+
+// ── Prestação de contas ────────────────────────────────────────────────────
+
+enum EquipePrestacao {
+  PRODUCAO
+  COMUNICACAO
+  GESTAO
+}
+
+enum TipoCampoPrestacao {
+  TEXTO
+  TEXTO_LONGO
+  NUMERO
+  DATA
+  LINK
+  OPCOES
+  SIM_NAO
+}
+
+/// Dados do projeto para a prestação de contas (gestão).
+model PrestacaoProjeto {
+  id            String    @id @default(cuid())
+  projetoId     String    @unique @map("projeto_id")
+  projeto       Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// FEDERAL | ESTADUAL | MUNICIPAL | EDITAL | RECURSOS_PROPRIOS | OUTRA
+  lei           String?
+  /// PRONAC, LEIC CA ou outra identificação do projeto na lei.
+  identificacao String    @default("")
+  patrocinador  String    @default("")
+  /// Prestação de contas entregue (conta o prazo de arquivamento dos arquivos).
+  entregueEm    DateTime? @map("entregue_em")
+  entreguePor   String?   @map("entregue_por")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("prestacao_projetos")
+}
+
+/// Produto prometido no projeto, com a sua meta (gestão; pode mudar ao longo do processo).
+model PrestacaoProduto {
+  id        String           @id @default(cuid())
+  projetoId String           @map("projeto_id")
+  projeto   Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  nome      String
+  meta      String           @default("")
+  ordem     Int              @default(0)
+  fichas    PrestacaoFicha[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([projetoId, ordem])
+  @@map("prestacao_produtos")
+}
+
+/// Campo do modelo da ficha (Configurações). A equipe responsável preenche.
+model PrestacaoCampo {
+  id          String             @id @default(cuid())
+  /// Identificador estável do campo nos valores das fichas e na exportação.
+  chave       String             @unique
+  rotulo      String
+  ajuda       String             @default("")
+  tipo        TipoCampoPrestacao
+  opcoes      String[]           @default([])
+  equipe      EquipePrestacao
+  obrigatorio Boolean            @default(false)
+  ordem       Int                @default(0)
+  ativo       Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([equipe, ordem])
+  @@map("prestacao_campos")
+}
+
+/// Ficha de uma execução da ação (item da agenda).
+model PrestacaoFicha {
+  id            String            @id @default(cuid())
+  agendaId      String            @unique @map("agenda_id")
+  agenda        AcaoAgenda        @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  projetoId     String            @map("projeto_id")
+  projeto       Projeto           @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  produtoId     String?           @map("produto_id")
+  produto       PrestacaoProduto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+  /// { [chave]: { v: valor, na?: true } } — "na" = não se aplica.
+  valores       Json              @default("{}")
+  /// Correções dos dados que vêm do sistema: { [chave]: valor }.
+  ajustes       Json              @default("{}")
+  atualizadoPor String?           @map("atualizado_por")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([projetoId])
+  @@map("prestacao_fichas")
 }

@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import type { ProjetoPageData } from "@/app/actions/projeto";
 import { getProjetoPageAction } from "@/app/actions/projeto";
 import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
-import { podeVerAcompanhamento } from "@/lib/acompanhamento/acesso";
+import { podeVerAcompanhamento, podeVerPrestacao } from "@/lib/acompanhamento/acesso";
+import { PrestacaoLink } from "@/components/prestacao/prestacao-link";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
 import { SiteShell } from "@/components/app-header";
@@ -30,7 +31,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProjetoPage({ params, searchParams }: Props) {
   const { idProjeto } = await params;
   const cohort = parseSocioCohort((await searchParams).perfil);
-  const [result, acomp] = await Promise.all([getProjetoPageAction(idProjeto, cohort), podeVerAcompanhamento()]);
+  const [result, acomp, prest] = await Promise.all([
+    getProjetoPageAction(idProjeto, cohort),
+    podeVerAcompanhamento(),
+    podeVerPrestacao(),
+  ]);
   const back = result.ok
     ? {
         href: `/contexto/${encodeURIComponent(result.data.contextoId)}`,
@@ -53,7 +58,7 @@ export default async function ProjetoPage({ params, searchParams }: Props) {
           <p className="mt-2 text-sm text-amber-900">{result.error}</p>
         </div>
       ) : (
-        <ProjetoView data={result.data} cohort={cohort} acomp={acomp} />
+        <ProjetoView data={result.data} cohort={cohort} acomp={acomp} prest={prest} />
       )}
     </SiteShell>
   );
@@ -63,10 +68,12 @@ function ProjetoView({
   data,
   cohort,
   acomp,
+  prest,
 }: {
   data: ProjetoPageData;
   cohort: ReturnType<typeof parseSocioCohort>;
   acomp: boolean;
+  prest: boolean;
 }) {
   return (
     <div className="space-y-10">
@@ -86,9 +93,10 @@ function ProjetoView({
             .filter(Boolean)
             .join(" · ")}
         </p>
-        {acomp ? (
-          <div className="mt-4">
-            <AcompanhamentoLink projetoId={data.id_projeto} />
+        {acomp || prest ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {acomp ? <AcompanhamentoLink projetoId={data.id_projeto} /> : null}
+            {prest ? <PrestacaoLink projetoId={data.id_projeto} /> : null}
           </div>
         ) : null}
         {data.canEditContexto ? (
