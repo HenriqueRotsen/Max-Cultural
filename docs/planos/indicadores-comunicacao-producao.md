@@ -37,17 +37,37 @@ Na apresentação o módulo aparece como **MAX Fluxo** (hoje **MAX Indicadores**
 | Permissões | Hub: `indicadores.operacao/formularios/consultas`, mapeadas para os códigos locais (`lib/permission-catalog.ts`) |
 | Tela "Acompanhamento" | Não existe; `/projeto/[idProjeto]` não tem abas |
 
-## 3. Modelo de dados (schema `indicadores`)
+## 3. Nova hierarquia: Contexto → Projeto → Ação
+
+Hoje é **Contexto → Projeto → Oficina**. Passa a ser **Contexto → Projeto → Ação**, e **oficina vira um tipo de ação**.
+
+- **`Acao`** substitui `Oficina` e ganha `tipoId`.
+  - As tabelas são renomeadas na migração: `oficinas` → `acoes`, `oficina_territorios` → `acao_territorios`, `oficina_territorio_aliases` → `acao_territorio_aliases` e `oficina_professores` → `acao_responsaveis`.
+  - A coluna `oficina_id` vira `acao_id`.
+  - Todas as oficinas atuais ficam com o tipo **Oficina**. Nenhum dado se perde.
+- **`AcaoTipo`** — cadastro editável pela gestão.
+  - Tipos sugeridos para começar: Oficina, Apresentação/Espetáculo, Exposição, Evento/Festival, Curso, Palestra/Roda de conversa, Outro.
+- **Inscrições (SIGA):** as colunas importadas (`id_oficina`, `Nome_oficina`) guardam o formato do arquivo de origem. No sistema elas passam a se chamar `idAcao`/`nomeAcao`, com o mesmo nome de coluna no banco.
+  - A importação continua aceitando a planilha do SIGA como hoje.
+- **Escopo de acesso:** `DataScopeKind.OFICINA` → `ACAO`, migrando os registros existentes.
+- **Endereços:** `/projeto/[id]/[idOficina]` → `/projeto/[id]/acao/[idAcao]`. O endereço antigo redireciona, e os links compartilhados continuam funcionando.
+- **Telas e textos:** "Oficina" vira "Ação" onde é o nível da hierarquia. Fica "Oficina" onde é o tipo (ex.: filtros por tipo, rótulo "Oficina 2 · 09/11").
+- **Formulários de inscrição e avaliação:** ficam ligados à ação, de qualquer tipo.
+- **Tarefas-modelo por tipo:** uma tarefa pode valer só para alguns tipos de ação. Por exemplo, "Professor e materiais da oficina" só vale para Oficina, e "Registro de foto e vídeo" vale para todos.
+- Commit: `refactor(indicadores)!: oficina vira tipo de ação`, com `BREAKING CHANGE` por causa dos endereços e da API `/api/hub/by-pronac`.
+
+## 4. Modelo de dados do acompanhamento (schema `indicadores`)
 
 - **`TarefaModelo`** — o padrão de tarefas, editável.
   - `area` (COMUNICACAO | PRODUCAO), `nivel` (1 | 2), `fase` (PLANEJAMENTO, ESTRUTURACAO, FLUXO_CONTINUO, ENCERRAMENTO, ANTES, DURANTE, DEPOIS).
   - `titulo`, `detalhamento`, `unidade` (PROJETO | ACAO | CIDADE), `ordem`, `ativo`.
+  - `tiposAcao[]` — vazio vale para todos os tipos; preenchido, só para esses (ex.: Oficina).
   - **Prazo relativo:** `prazoBase` (INICIO_EXECUCAO | FIM_EXECUCAO | DATA_ACAO) + `prazoDias` (ex.: D-7, D+15).
   - Vem pré-cadastrado com as tarefas da apresentação (slides 6–9 e 11–14).
 - **`AcompanhamentoProjeto`** — uma linha por `Projeto`.
   - `pronac`, `inicioExecucao`, `fimExecucao`, `recursoLiberadoEm` (marco que libera as tarefas).
   - `financeiroProjectId?` (referência ao `PlanningProject`, só leitura).
-- **`AcaoAgenda`** — cada realização de uma ação: `projetoId`, `oficinaId?`, `cidade`, `uf`, `data`, `titulo` (ex.: "Oficina 2 · 09/11").
+- **`AcaoAgenda`** — cada realização de uma ação: `acaoId`, `cidade`, `uf`, `data`, `titulo` (ex.: "Oficina 2 · 09/11").
   - Agrupa por cidade para a Produção.
 - **`Tarefa`** — instância por projeto, criada a partir do modelo.
   - `modeloId?` (nulo na "tarefa avulsa"), `area`, `nivel`, `fase`, `titulo`, `detalhamento`.
@@ -57,7 +77,7 @@ Na apresentação o módulo aparece como **MAX Fluxo** (hoje **MAX Indicadores**
 - **`Ocorrencia`** — `projetoId`, `area`, `acaoId?`/`cidade`, `impacto` (BAIXO | MEDIO | ALTO), `descricao`, `decidirAte?`, `status` (ABERTA | RESOLVIDA).
 - O **status de gestão não é gravado**: ele é calculado (prazo × status × hoje). "Prazo próximo" vale a partir de 3 dias.
 
-## 4. Ligação com o MAX Financeiro (datas e "recurso liberado")
+## 5. Ligação com o MAX Financeiro (datas e "recurso liberado")
 
 - O Indicadores lê o `PlanningProject` pelo PRONAC: uma API só de leitura no Financeiro, `GET /api/indicadores/projeto/{pronac}`, autenticada com token interno (mesmo padrão do `/api/hub/by-pronac`).
 - Ela devolve situação, valores de captação e datas.
@@ -65,7 +85,7 @@ Na apresentação o módulo aparece como **MAX Fluxo** (hoje **MAX Indicadores**
 - **Período de execução** (início e fim): digitado no acompanhamento, com sugestão vinda do Financeiro e do SALIC quando houver.
 - Enquanto não houver "recurso liberado", as tarefas aparecem como "aguardando liberação", sem atraso.
 
-## 5. Telas
+## 6. Telas
 
 - **Menu (Operação):** **Acompanhamento**, com a lista de projetos acompanhados, o % de cada área e os itens que pedem atenção.
 - **`/acompanhamento/[projetoId]`**, com as abas:
@@ -75,7 +95,7 @@ Na apresentação o módulo aparece como **MAX Fluxo** (hoje **MAX Indicadores**
 - **Configuração:** "Modelos de tarefas" (área, nível, fase, prazo), para editar o padrão. Não muda as tarefas de projetos já criados, exceto se pedido.
 - O visual segue o Indicadores atual (Tailwind + shadcn em `components/ui`). Falta só um componente de abas.
 
-## 6. Permissões
+## 7. Permissões
 
 - Novos ids no hub (`packages/auth/src/access-catalog.ts`, telas do grupo Indicadores):
   - `indicadores.acompanhamento` — ver.
@@ -86,7 +106,7 @@ Na apresentação o módulo aparece como **MAX Fluxo** (hoje **MAX Indicadores**
 - A regra da apresentação: "Equipe de comunicação edita · gestão e produção consultam", e o inverso para a Produção.
 - O superadmin já recebe tudo (`*`).
 
-## 7. Git flow e Conventional Commits
+## 8. Git flow e Conventional Commits
 
 - **Branches:**
   - `main` = produção (Vercel publica a `main`).
@@ -101,38 +121,44 @@ Na apresentação o módulo aparece como **MAX Fluxo** (hoje **MAX Indicadores**
 - **CI** (`security.yml`): passa a rodar também em push para a `develop`. Acrescentar `vitest` e `next build` do Indicadores nos PRs, porque hoje não rodam.
 - **Versão:** `release/indicadores-1.0.0` → tag `indicadores-v1.0.0`, com CHANGELOG gerado a partir dos commits.
 
-## 8. Ambiente de homologação (para você testar na branch)
+## 9. Ambiente de homologação (para você testar na branch)
 
 Hoje as prévias da Vercel **não têm banco configurado**: `DATABASE_URL`, `AUTH_SECRET` etc. existem só em produção. Para testar sem tocar nos dados reais:
 
 1. **Banco de homologação:** um projeto Supabase separado (ex.: `max-staging`), montado com `docs/supabase-bootstrap.sql` e as migrações de todos os apps.
    - Dados: os seeds de demonstração e uma cópia **sem dados pessoais** de alguns projetos.
-2. **Domínios fixos para a `develop`** na Vercel (variáveis só da branch `develop`):
+2. **Domínios fixos para a `develop`** na Vercel, todos abaixo de `homolog.maxcultural.com.br`, com variáveis só da branch `develop`:
    - Hub: `homolog.maxcultural.com.br`
-   - Indicadores: `indicadores-homolog.maxcultural.com.br`
-   - Financeiro: `financeiro-homolog.maxcultural.com.br` (para a ligação de datas)
-   - Cada um com `DATABASE_URL` de homologação, `AUTH_SECRET` próprio e `AUTH_COOKIE_DOMAIN=.maxcultural.com.br`.
-   - A sessão de produção não vale lá, porque a assinatura é outra. O login é separado.
+   - Indicadores: `indicadores.homolog.maxcultural.com.br`
+   - Financeiro: `financeiro.homolog.maxcultural.com.br` (para a ligação de datas)
+   - Auditoria: `auditoria.homolog.maxcultural.com.br`
+   - Cada um com `DATABASE_URL` de homologação, `AUTH_SECRET` próprio e **`AUTH_COOKIE_DOMAIN=.homolog.maxcultural.com.br`**.
+   - Assim o login da homologação **não substitui o cookie da produção** (`.maxcultural.com.br`), e entrar num não desconecta do outro.
+   - A sessão de produção não vale na homologação: a assinatura é outra e ela é ignorada.
 3. **Migrações:** rodadas na homologação a cada merge na `develop`. Na produção, só no PR de `release`, com sua autorização.
 4. **Fluxo para você testar:**
    - a feature entra na `develop`;
    - você testa em `indicadores-homolog`;
    - quando aprovar, abro `release/…` → `main`.
 
-## 9. Etapas (cada uma uma `feature/…` → PR na `develop`)
+## 10. Etapas (cada uma uma `feature/…` → PR na `develop`)
 
 1. **`chore/git-flow-homologacao`** — CI na `develop`, testes e build do Indicadores no CI, documento do fluxo e configuração da homologação na Vercel (depois de você criar o Supabase).
-2. **`feature/indicadores-acompanhamento-modelo`** — migração com os modelos da seção 3, seed das tarefas da apresentação e testes do cálculo de status e prazo.
-3. **`feature/indicadores-acompanhamento-datas`** — API do Financeiro, datas do projeto, `AcaoAgenda` (cadastro das realizações por oficina e cidade) e geração das tarefas a partir dos modelos.
-4. **`feature/indicadores-acompanhamento-telas`** — lista, página do projeto com as abas Comunicação e Produção (níveis 1 e 2, chips, observação, escalar, tarefa avulsa) e permissões.
-5. **`feature/indicadores-acompanhamento-gestao`** — aba Gestão (cartões, filtros, painel por criticidade), Ocorrências e exportação XLSX.
-6. **`feature/indicadores-modelos-tarefas`** — tela para editar os modelos.
-7. **`release/indicadores-1.0.0`** — migração em produção (com sua autorização), merge na `main`, tag e deploy.
+2. **`feature/indicadores-acao`** — Contexto → Projeto → **Ação** (seção 3).
+   - Migração com renomeação e tipos de ação, telas, endereços com redirecionamento e importação do SIGA compatível.
+   - Testada na homologação com uma cópia da base atual de inscrições.
+3. **`feature/indicadores-acompanhamento-modelo`** — migração com os modelos da seção 3, seed das tarefas da apresentação e testes do cálculo de status e prazo.
+4. **`feature/indicadores-acompanhamento-datas`** — API do Financeiro, datas do projeto, `AcaoAgenda` (cadastro das realizações por oficina e cidade) e geração das tarefas a partir dos modelos.
+5. **`feature/indicadores-acompanhamento-telas`** — lista, página do projeto com as abas Comunicação e Produção (níveis 1 e 2, chips, observação, escalar, tarefa avulsa) e permissões.
+6. **`feature/indicadores-acompanhamento-gestao`** — aba Gestão (cartões, filtros, painel por criticidade), Ocorrências e exportação XLSX.
+7. **`feature/indicadores-modelos-tarefas`** — tela para editar os modelos.
+8. **`release/indicadores-1.0.0`** — migração em produção (com sua autorização), merge na `main`, tag e deploy.
 
 Cada etapa tem testes unitários (status e prazos, geração de tarefas, permissões) e é testada no navegador na homologação antes do merge.
 
-## 10. Decisões em aberto
+## 11. Decisões em aberto
 
-- **Banco de homologação:** é preciso criar um projeto Supabase separado (gratuito). É uma ação na sua conta.
+- **Banco de homologação:** decidido, vamos criar. É um projeto Supabase separado (gratuito), criado na sua conta (seção 9).
 - **"Recurso liberado":** a gestão confirma a data no Indicadores com sugestão do Financeiro (proposta) ou ela é só automática?
-- **Escopo da 1ª entrega:** sugestão: etapas 1–4 primeiro (Comunicação e Produção funcionando); Gestão, Ocorrências e editor de modelos na sequência.
+- **Escopo da 1ª entrega:** sugestão: etapas 1–5 primeiro (Ação + Comunicação e Produção funcionando); Gestão, Ocorrências e editor de modelos na sequência.
+- **Tipos de ação iniciais:** confirmar a lista da seção 3.
