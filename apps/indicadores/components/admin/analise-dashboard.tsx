@@ -3,17 +3,11 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Trophy } from "lucide-react";
+import { Trophy, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import {
   Dialog,
   DialogContent,
@@ -30,13 +24,26 @@ import {
   SheetTr,
   useDataSheet,
 } from "@/components/admin/data-sheet";
-import type { AnaliseResult, AnaliseRow, AnaliseTopPessoa } from "@/app/actions/inscricoes";
+import type {
+  AnaliseResult,
+  AnaliseRow,
+  AnaliseTopPessoa,
+  FiltroAnalise,
+  OpcaoFiltro,
+} from "@/app/actions/inscricoes";
 import { StatusKindBadge, type StatusKind } from "@/components/status-badges";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { PageLoading } from "@/components/page-loading";
 import { formatCpfDisplay } from "@/lib/normalize";
 import { parseSocioCohort } from "@/lib/socio-cohort";
 import { buildTerritorioPath } from "@/lib/territorio-slug";
+
+/** Pessoas diferentes somando várias linhas (uma pessoa pode estar em mais de uma). */
+function pessoasDistintas(linhas: AnaliseRow[]): number {
+  const s = new Set<number>();
+  for (const r of linhas) for (const p of r.pessoas) s.add(p);
+  return s.size;
+}
 
 function MetricBar({
   value,
@@ -243,6 +250,97 @@ type Props = {
   data: AnaliseResult;
 };
 
+const FILTROS: Array<{ id: FiltroAnalise; rotulo: string; todos: string; limpa: FiltroAnalise[] }> = [
+  { id: "proponente", rotulo: "Proponente", todos: "Todos os proponentes", limpa: ["idProjeto", "idOficina"] },
+  { id: "idProjeto", rotulo: "Projeto", todos: "Todos os projetos", limpa: ["idOficina"] },
+  { id: "idOficina", rotulo: "Oficina", todos: "Todas as oficinas", limpa: [] },
+  { id: "estado", rotulo: "Estado", todos: "Todos os estados", limpa: ["cidade", "territorio"] },
+  { id: "cidade", rotulo: "Cidade", todos: "Todas as cidades", limpa: ["territorio"] },
+  { id: "territorio", rotulo: "Território (comunidade)", todos: "Todos os territórios", limpa: [] },
+];
+
+const inscricoesTexto = (n: number) => `${n.toLocaleString("pt-BR")} ${n === 1 ? "inscrição" : "inscrições"}`;
+
+/**
+ * Filtros com busca: digita para achar; as opções de cada um já vêm limitadas
+ * pelos outros filtros (com o nº de inscrições), e os ativos aparecem em etiquetas.
+ */
+function AnaliseFiltros({
+  opcoes,
+  valor,
+  onChange,
+}: {
+  opcoes: Record<FiltroAnalise, OpcaoFiltro[]>;
+  valor: (k: FiltroAnalise) => string;
+  onChange: (patch: Record<string, string>) => void;
+}) {
+  const escolher = (f: (typeof FILTROS)[number], v: string) =>
+    onChange({ [f.id]: v || "all", ...Object.fromEntries(f.limpa.map((k) => [k, "all"])) });
+  const ativos = FILTROS.filter((f) => valor(f.id));
+  const rotuloDe = (f: (typeof FILTROS)[number]) => {
+    const v = valor(f.id);
+    return opcoes[f.id].find((o) => o.value.toLocaleLowerCase("pt-BR") === v.toLocaleLowerCase("pt-BR"))?.label ?? v;
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {FILTROS.map((f) => {
+          const lista = opcoes[f.id];
+          const atual = valor(f.id);
+          // O valor da URL pode vir com outra caixa; casa com a opção.
+          const casado = lista.find((o) => o.value.toLocaleLowerCase("pt-BR") === atual.toLocaleLowerCase("pt-BR"));
+          return (
+            <div key={f.id} className="min-w-0 space-y-1.5">
+              <Label>{f.rotulo}</Label>
+              <SearchSelect
+                value={casado?.value ?? atual}
+                onValueChange={(v) => escolher(f, v)}
+                options={lista.map((o) => ({
+                  value: o.value,
+                  label: o.label,
+                  hint: [o.hint, inscricoesTexto(o.inscricoes)].filter(Boolean).join(" · "),
+                }))}
+                showHintInTrigger={false}
+                placeholder={f.todos}
+                searchPlaceholder={`Buscar ${f.rotulo.toLocaleLowerCase("pt-BR")}…`}
+                emptyText="Nada com os outros filtros escolhidos."
+                className="h-9 bg-white"
+                aria-label={f.rotulo}
+              />
+            </div>
+          );
+        })}
+      </div>
+      {ativos.length ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Filtrando por:</span>
+          {ativos.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => escolher(f, "")}
+              className="inline-flex max-w-full items-center gap-1 rounded-full bg-brand-mist px-2.5 py-1 text-xs font-medium text-brand-deep hover:bg-brand-mist/70"
+              aria-label={`Tirar o filtro ${f.rotulo}`}
+            >
+              <span className="text-brand-deep/70">{f.rotulo}:</span>
+              <span className="truncate">{rotuloDe(f)}</span>
+              <X className="size-3 shrink-0" />
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => onChange(Object.fromEntries(FILTROS.map((f) => [f.id, "all"])))}
+            className="px-1.5 text-xs font-medium text-teal-800 hover:underline"
+          >
+            Limpar tudo
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AnaliseDashboard({ data }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -267,46 +365,11 @@ export function AnaliseDashboard({ data }: Props) {
       selecionados: (r: (typeof rows)[number]) => r.Selecionados,
       participantes: (r: (typeof rows)[number]) => r.Participantes,
       certificado: (r: (typeof rows)[number]) => r.Certificado,
+      cpfs: (r: (typeof rows)[number]) => r.CpfsUnicos,
     }),
     [rows],
   );
   const sheet = useDataSheet(rows, searchText, 50, sortAccessors);
-
-  const filterSelectItems = useMemo(
-    () => ({
-      projeto: {
-        all: "Todos",
-        ...Object.fromEntries(
-          filterOptions.projetos.map((p) => [
-            p.idProjeto,
-            p.nomeProjeto || p.idProjeto,
-          ]),
-        ),
-      },
-      oficina: {
-        all: "Todas",
-        ...Object.fromEntries(
-          filterOptions.oficinas.map((o) => [
-            o.idOficina,
-            o.nomeOficina || o.idOficina,
-          ]),
-        ),
-      },
-      estado: {
-        all: "Todos",
-        ...Object.fromEntries(filterOptions.estados.map((e) => [e, e])),
-      },
-      cidade: {
-        all: "Todas",
-        ...Object.fromEntries(filterOptions.cidades.map((c) => [c, c])),
-      },
-      territorio: {
-        all: "Todos",
-        ...Object.fromEntries(filterOptions.territorios.map((t) => [t, t])),
-      },
-    }),
-    [filterOptions],
-  );
 
   const pageTotals = useMemo(() => {
     return sheet.pageItems.reduce(
@@ -317,9 +380,10 @@ export function AnaliseDashboard({ data }: Props) {
         acc.Certificado += r.Certificado;
         return acc;
       },
-      { Inscritos: 0, Selecionados: 0, Participantes: 0, Certificado: 0 },
+      { Inscritos: 0, Selecionados: 0, Participantes: 0, Certificado: 0, CpfsUnicos: pessoasDistintas(sheet.pageItems) },
     );
   }, [sheet.pageItems]);
+  const cpfsFiltrados = useMemo(() => pessoasDistintas(sheet.filtered), [sheet.filtered]);
 
   function updateParams(patch: Record<string, string>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -358,7 +422,7 @@ export function AnaliseDashboard({ data }: Props) {
         className={cn("space-y-6", pending && "pointer-events-none opacity-50")}
         aria-busy={pending}
       >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <KpiCard
           label="Inscritos"
           value={totais.Inscritos}
@@ -390,120 +454,25 @@ export function AnaliseDashboard({ data }: Props) {
           barPct={totais.Inscritos ? (totais.Certificado / totais.Inscritos) * 100 : 0}
           barTone="amber"
         />
+        <KpiCard
+          label="CPFs únicos"
+          value={totais.CpfsUnicos}
+          hint={
+            totais.CpfsUnicos
+              ? `pessoas diferentes · ${(totais.Inscritos / totais.CpfsUnicos).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} inscrição(ões) por pessoa`
+              : "pessoas diferentes"
+          }
+          barPct={totais.Inscritos ? (totais.CpfsUnicos / totais.Inscritos) * 100 : 0}
+          barTone="teal"
+        />
       </div>
 
       <div className="rounded-xl border border-brand/10 bg-white/80 p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <div className="space-y-2">
-            <Label>Projeto</Label>
-            <Select
-              value={searchParams.get("idProjeto") ?? "all"}
-              onValueChange={(v) => updateParams({ idProjeto: v ?? "all" })}
-              items={filterSelectItems.projeto}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {filterOptions.projetos.map((p) => (
-                  <SelectItem key={p.idProjeto} value={p.idProjeto}>
-                    {p.nomeProjeto || p.idProjeto}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Oficina</Label>
-            <Select
-              value={searchParams.get("idOficina") ?? "all"}
-              onValueChange={(v) => updateParams({ idOficina: v ?? "all" })}
-              items={filterSelectItems.oficina}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {filterOptions.oficinas.map((o) => (
-                  <SelectItem key={o.idOficina} value={o.idOficina}>
-                    {o.nomeOficina || o.idOficina}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Estado</Label>
-            <Select
-              value={searchParams.get("estado") ?? "all"}
-              onValueChange={(v) =>
-                updateParams({
-                  estado: v ?? "all",
-                  cidade: "all",
-                  territorio: "all",
-                })
-              }
-              items={filterSelectItems.estado}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {filterOptions.estados.map((e) => (
-                  <SelectItem key={e} value={e}>
-                    {e}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Cidade</Label>
-            <Select
-              value={searchParams.get("cidade") ?? "all"}
-              onValueChange={(v) =>
-                updateParams({ cidade: v ?? "all", territorio: "all" })
-              }
-              items={filterSelectItems.cidade}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {filterOptions.cidades.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 sm:col-span-2 lg:col-span-1 xl:col-span-1">
-            <Label>Território (comunidade)</Label>
-            <Select
-              value={searchParams.get("territorio") ?? "all"}
-              onValueChange={(v) => updateParams({ territorio: v ?? "all" })}
-              items={filterSelectItems.territorio}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {filterOptions.territorios.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
+        <AnaliseFiltros
+          opcoes={filterOptions}
+          valor={(k) => searchParams.get(k) ?? ""}
+          onChange={updateParams}
+        />
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
           <Button
             type="button"
@@ -595,7 +564,7 @@ export function AnaliseDashboard({ data }: Props) {
               >
                 <div className="font-medium text-brand-deep">{p.label}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {p.edicoes} edições · {p.inscritos} insc. ·{" "}
+                  {p.edicoes} edições · {p.inscritos} insc. · {p.cpfsUnicos} CPFs únicos ·{" "}
                   {p.anos.join(", ") || "—"}
                 </div>
               </Link>
@@ -624,7 +593,7 @@ export function AnaliseDashboard({ data }: Props) {
         onPageSizeChange={sheet.setPageSize}
         footer={
           sheet.total > 0 ? (
-            <div className="grid grid-cols-2 gap-2 border-t bg-brand-mist/40 px-4 py-2.5 text-xs sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 border-t bg-brand-mist/40 px-4 py-2.5 text-xs sm:grid-cols-6">
               <div className="font-medium text-brand-deep sm:col-span-1">
                 Total filtrado
               </div>
@@ -651,6 +620,9 @@ export function AnaliseDashboard({ data }: Props) {
                 <strong>
                   {sheet.filtered.reduce((s, r) => s + r.Certificado, 0)}
                 </strong>
+              </div>
+              <div className="tabular-nums">
+                CPFs únicos <strong>{cpfsFiltrados}</strong>
               </div>
             </div>
           ) : null
@@ -732,12 +704,20 @@ export function AnaliseDashboard({ data }: Props) {
               >
                 <StatusKindBadge kind="certificado" />
               </SheetTh>
+              <SheetTh
+                sortKey="cpfs"
+                sortActive={sheet.sortKey === "cpfs"}
+                sortDir={sheet.sortDir}
+                onSort={sheet.toggleSort}
+              >
+                CPFs únicos
+              </SheetTh>
             </tr>
           </SheetThead>
           <tbody>
             {sheet.pageItems.length === 0 ? (
               <SheetTr>
-                <SheetTd colSpan={9} className="py-10 text-center text-muted-foreground">
+                <SheetTd colSpan={10} className="py-10 text-center text-muted-foreground">
                   {pending ? "Carregando…" : "Nenhum resultado nesta busca."}
                 </SheetTd>
               </SheetTr>
@@ -830,13 +810,16 @@ export function AnaliseDashboard({ data }: Props) {
                         tone="teal"
                       />
                     </SheetTd>
+                    <SheetTd>
+                      <MetricBar value={row.CpfsUnicos} max={row.Inscritos || 1} tone="emerald" />
+                    </SheetTd>
                   </SheetTr>
                 ))}
                 <SheetTr className="bg-muted/30">
                   <SheetTd sticky className="font-medium">
                     Soma da página
                   </SheetTd>
-                  <SheetTd colSpan={2} />
+                  <SheetTd colSpan={4} />
                   <SheetTd className="tabular-nums font-medium">
                     {pageTotals.Inscritos}
                   </SheetTd>
@@ -848,6 +831,9 @@ export function AnaliseDashboard({ data }: Props) {
                   </SheetTd>
                   <SheetTd className="tabular-nums font-medium">
                     {pageTotals.Certificado}
+                  </SheetTd>
+                  <SheetTd className="tabular-nums font-medium">
+                    {pageTotals.CpfsUnicos}
                   </SheetTd>
                 </SheetTr>
               </>

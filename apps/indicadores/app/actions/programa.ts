@@ -1,5 +1,6 @@
 "use server";
 
+import { cpfsPorGrupo } from "@/lib/cpfs-unicos";
 import { prisma } from "@/lib/prisma";
 import { extractProjectYear } from "@/lib/normalize";
 import {
@@ -27,6 +28,8 @@ export type ProgramaEdicao = {
   selecionados: number;
   participantes: number;
   certificados: number;
+  /** Pessoas diferentes (CPFs únicos) na edição. */
+  cpfsUnicos: number;
   oficinas: number;
   canEditContexto?: boolean;
 };
@@ -39,6 +42,8 @@ export type ProgramaListItem = {
   href: string;
   edicoes: number;
   inscritos: number;
+  /** Pessoas diferentes em todas as edições. */
+  cpfsUnicos: number;
   anos: string[];
 };
 
@@ -53,6 +58,8 @@ export type ProgramaPanorama = {
     selecionados: number;
     participantes: number;
     certificados: number;
+    /** Pessoas diferentes no contexto (quem voltou em outra edição conta uma vez). */
+    cpfsUnicos: number;
     edicoes: number;
   };
   socio: SocioBreakdown;
@@ -85,6 +92,11 @@ export async function listContextosPanoramaAction(): Promise<ProgramaListItem[]>
   const inscByProjeto = new Map(
     counts.map((c) => [c.idProjeto, c._sum.inscritos ?? 0]),
   );
+  const contextoDoProjeto = new Map(contextos.flatMap((c) => c.projetos.map((p) => [p.id, c.id] as const)));
+  const cpfsDoContexto = cpfsPorGrupo();
+  for (const r of await cpfsDosProjetos(projetoIds)) {
+    cpfsDoContexto.add(contextoDoProjeto.get(r.idProjeto) ?? "", r.cpf);
+  }
 
   return contextos
     .map((c) => {
@@ -103,11 +115,22 @@ export async function listContextosPanoramaAction(): Promise<ProgramaListItem[]>
         href: `/contexto/${encodeURIComponent(c.id)}`,
         edicoes: c.projetos.length,
         inscritos,
+        cpfsUnicos: cpfsDoContexto.total(c.id),
         anos,
       };
     })
     .filter((p) => p.edicoes >= 1)
     .sort((a, b) => b.inscritos - a.inscritos);
+}
+
+/** CPFs distintos por projeto (para contar pessoas por edição e por contexto). */
+async function cpfsDosProjetos(projetoIds: string[]) {
+  if (!projetoIds.length) return [];
+  return prisma.inscricao.findMany({
+    where: { idProjeto: { in: projetoIds }, cpf: { not: "" } },
+    select: { idProjeto: true, cpf: true },
+    distinct: ["idProjeto", "cpf"],
+  });
 }
 
 /** @deprecated use listContextosPanoramaAction */
@@ -160,6 +183,11 @@ export async function getContextoPanoramaAction(
           },
         });
   const byId = new Map(aggregates.map((a) => [a.idProjeto, a]));
+  const cpfsDoProjeto = cpfsPorGrupo();
+  for (const r of await cpfsDosProjetos(projetoIds)) {
+    cpfsDoProjeto.add(r.idProjeto, r.cpf);
+    cpfsDoProjeto.add("*", r.cpf);
+  }
 
   const projetosOrdenados = [...contexto.projetos].sort(compareProjetoEdicao);
 
@@ -185,6 +213,7 @@ export async function getContextoPanoramaAction(
         selecionados: a?._sum.selecionados ?? 0,
         participantes: a?._sum.participantes ?? 0,
         certificados: a?._sum.certificado ?? 0,
+        cpfsUnicos: cpfsDoProjeto.total(p.id),
         oficinas: p.oficinas.length,
         canEditContexto: writeAccess,
       };
@@ -218,6 +247,7 @@ export async function getContextoPanoramaAction(
       selecionados: 0,
       participantes: 0,
       certificados: 0,
+      cpfsUnicos: cpfsDoProjeto.total("*"),
       edicoes: edicoes.length,
     },
   );

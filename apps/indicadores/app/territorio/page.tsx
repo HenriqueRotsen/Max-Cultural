@@ -63,7 +63,7 @@ export default async function TerritorioIndexPage({
                     Online
                   </div>
                   <div className="text-xs tabular-nums text-muted-foreground">
-                    {data.online.kpis.inscritos} insc. ·{" "}
+                    {data.online.kpis.inscritos} insc. · {data.online.kpis.cpfsUnicos} CPFs únicos ·{" "}
                     {data.online.labels} modalidade(s)
                   </div>
                 </div>
@@ -85,7 +85,7 @@ export default async function TerritorioIndexPage({
                       {e.estado}
                     </div>
                     <div className="text-xs tabular-nums text-muted-foreground">
-                      {e.kpis.inscritos} insc. · {e.kpis.selecionados} sel. ·{" "}
+                      {e.kpis.inscritos} insc. · {e.kpis.selecionados} sel. · {e.kpis.cpfsUnicos} CPFs únicos ·{" "}
                       {e.kpis.oficinas} ofc. · {e.kpis.projetos} proj.
                     </div>
                   </div>
