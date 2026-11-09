@@ -56,6 +56,8 @@ type Row = SigaCulturalRow & { id: string };
 type Props = {
   rows: Row[];
   total: number;
+  /** Pessoas diferentes (CPFs únicos) no filtro atual. */
+  cpfsUnicos: number;
   page: number;
   pageSize: number;
   totalPages: number;
@@ -131,6 +133,7 @@ function oficinaHref(row: Row) {
 export function InscricoesTable({
   rows,
   total,
+  cpfsUnicos,
   page,
   pageSize,
   totalPages,
@@ -871,7 +874,7 @@ export function InscricoesTable({
 
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>
-          {total} registro(s) · página {page} de {totalPages}
+          {total} registro(s) · {cpfsUnicos} CPF(s) único(s) · página {page} de {totalPages}
           {pageSize ? ` · ${pageSize}/página` : ""}
         </span>
         <div className="flex gap-2">

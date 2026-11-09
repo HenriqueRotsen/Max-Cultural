@@ -81,7 +81,7 @@ export default async function TerritorioOnlineDetailPage({
                     {o.Nome_projeto}
                   </div>
                   <div className="mt-1 text-xs tabular-nums text-muted-foreground">
-                    {o.kpis.inscritos} insc. · {o.kpis.selecionados} sel.
+                    {o.kpis.inscritos} insc. · {o.kpis.selecionados} sel. · {o.kpis.cpfsUnicos} CPFs únicos
                   </div>
                 </Link>
               ))}

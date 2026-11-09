@@ -102,7 +102,7 @@ export function TerritorioMap({
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {p.inscritos} inscritos · {p.selecionados} sel. ·{" "}
-                  {p.participantes} part.
+                  {p.participantes} part. · {p.cpfsUnicos} CPFs únicos
                 </div>
                 <Link
                   href={p.href}

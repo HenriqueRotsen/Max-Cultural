@@ -94,6 +94,7 @@ export default async function TerritorioCidadePage({ params, searchParams }: Pro
                         <strong>{t.kpis.selecionados}</strong>
                         <StatusKindBadge kind="participante" />
                         <strong>{t.kpis.participantes}</strong>
+                        <span>· {t.kpis.cpfsUnicos} CPFs únicos</span>
                       </div>
                     </div>
                   </Link>
@@ -121,7 +122,7 @@ export default async function TerritorioCidadePage({ params, searchParams }: Pro
                   </div>
                   <div className="mt-2 text-xs tabular-nums text-muted-foreground">
                     {o.kpis.inscritos} insc. · {o.kpis.selecionados} sel. ·{" "}
-                    {o.kpis.participantes} part.
+                    {o.kpis.participantes} part. · {o.kpis.cpfsUnicos} CPFs únicos
                   </div>
                 </Link>
               ))}

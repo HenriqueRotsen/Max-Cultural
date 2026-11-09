@@ -78,7 +78,7 @@ export function TerritorioKpiGrid({
   return (
     <div
       className={cn(
-        "mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6",
+        "mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-7",
         className,
       )}
     >
@@ -104,6 +104,12 @@ export function TerritorioKpiGrid({
         <StatusKindBadge kind="certificado" className="mb-1" />
         <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
           {kpis.certificados}
+        </div>
+      </div>
+      <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
+        <div className="text-xs text-muted-foreground">CPFs únicos</div>
+        <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
+          {kpis.cpfsUnicos}
         </div>
       </div>
       <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">

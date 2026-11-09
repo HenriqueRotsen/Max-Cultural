@@ -90,7 +90,7 @@ export default async function TerritorioEstadoPage({ params, searchParams }: Pro
                     </div>
                     <div className="text-xs tabular-nums text-muted-foreground">
                       {c.kpis.inscritos} insc. · {c.kpis.selecionados} sel. ·{" "}
-                      {c.kpis.participantes} part.
+                      {c.kpis.participantes} part. · {c.kpis.cpfsUnicos} CPFs únicos
                     </div>
                   </div>
                 </Link>

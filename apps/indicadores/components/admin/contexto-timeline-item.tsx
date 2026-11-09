@@ -42,8 +42,8 @@ export function ContextoTimelineItem({
             ) : null}
           </div>
           <div className="text-xs tabular-nums text-muted-foreground">
-            {edicao.inscritos} insc. · {edicao.selecionados} sel. ·{" "}
-            {edicao.oficinas} ofc.
+            {edicao.inscritos} insc. · {edicao.selecionados} sel. · {edicao.participantes} part. ·{" "}
+            {edicao.certificados} cert. · {edicao.cpfsUnicos} CPFs únicos · {edicao.oficinas} ofc.
           </div>
         </div>
       </div>
