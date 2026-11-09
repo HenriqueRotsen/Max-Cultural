@@ -238,6 +238,26 @@ export const ACCESS_CATALOG = [
     product: "auditoria",
     parentId: "auditoria.observados",
   },
+  {
+    id: "auditoria.restricoes",
+    label: "Restrições de visualização",
+    description:
+      "Não dá nem tira acesso sozinho: só agrupa as restrições abaixo. Para ligar uma, marque esta caixa e a restrição.",
+    kind: "screen",
+    group: "Auditoria",
+    product: "auditoria",
+    parentId: "auditoria.app",
+  },
+  {
+    id: "auditoria.restricoes.ocultar_acima_limite",
+    label: "Não ver PRONACs acima do limite",
+    description:
+      "Esconde os PRONACs com a linha vermelha (algum fornecedor ou o grupo do proponente acima do teto da IN): somem das listas, totais, relatórios e alertas, e o link direto dá “não encontrado”. Não vale para superadmin.",
+    kind: "capability",
+    group: "Auditoria",
+    product: "auditoria",
+    parentId: "auditoria.restricoes",
+  },
 
   // —— Indicadores ——
   {
@@ -359,6 +379,12 @@ export const FINANCEIRO_PRIVILEGED_CAPABILITIES = [
   "financeiro.planejamento.editar_rubricas",
   "financeiro.planejamento.encerrar",
 ] as const;
+
+/**
+ * Restrições: tiram visibilidade em vez de dar. Nenhum papel recebe por padrão
+ * (nem no seed) e o superadmin (`*`) é ignorado pelos produtos.
+ */
+export const ACCESS_RESTRICTION_IDS = ["auditoria.restricoes.ocultar_acima_limite"] as const;
 
 /** Mapeamento hub → códigos locais do Indicadores (interseção no satélite). */
 export const HUB_TO_INDICADORES_PERMISSIONS: Record<string, readonly string[]> = {

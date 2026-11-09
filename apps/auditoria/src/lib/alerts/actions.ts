@@ -3,11 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
+import { excludeAlertPronacs, getOverLimitScope } from "@/lib/compliance/over-limit-visibility";
 
 async function ownAlert(id: string) {
   const { session, entitlements } = await getWorkspaceContext();
   const alert = await prisma.auditAlert.findFirst({
-    where: { id, workspaceId: entitlements.workspaceId },
+    where: {
+      id,
+      workspaceId: entitlements.workspaceId,
+      ...excludeAlertPronacs((await getOverLimitScope()).pronacs),
+    },
     select: { id: true, status: true },
   });
   return { alert, userId: session?.id ?? null };

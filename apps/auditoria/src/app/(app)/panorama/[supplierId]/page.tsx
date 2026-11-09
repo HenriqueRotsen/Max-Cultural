@@ -5,6 +5,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { SupplierPaymentsTable } from "@/components/SupplierPaymentsTable";
+import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function SupplierDetailPage({
     accountId,
     pronac,
     workspaceId: entitlements.workspaceId,
+    hiddenProjectIds: await hiddenProjectIds(),
   });
 
   const reportQs = new URLSearchParams();

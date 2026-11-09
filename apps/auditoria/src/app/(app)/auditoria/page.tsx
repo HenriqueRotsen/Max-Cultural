@@ -2,6 +2,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import { AuditoriaReportForm } from "@/components/AuditoriaReportForm";
+import { excludeProjects, hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function AuditoriaPage() {
     where: {
       salicAccount: { workspaceId },
       payments: { some: {} },
+      ...excludeProjects(await hiddenProjectIds()),
     },
     select: {
       id: true,
