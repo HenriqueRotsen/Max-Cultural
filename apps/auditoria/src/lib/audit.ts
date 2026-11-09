@@ -16,6 +16,8 @@ export type PanoramaFilters = {
   watchedOnly?: boolean;
   /** Isola dados ao workspace do cliente. */
   workspaceId?: string;
+  /** Projetos que a pessoa não pode ver (restrição “não ver acima do limite”). */
+  hiddenProjectIds?: string[];
 };
 
 type WatchedMatchers = {
@@ -111,6 +113,7 @@ function projectScope(filters: PanoramaFilters) {
     ...(filters.rulesetVersion
       ? { complianceRuleset: { version: filters.rulesetVersion } }
       : {}),
+    ...(filters.hiddenProjectIds?.length ? { id: { notIn: filters.hiddenProjectIds } } : {}),
   };
 }
 
@@ -657,6 +660,7 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
         : filters.workspaceId
           ? { salicAccount: { workspaceId: filters.workspaceId } }
           : {}),
+      ...(filters.hiddenProjectIds?.length ? { id: { notIn: filters.hiddenProjectIds } } : {}),
     },
     include: {
       salicAccount: { select: { id: true, name: true, cgccpf: true, personType: true } },
