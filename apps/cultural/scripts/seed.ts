@@ -8,6 +8,7 @@ import {
   ACCESS_PERMISSION_IDS,
   ACCESS_BY_ID,
   FINANCEIRO_PRIVILEGED_CAPABILITIES,
+  ACCESS_RESTRICTION_IDS,
 } from "@max/auth";
 import { PROTECTED_SUPERADMIN_EMAIL } from "../src/lib/protected-superadmin";
 
@@ -64,11 +65,14 @@ async function main() {
   });
 
   const privileged = new Set<string>(FINANCEIRO_PRIVILEGED_CAPABILITIES);
+  // Restrições escondem dados: ninguém recebe por padrão.
+  const restrictions = new Set<string>(ACCESS_RESTRICTION_IDS);
+  const grantable = ACCESS_PERMISSION_IDS.filter((id) => !restrictions.has(id));
 
   for (const roleId of [adminRole.id, superRole.id]) {
     await prisma.rolePermission.deleteMany({ where: { roleId } });
     await prisma.rolePermission.createMany({
-      data: ACCESS_PERMISSION_IDS.map((screen) => ({
+      data: grantable.map((screen) => ({
         roleId,
         screen,
         canView: true,
@@ -79,7 +83,7 @@ async function main() {
   }
 
   const operador = await prisma.role.findUniqueOrThrow({ where: { name: "Operador" } });
-  const operadorIds = ACCESS_PERMISSION_IDS.filter((id) => {
+  const operadorIds = grantable.filter((id) => {
     if (privileged.has(id)) return false;
     if (id.startsWith("cultural.usuarios")) return false;
     if (id.startsWith("cultural.papeis")) return false;

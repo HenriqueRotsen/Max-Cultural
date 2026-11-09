@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
 import { getWorkspaceContext } from "@/lib/auth/session";
+import { excludeProjects, getOverLimitScope } from "@/lib/compliance/over-limit-visibility";
 import { PageHeader, Section, StatCard, StatusBanner } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const { entitlements } = await getWorkspaceContext();
   const ws = entitlements.workspaceId;
-  const projectFilter = { salicAccount: { workspaceId: ws } };
+  const hidden = await getOverLimitScope();
+  const projectFilter = { salicAccount: { workspaceId: ws }, ...excludeProjects(hidden.projectIds) };
 
   const [accounts, paymentsAgg, watched, lastSync, projects, openAlerts] = await Promise.all([
     prisma.salicAccount.count({ where: { active: true, workspaceId: ws } }),
@@ -29,7 +31,13 @@ export default async function HomePage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.project.count({ where: projectFilter }),
-    prisma.auditAlert.count({ where: { workspaceId: ws, status: { in: ["NOVO", "VISTO"] } } }),
+    prisma.auditAlert.count({
+      where: {
+        workspaceId: ws,
+        status: { in: ["NOVO", "VISTO"] },
+        ...(hidden.pronacs.length ? { pronac: { notIn: hidden.pronacs } } : {}),
+      },
+    }),
   ]);
 
   const total = Number(paymentsAgg._sum.amount || 0);

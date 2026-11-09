@@ -10,6 +10,7 @@ import {
   ALERT_TYPE_LABEL,
   formatDateTime,
 } from "@/lib/alerts/labels";
+import { excludeAlertPronacs, getOverLimitScope } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,11 @@ export default async function AlertaPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const { entitlements } = await getWorkspaceContext();
   const alert = await prisma.auditAlert.findFirst({
-    where: { id, workspaceId: entitlements.workspaceId },
+    where: {
+      id,
+      workspaceId: entitlements.workspaceId,
+      ...excludeAlertPronacs((await getOverLimitScope()).pronacs),
+    },
     include: {
       salicAccount: { select: { name: true } },
       project: { select: { name: true, situacao: true } },

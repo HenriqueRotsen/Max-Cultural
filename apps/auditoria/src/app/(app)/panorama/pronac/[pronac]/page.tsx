@@ -26,6 +26,7 @@ import { HELP } from "@/lib/help";
 import { normalizeCgccpf } from "@/lib/format";
 import { RELATION_LABELS } from "@/lib/compliance/defaults";
 import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
+import { hiddenProjectIds, notFoundIfHiddenPronac } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,8 @@ export default async function PronacDetailPage({
   const watchedOnly =
     sp.watchedOnly === "1" || sp.watchedOnly === "on";
 
+  await notFoundIfHiddenPronac(pronac);
+  const hidden = await hiddenProjectIds();
   const [detail, watchedSuppliers] = await Promise.all([
     getPronacDetail(pronac, {
       accountId,
@@ -65,6 +68,7 @@ export default async function PronacDetailPage({
       to,
       watchedOnly,
       workspaceId,
+      hiddenProjectIds: hidden,
     }),
     listWatchedSuppliers(workspaceId),
   ]);

@@ -5,6 +5,7 @@ import { PageHeader, StatCard } from "@/components/ui";
 import { FieldHelp } from "@/components/FieldHelp";
 import { SyncedSuppliersTable } from "@/components/SyncedSuppliersTable";
 import { formatCurrency } from "@/lib/format";
+import { excludeProjects, hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,10 @@ export const dynamic = "force-dynamic";
 export default async function AuditoriaFornecedoresPage() {
   const { entitlements } = await getWorkspaceContext();
   const ws = entitlements.workspaceId;
-  const projectScope = { salicAccount: { workspaceId: ws } };
+  const projectScope = {
+    salicAccount: { workspaceId: ws },
+    ...excludeProjects(await hiddenProjectIds()),
+  };
 
   const [suppliers, paymentAggs, watched] = await Promise.all([
     prisma.supplier.findMany({

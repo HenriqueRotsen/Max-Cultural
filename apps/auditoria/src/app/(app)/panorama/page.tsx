@@ -6,6 +6,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { FieldLabel } from "@/components/FieldHelp";
 import { PageHeader, Section, StatCard } from "@/components/ui";
 import { HELP } from "@/lib/help";
+import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
   const rulesetVersion =
     typeof sp.rulesetVersion === "string" ? sp.rulesetVersion : undefined;
 
+  const hidden = await hiddenProjectIds();
   const [accounts, rulesetOptions, insights] = await Promise.all([
     prisma.salicAccount.findMany({
       where: { workspaceId: entitlements.workspaceId },
@@ -43,6 +45,7 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
       to,
       rulesetVersion,
       workspaceId: entitlements.workspaceId,
+      hiddenProjectIds: hidden,
     }),
   ]);
 

@@ -8,6 +8,7 @@ import {
   type SystemProjectRow,
 } from "@/lib/compare/projects-sheet";
 import { parseCaps } from "@/lib/compliance/rules";
+import { excludeProjects, hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     const sheetRows = parseProjectsWorkbook(buffer);
 
     const projects = await prisma.project.findMany({
-      where: { salicAccount: { workspaceId } },
+      where: { salicAccount: { workspaceId }, ...excludeProjects(await hiddenProjectIds()) },
       select: {
         id: true,
         pronac: true,
