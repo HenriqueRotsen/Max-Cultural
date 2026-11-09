@@ -10,6 +10,7 @@ import { rulesForProject } from "@/lib/compliance/rules";
 import { prisma } from "@/lib/db";
 import { renderPronacDetailHtml } from "@/lib/reports/html";
 import { htmlToPdf, reportFileStamp } from "@/lib/reports/pdf";
+import { hiddenProjectIds, isHiddenPronac } from "@/lib/compliance/over-limit-visibility";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -24,6 +25,9 @@ export async function GET(
     const { entitlements } = await getWorkspaceContext();
     const workspaceId = entitlements.workspaceId;
     const { pronac } = await context.params;
+    if (await isHiddenPronac(pronac)) {
+      return NextResponse.json({ error: "PRONAC não encontrado" }, { status: 404 });
+    }
     const url = new URL(request.url);
     const accountId = url.searchParams.get("accountId") || undefined;
     const from = url.searchParams.get("from") || undefined;
@@ -36,7 +40,14 @@ export async function GET(
       (watchedOnlyParam !== "0" && watchedCount > 0);
 
     const [detail, account, watchedSuppliers] = await Promise.all([
-      getPronacDetail(pronac, { accountId, from, to, watchedOnly, workspaceId }),
+      getPronacDetail(pronac, {
+        accountId,
+        from,
+        to,
+        watchedOnly,
+        workspaceId,
+        hiddenProjectIds: await hiddenProjectIds(),
+      }),
       accountId
         ? prisma.salicAccount.findUnique({ where: { id: accountId } })
         : Promise.resolve(null),

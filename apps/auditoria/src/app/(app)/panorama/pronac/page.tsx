@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/ui";
 import { PronacPanoramaTable } from "@/components/PronacPanoramaTable";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { HELP } from "@/lib/help";
+import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -40,14 +41,15 @@ export default async function PronacPanoramaPage({
   // Só observados apenas quando pedido — o padrão mostra todos os fornecedores.
   const watchedOnly = sp.watchedOnly === "1" || sp.watchedOnly === "on";
 
+  const hidden = await hiddenProjectIds();
   const [accounts, rows, pendingReview, withoutPayments] = await Promise.all([
     prisma.salicAccount.findMany({
       where: { workspaceId },
       orderBy: { name: "asc" },
     }),
-    getPronacPanorama({ accountId, pronac, from, to, watchedOnly, workspaceId }),
+    getPronacPanorama({ accountId, pronac, from, to, watchedOnly, workspaceId, hiddenProjectIds: hidden }),
     getPendingRulesetReview(),
-    listProjectsWithoutPayments({ accountId, pronac, workspaceId }),
+    listProjectsWithoutPayments({ accountId, pronac, workspaceId, hiddenProjectIds: hidden }),
   ]);
 
   const bundle = await loadComplianceBundle(

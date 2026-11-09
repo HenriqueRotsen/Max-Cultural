@@ -37,12 +37,30 @@ import { PageLoading } from "@/components/page-loading";
 import { formatCpfDisplay } from "@/lib/normalize";
 import { parseSocioCohort } from "@/lib/socio-cohort";
 import { buildTerritorioPath } from "@/lib/territorio-slug";
+import type { CpfsUnicos } from "@/lib/cpfs-unicos";
+import { CpfsUnicosInline, CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 
-/** Pessoas diferentes somando várias linhas (uma pessoa pode estar em mais de uma). */
-function pessoasDistintas(linhas: AnaliseRow[]): number {
-  const s = new Set<number>();
-  for (const r of linhas) for (const p of r.pessoas) s.add(p);
-  return s.size;
+/**
+ * Pessoas diferentes por etapa somando várias linhas (uma pessoa pode estar em
+ * mais de uma). Cada valor de `pessoas` é `id * 8 + etapas` (bits: 1 selecionado,
+ * 2 participante, 4 certificado).
+ */
+function pessoasDistintas(linhas: AnaliseRow[]): CpfsUnicos {
+  const etapas = new Map<number, number>();
+  for (const r of linhas) {
+    for (const p of r.pessoas) {
+      const id = Math.floor(p / 8);
+      etapas.set(id, (etapas.get(id) ?? 0) | (p % 8));
+    }
+  }
+  const c = { inscritos: 0, selecionados: 0, participantes: 0, certificados: 0 };
+  for (const b of etapas.values()) {
+    c.inscritos++;
+    if (b & 1) c.selecionados++;
+    if (b & 2) c.participantes++;
+    if (b & 4) c.certificados++;
+  }
+  return c;
 }
 
 function MetricBar({
@@ -84,9 +102,12 @@ function KpiCard({
   status,
   barPct,
   barTone = "emerald",
+  unicos,
 }: {
   label: string;
   value: number | string;
+  /** CPFs únicos deste número (linha pequena embaixo). */
+  unicos?: number;
   hint?: string;
   status?: StatusKind;
   barPct?: number;
@@ -108,6 +129,7 @@ function KpiCard({
       <div className="mt-1 font-heading text-3xl font-semibold tracking-tight tabular-nums text-brand-deep">
         {value}
       </div>
+      {unicos != null ? <CpfsUnicosNota n={unicos} className="mt-0.5 text-xs" /> : null}
       {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
       {barPct != null ? (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -365,7 +387,6 @@ export function AnaliseDashboard({ data }: Props) {
       selecionados: (r: (typeof rows)[number]) => r.Selecionados,
       participantes: (r: (typeof rows)[number]) => r.Participantes,
       certificado: (r: (typeof rows)[number]) => r.Certificado,
-      cpfs: (r: (typeof rows)[number]) => r.CpfsUnicos,
     }),
     [rows],
   );
@@ -422,10 +443,11 @@ export function AnaliseDashboard({ data }: Props) {
         className={cn("space-y-6", pending && "pointer-events-none opacity-50")}
         aria-busy={pending}
       >
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Inscritos"
           value={totais.Inscritos}
+          unicos={totais.CpfsUnicos.inscritos}
           hint={`${totais.oficinas} oficina(s) · ${totais.projetos} projeto(s)`}
           barPct={100}
           barTone="emerald"
@@ -434,6 +456,7 @@ export function AnaliseDashboard({ data }: Props) {
           label="Selecionados"
           status="selecionado"
           value={totais.Selecionados}
+          unicos={totais.CpfsUnicos.selecionados}
           hint={`${taxaSel}% dos inscritos`}
           barPct={totais.Inscritos ? (totais.Selecionados / totais.Inscritos) * 100 : 0}
           barTone="sky"
@@ -442,6 +465,7 @@ export function AnaliseDashboard({ data }: Props) {
           label="Participantes"
           status="participante"
           value={totais.Participantes}
+          unicos={totais.CpfsUnicos.participantes}
           hint={`${taxaPart}% dos selecionados`}
           barPct={totais.Inscritos ? (totais.Participantes / totais.Inscritos) * 100 : 0}
           barTone="teal"
@@ -450,20 +474,10 @@ export function AnaliseDashboard({ data }: Props) {
           label="Certificados"
           status="certificado"
           value={totais.Certificado}
+          unicos={totais.CpfsUnicos.certificados}
           hint={`${taxaCert}% dos participantes`}
           barPct={totais.Inscritos ? (totais.Certificado / totais.Inscritos) * 100 : 0}
           barTone="amber"
-        />
-        <KpiCard
-          label="CPFs únicos"
-          value={totais.CpfsUnicos}
-          hint={
-            totais.CpfsUnicos
-              ? `pessoas diferentes · ${(totais.Inscritos / totais.CpfsUnicos).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} inscrição(ões) por pessoa`
-              : "pessoas diferentes"
-          }
-          barPct={totais.Inscritos ? (totais.CpfsUnicos / totais.Inscritos) * 100 : 0}
-          barTone="teal"
         />
       </div>
 
@@ -564,7 +578,7 @@ export function AnaliseDashboard({ data }: Props) {
               >
                 <div className="font-medium text-brand-deep">{p.label}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {p.edicoes} edições · {p.inscritos} insc. · {p.cpfsUnicos} CPFs únicos ·{" "}
+                  {p.edicoes} edições · {p.inscritos} insc. <CpfsUnicosInline n={p.cpfsUnicos.inscritos} /> ·{" "}
                   {p.anos.join(", ") || "—"}
                 </div>
               </Link>
@@ -593,7 +607,7 @@ export function AnaliseDashboard({ data }: Props) {
         onPageSizeChange={sheet.setPageSize}
         footer={
           sheet.total > 0 ? (
-            <div className="grid grid-cols-2 gap-2 border-t bg-brand-mist/40 px-4 py-2.5 text-xs sm:grid-cols-6">
+            <div className="grid grid-cols-2 gap-2 border-t bg-brand-mist/40 px-4 py-2.5 text-xs sm:grid-cols-5">
               <div className="font-medium text-brand-deep sm:col-span-1">
                 Total filtrado
               </div>
@@ -601,28 +615,29 @@ export function AnaliseDashboard({ data }: Props) {
                 Inscritos{" "}
                 <strong>
                   {sheet.filtered.reduce((s, r) => s + r.Inscritos, 0)}
-                </strong>
+                </strong>{" "}
+                <CpfsUnicosInline n={cpfsFiltrados.inscritos} />
               </div>
               <div className="flex items-center gap-1.5 tabular-nums">
                 <StatusKindBadge kind="selecionado" />
                 <strong>
                   {sheet.filtered.reduce((s, r) => s + r.Selecionados, 0)}
-                </strong>
+                </strong>{" "}
+                <CpfsUnicosInline n={cpfsFiltrados.selecionados} />
               </div>
               <div className="flex items-center gap-1.5 tabular-nums">
                 <StatusKindBadge kind="participante" />
                 <strong>
                   {sheet.filtered.reduce((s, r) => s + r.Participantes, 0)}
-                </strong>
+                </strong>{" "}
+                <CpfsUnicosInline n={cpfsFiltrados.participantes} />
               </div>
               <div className="flex items-center gap-1.5 tabular-nums">
                 <StatusKindBadge kind="certificado" />
                 <strong>
                   {sheet.filtered.reduce((s, r) => s + r.Certificado, 0)}
-                </strong>
-              </div>
-              <div className="tabular-nums">
-                CPFs únicos <strong>{cpfsFiltrados}</strong>
+                </strong>{" "}
+                <CpfsUnicosInline n={cpfsFiltrados.certificados} />
               </div>
             </div>
           ) : null
@@ -704,20 +719,12 @@ export function AnaliseDashboard({ data }: Props) {
               >
                 <StatusKindBadge kind="certificado" />
               </SheetTh>
-              <SheetTh
-                sortKey="cpfs"
-                sortActive={sheet.sortKey === "cpfs"}
-                sortDir={sheet.sortDir}
-                onSort={sheet.toggleSort}
-              >
-                CPFs únicos
-              </SheetTh>
             </tr>
           </SheetThead>
           <tbody>
             {sheet.pageItems.length === 0 ? (
               <SheetTr>
-                <SheetTd colSpan={10} className="py-10 text-center text-muted-foreground">
+                <SheetTd colSpan={9} className="py-10 text-center text-muted-foreground">
                   {pending ? "Carregando…" : "Nenhum resultado nesta busca."}
                 </SheetTd>
               </SheetTr>
@@ -788,6 +795,7 @@ export function AnaliseDashboard({ data }: Props) {
                     </SheetTd>
                     <SheetTd>
                       <MetricBar value={row.Inscritos} max={maxInscritos} tone="emerald" />
+                      <CpfsUnicosNota n={row.CpfsUnicos.inscritos} className="mt-0.5" />
                     </SheetTd>
                     <SheetTd>
                       <MetricBar
@@ -795,6 +803,7 @@ export function AnaliseDashboard({ data }: Props) {
                         max={row.Inscritos || 1}
                         tone="sky"
                       />
+                      <CpfsUnicosNota n={row.CpfsUnicos.selecionados} className="mt-0.5" />
                     </SheetTd>
                     <SheetTd>
                       <MetricBar
@@ -802,6 +811,7 @@ export function AnaliseDashboard({ data }: Props) {
                         max={row.Selecionados || row.Inscritos || 1}
                         tone="amber"
                       />
+                      <CpfsUnicosNota n={row.CpfsUnicos.participantes} className="mt-0.5" />
                     </SheetTd>
                     <SheetTd>
                       <MetricBar
@@ -809,9 +819,7 @@ export function AnaliseDashboard({ data }: Props) {
                         max={row.Participantes || row.Selecionados || row.Inscritos || 1}
                         tone="teal"
                       />
-                    </SheetTd>
-                    <SheetTd>
-                      <MetricBar value={row.CpfsUnicos} max={row.Inscritos || 1} tone="emerald" />
+                      <CpfsUnicosNota n={row.CpfsUnicos.certificados} className="mt-0.5" />
                     </SheetTd>
                   </SheetTr>
                 ))}
@@ -822,18 +830,19 @@ export function AnaliseDashboard({ data }: Props) {
                   <SheetTd colSpan={4} />
                   <SheetTd className="tabular-nums font-medium">
                     {pageTotals.Inscritos}
+                    <CpfsUnicosNota n={pageTotals.CpfsUnicos.inscritos} className="font-normal" />
                   </SheetTd>
                   <SheetTd className="tabular-nums font-medium">
                     {pageTotals.Selecionados}
+                    <CpfsUnicosNota n={pageTotals.CpfsUnicos.selecionados} className="font-normal" />
                   </SheetTd>
                   <SheetTd className="tabular-nums font-medium">
                     {pageTotals.Participantes}
+                    <CpfsUnicosNota n={pageTotals.CpfsUnicos.participantes} className="font-normal" />
                   </SheetTd>
                   <SheetTd className="tabular-nums font-medium">
                     {pageTotals.Certificado}
-                  </SheetTd>
-                  <SheetTd className="tabular-nums font-medium">
-                    {pageTotals.CpfsUnicos}
+                    <CpfsUnicosNota n={pageTotals.CpfsUnicos.certificados} className="font-normal" />
                   </SheetTd>
                 </SheetTr>
               </>

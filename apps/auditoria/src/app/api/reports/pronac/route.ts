@@ -8,6 +8,8 @@ import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
 import { prisma } from "@/lib/db";
 import { renderPronacOverviewHtml } from "@/lib/reports/html";
 import { htmlToPdf, reportFileStamp } from "@/lib/reports/pdf";
+import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
+import { getWorkspaceContext } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -33,8 +35,20 @@ export async function GET(request: Request) {
       watchedOnlyParam === "on" ||
       (watchedOnlyParam !== "0" && watchedCount > 0);
 
+    const { entitlements } = await getWorkspaceContext();
+    const workspaceId = entitlements.workspaceId;
+    const hidden = await hiddenProjectIds();
     const [rows, account, watchedSuppliers] = await Promise.all([
-      getPronacPanorama({ accountId, pronac, from, to, rulesetVersion, watchedOnly }),
+      getPronacPanorama({
+        accountId,
+        pronac,
+        from,
+        to,
+        rulesetVersion,
+        watchedOnly,
+        workspaceId,
+        hiddenProjectIds: hidden,
+      }),
       accountId
         ? prisma.salicAccount.findUnique({ where: { id: accountId } })
         : Promise.resolve(null),

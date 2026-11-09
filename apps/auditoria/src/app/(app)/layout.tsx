@@ -6,6 +6,7 @@ import { getHubSessionPayload } from "@/lib/auth/hub";
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { culturalDeniedUrl } from "@max/auth";
+import { excludeAlertPronacs, getOverLimitScope } from "@/lib/compliance/over-limit-visibility";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [session, hubPerms] = await Promise.all([getSessionUser(), getHubPermissions()]);
@@ -25,8 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect(culturalDeniedUrl("Sem acesso à Auditoria."));
   }
 
+  const { pronacs: hiddenPronacs } = await getOverLimitScope();
   const newAlerts = await prisma.auditAlert.count({
-    where: { workspaceId: session.workspace.id, status: "NOVO" },
+    where: { workspaceId: session.workspace.id, status: "NOVO", ...excludeAlertPronacs(hiddenPronacs) },
   });
 
   return (

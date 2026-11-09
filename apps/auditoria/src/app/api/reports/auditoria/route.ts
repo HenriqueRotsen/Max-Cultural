@@ -15,6 +15,7 @@ import {
   type AuditoriaPronacBlock,
 } from "@/lib/reports/html";
 import { htmlToPdf, reportFileStamp } from "@/lib/reports/pdf";
+import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -49,8 +50,9 @@ export async function GET(request: Request) {
 
     const blocks: AuditoriaPronacBlock[] = [];
 
+    const hidden = await hiddenProjectIds();
     for (const pronac of pronacs) {
-      const detail = await getPronacDetail(pronac, { workspaceId });
+      const detail = await getPronacDetail(pronac, { workspaceId, hiddenProjectIds: hidden });
       const account = detail.accounts[0];
       if (!account) continue;
 

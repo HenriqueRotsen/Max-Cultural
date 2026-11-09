@@ -1,5 +1,6 @@
 "use client";
 
+import type { CpfsUnicos } from "@/lib/cpfs-unicos";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
@@ -56,8 +57,8 @@ type Row = SigaCulturalRow & { id: string };
 type Props = {
   rows: Row[];
   total: number;
-  /** Pessoas diferentes (CPFs únicos) no filtro atual. */
-  cpfsUnicos: number;
+  /** Pessoas diferentes (CPFs únicos) no filtro atual, por etapa. */
+  cpfsUnicos: CpfsUnicos;
   page: number;
   pageSize: number;
   totalPages: number;
@@ -874,7 +875,7 @@ export function InscricoesTable({
 
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>
-          {total} registro(s) · {cpfsUnicos} CPF(s) único(s) · página {page} de {totalPages}
+          {total} registro(s) · {cpfsUnicos.inscritos} CPF(s) único(s) · página {page} de {totalPages}
           {pageSize ? ` · ${pageSize}/página` : ""}
         </span>
         <div className="flex gap-2">
