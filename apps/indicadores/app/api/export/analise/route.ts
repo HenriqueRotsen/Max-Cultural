@@ -29,7 +29,10 @@ const HEADERS = [
   "Soma de Selecionados",
   "Soma de Participantes",
   "Soma de Certificado",
-  "CPFs únicos",
+  "CPFs únicos inscritos",
+  "CPFs únicos selecionados",
+  "CPFs únicos participantes",
+  "CPFs únicos certificados",
 ] as const;
 
 export async function GET(request: NextRequest) {
@@ -59,7 +62,10 @@ export async function GET(request: NextRequest) {
     "Soma de Selecionados": r.Selecionados,
     "Soma de Participantes": r.Participantes,
     "Soma de Certificado": r.Certificado,
-    "CPFs únicos": r.CpfsUnicos,
+    "CPFs únicos inscritos": r.CpfsUnicos.inscritos,
+    "CPFs únicos selecionados": r.CpfsUnicos.selecionados,
+    "CPFs únicos participantes": r.CpfsUnicos.participantes,
+    "CPFs únicos certificados": r.CpfsUnicos.certificados,
   }));
 
   if (format === "xlsx") {

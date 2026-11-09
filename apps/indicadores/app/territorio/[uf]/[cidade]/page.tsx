@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CpfsUnicosInline } from "@/components/cpfs-unicos-nota";
 import { getCidadePageAction } from "@/app/actions/territorio";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { TerritorioMapClient } from "@/components/territorio/territorio-map-client";
@@ -89,12 +90,13 @@ export default async function TerritorioCidadePage({ params, searchParams }: Pro
                         {t.territorio}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums">
-                        <span>{t.kpis.inscritos} insc.</span>
+                        <span>{t.kpis.inscritos} insc. <CpfsUnicosInline n={t.kpis.cpfsUnicos.inscritos} /></span>
                         <StatusKindBadge kind="selecionado" />
                         <strong>{t.kpis.selecionados}</strong>
+                        <CpfsUnicosInline n={t.kpis.cpfsUnicos.selecionados} />
                         <StatusKindBadge kind="participante" />
                         <strong>{t.kpis.participantes}</strong>
-                        <span>· {t.kpis.cpfsUnicos} CPFs únicos</span>
+                        <CpfsUnicosInline n={t.kpis.cpfsUnicos.participantes} />
                       </div>
                     </div>
                   </Link>
@@ -121,8 +123,9 @@ export default async function TerritorioCidadePage({ params, searchParams }: Pro
                     {o.Nome_projeto}
                   </div>
                   <div className="mt-2 text-xs tabular-nums text-muted-foreground">
-                    {o.kpis.inscritos} insc. · {o.kpis.selecionados} sel. ·{" "}
-                    {o.kpis.participantes} part. · {o.kpis.cpfsUnicos} CPFs únicos
+                    {o.kpis.inscritos} insc. <CpfsUnicosInline n={o.kpis.cpfsUnicos.inscritos} /> · {o.kpis.selecionados} sel.{" "}
+                    <CpfsUnicosInline n={o.kpis.cpfsUnicos.selecionados} /> · {o.kpis.participantes} part.{" "}
+                    <CpfsUnicosInline n={o.kpis.cpfsUnicos.participantes} />
                   </div>
                 </Link>
               ))}

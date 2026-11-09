@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 import {
   getOficinaPageAction,
   type OficinaLocalizacao,
@@ -166,18 +167,20 @@ function OficinaView({
 
         <LocalizacaoList items={data.localizacoes} />
 
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
             <div className="text-xs text-muted-foreground">Inscritos</div>
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {totais.inscritos}
             </div>
+            <CpfsUnicosNota n={totais.cpfsUnicos.inscritos} />
           </div>
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
             <StatusKindBadge kind="selecionado" className="mb-1" />
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {totais.selecionados}
             </div>
+            <CpfsUnicosNota n={totais.cpfsUnicos.selecionados} />
             <div className="text-[11px] text-muted-foreground">
               {totais.taxaSelecao}%
             </div>
@@ -187,6 +190,7 @@ function OficinaView({
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {totais.participantes}
             </div>
+            <CpfsUnicosNota n={totais.cpfsUnicos.participantes} />
             <div className="text-[11px] text-muted-foreground">
               {totais.taxaParticipacao}%
             </div>
@@ -196,16 +200,10 @@ function OficinaView({
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {totais.certificados}
             </div>
+            <CpfsUnicosNota n={totais.cpfsUnicos.certificados} />
             <div className="text-[11px] text-muted-foreground">
               {totais.taxaCertificado}%
             </div>
-          </div>
-          <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">CPFs únicos</div>
-            <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
-              {totais.cpfsUnicos}
-            </div>
-            <div className="text-[11px] text-muted-foreground">pessoas diferentes</div>
           </div>
         </div>
       </section>
@@ -218,7 +216,7 @@ function OficinaView({
             Inscritos
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {totais.inscritos} inscrição(ões) de {totais.cpfsUnicos} pessoa(s) diferente(s) nesta oficina.
+            {totais.inscritos} inscrição(ões) de {totais.cpfsUnicos.inscritos} pessoa(s) diferente(s) nesta oficina.
           </p>
         </div>
 

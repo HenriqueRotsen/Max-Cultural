@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { CpfsUnicosInline } from "@/components/cpfs-unicos-nota";
 import Link from "next/link";
 import {
   MapContainer,
@@ -101,8 +102,9 @@ export function TerritorioMap({
                   {p.cidade} / {p.estado}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {p.inscritos} inscritos · {p.selecionados} sel. ·{" "}
-                  {p.participantes} part. · {p.cpfsUnicos} CPFs únicos
+                  {p.inscritos} inscritos <CpfsUnicosInline n={p.cpfsUnicos.inscritos} /> · {p.selecionados} sel.{" "}
+                  <CpfsUnicosInline n={p.cpfsUnicos.selecionados} /> · {p.participantes} part.{" "}
+                  <CpfsUnicosInline n={p.cpfsUnicos.participantes} />
                 </div>
                 <Link
                   href={p.href}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CpfsUnicosInline } from "@/components/cpfs-unicos-nota";
 import type { ProgramaEdicao } from "@/app/actions/programa";
 import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
 
@@ -42,8 +43,10 @@ export function ContextoTimelineItem({
             ) : null}
           </div>
           <div className="text-xs tabular-nums text-muted-foreground">
-            {edicao.inscritos} insc. · {edicao.selecionados} sel. · {edicao.participantes} part. ·{" "}
-            {edicao.certificados} cert. · {edicao.cpfsUnicos} CPFs únicos · {edicao.oficinas} ofc.
+            {edicao.inscritos} insc. <CpfsUnicosInline n={edicao.cpfsUnicos.inscritos} /> ·{" "}
+            {edicao.selecionados} sel. <CpfsUnicosInline n={edicao.cpfsUnicos.selecionados} /> ·{" "}
+            {edicao.participantes} part. <CpfsUnicosInline n={edicao.cpfsUnicos.participantes} /> ·{" "}
+            {edicao.certificados} cert. <CpfsUnicosInline n={edicao.cpfsUnicos.certificados} /> · {edicao.oficinas} ofc.
           </div>
         </div>
       </div>

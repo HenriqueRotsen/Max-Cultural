@@ -1,6 +1,6 @@
 "use server";
 
-import { cpfsPorGrupo } from "@/lib/cpfs-unicos";
+import { cpfsPorGrupo, type CpfsUnicos } from "@/lib/cpfs-unicos";
 import { prisma } from "@/lib/prisma";
 import { extractProjectYear } from "@/lib/normalize";
 import {
@@ -29,7 +29,7 @@ export type ProgramaEdicao = {
   participantes: number;
   certificados: number;
   /** Pessoas diferentes (CPFs únicos) na edição. */
-  cpfsUnicos: number;
+  cpfsUnicos: CpfsUnicos;
   oficinas: number;
   canEditContexto?: boolean;
 };
@@ -43,7 +43,7 @@ export type ProgramaListItem = {
   edicoes: number;
   inscritos: number;
   /** Pessoas diferentes em todas as edições. */
-  cpfsUnicos: number;
+  cpfsUnicos: CpfsUnicos;
   anos: string[];
 };
 
@@ -59,7 +59,7 @@ export type ProgramaPanorama = {
     participantes: number;
     certificados: number;
     /** Pessoas diferentes no contexto (quem voltou em outra edição conta uma vez). */
-    cpfsUnicos: number;
+    cpfsUnicos: CpfsUnicos;
     edicoes: number;
   };
   socio: SocioBreakdown;
@@ -95,7 +95,7 @@ export async function listContextosPanoramaAction(): Promise<ProgramaListItem[]>
   const contextoDoProjeto = new Map(contextos.flatMap((c) => c.projetos.map((p) => [p.id, c.id] as const)));
   const cpfsDoContexto = cpfsPorGrupo();
   for (const r of await cpfsDosProjetos(projetoIds)) {
-    cpfsDoContexto.add(contextoDoProjeto.get(r.idProjeto) ?? "", r.cpf);
+    cpfsDoContexto.add(contextoDoProjeto.get(r.idProjeto) ?? "", r);
   }
 
   return contextos
@@ -123,13 +123,13 @@ export async function listContextosPanoramaAction(): Promise<ProgramaListItem[]>
     .sort((a, b) => b.inscritos - a.inscritos);
 }
 
-/** CPFs distintos por projeto (para contar pessoas por edição e por contexto). */
+/** CPFs distintos por projeto e etapa (para contar pessoas por edição e por contexto). */
 async function cpfsDosProjetos(projetoIds: string[]) {
   if (!projetoIds.length) return [];
   return prisma.inscricao.findMany({
     where: { idProjeto: { in: projetoIds }, cpf: { not: "" } },
-    select: { idProjeto: true, cpf: true },
-    distinct: ["idProjeto", "cpf"],
+    select: { idProjeto: true, cpf: true, selecionados: true, participantes: true, certificado: true },
+    distinct: ["idProjeto", "cpf", "selecionados", "participantes", "certificado"],
   });
 }
 
@@ -185,8 +185,8 @@ export async function getContextoPanoramaAction(
   const byId = new Map(aggregates.map((a) => [a.idProjeto, a]));
   const cpfsDoProjeto = cpfsPorGrupo();
   for (const r of await cpfsDosProjetos(projetoIds)) {
-    cpfsDoProjeto.add(r.idProjeto, r.cpf);
-    cpfsDoProjeto.add("*", r.cpf);
+    cpfsDoProjeto.add(r.idProjeto, r);
+    cpfsDoProjeto.add("*", r);
   }
 
   const projetosOrdenados = [...contexto.projetos].sort(compareProjetoEdicao);
