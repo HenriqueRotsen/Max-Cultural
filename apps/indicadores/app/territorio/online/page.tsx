@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CpfsUnicosInline } from "@/components/cpfs-unicos-nota";
 import { listOnlineTerritoriosAction } from "@/app/actions/territorio";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import {
@@ -59,8 +60,8 @@ export default async function TerritorioOnlineIndexPage({
                       {item.label}
                     </div>
                     <div className="text-xs tabular-nums text-muted-foreground">
-                      {item.kpis.inscritos} insc. · {item.kpis.selecionados} sel.
-                      · {item.kpis.cpfsUnicos} CPFs únicos · {item.kpis.acoes} ações
+                      {item.kpis.inscritos} insc. <CpfsUnicosInline n={item.kpis.cpfsUnicos.inscritos} /> · {item.kpis.selecionados} sel.{" "}
+                      <CpfsUnicosInline n={item.kpis.cpfsUnicos.selecionados} /> · {item.kpis.acoes} ações
                     </div>
                   </div>
                 </Link>

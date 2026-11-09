@@ -36,6 +36,7 @@ const s = StyleSheet.create({
   kpiCaixa: { backgroundColor: C.mist, borderRadius: 6, padding: 10, borderLeftWidth: 3, borderLeftColor: C.brand },
   kpiNum: { fontSize: 20, fontFamily: "Helvetica-Bold", color: C.deep, lineHeight: 1.1, marginBottom: 3 },
   kpiRot: { fontSize: 8.5, color: C.suave },
+  kpiUnicos: { fontSize: 7.5, color: C.suave, marginTop: 2 },
   barraLinha: { flexDirection: "row", alignItems: "center", marginBottom: 3 },
   barraRot: { width: "38%", fontSize: 8.5, paddingRight: 6 },
   barraFundo: { flexGrow: 1, height: 7, backgroundColor: C.soft, borderRadius: 3 },
@@ -53,6 +54,7 @@ const s = StyleSheet.create({
   num: { flex: 1, marginHorizontal: 3, backgroundColor: C.mist, borderRadius: 5, paddingVertical: 6, alignItems: "center" },
   numVal: { fontSize: 14, fontFamily: "Helvetica-Bold", color: C.deep, lineHeight: 1.1, marginBottom: 2 },
   numRot: { fontSize: 7.5, color: C.suave, textAlign: "center" },
+  numUnicos: { fontSize: 6.5, color: C.suave, textAlign: "center", marginTop: 1 },
   info: { flexDirection: "row", flexWrap: "wrap" },
   infoItem: { width: "50%", paddingRight: 10, marginBottom: 6 },
   fotos: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 },
@@ -120,6 +122,7 @@ function Execucao({ e }: { e: ExecucaoRelatorio }) {
           <View key={n.rotulo} style={s.num}>
             <Text style={s.numVal}>{n.valor}</Text>
             <Text style={s.numRot}>{n.rotulo}</Text>
+            {n.unicos != null ? <Text style={s.numUnicos}>{n.unicos} CPFs únicos</Text> : null}
           </View>
         ))}
       </View>
@@ -228,17 +231,17 @@ export function DocumentoPrestacao({ d, logo }: { d: DadosRelatorio; logo: Buffe
             [
               ["Execuções de ações", d.totais.execucoes],
               ["Ações", d.totais.acoes],
-              ["Inscritos", d.totais.inscritos],
-              ["Participantes", d.totais.participantes],
+              ["Inscritos", d.totais.inscritos, d.totais.cpfsUnicos.inscritos],
+              ["Participantes", d.totais.participantes, d.totais.cpfsUnicos.participantes],
               ["PCDs participantes", d.totais.pcds],
-              ["Certificados", d.totais.certificados],
-              ["CPFs únicos", d.totais.cpfsUnicos],
+              ["Certificados", d.totais.certificados, d.totais.cpfsUnicos.certificados],
             ] as const
-          ).map(([r, v]) => (
+          ).map(([r, v, u]) => (
             <View key={r} style={s.kpi}>
               <View style={s.kpiCaixa}>
                 <Text style={s.kpiNum}>{v}</Text>
                 <Text style={s.kpiRot}>{r}</Text>
+                {u != null ? <Text style={s.kpiUnicos}>{u} CPFs únicos</Text> : null}
               </View>
             </View>
           ))}

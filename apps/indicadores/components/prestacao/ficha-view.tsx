@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -129,11 +130,12 @@ function DoSistema({ ficha }: { ficha: FichaDTO }) {
             <span className="text-xs text-muted-foreground">A ação tem mais de uma execução: os números são da ação toda.</span>
           ) : null}
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {s.numeros.map((n) => (
             <div key={n.chave}>
               <div className="text-xs text-muted-foreground">{n.rotulo}</div>
               <div className="text-lg font-semibold tabular-nums text-brand-deep">{formatarNumero(n.valor)}</div>
+              {n.unicos != null ? <CpfsUnicosNota n={n.unicos} /> : null}
             </div>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CpfsUnicosInline, CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 import type { ProjetoPageData } from "@/app/actions/projeto";
 import { getProjetoPageAction } from "@/app/actions/projeto";
 import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
@@ -126,7 +127,7 @@ function ProjetoView({
             </Link>
           </p>
         ) : null}
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
             <div className="text-xs text-muted-foreground">Ações</div>
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
@@ -138,30 +139,28 @@ function ProjetoView({
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {data.totais.inscritos}
             </div>
+            <CpfsUnicosNota n={data.totais.cpfsUnicos.inscritos} />
           </div>
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
             <StatusKindBadge kind="selecionado" className="mb-1" />
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {data.totais.selecionados}
             </div>
+            <CpfsUnicosNota n={data.totais.cpfsUnicos.selecionados} />
           </div>
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
             <StatusKindBadge kind="participante" className="mb-1" />
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {data.totais.participantes}
             </div>
+            <CpfsUnicosNota n={data.totais.cpfsUnicos.participantes} />
           </div>
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
             <StatusKindBadge kind="certificado" className="mb-1" />
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {data.totais.certificados}
             </div>
-          </div>
-          <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">CPFs únicos</div>
-            <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
-              {data.totais.cpfsUnicos}
-            </div>
+            <CpfsUnicosNota n={data.totais.cpfsUnicos.certificados} />
           </div>
         </div>
       </section>
@@ -208,23 +207,23 @@ function ProjetoView({
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs tabular-nums">
                   <span className="text-muted-foreground">
                     Insc.{" "}
-                    <strong className="text-brand-deep">{o.inscritos}</strong>
+                    <strong className="text-brand-deep">{o.inscritos}</strong>{" "}
+                    <CpfsUnicosInline n={o.cpfsUnicos.inscritos} />
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <StatusKindBadge kind="selecionado" />
-                    <strong className="text-brand-deep">{o.selecionados}</strong>
+                    <strong className="text-brand-deep">{o.selecionados}</strong>{" "}
+                    <CpfsUnicosInline n={o.cpfsUnicos.selecionados} />
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <StatusKindBadge kind="participante" />
-                    <strong className="text-brand-deep">{o.participantes}</strong>
+                    <strong className="text-brand-deep">{o.participantes}</strong>{" "}
+                    <CpfsUnicosInline n={o.cpfsUnicos.participantes} />
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <StatusKindBadge kind="certificado" />
-                    <strong className="text-brand-deep">{o.certificados}</strong>
-                  </span>
-                  <span className="text-muted-foreground">
-                    CPFs únicos{" "}
-                    <strong className="text-brand-deep">{o.cpfsUnicos}</strong>
+                    <strong className="text-brand-deep">{o.certificados}</strong>{" "}
+                    <CpfsUnicosInline n={o.cpfsUnicos.certificados} />
                   </span>
                 </div>
               </div>

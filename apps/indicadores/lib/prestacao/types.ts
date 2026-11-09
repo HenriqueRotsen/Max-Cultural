@@ -120,7 +120,8 @@ export type SistemaDTO = {
   dataFim: string;
   meses: string;
   quantidadeMeses: number;
-  numeros: Array<{ chave: string; rotulo: string; valor: number }>;
+  /** `unicos`: CPFs únicos deste número (quando faz sentido contar pessoas). */
+  numeros: Array<{ chave: string; rotulo: string; valor: number; unicos?: number }>;
   /** A ação tem mais de uma execução: os números das inscrições são da ação toda. */
   numerosDaAcaoToda: boolean;
 };

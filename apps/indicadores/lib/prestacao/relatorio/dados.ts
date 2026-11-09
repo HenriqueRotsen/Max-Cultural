@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { contarCpfsUnicos } from "@/lib/cpfs-unicos";
+import { cpfsUnicosPorEtapa, type CpfsUnicos } from "@/lib/cpfs-unicos";
 import { aggregateSocio } from "@/lib/socio";
 import type { SocioBreakdown } from "@/lib/socio-cohort";
 import { lerArquivoPrivado } from "@/lib/storage/privado";
@@ -28,8 +28,8 @@ export type DadosRelatorio = {
     participantes: number;
     pcds: number;
     certificados: number;
-    /** Pessoas diferentes em todas as ações do relatório. */
-    cpfsUnicos: number;
+    /** Pessoas diferentes em todas as ações do relatório, por etapa. */
+    cpfsUnicos: CpfsUnicos;
   };
   perfil: SocioBreakdown | null;
   produtos: ProdutoRelatorio[];
@@ -47,7 +47,8 @@ export type ExecucaoRelatorio = {
   local: string;
   periodo: string;
   meses: string;
-  numeros: Array<{ rotulo: string; valor: number }>;
+  /** `unicos`: CPFs únicos deste número. */
+  numeros: Array<{ rotulo: string; valor: number; unicos?: number }>;
   numerosDaAcaoToda: boolean;
   informacoes: Array<{ rotulo: string; valor: string }>;
   formularios: Array<{ titulo: string; tipo: string; respostas: number; periodo: string }>;
@@ -161,7 +162,7 @@ export async function montarDadosRelatorio(
       participantes: rows.filter((r) => r.participantes === 1).length,
       pcds: rows.filter((r) => r.participantes === 1 && pcd(r.possuiDeficiencia)).length,
       certificados: rows.filter((r) => r.certificado === 1).length,
-      cpfsUnicos: contarCpfsUnicos(rows.map((r) => r.cpf)),
+      unicos: cpfsUnicosPorEtapa(rows),
     };
   };
 
@@ -170,7 +171,8 @@ export async function montarDadosRelatorio(
     fichas.map(async (f) => {
       const g = f.agenda;
       const local = g.online ? "Online" : g.territorio ? territorioLabel(g.territorio) : [g.cidade, g.uf].filter(Boolean).join(", ");
-      const num = (k: keyof ReturnType<typeof numerosAcao>) => numerosAcao(g.acao.id)[k];
+      const nums = numerosAcao(g.acao.id);
+      const num = (k: Exclude<keyof typeof nums, "unicos">) => nums[k];
       const valores = (f.valores ?? {}) as ValoresFicha;
       const informacoes = campos
         .filter((c) => c.tipo !== "LINK")
@@ -221,12 +223,11 @@ export async function montarDadosRelatorio(
           periodo: periodo(g.data, g.dataFim),
           meses: mesesDoPeriodo(g.data, g.dataFim).rotulo,
           numeros: [
-            { rotulo: "Inscritos", valor: num("inscritos") },
-            { rotulo: "Selecionados", valor: num("selecionados") },
-            { rotulo: "Participantes", valor: num("participantes") },
+            { rotulo: "Inscritos", valor: num("inscritos"), unicos: nums.unicos.inscritos },
+            { rotulo: "Selecionados", valor: num("selecionados"), unicos: nums.unicos.selecionados },
+            { rotulo: "Participantes", valor: num("participantes"), unicos: nums.unicos.participantes },
             { rotulo: "PCDs participantes", valor: num("pcds") },
-            { rotulo: "Certificados", valor: num("certificados") },
-            { rotulo: "CPFs únicos", valor: num("cpfsUnicos") },
+            { rotulo: "Certificados", valor: num("certificados"), unicos: nums.unicos.certificados },
           ],
           numerosDaAcaoToda: g.acao._count.agenda > 1,
           informacoes,
@@ -285,7 +286,7 @@ export async function montarDadosRelatorio(
       participantes: somar("participantes"),
       pcds: somar("pcds"),
       certificados: somar("certificados"),
-      cpfsUnicos: contarCpfsUnicos(acoesUnicas.flatMap((id) => (porAcao.get(id) ?? []).map((r) => r.cpf))),
+      cpfsUnicos: cpfsUnicosPorEtapa(acoesUnicas.flatMap((id) => porAcao.get(id) ?? [])),
     },
     perfil: acoesUnicas.length ? await aggregateSocio({ idAcao: { in: acoesUnicas } }) : null,
     produtos: produtos.filter((x) => x.execucoes.length || opts.produtoId),

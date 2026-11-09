@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 import { getContextoPanoramaAction } from "@/app/actions/programa";
 import { ContextoTimelineItem } from "@/components/admin/contexto-timeline-item";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
@@ -56,7 +57,7 @@ export default async function ContextoPage({ params, searchParams }: Props) {
             <p className="mt-2 text-sm text-muted-foreground">
               Linha do tempo das edições (projetos) deste contexto.
             </p>
-            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
               <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
                 <div className="text-xs text-muted-foreground">Edições</div>
                 <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
@@ -68,30 +69,28 @@ export default async function ContextoPage({ params, searchParams }: Props) {
                 <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
                   {result.data.totais.inscritos}
                 </div>
+                <CpfsUnicosNota n={result.data.totais.cpfsUnicos.inscritos} />
               </div>
               <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
                 <StatusKindBadge kind="selecionado" className="mb-1" />
                 <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
                   {result.data.totais.selecionados}
                 </div>
+                <CpfsUnicosNota n={result.data.totais.cpfsUnicos.selecionados} />
               </div>
               <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
                 <StatusKindBadge kind="participante" className="mb-1" />
                 <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
                   {result.data.totais.participantes}
                 </div>
+                <CpfsUnicosNota n={result.data.totais.cpfsUnicos.participantes} />
               </div>
               <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
                 <StatusKindBadge kind="certificado" className="mb-1" />
                 <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
                   {result.data.totais.certificados}
                 </div>
-              </div>
-              <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
-                <div className="text-xs text-muted-foreground">CPFs únicos</div>
-                <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
-                  {result.data.totais.cpfsUnicos}
-                </div>
+                <CpfsUnicosNota n={result.data.totais.cpfsUnicos.certificados} />
               </div>
             </div>
           </section>
