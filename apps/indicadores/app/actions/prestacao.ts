@@ -1,6 +1,6 @@
 "use server";
 
-import { contarCpfsUnicos } from "@/lib/cpfs-unicos";
+import { cpfsUnicosPorEtapa, type CpfsUnicos } from "@/lib/cpfs-unicos";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -392,8 +392,10 @@ const NUMEROS = [
   { chave: "participantes", rotulo: "Participantes" },
   { chave: "pcds", rotulo: "PCDs participantes" },
   { chave: "certificados", rotulo: "Certificados" },
-  { chave: "cpfsUnicos", rotulo: "CPFs únicos" },
 ] as const;
+
+/** Números que também mostram quantas pessoas diferentes (CPFs únicos) há neles. */
+const COM_UNICOS = new Set<string>(["inscritos", "selecionados", "participantes", "certificados"]);
 
 async function agendaVisivel(agendaId: string, scope: Awaited<ReturnType<typeof resolveDataScope>>) {
   const g = await prisma.acaoAgenda.findUnique({
@@ -424,7 +426,9 @@ async function agendaVisivel(agendaId: string, scope: Awaited<ReturnType<typeof 
 }
 
 /** Números da ação a partir das inscrições (importação e formulários). */
-async function numerosDaAcao(acaoId: string): Promise<Record<(typeof NUMEROS)[number]["chave"], number>> {
+async function numerosDaAcao(
+  acaoId: string,
+): Promise<Record<(typeof NUMEROS)[number]["chave"], number> & { unicos: CpfsUnicos }> {
   const rows = await prisma.inscricao.findMany({
     where: { idAcao: acaoId },
     select: { selecionados: true, participantes: true, certificado: true, possuiDeficiencia: true, cpf: true },
@@ -439,7 +443,7 @@ async function numerosDaAcao(acaoId: string): Promise<Record<(typeof NUMEROS)[nu
     participantes: rows.filter((r) => r.participantes === 1).length,
     pcds: rows.filter((r) => r.participantes === 1 && pcd(r.possuiDeficiencia)).length,
     certificados: rows.filter((r) => r.certificado === 1).length,
-    cpfsUnicos: contarCpfsUnicos(rows.map((r) => r.cpf)),
+    unicos: cpfsUnicosPorEtapa(rows),
   };
 }
 
@@ -566,6 +570,7 @@ export async function getFichaAction(agendaId: string): Promise<FichaDTO | null>
       chave: n.chave,
       rotulo: n.rotulo,
       valor: numeros[n.chave],
+      unicos: COM_UNICOS.has(n.chave) ? numeros.unicos[n.chave as keyof CpfsUnicos] : undefined,
     })),
     numerosDaAcaoToda: g.acao._count.agenda > 1,
   };

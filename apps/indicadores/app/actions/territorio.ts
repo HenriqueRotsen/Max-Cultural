@@ -29,7 +29,7 @@ import {
 } from "@/lib/socio";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
-import { chaveCpf } from "@/lib/cpfs-unicos";
+import { CPFS_ZERO, ConjuntoCpfs, type CpfsUnicos } from "@/lib/cpfs-unicos";
 import { andScope, resolveDataScope } from "@/lib/data-scope";
 
 export type TerritorioKpis = {
@@ -37,8 +37,8 @@ export type TerritorioKpis = {
   selecionados: number;
   participantes: number;
   certificados: number;
-  /** Pessoas diferentes (CPFs únicos). */
-  cpfsUnicos: number;
+  /** Pessoas diferentes (CPFs únicos) por etapa. */
+  cpfsUnicos: CpfsUnicos;
   acoes: number;
   projetos: number;
 };
@@ -53,7 +53,7 @@ export type MapPoint = {
   selecionados: number;
   participantes: number;
   certificados: number;
-  cpfsUnicos: number;
+  cpfsUnicos: CpfsUnicos;
 };
 
 export type CidadeListItem = {
@@ -84,14 +84,14 @@ function emptyKpis(): TerritorioKpis {
     selecionados: 0,
     participantes: 0,
     certificados: 0,
-    cpfsUnicos: 0,
+    cpfsUnicos: { ...CPFS_ZERO },
     acoes: 0,
     projetos: 0,
   };
 }
 
 /** CPFs vistos por acumulador (cada TerritorioKpis conta as suas pessoas). */
-const cpfsDosKpis = new WeakMap<TerritorioKpis, Set<string>>();
+const cpfsDosKpis = new WeakMap<TerritorioKpis, ConjuntoCpfs>();
 
 function accumulate(
   acc: TerritorioKpis,
@@ -111,12 +111,11 @@ function accumulate(
   acc.selecionados += row.selecionados;
   acc.participantes += row.participantes;
   acc.certificados += row.certificado;
-  const cpf = chaveCpf(row.cpf);
-  if (cpf) {
+  if (row.cpf) {
     let vistos = cpfsDosKpis.get(acc);
-    if (!vistos) cpfsDosKpis.set(acc, (vistos = new Set()));
-    vistos.add(cpf);
-    acc.cpfsUnicos = vistos.size;
+    if (!vistos) cpfsDosKpis.set(acc, (vistos = new ConjuntoCpfs()));
+    vistos.add(row);
+    acc.cpfsUnicos = vistos.total();
   }
   if (row.idAcao && !seenAcao.has(row.idAcao)) {
     seenAcao.add(row.idAcao);
@@ -232,7 +231,7 @@ async function attachMapPoints(
 
   const points: MapPoint[] = [];
   const seen = new Map<string, MapPoint>();
-  const pessoasDoPonto = new Map<MapPoint, Set<string>>();
+  const pessoasDoPonto = new Map<MapPoint, ConjuntoCpfs>();
   for (const c of resolved) {
     const hit = byKey.get(geoCacheKey(c.city, c.geoUf));
     const lat = c.local?.lat ?? hit?.lat;
@@ -247,8 +246,9 @@ async function attachMapPoints(
       existing.certificados += c.kpis.certificados;
       // Mesma cidade com grafias diferentes: junta as pessoas sem contar duas vezes.
       const s = pessoasDoPonto.get(existing)!;
-      for (const cpf of cpfsDosKpis.get(c.kpis) ?? []) s.add(cpf);
-      existing.cpfsUnicos = s.size;
+      const doKpi = cpfsDosKpis.get(c.kpis);
+      if (doKpi) s.juntar(doKpi);
+      existing.cpfsUnicos = s.total();
       continue;
     }
     const point: MapPoint = {
@@ -263,7 +263,10 @@ async function attachMapPoints(
       certificados: c.kpis.certificados,
       cpfsUnicos: c.kpis.cpfsUnicos,
     };
-    pessoasDoPonto.set(point, new Set(cpfsDosKpis.get(c.kpis) ?? []));
+    const conjunto = new ConjuntoCpfs();
+    const doKpi = cpfsDosKpis.get(c.kpis);
+    if (doKpi) conjunto.juntar(doKpi);
+    pessoasDoPonto.set(point, conjunto);
     seen.set(dedupeKey, point);
     points.push(point);
   }

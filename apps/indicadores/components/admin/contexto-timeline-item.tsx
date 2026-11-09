@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CpfsUnicosInline } from "@/components/cpfs-unicos-nota";
 import type { ProgramaEdicao } from "@/app/actions/programa";
 import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
 import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
@@ -47,8 +48,10 @@ export function ContextoTimelineItem({
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <div className="text-xs tabular-nums text-muted-foreground">
-              {edicao.inscritos} insc. · {edicao.selecionados} sel. · {edicao.participantes} part. ·{" "}
-              {edicao.certificados} cert. · {edicao.cpfsUnicos} CPFs únicos · {edicao.acoes}{" "}
+              {edicao.inscritos} insc. <CpfsUnicosInline n={edicao.cpfsUnicos.inscritos} /> ·{" "}
+              {edicao.selecionados} sel. <CpfsUnicosInline n={edicao.cpfsUnicos.selecionados} /> ·{" "}
+              {edicao.participantes} part. <CpfsUnicosInline n={edicao.cpfsUnicos.participantes} /> ·{" "}
+              {edicao.certificados} cert. <CpfsUnicosInline n={edicao.cpfsUnicos.certificados} /> · {edicao.acoes}{" "}
               {edicao.acoes === 1 ? "ação" : "ações"}
             </div>
             {acomp ? <AcompanhamentoLink projetoId={edicao.id_projeto} compact /> : null}

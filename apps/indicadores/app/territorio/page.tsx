@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CpfsUnicosInline } from "@/components/cpfs-unicos-nota";
 import { listTerritoriosOverviewAction } from "@/app/actions/territorio";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { TerritorioMapClient } from "@/components/territorio/territorio-map-client";
@@ -63,7 +64,7 @@ export default async function TerritorioIndexPage({
                     Online
                   </div>
                   <div className="text-xs tabular-nums text-muted-foreground">
-                    {data.online.kpis.inscritos} insc. · {data.online.kpis.cpfsUnicos} CPFs únicos ·{" "}
+                    {data.online.kpis.inscritos} insc. <CpfsUnicosInline n={data.online.kpis.cpfsUnicos.inscritos} /> ·{" "}
                     {data.online.labels} modalidade(s)
                   </div>
                 </div>
@@ -85,7 +86,8 @@ export default async function TerritorioIndexPage({
                       {e.estado}
                     </div>
                     <div className="text-xs tabular-nums text-muted-foreground">
-                      {e.kpis.inscritos} insc. · {e.kpis.selecionados} sel. · {e.kpis.cpfsUnicos} CPFs únicos ·{" "}
+                      {e.kpis.inscritos} insc. <CpfsUnicosInline n={e.kpis.cpfsUnicos.inscritos} /> · {e.kpis.selecionados} sel.{" "}
+                      <CpfsUnicosInline n={e.kpis.cpfsUnicos.selecionados} /> ·{" "}
                       {e.kpis.acoes} ações · {e.kpis.projetos} proj.
                     </div>
                   </div>

@@ -51,7 +51,7 @@ import {
   type SocioCohort,
 } from "@/lib/socio";
 import { getInscricaoFilterOptions } from "@/lib/inscricao-filters";
-import { chaveCpf, cpfsUnicosDoFiltro } from "@/lib/cpfs-unicos";
+import { chaveCpf, cpfsUnicosDoFiltro, type CpfsUnicos } from "@/lib/cpfs-unicos";
 import {
   listContextosPanoramaAction,
   type ProgramaListItem,
@@ -467,6 +467,23 @@ export type AnaliseFilters = {
   socioCohort?: SocioCohort;
 };
 
+/** Etapas da inscrição em bits: 1 selecionado, 2 participante, 4 certificado. */
+function etapasDaLinha(r: { selecionados: number; participantes: number; certificado: number }): number {
+  return (r.selecionados > 0 ? 1 : 0) | (r.participantes > 0 ? 2 : 0) | (r.certificado > 0 ? 4 : 0);
+}
+
+/** CPFs únicos por etapa a partir das etapas (bits) de cada pessoa. */
+function contarEtapas(bitsPorPessoa: Iterable<number>): CpfsUnicos {
+  const c = { inscritos: 0, selecionados: 0, participantes: 0, certificados: 0 };
+  for (const b of bitsPorPessoa) {
+    c.inscritos++;
+    if (b & 1) c.selecionados++;
+    if (b & 2) c.participantes++;
+    if (b & 4) c.certificados++;
+  }
+  return c;
+}
+
 export type AnaliseRow = {
   id_oficina: string;
   id_projeto: string;
@@ -479,11 +496,12 @@ export type AnaliseRow = {
   Selecionados: number;
   Participantes: number;
   Certificado: number;
-  /** Pessoas diferentes (CPFs únicos) nesta linha. */
-  CpfsUnicos: number;
+  /** Pessoas diferentes (CPFs únicos) nesta linha, por etapa. */
+  CpfsUnicos: CpfsUnicos;
   /**
    * Um número por pessoa (não é o CPF), para a tela contar pessoas diferentes
-   * ao somar várias linhas (busca e página).
+   * ao somar várias linhas (busca e página). Cada valor é `id * 8 + etapas`,
+   * com as etapas em bits: 1 selecionado, 2 participante, 4 certificado.
    */
   pessoas: number[];
   taxaSelecao: number;
@@ -508,7 +526,7 @@ export type AnaliseResult = {
     Selecionados: number;
     Participantes: number;
     Certificado: number;
-    CpfsUnicos: number;
+    CpfsUnicos: CpfsUnicos;
     acoes: number;
     projetos: number;
   };
@@ -639,8 +657,23 @@ export async function getAnaliseAction(
         estado: true,
         cidade: true,
         territorio: true,
+        selecionados: true,
+        participantes: true,
+        certificado: true,
       },
-      distinct: ["idAcao", "idProjeto", "nomeAcao", "nomeProjeto", "estado", "cidade", "territorio", "cpf"],
+      distinct: [
+        "idAcao",
+        "idProjeto",
+        "nomeAcao",
+        "nomeProjeto",
+        "estado",
+        "cidade",
+        "territorio",
+        "cpf",
+        "selecionados",
+        "participantes",
+        "certificado",
+      ],
     }),
   ]);
 
@@ -654,16 +687,21 @@ export async function getAnaliseAction(
     territorio: string;
   }) => [g.idAcao, g.idProjeto, g.nomeAcao, g.nomeProjeto, g.estado, g.cidade, g.territorio].join("\u0001");
   const numeroDaPessoa = new Map<string, number>();
-  const pessoasPorLinha = new Map<string, Set<number>>();
+  /** Por linha: pessoa → etapas (bits) que ela alcançou naquela linha. */
+  const pessoasPorLinha = new Map<string, Map<number, number>>();
+  /** No total: pessoa → etapas alcançadas em qualquer linha. */
+  const etapasNoTotal = new Map<number, number>();
   for (const r of cpfsDasLinhas) {
     const k = chaveCpf(r.cpf);
     if (!k) continue;
     let n = numeroDaPessoa.get(k);
     if (n === undefined) numeroDaPessoa.set(k, (n = numeroDaPessoa.size));
+    const bits = etapasDaLinha(r);
     const linha = chaveLinha(r);
-    let s = pessoasPorLinha.get(linha);
-    if (!s) pessoasPorLinha.set(linha, (s = new Set()));
-    s.add(n);
+    let m = pessoasPorLinha.get(linha);
+    if (!m) pessoasPorLinha.set(linha, (m = new Map()));
+    m.set(n, (m.get(n) ?? 0) | bits);
+    etapasNoTotal.set(n, (etapasNoTotal.get(n) ?? 0) | bits);
   }
 
   const rows: AnaliseRow[] = grouped.map((g) => {
@@ -671,7 +709,8 @@ export async function getAnaliseAction(
     const Selecionados = g._sum.selecionados ?? 0;
     const Participantes = g._sum.participantes ?? 0;
     const Certificado = g._sum.certificado ?? 0;
-    const pessoas = [...(pessoasPorLinha.get(chaveLinha(g)) ?? [])];
+    const daLinha = pessoasPorLinha.get(chaveLinha(g)) ?? new Map<number, number>();
+    const pessoas = [...daLinha].map(([id, bits]) => id * 8 + bits);
     return {
       id_oficina: g.idAcao,
       id_projeto: g.idProjeto,
@@ -684,7 +723,7 @@ export async function getAnaliseAction(
       Selecionados,
       Participantes,
       Certificado,
-      CpfsUnicos: pessoas.length,
+      CpfsUnicos: contarEtapas(daLinha.values()),
       pessoas,
       taxaSelecao: pct(Selecionados, Inscritos),
       taxaParticipacao: pct(Participantes, Selecionados || Inscritos),
@@ -703,9 +742,16 @@ export async function getAnaliseAction(
       acc.Certificado += r.Certificado;
       return acc;
     },
-    { Inscritos: 0, Selecionados: 0, Participantes: 0, Certificado: 0, CpfsUnicos: 0, acoes: 0, projetos: 0 },
+    {
+      Inscritos: 0,
+      Selecionados: 0,
+      Participantes: 0,
+      Certificado: 0,
+      CpfsUnicos: contarEtapas(etapasNoTotal.values()),
+      acoes: 0,
+      projetos: 0,
+    },
   );
-  totais.CpfsUnicos = numeroDaPessoa.size;
   totais.acoes = new Set(rows.map((r) => r.id_oficina)).size;
   totais.projetos = new Set(rows.map((r) => r.id_projeto)).size;
 
