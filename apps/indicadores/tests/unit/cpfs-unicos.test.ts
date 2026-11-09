@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
-import { chaveCpf, contarCpfsUnicos, cpfsPorGrupo } from "@/lib/cpfs-unicos";
+import { chaveCpf, contarCpfsUnicos, cpfsPorGrupo, cpfsUnicosPorEtapa } from "@/lib/cpfs-unicos";
 
 describe("CPFs únicos", () => {
   it("normaliza pontuação e zeros cortados pela planilha", () => {
@@ -18,12 +18,24 @@ describe("CPFs únicos", () => {
 
   it("conta por grupo sem misturar grupos", () => {
     const g = cpfsPorGrupo();
-    g.add("a", "11111111111");
-    g.add("a", "111.111.111-11");
-    g.add("b", "11111111111");
-    g.add("b", "22222222222");
-    expect(g.total("a")).toBe(1);
-    expect(g.total("b")).toBe(2);
-    expect(g.total("c")).toBe(0);
+    g.add("a", { cpf: "11111111111" });
+    g.add("a", { cpf: "111.111.111-11", selecionados: 1 });
+    g.add("b", { cpf: "11111111111" });
+    g.add("b", { cpf: "22222222222" });
+    expect(g.total("a")).toEqual({ inscritos: 1, selecionados: 1, participantes: 0, certificados: 0 });
+    expect(g.total("b").inscritos).toBe(2);
+    expect(g.total("c").inscritos).toBe(0);
+  });
+
+  it("conta cada pessoa uma vez em cada etapa", () => {
+    const r = cpfsUnicosPorEtapa([
+      // A pessoa 1 fez duas ações: selecionada nas duas, certificada em uma.
+      { cpf: "11111111111", selecionados: 1, participantes: 1, certificado: 1 },
+      { cpf: "111.111.111-11", selecionados: 1, participantes: 1, certificado: 0 },
+      { cpf: "22222222222", selecionados: 1, participantes: 0, certificado: 0 },
+      { cpf: "33333333333", selecionados: 0, participantes: 0, certificado: 0 },
+      { cpf: "", selecionados: 1, participantes: 1, certificado: 1 },
+    ]);
+    expect(r).toEqual({ inscritos: 3, selecionados: 2, participantes: 1, certificados: 1 });
   });
 });

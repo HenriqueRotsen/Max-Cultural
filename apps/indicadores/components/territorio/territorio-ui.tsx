@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { TerritorioKpis } from "@/app/actions/territorio";
+import { CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 import { StatusKindBadge } from "@/components/status-badges";
 import { buildTerritorioPath } from "@/lib/territorio-slug";
 import { cn } from "@/lib/utils";
@@ -78,7 +79,7 @@ export function TerritorioKpiGrid({
   return (
     <div
       className={cn(
-        "mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-7",
+        "mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-6",
         className,
       )}
     >
@@ -87,30 +88,28 @@ export function TerritorioKpiGrid({
         <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
           {kpis.inscritos}
         </div>
+        <CpfsUnicosNota n={kpis.cpfsUnicos.inscritos} />
       </div>
       <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
         <StatusKindBadge kind="selecionado" className="mb-1" />
         <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
           {kpis.selecionados}
         </div>
+        <CpfsUnicosNota n={kpis.cpfsUnicos.selecionados} />
       </div>
       <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
         <StatusKindBadge kind="participante" className="mb-1" />
         <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
           {kpis.participantes}
         </div>
+        <CpfsUnicosNota n={kpis.cpfsUnicos.participantes} />
       </div>
       <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
         <StatusKindBadge kind="certificado" className="mb-1" />
         <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
           {kpis.certificados}
         </div>
-      </div>
-      <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
-        <div className="text-xs text-muted-foreground">CPFs únicos</div>
-        <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
-          {kpis.cpfsUnicos}
-        </div>
+        <CpfsUnicosNota n={kpis.cpfsUnicos.certificados} />
       </div>
       <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
         <div className="text-xs text-muted-foreground">Oficinas</div>

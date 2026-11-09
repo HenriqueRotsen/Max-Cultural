@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CpfsUnicosInline } from "@/components/cpfs-unicos-nota";
 import { getEstadoPageAction } from "@/app/actions/territorio";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { TerritorioMapClient } from "@/components/territorio/territorio-map-client";
@@ -89,8 +90,9 @@ export default async function TerritorioEstadoPage({ params, searchParams }: Pro
                       </div>
                     </div>
                     <div className="text-xs tabular-nums text-muted-foreground">
-                      {c.kpis.inscritos} insc. · {c.kpis.selecionados} sel. ·{" "}
-                      {c.kpis.participantes} part. · {c.kpis.cpfsUnicos} CPFs únicos
+                      {c.kpis.inscritos} insc. <CpfsUnicosInline n={c.kpis.cpfsUnicos.inscritos} /> · {c.kpis.selecionados} sel.{" "}
+                      <CpfsUnicosInline n={c.kpis.cpfsUnicos.selecionados} /> · {c.kpis.participantes} part.{" "}
+                      <CpfsUnicosInline n={c.kpis.cpfsUnicos.participantes} />
                     </div>
                   </div>
                 </Link>
