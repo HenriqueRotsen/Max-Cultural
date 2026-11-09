@@ -129,7 +129,7 @@ function DoSistema({ ficha }: { ficha: FichaDTO }) {
             <span className="text-xs text-muted-foreground">A ação tem mais de uma execução: os números são da ação toda.</span>
           ) : null}
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {s.numeros.map((n) => (
             <div key={n.chave}>
               <div className="text-xs text-muted-foreground">{n.rotulo}</div>

@@ -101,6 +101,7 @@ async function BaseContent({
     <InscricoesTable
       rows={data.rows}
       total={data.total}
+      cpfsUnicos={data.cpfsUnicos}
       page={data.page}
       pageSize={data.pageSize}
       totalPages={data.totalPages}
