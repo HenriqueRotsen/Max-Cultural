@@ -11,7 +11,7 @@ export default async function HomePage() {
   const ws = entitlements.workspaceId;
   const projectFilter = { salicAccount: { workspaceId: ws } };
 
-  const [accounts, paymentsAgg, watched, lastSync, projects, openAlerts, projectsWithPayments] = await Promise.all([
+  const [accounts, paymentsAgg, watched, lastSync, projects, openAlerts] = await Promise.all([
     prisma.salicAccount.count({ where: { active: true, workspaceId: ws } }),
     prisma.payment.aggregate({
       where: { project: projectFilter },
@@ -30,7 +30,6 @@ export default async function HomePage() {
     }),
     prisma.project.count({ where: projectFilter }),
     prisma.auditAlert.count({ where: { workspaceId: ws, status: { in: ["NOVO", "VISTO"] } } }),
-    prisma.project.count({ where: { ...projectFilter, payments: { some: {} } } }),
   ]);
 
   const total = Number(paymentsAgg._sum.amount || 0);
@@ -132,11 +131,7 @@ export default async function HomePage() {
           <StatCard
             label="Projetos"
             value={String(projects)}
-            hint={
-              projects > projectsWithPayments
-                ? `${projectsWithPayments} com pagamentos · ${projects - projectsWithPayments} ainda sem`
-                : "PRONACs carregados"
-            }
+            hint="PRONACs carregados"
           />
           <StatCard
             label="Pagamentos"
