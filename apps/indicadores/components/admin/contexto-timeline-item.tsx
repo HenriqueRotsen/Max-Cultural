@@ -47,7 +47,8 @@ export function ContextoTimelineItem({
           </div>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <div className="text-xs tabular-nums text-muted-foreground">
-              {edicao.inscritos} insc. · {edicao.selecionados} sel. · {edicao.acoes}{" "}
+              {edicao.inscritos} insc. · {edicao.selecionados} sel. · {edicao.participantes} part. ·{" "}
+              {edicao.certificados} cert. · {edicao.cpfsUnicos} CPFs únicos · {edicao.acoes}{" "}
               {edicao.acoes === 1 ? "ação" : "ações"}
             </div>
             {acomp ? <AcompanhamentoLink projetoId={edicao.id_projeto} compact /> : null}

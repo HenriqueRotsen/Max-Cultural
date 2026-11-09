@@ -32,7 +32,7 @@ const s = StyleSheet.create({
   h3: { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.deep, marginTop: 10, marginBottom: 6 },
   suave: { color: C.suave },
   kpis: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -4, marginTop: 8, marginBottom: 6 },
-  kpi: { width: "33.33%", paddingHorizontal: 4, marginBottom: 8 },
+  kpi: { width: "25%", paddingHorizontal: 4, marginBottom: 8 },
   kpiCaixa: { backgroundColor: C.mist, borderRadius: 6, padding: 10, borderLeftWidth: 3, borderLeftColor: C.brand },
   kpiNum: { fontSize: 20, fontFamily: "Helvetica-Bold", color: C.deep, lineHeight: 1.1, marginBottom: 3 },
   kpiRot: { fontSize: 8.5, color: C.suave },
@@ -232,6 +232,7 @@ export function DocumentoPrestacao({ d, logo }: { d: DadosRelatorio; logo: Buffe
               ["Participantes", d.totais.participantes],
               ["PCDs participantes", d.totais.pcds],
               ["Certificados", d.totais.certificados],
+              ["CPFs únicos", d.totais.cpfsUnicos],
             ] as const
           ).map(([r, v]) => (
             <View key={r} style={s.kpi}>

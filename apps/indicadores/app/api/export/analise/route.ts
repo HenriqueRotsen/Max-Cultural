@@ -27,6 +27,7 @@ const HEADERS = [
   "Soma de Selecionados",
   "Soma de Participantes",
   "Soma de Certificado",
+  "CPFs únicos",
 ] as const;
 
 export async function GET(request: NextRequest) {
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const format = sp.get("format") ?? "csv";
   const data = await getAnaliseAction({
+    proponente: sp.get("proponente") ?? undefined,
     idProjeto: sp.get("idProjeto") ?? undefined,
     idAcao: sp.get("idAcao") ?? undefined,
     estado: sp.get("estado") ?? undefined,
@@ -55,6 +57,7 @@ export async function GET(request: NextRequest) {
     "Soma de Selecionados": r.Selecionados,
     "Soma de Participantes": r.Participantes,
     "Soma de Certificado": r.Certificado,
+    "CPFs únicos": r.CpfsUnicos,
   }));
 
   if (format === "xlsx") {

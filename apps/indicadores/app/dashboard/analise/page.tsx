@@ -50,6 +50,7 @@ async function AnaliseContent({
 
   try {
     data = await getAnaliseAction({
+      proponente: str(params.proponente),
       idProjeto: str(params.idProjeto),
       idAcao: str(params.idAcao),
       estado: str(params.estado),

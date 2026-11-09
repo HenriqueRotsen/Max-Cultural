@@ -126,7 +126,7 @@ function ProjetoView({
             </Link>
           </p>
         ) : null}
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
             <div className="text-xs text-muted-foreground">Ações</div>
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
@@ -149,6 +149,18 @@ function ProjetoView({
             <StatusKindBadge kind="participante" className="mb-1" />
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
               {data.totais.participantes}
+            </div>
+          </div>
+          <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
+            <StatusKindBadge kind="certificado" className="mb-1" />
+            <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
+              {data.totais.certificados}
+            </div>
+          </div>
+          <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
+            <div className="text-xs text-muted-foreground">CPFs únicos</div>
+            <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
+              {data.totais.cpfsUnicos}
             </div>
           </div>
         </div>
@@ -209,6 +221,10 @@ function ProjetoView({
                   <span className="inline-flex items-center gap-1.5">
                     <StatusKindBadge kind="certificado" />
                     <strong className="text-brand-deep">{o.certificados}</strong>
+                  </span>
+                  <span className="text-muted-foreground">
+                    CPFs únicos{" "}
+                    <strong className="text-brand-deep">{o.cpfsUnicos}</strong>
                   </span>
                 </div>
               </div>

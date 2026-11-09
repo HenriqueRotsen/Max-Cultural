@@ -60,7 +60,7 @@ export default async function TerritorioOnlineIndexPage({
                     </div>
                     <div className="text-xs tabular-nums text-muted-foreground">
                       {item.kpis.inscritos} insc. · {item.kpis.selecionados} sel.
-                      · {item.kpis.acoes} ofc.
+                      · {item.kpis.cpfsUnicos} CPFs únicos · {item.kpis.acoes} ações
                     </div>
                   </div>
                 </Link>

@@ -50,10 +50,8 @@ import {
   type SocioBreakdown,
   type SocioCohort,
 } from "@/lib/socio";
-import {
-  getAnaliseFilterOptions,
-  getInscricaoFilterOptions,
-} from "@/lib/inscricao-filters";
+import { getInscricaoFilterOptions } from "@/lib/inscricao-filters";
+import { chaveCpf, cpfsUnicosDoFiltro } from "@/lib/cpfs-unicos";
 import {
   listContextosPanoramaAction,
   type ProgramaListItem,
@@ -424,7 +422,7 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
   const sortDir = parseSortDir(filters.sortDir);
   const orderBy = inscricaoOrderBy(sort, sortDir);
 
-  const [total, records, filterOptions] = await Promise.all([
+  const [total, records, filterOptions, cpfsUnicos] = await Promise.all([
     prisma.inscricao.count({ where }),
     prisma.inscricao.findMany({
       where,
@@ -433,10 +431,12 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
       take: pageSize,
     }),
     getInscricaoFilterOptions(user.id),
+    cpfsUnicosDoFiltro(where),
   ]);
 
   return {
     total,
+    cpfsUnicos,
     page,
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
@@ -458,6 +458,7 @@ export async function listAllRowsForExport(): Promise<SigaCulturalRow[]> {
 }
 
 export type AnaliseFilters = {
+  proponente?: string;
   idProjeto?: string;
   idAcao?: string;
   estado?: string;
@@ -478,6 +479,13 @@ export type AnaliseRow = {
   Selecionados: number;
   Participantes: number;
   Certificado: number;
+  /** Pessoas diferentes (CPFs únicos) nesta linha. */
+  CpfsUnicos: number;
+  /**
+   * Um número por pessoa (não é o CPF), para a tela contar pessoas diferentes
+   * ao somar várias linhas (busca e página).
+   */
+  pessoas: number[];
   taxaSelecao: number;
   taxaParticipacao: number;
   taxaCertificado: number;
@@ -500,20 +508,59 @@ export type AnaliseResult = {
     Selecionados: number;
     Participantes: number;
     Certificado: number;
+    CpfsUnicos: number;
     acoes: number;
     projetos: number;
   };
   topParticipantes: AnaliseTopPessoa[];
   socio: SocioBreakdown;
   programas: ProgramaListItem[];
-  filterOptions: {
-    projetos: { idProjeto: string; nomeProjeto: string }[];
-    acoes: { idAcao: string; nomeAcao: string }[];
-    estados: string[];
-    cidades: string[];
-    territorios: string[];
-  };
+  /** Opções de cada filtro, já limitadas pelos outros filtros ativos. */
+  filterOptions: Record<FiltroAnalise, OpcaoFiltro[]>;
 };
+
+export type FiltroAnalise = "proponente" | "idProjeto" | "idAcao" | "estado" | "cidade" | "territorio";
+
+export type OpcaoFiltro = { value: string; label: string; hint?: string; inscricoes: number };
+
+/** Opções de cada filtro com o nº de inscrições, considerando os demais filtros. */
+async function opcoesDosFiltros(
+  whereSem: (sem: FiltroAnalise) => Prisma.InscricaoWhereInput,
+): Promise<Record<FiltroAnalise, OpcaoFiltro[]>> {
+  const contar = { _count: { _all: true } } as const;
+  const [proponentes, projetos, acoes, estados, cidades, territorios] = await Promise.all([
+    prisma.inscricao.groupBy({ by: ["proponente"], where: whereSem("proponente"), ...contar }),
+    prisma.inscricao.groupBy({ by: ["idProjeto", "nomeProjeto"], where: whereSem("idProjeto"), ...contar }),
+    prisma.inscricao.groupBy({ by: ["idAcao", "nomeAcao", "nomeProjeto"], where: whereSem("idAcao"), ...contar }),
+    prisma.inscricao.groupBy({ by: ["estado"], where: whereSem("estado"), ...contar }),
+    prisma.inscricao.groupBy({ by: ["cidade", "estado"], where: whereSem("cidade"), ...contar }),
+    prisma.inscricao.groupBy({ by: ["territorio", "cidade"], where: whereSem("territorio"), ...contar }),
+  ]);
+  // Junta linhas com o mesmo valor (ex.: mesma cidade em grafias de UF diferentes).
+  function juntar(lista: Array<{ value: string; label: string; hint?: string; n: number }>): OpcaoFiltro[] {
+    const m = new Map<string, OpcaoFiltro & { dicas: Set<string> }>();
+    for (const x of lista) {
+      const value = x.value.trim();
+      if (!value) continue;
+      const chave = value.toLocaleLowerCase("pt-BR");
+      const cur = m.get(chave) ?? { value, label: x.label.trim() || value, inscricoes: 0, dicas: new Set<string>() };
+      cur.inscricoes += x.n;
+      if (x.hint?.trim()) cur.dicas.add(x.hint.trim());
+      m.set(chave, cur);
+    }
+    return [...m.values()]
+      .map(({ dicas, ...o }) => ({ ...o, hint: dicas.size ? [...dicas].slice(0, 2).join(", ") + (dicas.size > 2 ? "…" : "") : undefined }))
+      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { numeric: true }));
+  }
+  return {
+    proponente: juntar(proponentes.map((g) => ({ value: g.proponente, label: g.proponente, n: g._count._all }))),
+    idProjeto: juntar(projetos.map((g) => ({ value: g.idProjeto, label: g.nomeProjeto || g.idProjeto, n: g._count._all }))),
+    idAcao: juntar(acoes.map((g) => ({ value: g.idAcao, label: g.nomeAcao || g.idAcao, hint: g.nomeProjeto, n: g._count._all }))),
+    estado: juntar(estados.map((g) => ({ value: g.estado, label: g.estado, n: g._count._all }))),
+    cidade: juntar(cidades.map((g) => ({ value: g.cidade, label: g.cidade, hint: g.estado, n: g._count._all }))),
+    territorio: juntar(territorios.map((g) => ({ value: g.territorio, label: g.territorio, hint: g.cidade, n: g._count._all }))),
+  };
+}
 
 function pct(part: number, total: number) {
   if (!total) return 0;
@@ -527,30 +574,25 @@ export async function getAnaliseAction(
   const scope = await resolveDataScope(user.id);
   const scopeWhere = inscricaoWhereFromScope(scope);
 
-  let where: Prisma.InscricaoWhereInput = {};
-  if (filters.idProjeto?.trim()) where.idProjeto = filters.idProjeto.trim();
-  if (filters.idAcao?.trim()) where.idAcao = filters.idAcao.trim();
-  if (filters.estado?.trim()) {
-    where.estado = {
-      equals: filters.estado.trim(),
-      mode: "insensitive",
-    };
-  }
-  if (filters.cidade?.trim()) {
-    where.cidade = {
-      equals: filters.cidade.trim(),
-      mode: "insensitive",
-    };
-  }
-  if (filters.territorio?.trim()) {
-    where.territorio = {
-      equals: filters.territorio.trim(),
-      mode: "insensitive",
-    };
-  }
-  where = andWhere(where, scopeWhere);
+  // Uma condição por filtro; as opções de cada filtro respeitam os outros filtros.
+  const igual = (v: string) => ({ equals: v, mode: "insensitive" as const });
+  const conds: Record<FiltroAnalise, Prisma.InscricaoWhereInput | null> = {
+    proponente: filters.proponente?.trim() ? { proponente: igual(filters.proponente.trim()) } : null,
+    idProjeto: filters.idProjeto?.trim() ? { idProjeto: filters.idProjeto.trim() } : null,
+    idAcao: filters.idAcao?.trim() ? { idAcao: filters.idAcao.trim() } : null,
+    estado: filters.estado?.trim() ? { estado: igual(filters.estado.trim()) } : null,
+    cidade: filters.cidade?.trim() ? { cidade: igual(filters.cidade.trim()) } : null,
+    territorio: filters.territorio?.trim() ? { territorio: igual(filters.territorio.trim()) } : null,
+  };
+  const whereSem = (sem?: FiltroAnalise): Prisma.InscricaoWhereInput => {
+    const partes = (Object.keys(conds) as FiltroAnalise[])
+      .filter((k) => k !== sem && conds[k])
+      .map((k) => conds[k]!);
+    return partes.reduce<Prisma.InscricaoWhereInput>((acc, c) => andWhere(acc, c), scopeWhere);
+  };
+  const where = whereSem();
 
-  const [grouped, filterOptions, byCpf] = await Promise.all([
+  const [grouped, filterOptions, byCpf, cpfsDasLinhas] = await Promise.all([
     prisma.inscricao.groupBy({
       by: [
         "idAcao",
@@ -570,7 +612,7 @@ export async function getAnaliseAction(
       },
       orderBy: [{ idProjeto: "asc" }, { idAcao: "asc" }],
     }),
-    getAnaliseFilterOptions(user.id),
+    opcoesDosFiltros(whereSem),
     prisma.inscricao.groupBy({
       by: ["cpf"],
       where: {
@@ -585,13 +627,51 @@ export async function getAnaliseAction(
       },
       _count: { _all: true },
     }),
+    // CPFs de cada linha da tabela (mesmo agrupamento), para contar pessoas.
+    prisma.inscricao.findMany({
+      where: { AND: [where, { cpf: { not: "" } }] },
+      select: {
+        cpf: true,
+        idAcao: true,
+        idProjeto: true,
+        nomeAcao: true,
+        nomeProjeto: true,
+        estado: true,
+        cidade: true,
+        territorio: true,
+      },
+      distinct: ["idAcao", "idProjeto", "nomeAcao", "nomeProjeto", "estado", "cidade", "territorio", "cpf"],
+    }),
   ]);
+
+  const chaveLinha = (g: {
+    idAcao: string;
+    idProjeto: string;
+    nomeAcao: string;
+    nomeProjeto: string;
+    estado: string;
+    cidade: string;
+    territorio: string;
+  }) => [g.idAcao, g.idProjeto, g.nomeAcao, g.nomeProjeto, g.estado, g.cidade, g.territorio].join("\u0001");
+  const numeroDaPessoa = new Map<string, number>();
+  const pessoasPorLinha = new Map<string, Set<number>>();
+  for (const r of cpfsDasLinhas) {
+    const k = chaveCpf(r.cpf);
+    if (!k) continue;
+    let n = numeroDaPessoa.get(k);
+    if (n === undefined) numeroDaPessoa.set(k, (n = numeroDaPessoa.size));
+    const linha = chaveLinha(r);
+    let s = pessoasPorLinha.get(linha);
+    if (!s) pessoasPorLinha.set(linha, (s = new Set()));
+    s.add(n);
+  }
 
   const rows: AnaliseRow[] = grouped.map((g) => {
     const Inscritos = g._sum.inscritos ?? 0;
     const Selecionados = g._sum.selecionados ?? 0;
     const Participantes = g._sum.participantes ?? 0;
     const Certificado = g._sum.certificado ?? 0;
+    const pessoas = [...(pessoasPorLinha.get(chaveLinha(g)) ?? [])];
     return {
       id_oficina: g.idAcao,
       id_projeto: g.idProjeto,
@@ -604,6 +684,8 @@ export async function getAnaliseAction(
       Selecionados,
       Participantes,
       Certificado,
+      CpfsUnicos: pessoas.length,
+      pessoas,
       taxaSelecao: pct(Selecionados, Inscritos),
       taxaParticipacao: pct(Participantes, Selecionados || Inscritos),
       taxaCertificado: pct(
@@ -621,8 +703,9 @@ export async function getAnaliseAction(
       acc.Certificado += r.Certificado;
       return acc;
     },
-    { Inscritos: 0, Selecionados: 0, Participantes: 0, Certificado: 0, acoes: 0, projetos: 0 },
+    { Inscritos: 0, Selecionados: 0, Participantes: 0, Certificado: 0, CpfsUnicos: 0, acoes: 0, projetos: 0 },
   );
+  totais.CpfsUnicos = numeroDaPessoa.size;
   totais.acoes = new Set(rows.map((r) => r.id_oficina)).size;
   totais.projetos = new Set(rows.map((r) => r.id_projeto)).size;
 

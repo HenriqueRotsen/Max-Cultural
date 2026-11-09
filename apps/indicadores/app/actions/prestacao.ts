@@ -1,5 +1,6 @@
 "use server";
 
+import { contarCpfsUnicos } from "@/lib/cpfs-unicos";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -391,6 +392,7 @@ const NUMEROS = [
   { chave: "participantes", rotulo: "Participantes" },
   { chave: "pcds", rotulo: "PCDs participantes" },
   { chave: "certificados", rotulo: "Certificados" },
+  { chave: "cpfsUnicos", rotulo: "CPFs únicos" },
 ] as const;
 
 async function agendaVisivel(agendaId: string, scope: Awaited<ReturnType<typeof resolveDataScope>>) {
@@ -425,7 +427,7 @@ async function agendaVisivel(agendaId: string, scope: Awaited<ReturnType<typeof 
 async function numerosDaAcao(acaoId: string): Promise<Record<(typeof NUMEROS)[number]["chave"], number>> {
   const rows = await prisma.inscricao.findMany({
     where: { idAcao: acaoId },
-    select: { selecionados: true, participantes: true, certificado: true, possuiDeficiencia: true },
+    select: { selecionados: true, participantes: true, certificado: true, possuiDeficiencia: true, cpf: true },
   });
   const pcd = (s: string) => {
     const t = s.trim().toLowerCase();
@@ -437,6 +439,7 @@ async function numerosDaAcao(acaoId: string): Promise<Record<(typeof NUMEROS)[nu
     participantes: rows.filter((r) => r.participantes === 1).length,
     pcds: rows.filter((r) => r.participantes === 1 && pcd(r.possuiDeficiencia)).length,
     certificados: rows.filter((r) => r.certificado === 1).length,
+    cpfsUnicos: contarCpfsUnicos(rows.map((r) => r.cpf)),
   };
 }
 

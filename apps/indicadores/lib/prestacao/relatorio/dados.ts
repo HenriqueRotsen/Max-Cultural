@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { contarCpfsUnicos } from "@/lib/cpfs-unicos";
 import { aggregateSocio } from "@/lib/socio";
 import type { SocioBreakdown } from "@/lib/socio-cohort";
 import { lerArquivoPrivado } from "@/lib/storage/privado";
@@ -20,7 +21,16 @@ export type DadosRelatorio = {
     patrocinador: string;
     periodo: string;
   };
-  totais: { execucoes: number; acoes: number; inscritos: number; participantes: number; pcds: number; certificados: number };
+  totais: {
+    execucoes: number;
+    acoes: number;
+    inscritos: number;
+    participantes: number;
+    pcds: number;
+    certificados: number;
+    /** Pessoas diferentes em todas as ações do relatório. */
+    cpfsUnicos: number;
+  };
   perfil: SocioBreakdown | null;
   produtos: ProdutoRelatorio[];
   anexos: Array<{ execucao: string; categoria: string; nome: string }>;
@@ -138,7 +148,7 @@ export async function montarDadosRelatorio(
   const formulariosDa = (id: string) => formularios.filter((fm) => fm.acaoId === id);
   const inscricoes = await prisma.inscricao.findMany({
     where: { idAcao: { in: acaoIds } },
-    select: { idAcao: true, nome: true, selecionados: true, participantes: true, certificado: true, possuiDeficiencia: true },
+    select: { idAcao: true, nome: true, cpf: true, selecionados: true, participantes: true, certificado: true, possuiDeficiencia: true },
     orderBy: { nome: "asc" },
   });
   const porAcao = new Map<string, typeof inscricoes>();
@@ -151,6 +161,7 @@ export async function montarDadosRelatorio(
       participantes: rows.filter((r) => r.participantes === 1).length,
       pcds: rows.filter((r) => r.participantes === 1 && pcd(r.possuiDeficiencia)).length,
       certificados: rows.filter((r) => r.certificado === 1).length,
+      cpfsUnicos: contarCpfsUnicos(rows.map((r) => r.cpf)),
     };
   };
 
@@ -215,6 +226,7 @@ export async function montarDadosRelatorio(
             { rotulo: "Participantes", valor: num("participantes") },
             { rotulo: "PCDs participantes", valor: num("pcds") },
             { rotulo: "Certificados", valor: num("certificados") },
+            { rotulo: "CPFs únicos", valor: num("cpfsUnicos") },
           ],
           numerosDaAcaoToda: g.acao._count.agenda > 1,
           informacoes,
@@ -273,6 +285,7 @@ export async function montarDadosRelatorio(
       participantes: somar("participantes"),
       pcds: somar("pcds"),
       certificados: somar("certificados"),
+      cpfsUnicos: contarCpfsUnicos(acoesUnicas.flatMap((id) => (porAcao.get(id) ?? []).map((r) => r.cpf))),
     },
     perfil: acoesUnicas.length ? await aggregateSocio({ idAcao: { in: acoesUnicas } }) : null,
     produtos: produtos.filter((x) => x.execucoes.length || opts.produtoId),

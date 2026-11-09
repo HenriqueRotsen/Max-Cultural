@@ -19,6 +19,7 @@ import { buildTerritorioPath } from "@/lib/territorio-slug";
 import { requireAuth } from "@/lib/auth";
 import { andScope, assertDataAccess, resolveDataScope } from "@/lib/data-scope";
 import { getEffectivePermissions } from "@/lib/permissions";
+import { contarCpfsUnicos, cpfsPorGrupo } from "@/lib/cpfs-unicos";
 
 export type AcaoResumo = {
   id_oficina: string;
@@ -27,6 +28,8 @@ export type AcaoResumo = {
   selecionados: number;
   participantes: number;
   certificados: number;
+  /** Pessoas diferentes (CPFs únicos) inscritas na ação. */
+  cpfsUnicos: number;
 };
 
 export type ProjetoAcaoInscrito = {
@@ -68,6 +71,7 @@ export type ProjetoPageData = {
     selecionados: number;
     participantes: number;
     certificados: number;
+    cpfsUnicos: number;
     acoes: number;
   };
   socio: SocioBreakdown;
@@ -91,6 +95,7 @@ export type AcaoPageData = {
     selecionados: number;
     participantes: number;
     certificados: number;
+    cpfsUnicos: number;
     taxaSelecao: number;
     taxaParticipacao: number;
     taxaCertificado: number;
@@ -250,9 +255,11 @@ export async function getProjetoPageAction(
       selecionados: 0,
       participantes: 0,
       certificados: 0,
+      cpfsUnicos: 0,
     });
   }
 
+  const cpfsDaAcao = cpfsPorGrupo();
   for (const r of records) {
     const key = r.idAcao;
     const cur = byAcao.get(key) ?? {
@@ -262,7 +269,10 @@ export async function getProjetoPageAction(
       selecionados: 0,
       participantes: 0,
       certificados: 0,
+      cpfsUnicos: 0,
     };
+    cpfsDaAcao.add(key, r.cpf);
+    cur.cpfsUnicos = cpfsDaAcao.total(key);
     cur.inscritos += r.inscritos || 1;
     cur.selecionados += r.selecionados || 0;
     cur.participantes += r.participantes || 0;
@@ -283,9 +293,11 @@ export async function getProjetoPageAction(
       acc.certificados += o.certificados;
       return acc;
     },
-    { inscritos: 0, selecionados: 0, participantes: 0, certificados: 0, acoes: 0 },
+    { inscritos: 0, selecionados: 0, participantes: 0, certificados: 0, cpfsUnicos: 0, acoes: 0 },
   );
   totais.acoes = acoes.length;
+  // Pessoas do projeto todo (quem fez mais de uma ação conta uma vez).
+  totais.cpfsUnicos = contarCpfsUnicos(records.map((r) => r.cpf));
 
   const emptySocio: SocioBreakdown = {
     total: 0,
@@ -416,6 +428,7 @@ export async function getAcaoPageAction(
         selecionados,
         participantes,
         certificados,
+        cpfsUnicos: contarCpfsUnicos(records.map((r) => r.cpf)),
         taxaSelecao: pct(selecionados, inscritos),
         taxaParticipacao: pct(participantes, selecionados || inscritos),
         taxaCertificado: pct(certificados, participantes || selecionados || inscritos),
