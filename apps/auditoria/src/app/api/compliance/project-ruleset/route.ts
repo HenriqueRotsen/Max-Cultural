@@ -4,6 +4,7 @@ import {
   ensureProjectRuleset,
   setProjectRulesetManual,
 } from "@/lib/compliance/choose-ruleset";
+import { excludeProjects, hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
       where: {
         id: body.projectId,
         salicAccount: { workspaceId: entitlements.workspaceId },
+        ...excludeProjects(await hiddenProjectIds()),
       },
       select: { id: true },
     });

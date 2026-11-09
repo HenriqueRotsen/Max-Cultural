@@ -3,6 +3,8 @@ import { getSupplierDetail } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { renderSupplierDetailHtml } from "@/lib/reports/html";
 import { htmlToPdf, reportFileStamp } from "@/lib/reports/pdf";
+import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
+import { getWorkspaceContext } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -16,8 +18,15 @@ export async function GET(request: Request, context: { params: Params }) {
     const accountId = url.searchParams.get("accountId") || undefined;
     const pronac = url.searchParams.get("pronac") || undefined;
 
+    const { entitlements } = await getWorkspaceContext();
+    const hidden = await hiddenProjectIds();
     const [detail, account] = await Promise.all([
-      getSupplierDetail(supplierId, { accountId, pronac }),
+      getSupplierDetail(supplierId, {
+        accountId,
+        pronac,
+        workspaceId: entitlements.workspaceId,
+        hiddenProjectIds: hidden,
+      }),
       accountId
         ? prisma.salicAccount.findUnique({ where: { id: accountId } })
         : Promise.resolve(null),
