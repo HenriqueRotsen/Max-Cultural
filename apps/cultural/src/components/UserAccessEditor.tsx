@@ -220,6 +220,30 @@ function ScreenOverrideBlock({
   onChange: (id: string, value: EffectChoice, dependents?: string[]) => void;
 }) {
   const screenOn = effectiveOn(screen.id);
+  if (screen.restriction) {
+    return (
+      <div className="space-y-3 rounded-xl border border-[var(--border)] px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-[var(--navy)]">{screen.label}</p>
+          {screen.description ? (
+            <p className="mt-0.5 text-xs text-[var(--gray-500)]">{screen.description}</p>
+          ) : null}
+        </div>
+        {capabilities.map((cap) => (
+          <RestrictionRow
+            key={cap.id}
+            label={cap.label}
+            description={cap.description || ""}
+            roleDefault={roleSet.has(cap.id)}
+            choice={choiceFor(cap.id)}
+            effective={effectiveOn(cap.id)}
+            disabled={!canEdit}
+            onChange={(v) => onChange(cap.id, v)}
+          />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="space-y-2 rounded-xl border border-[var(--border)] px-4 py-3">
       <OverrideRow
@@ -259,6 +283,58 @@ function ScreenOverrideBlock({
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Restrição: pergunta de sim/não (“Esconder …?”) em vez de conceder/negar. */
+function RestrictionRow({
+  label,
+  description,
+  roleDefault,
+  choice,
+  effective,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  roleDefault: boolean;
+  choice: EffectChoice;
+  effective: boolean;
+  disabled: boolean;
+  onChange: (value: EffectChoice) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3 border-l border-[var(--border)] pl-4">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-[var(--navy)]">{label}</p>
+        {description ? (
+          <p className="mt-0.5 text-xs text-[var(--gray-500)]">{description}</p>
+        ) : null}
+        <p className="mt-1 text-[11px] text-[var(--gray-400)]">
+          Hoje:{" "}
+          <span
+            className={
+              effective ? "font-semibold text-amber-700" : "font-semibold text-emerald-700"
+            }
+          >
+            {effective ? "esconde" : "mostra"}
+          </span>
+          {choice ? " (ajustado aqui)" : " (igual ao papel)"}
+        </p>
+      </div>
+      <select
+        className="shrink-0 rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+        value={choice}
+        disabled={disabled}
+        aria-label={label}
+        onChange={(e) => onChange(e.target.value as EffectChoice)}
+      >
+        <option value="">Igual ao papel ({roleDefault ? "sim" : "não"})</option>
+        <option value="GRANT">Sim, esconder</option>
+        <option value="DENY">Não, mostrar</option>
+      </select>
     </div>
   );
 }

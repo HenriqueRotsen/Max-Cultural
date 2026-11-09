@@ -20,6 +20,11 @@ export type AccessCatalogEntry = {
   product?: "cultural" | "financeiro" | "indicadores" | "auditoria";
   /** Tela ou produto pai (capacidades exigem screen; screens exigem product). */
   parentId?: string;
+  /**
+   * Restrição: em vez de dar acesso, esconde algo. A UI pergunta “sim/não” e o
+   * grupo (screen) não precisa ser ligado à parte.
+   */
+  restriction?: boolean;
 };
 
 /**
@@ -241,19 +246,20 @@ export const ACCESS_CATALOG = [
   {
     id: "auditoria.restricoes",
     label: "Restrições de visualização",
-    description:
-      "Não dá nem tira acesso sozinho: só agrupa as restrições abaixo. Para ligar uma, marque esta caixa e a restrição.",
+    description: "Esconde informações. Não muda o que a pessoa pode acessar.",
     kind: "screen",
+    restriction: true,
     group: "Auditoria",
     product: "auditoria",
     parentId: "auditoria.app",
   },
   {
     id: "auditoria.restricoes.ocultar_acima_limite",
-    label: "Não ver PRONACs acima do limite",
+    label: "Esconder PRONACs acima do limite?",
     description:
-      "Esconde os PRONACs com a linha vermelha (algum fornecedor ou o grupo do proponente acima do teto da IN): somem das listas, totais, relatórios e alertas, e o link direto dá “não encontrado”. Não vale para superadmin.",
+      "Os PRONACs com a linha vermelha (algum fornecedor ou o grupo do proponente acima do teto da IN) somem das listas, totais, relatórios e alertas. Não vale para superadmin.",
     kind: "capability",
+    restriction: true,
     group: "Auditoria",
     product: "auditoria",
     parentId: "auditoria.restricoes",
