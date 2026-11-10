@@ -3,8 +3,8 @@
  * Uso: npx tsx scripts/seed-demo.ts
  */
 import { config } from "dotenv";
-// MAX_LOCAL_STACK=1 (npm run dev:local): o ambiente local já vem no processo.
-if (process.env.MAX_LOCAL_STACK !== "1") config({ path: ".env.local", override: true });
+// `npm run dev:teste` (MAX_AMBIENTE): o ambiente já vem no processo.
+if (!process.env.MAX_AMBIENTE) config({ path: ".env.local", override: true });
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -15,7 +15,7 @@ async function main() {
   if (!connectionString) throw new Error("DATABASE_URL não configurada");
   if (!/localhost|127\.0\.0\.1/.test(connectionString)) {
     throw new Error(
-      "seed-demo só roda contra banco local (localhost). Use npm run db:use-local primeiro.",
+      "seed-demo só roda contra banco local (localhost). Use npm run dev:teste -- setup.",
     );
   }
 

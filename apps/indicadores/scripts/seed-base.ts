@@ -19,8 +19,8 @@ import { Pool } from "pg";
 import { normalizeRow } from "../lib/normalize";
 import { rowToPrisma, type SigaCulturalRow } from "../lib/schema";
 
-// MAX_LOCAL_STACK=1 (npm run dev:local): o ambiente local já vem no processo.
-if (process.env.MAX_LOCAL_STACK !== "1") config({ path: ".env.local", override: true });
+// `npm run dev:teste` (MAX_AMBIENTE): o ambiente já vem no processo.
+if (!process.env.MAX_AMBIENTE) config({ path: ".env.local", override: true });
 
 const BATCH = 250;
 const PREFERRED_SHEETS = ["Base 2026", "Base Completa", "base"];

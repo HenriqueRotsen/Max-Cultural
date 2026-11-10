@@ -3,22 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3002",
     "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "db:migrate": "prisma migrate deploy",
-    "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:seed": "tsx scripts/seed-base.ts",
-    "db:seed-auth": "tsx scripts/seed-auth.ts",
-    "db:seed-demo": "tsx scripts/seed-demo.ts",
-    "db:local:up": "DOCKER_HOST=unix:///var/run/docker.sock docker compose -f ../cultural/docker-compose.yml up -d postgres",
-    "db:use-local": "node scripts/switch-db-env.mjs local",
-    "db:use-remote": "node scripts/switch-db-env.mjs remote",
     "strip:string-fields": "tsx scripts/strip-string-fields.ts"
   },
   "dependencies": {

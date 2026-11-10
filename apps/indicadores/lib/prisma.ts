@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
+import { bloquearProducao } from "./ambiente";
 
 /**
  * Subir ao mudar o schema Prisma — força um client novo no processo.
@@ -32,6 +33,7 @@ function resolveDatabaseUrl() {
       "DATABASE_URL ainda está com o placeholder do .env.example. Use o Postgres local em apps/indicadores/.env.local (localhost:5436, schema fluxo).",
     );
   }
+  bloquearProducao(url);
   return url;
 }
 
