@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchSelect } from "@/components/ui/search-select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -102,6 +103,10 @@ const STATUS_UI: Record<
     className: "bg-rose-100 text-rose-950 border-transparent",
   },
 };
+
+const PARTICIPACAO_OPCOES = ["Não Participou", "Participou", "Certificou"].map(
+  (p) => ({ value: p, label: p }),
+);
 
 function participacaoFromFlags(participantes: number, certificado: number) {
   if (certificado) return "Certificou";
@@ -921,21 +926,19 @@ export function RespostasQueue({
                         <Label className="text-xs text-muted-foreground">
                           Participação
                         </Label>
-                        <select
-                          className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+                        <SearchSelect
+                          className="mt-1.5 h-9 w-full"
+                          aria-label="Participação"
                           disabled={locked}
                           value={participacaoFromFlags(
                             r.participantes,
                             r.certificado,
                           )}
-                          onChange={(e) =>
-                            saveReview(r.id, { participacao: e.target.value })
+                          onValueChange={(v) =>
+                            saveReview(r.id, { participacao: v })
                           }
-                        >
-                          <option>Não Participou</option>
-                          <option>Participou</option>
-                          <option>Certificou</option>
-                        </select>
+                          options={PARTICIPACAO_OPCOES}
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -1090,24 +1093,23 @@ export function RespostasQueue({
                                     c.tipo === "DROPDOWN" ||
                                     c.tipo === "GENERO" ||
                                     c.tipo === "ETNIA" ? (
-                                    <select
-                                      className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+                                    <SearchSelect
+                                      className="h-9 w-full"
+                                      aria-label={c.rotulo}
                                       disabled={pending || locked}
                                       value={String(val ?? "")}
-                                      onChange={(e) =>
-                                        setDraftField(c.id, e.target.value)
+                                      onValueChange={(v) =>
+                                        setDraftField(c.id, v)
                                       }
-                                    >
-                                      <option value="">—</option>
-                                      {(opts.length
+                                      emptyOption="—"
+                                      options={(opts.length
                                         ? opts
                                         : [String(val ?? "")].filter(Boolean)
-                                      ).map((opt) => (
-                                        <option key={opt} value={opt}>
-                                          {opt}
-                                        </option>
-                                      ))}
-                                    </select>
+                                      ).map((opt) => ({
+                                        value: opt,
+                                        label: opt,
+                                      }))}
+                                    />
                                   ) : (
                                     <Input
                                       disabled={pending || locked}

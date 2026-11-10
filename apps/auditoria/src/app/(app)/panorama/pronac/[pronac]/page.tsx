@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import {
   getPronacDetail,
   getWatchedSupplierCount,
@@ -10,16 +11,17 @@ import {
   nearThresholdForLimit,
   proponentLimitPct,
 } from "@/lib/compliance/rouanet";
-import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
+import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { listRulesets, rulesForProject } from "@/lib/compliance/rules";
 import type { AuditBrief } from "@/lib/compliance/audit-brief";
 import { formatCurrency } from "@/lib/crypto";
+import { paymentCountsForBond } from "@/lib/compliance/rouanet";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { ComplianceAlerts } from "@/components/ComplianceAlerts";
 import { FieldLabel } from "@/components/FieldHelp";
 import { PageHeader, Section, StatCard, StatusBanner } from "@/components/ui";
 import { PronacDetailTables } from "@/components/PronacDetailTables";
-import { Art23Section } from "@/components/Art23Section";
+import { VinculoSection } from "@/components/VinculoSection";
 import { ProjectCompliancePanel } from "@/components/ProjectCompliancePanel";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { HELP } from "@/lib/help";
@@ -105,11 +107,7 @@ export default async function PronacDetailPage({
     primaryAccountId ? [primaryAccountId] : detail.accounts.map((a) => a.id),
     { workspaceId: entitlements.workspaceId },
   );
-  const meta = metaForAccount(
-    bundle,
-    primaryAccountId,
-    projectRules.version,
-  );
+  const meta = metaForProject(bundle, primaryAccountId, detail.projectId);
   const accountCgccpf = detail.accounts[0]?.cgccpf || null;
 
   const projectYear = pronacYear(detail.pronac);
@@ -172,9 +170,15 @@ export default async function PronacDetailPage({
   const bondAmountByDoc = new Map(
     detail.bondSuppliers.map((s) => [normalizeCgccpf(s.cgccpf), s.total]),
   );
+  // Recebido neste PRONAC que não conta para o vínculo (alimentação/refeição ou desligado).
+  const paidAmountByDoc = new Map(
+    detail.allSuppliers.map((s) => [normalizeCgccpf(s.cgccpf), s.total]),
+  );
+  const ignoredFor = (dig: string) =>
+    Math.max(0, (paidAmountByDoc.get(dig) || 0) - (bondAmountByDoc.get(dig) || 0));
   const enabledBondDocs = meta.relatedParties.map((r) => normalizeCgccpf(r.cgccpf));
   const enabledSet = new Set(enabledBondDocs);
-  const art23Rows = watchedInPronac
+  const vinculoRows = watchedInPronac
     .map((w) => normalizeCgccpf(w.cgccpf || ""))
     .filter((dig, i, all) => dig.length >= 11 && dig !== accountDoc && all.indexOf(dig) === i)
     .map((dig) => {
@@ -183,6 +187,7 @@ export default async function PronacDetailPage({
         cgccpf: dig,
         name: w.name,
         amount: bondAmountByDoc.get(dig) || 0,
+        ignoredAmount: ignoredFor(dig),
         enabled: enabledSet.has(dig),
       };
     })
@@ -219,16 +224,6 @@ export default async function PronacDetailPage({
             {detail.name
               ? `${detail.name}${detail.accounts[0] ? ` · ${detail.accounts[0].name}` : ""}`
               : detail.accounts.map((a) => a.name).join(", ") || null}
-            {mapAccount ? (
-              <span className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                <CorporateMapYearChip
-                  accountId={mapAccount.id}
-                  year={projectYear}
-                  institutional={mapAccount.institutionalMap}
-                  periods={mapPeriods}
-                />
-              </span>
-            ) : null}
             {situacao ? (
               <span className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-semibold text-[var(--gray-500)]">Situação no SALIC:</span>
@@ -276,7 +271,7 @@ export default async function PronacDetailPage({
             <>Os valores aparecem só para consulta, sem “acima” ou “perto” do limite</>
           ) : (
             <>
-              Soma do art. 23: <strong>{pctText(groupPct)}</strong> de {limitPct}% permitido
+              Soma do vínculo com o proponente: <strong>{pctText(groupPct)}</strong> de {limitPct}% permitido
             </>
           )}
           {" · "}Regra aplicada: {projectRules.sourceCode}
@@ -330,18 +325,28 @@ export default async function PronacDetailPage({
             />
           </section>
 
-          <Art23Section
+          <VinculoSection
             step={1}
-            salicAccountId={primaryAccountId || null}
-            rulesetVersion={projectRules.version}
+            projectId={detail.projectId}
             rulesetSourceCode={projectRules.sourceCode}
             accountName={detail.accounts[0]?.name || "Proponente"}
             proponentAmount={accountDoc ? bondAmountByDoc.get(accountDoc) || 0 : 0}
+            proponentIgnoredAmount={accountDoc ? ignoredFor(accountDoc) : 0}
+            corporateMap={
+              mapAccount ? (
+                <CorporateMapYearChip
+                  accountId={mapAccount.id}
+                  year={projectYear}
+                  institutional={mapAccount.institutionalMap}
+                  periods={mapPeriods}
+                />
+              ) : null
+            }
             projectTotal={detail.projectTotal}
             limitPct={limitPct}
             noLimits={noLimits}
             nearPct={nearThresholdForLimit(limitPct, projectRules)}
-            rows={art23Rows}
+            rows={vinculoRows}
             bondRelations={projectRules.caps.relationRules.countsTowardProponentCap.map(
               (r) => RELATION_LABELS[r],
             )}
@@ -351,6 +356,7 @@ export default async function PronacDetailPage({
           <PronacDetailTables
             firstStep={2}
             pronac={detail.pronac}
+            projectId={detail.projectId}
             projectTotal={detail.projectTotal}
             accountId={accountId}
             accountCgccpf={accountCgccpf}
@@ -368,12 +374,19 @@ export default async function PronacDetailPage({
                   <FieldLabel htmlFor="watchedOnly" help={HELP.watchedOnly}>
                     Mostrar
                   </FieldLabel>
-                  <select id="watchedOnly" name="watchedOnly" defaultValue={watchedOnly ? "1" : "0"}>
-                    <option value="0">Todos os fornecedores</option>
-                    <option value="1" disabled={watchedCount === 0}>
-                      Só observados{watchedCount > 0 ? ` (${watchedCount})` : " (nenhum cadastrado)"}
-                    </option>
-                  </select>
+                  <SearchSelect
+                    id="watchedOnly"
+                    name="watchedOnly"
+                    defaultValue={watchedOnly ? "1" : "0"}
+                    options={[
+                      { value: "0", label: "Todos os fornecedores" },
+                      {
+                        value: "1",
+                        label: `Só observados${watchedCount > 0 ? ` (${watchedCount})` : " (nenhum cadastrado)"}`,
+                        disabled: watchedCount === 0,
+                      },
+                    ]}
+                  />
                 </div>
                 <button type="submit" className="btn btn-ghost">
                   Aplicar
@@ -389,6 +402,8 @@ export default async function PronacDetailPage({
               documentNumber: p.documentNumber,
               amount: Number(p.amount),
               source: p.source,
+              countsForBond: paymentCountsForBond(p),
+              bondMarkedByHand: p.countsForBond != null,
             }))}
           />
         </>

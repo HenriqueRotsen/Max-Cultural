@@ -15,7 +15,7 @@ export const HELP = {
   active:
     "Se marcado, esta conta entra na tela Atualizar e nas atualizações em lote. Desmarque se quiser pausar sem apagar nada.",
   related:
-    "Relacionamento A↔B: proponente (A) e pessoa/empresa (B). Entre empresas, use “sócio em comum”, “casal sócio nas duas” (ex.: cônjuges sócios na Vivas e no Ateliê 22) ou “coligada”. Só vínculos tipificados no art. 23 da IN entram no teto do proponente.",
+    "Relacionamento A↔B: proponente (A) e pessoa/empresa (B). Entre empresas, use “sócio em comum”, “casal sócio nas duas” (ex.: cônjuges sócios na Vivas e no Ateliê 22) ou “coligada”. Só os vínculos tipificados na IN entram no limite do vínculo com o proponente.",
   artistic:
     "Marque só se for um grupo artístico familiar ou coletivo previsto na regra. Nesse caso, o valor pago a essa pessoa não entra no limite do proponente.",
 
@@ -53,9 +53,9 @@ export const HELP = {
 
   // Conformidade / tabelas
   alerts:
-    "Avisos usam a IN do PRONAC. Vermelho = acima do limite; amarelo = perto do limite. A linha do PRONAC assume a cor mais grave entre fornecedores e a soma art. 23. A seta só aparece se um fornecedor sem vínculo chegou perto ou ultrapassou o teto. Art. 23: soma só proponente + relacionados tipificados (alimentação/refeição não entram).",
+    "Avisos usam a IN do PRONAC. Vermelho = acima do limite; amarelo = perto do limite. A linha do PRONAC assume a cor mais grave entre fornecedores e a soma do vínculo com o proponente. A seta só aparece se um fornecedor sem vínculo chegou perto ou ultrapassou o teto. Vínculo com proponente: soma só proponente + quem tem vínculo (alimentação/refeição não entram).",
   pronacRowLegend:
-    "Vermelho: acima do limite. Âmbar: perto do limite (fornecedor avulso ou soma art. 23). A seta abre só fornecedores sem vínculo art. 23 que chegaram perto ou ultrapassaram o teto — a soma art. 23 pode colorir a linha sem mostrar seta.",
+    "Vermelho: acima do limite. Âmbar: perto do limite (fornecedor avulso ou soma do vínculo com o proponente). A seta abre só fornecedores sem vínculo que chegaram perto ou ultrapassaram o teto — a soma do vínculo pode colorir a linha sem mostrar seta.",
   limitBadge:
     "Compara quanto aquele fornecedor (ou o próprio proponente) recebeu em relação ao valor captado do projeto. Acima do percentual permitido pela regra aparece em vermelho.",
   percentOfPronac:
@@ -65,7 +65,7 @@ export const HELP = {
   percentComprovado:
     "Participação sobre o total já comprovado/pago no PRONAC. A soma de todos os fornecedores fica perto de 100%.",
   valorCaptado:
-    "Valor captado no SALIC — base oficial dos limites de conformidade (art. 23/24). O comprovado (Y) é o que já foi pago.",
+    "Valor captado no SALIC — base oficial dos limites de conformidade da IN. O comprovado (Y) é o que já foi pago.",
   totalObservados:
     "Soma dos pagamentos só aos fornecedores que você marcou para acompanhar — os % usam captado e comprovado.",
   pendingNorm:

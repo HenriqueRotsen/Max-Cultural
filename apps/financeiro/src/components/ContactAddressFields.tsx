@@ -1,11 +1,14 @@
 "use client";
 
+import { SearchSelect } from "@max/ui";
 import { FieldLabel } from "@/components/FieldHelp";
 
 const UFS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
 ] as const;
+
+const UF_OPTIONS = UFS.map((uf) => ({ value: uf, label: uf }));
 
 export type ContactAddressValues = {
   contactEmail: string;
@@ -178,22 +181,19 @@ export function ContactAddressFields({
       </div>
       <div className="field">
         <FieldLabel htmlFor={id("addressState")}>UF</FieldLabel>
-        <select
+        <SearchSelect
           id={id("addressState")}
           name="addressState"
           required
-          autoComplete="address-level1"
-          {...fieldProps("addressState")}
-        >
-          <option value="" disabled>
-            Selecione
-          </option>
-          {UFS.map((uf) => (
-            <option key={uf} value={uf}>
-              {uf}
-            </option>
-          ))}
-        </select>
+          placeholder="Selecione"
+          options={UF_OPTIONS}
+          {...(controlled && values && onChange
+            ? {
+                value: values.addressState,
+                onValueChange: (v: string) => onChange({ addressState: v }),
+              }
+            : { defaultValue: values?.addressState ?? defaults?.addressState ?? "" })}
+        />
       </div>
     </>
   );

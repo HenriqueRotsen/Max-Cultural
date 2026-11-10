@@ -78,7 +78,7 @@ export default async function ObservadosPage({
             </h2>
             <p className="mt-1 text-[0.95rem] text-[var(--gray-600)]">
               Para dizer se alguém tem vínculo com o proponente, abra o PRONAC
-              (Por PRONAC) e use o bloco “Limite do art. 23”.
+              (Por PRONAC) e use o bloco “Limite do Vínculo com Proponente”.
             </p>
           </div>
 

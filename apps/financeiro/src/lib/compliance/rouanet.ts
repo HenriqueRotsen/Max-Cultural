@@ -227,7 +227,7 @@ export function computeProponentGroupShare(params: {
 function formatGroupBreakdown(members: ProponentGroupMember[]) {
   return members
     .map((m) => {
-      const tag = m.role === "proponent" ? "proponente" : "relacionado art. 23";
+      const tag = m.role === "proponent" ? "proponente" : "com vínculo";
       return `${m.name} ${pctLabel(m.percent)} (${tag})`;
     })
     .join("; ");
@@ -333,8 +333,8 @@ export function evaluateProponentGroupCap(params: {
       ...base,
       level: "critical",
       code: "PROPONENT_GROUP_OVER_CAP",
-      title: `Art. 23: soma ${pctLabel(percent)} acima do limite de ${limitPct}%`,
-      detail: `No PRONAC ${params.pronac}, a soma dos percentuais de gasto do proponente e dos fornecedores enquadrados no art. 23 (${rules.sourceCode}, ${article}) é ${pctLabel(percent)} — ${formatCurrency(amount)} de ${formatCurrency(params.projectTotal)}. Detalhe: ${breakdown}. Limite: ${limitPct}%.`,
+      title: `Vínculo com proponente: soma ${pctLabel(percent)} acima do limite de ${limitPct}%`,
+      detail: `No PRONAC ${params.pronac}, a soma dos percentuais de gasto do proponente e de quem tem vínculo com ele (${rules.sourceCode}, ${article}) é ${pctLabel(percent)} — ${formatCurrency(amount)} de ${formatCurrency(params.projectTotal)}. Detalhe: ${breakdown}. Limite: ${limitPct}%.`,
     };
   }
 
@@ -343,8 +343,8 @@ export function evaluateProponentGroupCap(params: {
       ...base,
       level: "attention",
       code: "PROPONENT_GROUP_NEAR_CAP",
-      title: `Art. 23: soma ${pctLabel(percent)} perto do limite de ${limitPct}%`,
-      detail: `No PRONAC ${params.pronac}, somando só quem entra no art. 23: ${pctLabel(percent)} (${formatCurrency(amount)}). Detalhe: ${breakdown}. Faltam cerca de ${pctLabel(Math.max(0, limitPct - percent))} para o limite.`,
+      title: `Vínculo com proponente: soma ${pctLabel(percent)} perto do limite de ${limitPct}%`,
+      detail: `No PRONAC ${params.pronac}, somando só o proponente e quem tem vínculo com ele: ${pctLabel(percent)} (${formatCurrency(amount)}). Detalhe: ${breakdown}. Faltam cerca de ${pctLabel(Math.max(0, limitPct - percent))} para o limite.`,
     };
   }
 
@@ -353,8 +353,8 @@ export function evaluateProponentGroupCap(params: {
     ...base,
     level: "info",
     code: "PROPONENT_GROUP_SUM",
-    title: `Art. 23: soma ${pctLabel(percent)} (limite ${limitPct}%)`,
-    detail: `No PRONAC ${params.pronac}, com os relacionamentos cadastrados, a soma dos percentuais de gasto apenas de proponente + relacionados do art. 23 (${rules.sourceCode}) é ${pctLabel(percent)} — ${formatCurrency(amount)} de ${formatCurrency(params.projectTotal)}. Detalhe: ${breakdown}.`,
+    title: `Vínculo com proponente: soma ${pctLabel(percent)} (limite ${limitPct}%)`,
+    detail: `No PRONAC ${params.pronac}, com os relacionamentos cadastrados, a soma dos percentuais de gasto apenas do proponente + quem tem vínculo com ele (${rules.sourceCode}, ${article}) é ${pctLabel(percent)} — ${formatCurrency(amount)} de ${formatCurrency(params.projectTotal)}. Detalhe: ${breakdown}.`,
   };
 }
 

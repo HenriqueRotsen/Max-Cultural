@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SearchSelect } from "@max/ui";
 
 type Props = {
   /** Prefixo para ids únicos (ex.: workspace id). */
@@ -33,12 +34,12 @@ export function PlanMaxAccountsFields({
     <>
       <div className="field">
         <label htmlFor={planId}>{planLabel}</label>
-        <select
+        <SearchSelect
           id={planId}
           name="plan"
           value={plan}
-          onChange={(e) => {
-            const next = e.target.value === "PRO" ? "PRO" : "ESSENTIAL";
+          onValueChange={(v) => {
+            const next = v === "PRO" ? "PRO" : "ESSENTIAL";
             setPlan(next);
             if (next === "ESSENTIAL") {
               setMaxAccounts(1);
@@ -46,14 +47,14 @@ export function PlanMaxAccountsFields({
               setMaxAccounts(Math.max(2, defaultMaxAccounts));
             }
           }}
-        >
-          <option value="ESSENTIAL">
-            {compactOptions ? "Essencial" : "Essencial (1 conta, sem sync)"}
-          </option>
-          <option value="PRO">
-            {compactOptions ? "Pro" : "Pro (sync + várias contas)"}
-          </option>
-        </select>
+          options={[
+            {
+              value: "ESSENTIAL",
+              label: compactOptions ? "Essencial" : "Essencial (1 conta, sem sync)",
+            },
+            { value: "PRO", label: compactOptions ? "Pro" : "Pro (sync + várias contas)" },
+          ]}
+        />
       </div>
       <div className="field">
         <label htmlFor={maxId}>{maxLabel}</label>

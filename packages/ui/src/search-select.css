@@ -1,0 +1,210 @@
+/*
+ * SearchSelect (@max/ui): select com busca dos apps MAX.
+ * Cores das variáveis de cada app (--border, --navy…), com fallback.
+ * Em @layer components para as classes utilitárias (Tailwind) poderem ajustar.
+ */
+@layer components {
+  .mx-ss-trigger {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border: 1px solid var(--mx-ss-border, var(--border, #e5e7eb));
+    border-radius: var(--mx-ss-radius, 10px);
+    background: var(--mx-ss-bg, #fff);
+    color: var(--mx-ss-fg, var(--navy, #111827));
+    padding: 0.5rem 0.75rem;
+    font: inherit;
+    font-size: 0.95rem;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+
+  .mx-ss-trigger:hover:not(:disabled) {
+    border-color: var(--mx-ss-border-hover, #c5d0e4);
+  }
+
+  .mx-ss-trigger:focus-visible,
+  .mx-ss-trigger[data-popup-open] {
+    border-color: var(--mx-ss-border-hover, #c5d0e4);
+    box-shadow: 0 0 0 3px var(--mx-ss-ring, rgba(25, 45, 92, 0.08));
+  }
+
+  .mx-ss-trigger:disabled {
+    cursor: not-allowed;
+    background: var(--gray-50, #f9fafb);
+    color: var(--gray-500, #6b7280);
+  }
+
+  .mx-ss-value {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mx-ss-value-hint,
+  .mx-ss-placeholder {
+    color: var(--mx-ss-muted, var(--gray-500, #6b7280));
+  }
+
+  .mx-ss-chevron,
+  .mx-ss-search-icon,
+  .mx-ss-check {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mx-ss-chevron,
+  .mx-ss-search-icon {
+    color: var(--mx-ss-muted, var(--gray-500, #6b7280));
+  }
+
+  .mx-ss-positioner {
+    z-index: 120;
+    outline: none;
+  }
+
+  .mx-ss-popup {
+    display: flex;
+    max-height: min(22rem, var(--available-height));
+    width: max(var(--anchor-width), 16rem);
+    max-width: calc(100vw - 1.5rem);
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid var(--mx-ss-border, var(--border, #e5e7eb));
+    background: var(--mx-ss-popup-bg, #fff);
+    color: var(--mx-ss-popup-fg, var(--navy, #111827));
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+    transform-origin: var(--transform-origin);
+    transition:
+      opacity 0.1s,
+      transform 0.1s;
+  }
+
+  .mx-ss-popup[data-starting-style] {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  .mx-ss-popup[data-ending-style] {
+    opacity: 0;
+  }
+
+  .mx-ss-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--mx-ss-border, var(--border, #e5e7eb));
+    padding: 0 0.65rem;
+  }
+
+  .mx-ss-input {
+    height: 2.5rem;
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  /* Celular: 16px evita o zoom automático do iOS ao focar. */
+  @media (any-pointer: coarse) {
+    .mx-ss-input {
+      font-size: 1rem;
+    }
+  }
+
+  .mx-ss-empty {
+    padding: 0.85rem 0.75rem;
+    font-size: 0.9rem;
+    color: var(--mx-ss-muted, var(--gray-500, #6b7280));
+  }
+
+  .mx-ss-list {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.25rem;
+    scroll-padding-block: 0.25rem;
+  }
+
+  .mx-ss-list:empty {
+    padding: 0;
+  }
+
+  .mx-ss-item {
+    display: grid;
+    grid-template-columns: 1rem 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 8px;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.9rem;
+    cursor: default;
+    outline: none;
+    user-select: none;
+  }
+
+  .mx-ss-item[data-highlighted] {
+    background: var(--mx-ss-highlight, var(--navy-soft, #f3f4f6));
+  }
+
+  .mx-ss-item[data-disabled] {
+    opacity: 0.5;
+  }
+
+  .mx-ss-indicator {
+    grid-column-start: 1;
+    display: flex;
+  }
+
+  .mx-ss-item-text {
+    grid-column-start: 2;
+    min-width: 0;
+  }
+
+  .mx-ss-item-label,
+  .mx-ss-item-hint {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mx-ss-item-hint {
+    font-size: 0.78rem;
+    color: var(--mx-ss-muted, var(--gray-500, #6b7280));
+  }
+
+  .mx-ss-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+}

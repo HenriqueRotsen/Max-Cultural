@@ -9,13 +9,7 @@ import { TurnstileField } from "@/components/inscricao/turnstile-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import {
   Card,
   CardContent,
@@ -210,39 +204,25 @@ export function InscricaoForm({ context, turnstileSiteKey = "" }: Props) {
           </div>
           <div className="space-y-2">
             <Label>Gênero</Label>
-            <Select
-              value={form.Genero || undefined}
-              onValueChange={(v) => setField("Genero", v ?? "")}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {GENEROS.map((g) => (
-                  <SelectItem key={g} value={g}>
-                    {g}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              className="w-full"
+              aria-label="Gênero"
+              value={form.Genero}
+              onValueChange={(v) => setField("Genero", v)}
+              placeholder="Selecione"
+              options={GENEROS.map((g) => ({ value: g, label: g }))}
+            />
           </div>
           <div className="space-y-2">
             <Label>Etnia</Label>
-            <Select
-              value={form.Etnia || undefined}
-              onValueChange={(v) => setField("Etnia", v ?? "")}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {ETNIAS.map((g) => (
-                  <SelectItem key={g} value={g}>
-                    {g}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              className="w-full"
+              aria-label="Etnia"
+              value={form.Etnia}
+              onValueChange={(v) => setField("Etnia", v)}
+              placeholder="Selecione"
+              options={ETNIAS.map((g) => ({ value: g, label: g }))}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>

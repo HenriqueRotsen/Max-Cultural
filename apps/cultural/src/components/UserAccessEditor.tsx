@@ -6,6 +6,7 @@ import {
   type AccessCatalogEntry,
   type AccessPermissionId,
 } from "@max/auth";
+import { SearchSelect } from "@max/ui";
 import { saveUserPermissionsAction } from "@/lib/actions/iam";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
@@ -324,17 +325,18 @@ function RestrictionRow({
           {choice ? " (ajustado aqui)" : " (igual ao papel)"}
         </p>
       </div>
-      <select
-        className="shrink-0 rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+      <SearchSelect
+        className="shrink-0"
         value={choice}
         disabled={disabled}
         aria-label={label}
-        onChange={(e) => onChange(e.target.value as EffectChoice)}
-      >
-        <option value="">Igual ao papel ({roleDefault ? "sim" : "não"})</option>
-        <option value="GRANT">Sim, esconder</option>
-        <option value="DENY">Não, mostrar</option>
-      </select>
+        onValueChange={(v) => onChange(v as EffectChoice)}
+        emptyOption={`Igual ao papel (${roleDefault ? "sim" : "não"})`}
+        options={[
+          { value: "GRANT", label: "Sim, esconder" },
+          { value: "DENY", label: "Não, mostrar" },
+        ]}
+      />
     </div>
   );
 }
@@ -391,17 +393,18 @@ function OverrideRow({
           ) : null}
         </p>
       </div>
-      <select
-        className="shrink-0 rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+      <SearchSelect
+        className="shrink-0"
         value={choice}
         disabled={disabled}
         aria-label={`Acesso a ${label}`}
-        onChange={(e) => onChange(e.target.value as EffectChoice)}
-      >
-        <option value="">Herdar papel</option>
-        <option value="GRANT">Conceder</option>
-        <option value="DENY">Negar</option>
-      </select>
+        onValueChange={(v) => onChange(v as EffectChoice)}
+        emptyOption="Herdar papel"
+        options={[
+          { value: "GRANT", label: "Conceder" },
+          { value: "DENY", label: "Negar" },
+        ]}
+      />
       {/* id unused visually but keeps React key context clear */}
       <span className="sr-only">{id}</span>
     </div>

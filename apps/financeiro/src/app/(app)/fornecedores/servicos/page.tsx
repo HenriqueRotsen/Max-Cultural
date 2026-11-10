@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCurrency } from "@/lib/format";
@@ -96,14 +97,14 @@ export default async function CatalogServicesPage({
         </div>
         <div className="field">
           <label htmlFor="category">Categoria</label>
-          <select id="category" name="category" defaultValue={category}>
-            <option value="">Todas</option>
-            {SERVICE_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            id="category"
+            name="category"
+            className="min-w-[8rem]"
+            defaultValue={category}
+            emptyOption="Todas"
+            options={SERVICE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+          />
         </div>
         <div className="field">
           <label htmlFor="maxPrice">Preço máx.</label>
@@ -111,11 +112,17 @@ export default async function CatalogServicesPage({
         </div>
         <div className="field">
           <label htmlFor="sort">Ordenar</label>
-          <select id="sort" name="sort" defaultValue={sort}>
-            <option value="name">Nome</option>
-            <option value="price">Menor preço médio</option>
-            <option value="rating">Melhor avaliação</option>
-          </select>
+          <SearchSelect
+            id="sort"
+            name="sort"
+            className="min-w-[8rem]"
+            defaultValue={sort}
+            options={[
+              { value: "name", label: "Nome" },
+              { value: "price", label: "Menor preço médio" },
+              { value: "rating", label: "Melhor avaliação" },
+            ]}
+          />
         </div>
         <button type="submit" className="btn btn-ghost">
           Filtrar

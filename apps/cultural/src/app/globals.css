@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@max/mobile-nav/src/mobile-nav.css";
+@import "@max/ui/src/search-select.css";
 
 :root {
   --navy: #c2410c;

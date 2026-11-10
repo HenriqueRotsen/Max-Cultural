@@ -49,3 +49,4 @@ next-env.d.ts
 
 # arquivos privados da prestação de contas no ambiente local
 /.storage
+/backups/

@@ -15,13 +15,7 @@ import { PERSON_COLUMNS } from "@/lib/column-map";
 import { columnLabel } from "@/lib/column-labels";
 import { cn } from "@/lib/utils";
 import { OpcoesEditor } from "@/components/formularios/opcoes-editor";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import {
   ChevronDown,
   ChevronUp,
@@ -46,6 +40,19 @@ const COLUNAS_VINCULAVEIS = PERSON_COLUMNS.filter(
   (c) =>
     !["Inscritos", "Selecionados", "Participantes", "Certificado"].includes(c),
 );
+
+/** Opções de "Coluna vinculada": nenhuma, a atual (se fora da lista) e as vinculáveis. */
+function opcoesColuna(campo: FormularioCampoDraft): SearchSelectOption[] {
+  const lista = COLUNAS_VINCULAVEIS as readonly string[];
+  const extras = [
+    campo.tipo === "TERRITORIO_ACAO" ? "Territorio" : null,
+    campo.sigaColumn,
+  ].filter((c, idx, arr): c is string => !!c && !lista.includes(c) && arr.indexOf(c) === idx);
+  return [
+    { value: "__none__", label: "Nenhuma (pergunta extra)" },
+    ...[...extras, ...lista].map((col) => ({ value: col, label: columnLabel(col) })),
+  ];
+}
 
 function newPergunta(): FormularioCampoDraft {
   return {
@@ -269,7 +276,9 @@ export function CampoEditor({ campos, onChange }: Props) {
                 <>
                   <div className="space-y-1">
                     <Label>Tipo</Label>
-                    <Select
+                    <SearchSelect
+                      className="w-full"
+                      aria-label="Tipo"
                       value={campo.tipo}
                       onValueChange={(v) => {
                         if (!v) return;
@@ -283,29 +292,18 @@ export function CampoEditor({ campos, onChange }: Props) {
                             : {}),
                         });
                       }}
-                      items={Object.fromEntries(
-                        BUILDER_TIPOS.map((t) => [
-                          t,
-                          FORMULARIO_CAMPO_TIPO_LABELS[t],
-                        ]),
-                      )}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BUILDER_TIPOS.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {FORMULARIO_CAMPO_TIPO_LABELS[t]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={BUILDER_TIPOS.map((t) => ({
+                        value: t,
+                        label: FORMULARIO_CAMPO_TIPO_LABELS[t],
+                      }))}
+                    />
                   </div>
                   {!isInfo ? (
                   <div className="space-y-1">
                     <Label>Coluna vinculada</Label>
-                    <Select
+                    <SearchSelect
+                      className="w-full"
+                      aria-label="Coluna vinculada"
                       value={
                         campo.tipo === "TERRITORIO_ACAO"
                           ? "Territorio"
@@ -318,49 +316,9 @@ export function CampoEditor({ campos, onChange }: Props) {
                         })
                       }
                       disabled={VINCULO_DISABLED_TIPOS.has(campo.tipo)}
-                      items={{
-                        __none__: "Nenhuma (pergunta extra)",
-                        ...(campo.tipo === "TERRITORIO_ACAO"
-                          ? { Territorio: columnLabel("Territorio") }
-                          : {}),
-                        ...(campo.sigaColumn &&
-                        !(COLUNAS_VINCULAVEIS as readonly string[]).includes(
-                          campo.sigaColumn,
-                        )
-                          ? {
-                              [campo.sigaColumn]: columnLabel(campo.sigaColumn),
-                            }
-                          : {}),
-                        ...Object.fromEntries(
-                          COLUNAS_VINCULAVEIS.map((col) => [
-                            col,
-                            columnLabel(col),
-                          ]),
-                        ),
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Nenhuma (pergunta extra)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">
-                          Nenhuma (pergunta extra)
-                        </SelectItem>
-                        {campo.sigaColumn &&
-                        !(COLUNAS_VINCULAVEIS as readonly string[]).includes(
-                          campo.sigaColumn,
-                        ) ? (
-                          <SelectItem value={campo.sigaColumn}>
-                            {columnLabel(campo.sigaColumn)}
-                          </SelectItem>
-                        ) : null}
-                        {COLUNAS_VINCULAVEIS.map((col) => (
-                          <SelectItem key={col} value={col}>
-                            {columnLabel(col)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Nenhuma (pergunta extra)"
+                      options={opcoesColuna(campo)}
+                    />
                   </div>
                   ) : null}
                 </>

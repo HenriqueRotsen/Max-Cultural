@@ -6,6 +6,7 @@ import {
   type AccessCatalogEntry,
   type AccessPermissionId,
 } from "@max/auth";
+import { SearchSelect } from "@max/ui";
 import { saveRolePermissionsAction } from "@/lib/actions/iam";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
@@ -213,16 +214,17 @@ function ScreenBlock({
                 <p className="mt-0.5 text-xs text-[var(--gray-500)]">{cap.description}</p>
               ) : null}
             </div>
-            <select
-              className="shrink-0 rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+            <SearchSelect
+              className="shrink-0"
               value={isOn(cap.id) ? "sim" : "nao"}
               disabled={!canEdit || !productOn}
               aria-label={cap.label}
-              onChange={(e) => onToggle(cap.id, e.target.value === "sim")}
-            >
-              <option value="nao">Não</option>
-              <option value="sim">Sim, esconder</option>
-            </select>
+              onValueChange={(v) => onToggle(cap.id, v === "sim")}
+              options={[
+                { value: "nao", label: "Não" },
+                { value: "sim", label: "Sim, esconder" },
+              ]}
+            />
           </div>
         ))}
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { SearchSelect } from "@max/ui";
 import { createAccount } from "@/lib/actions";
 import { FieldLabel } from "@/components/FieldHelp";
 import {
@@ -10,6 +11,12 @@ import {
   isValidCpf,
 } from "@/lib/format";
 import { HELP } from "@/lib/help";
+
+const PERSON_TYPE_OPTIONS = [
+  { value: "PJ", label: "Empresa (PJ) — até 20%" },
+  { value: "PF", label: "Pessoa física — até 30%" },
+  { value: "MEI", label: "MEI — até 30%" },
+];
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -136,20 +143,13 @@ export function CreateAccountForm({ syncEnabled = true }: { syncEnabled?: boolea
           <FieldLabel htmlFor="personType" help={HELP.personType}>
             Tipo de proponente
           </FieldLabel>
-          <select
+          <SearchSelect
             id="personType"
             name="personType"
             value={personType}
-            onChange={(e) =>
-              setPersonType(
-                e.target.value === "PF" || e.target.value === "MEI" ? e.target.value : "PJ",
-              )
-            }
-          >
-            <option value="PJ">Empresa (PJ) — até 20%</option>
-            <option value="PF">Pessoa física — até 30%</option>
-            <option value="MEI">MEI — até 30%</option>
-          </select>
+            onValueChange={(v) => setPersonType(v === "PF" || v === "MEI" ? v : "PJ")}
+            options={PERSON_TYPE_OPTIONS}
+          />
         </div>
 
         {syncEnabled ? (

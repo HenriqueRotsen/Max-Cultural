@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { SearchSelect } from "@max/ui";
 import {
   confirmProducerReservations,
   parseProducerSheetAction,
@@ -39,6 +40,10 @@ export function ProducerSheetImportForm({
     confirmInitial,
   );
   const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
+  const rubricSelectOptions = useMemo(
+    () => rubricOptions.map((o) => ({ value: o.id, label: o.label })),
+    [rubricOptions],
+  );
 
   useEffect(() => {
     if (parseState.ok && parseState.rows) {
@@ -136,21 +141,17 @@ export function ProducerSheetImportForm({
                       {formatCurrency(r.amount)}
                     </td>
                     <td className="py-2">
-                      <select
-                        className="w-full min-w-[12rem]"
+                      <SearchSelect
+                        className="min-w-[12rem]"
+                        aria-label={`Rubrica de ${r.item}`}
                         value={r.budgetLineId}
-                        onChange={(e) => {
+                        onValueChange={(budgetLineId) => {
                           const next = [...reviewRows];
-                          next[idx] = { ...r, budgetLineId: e.target.value };
+                          next[idx] = { ...r, budgetLineId };
                           setReviewRows(next);
                         }}
-                      >
-                        {rubricOptions.map((o) => (
-                          <option key={o.id} value={o.id}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
+                        options={rubricSelectOptions}
+                      />
                       {r.suggestionReasons.length > 0 ? (
                         <p className="mt-0.5 text-xs text-[var(--gray-400)]">
                           Sugestão: {r.suggestionReasons.join(" · ")}

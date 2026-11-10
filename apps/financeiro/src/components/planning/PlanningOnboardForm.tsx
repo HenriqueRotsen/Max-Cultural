@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { SearchSelect } from "@max/ui";
 import {
   startPlanningProjectFederal,
 } from "@/lib/planning/federal/actions";
@@ -16,6 +17,8 @@ type Ruleset = { version: string; sourceCode: string; jurisdiction: string };
 const UFS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ];
+
+const UF_OPTIONS = UFS.map((u) => ({ value: u, label: u }));
 
 const initial: ActionState = {};
 
@@ -43,6 +46,10 @@ export function PlanningOnboardForm({
   const federalRules = useMemo(
     () => rulesets.filter((r) => r.jurisdiction === "FEDERAL"),
     [rulesets],
+  );
+  const accountOptions = useMemo(
+    () => accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.cgccpf})` })),
+    [accounts],
   );
   const err = mode === "FEDERAL" ? fedState.error : stState.error;
   const pending = mode === "FEDERAL" ? fedPending : stPending;
@@ -80,34 +87,26 @@ export function PlanningOnboardForm({
           </p>
           <label className="field">
             <span>Proponente</span>
-            <select
+            <SearchSelect
               name="accountId"
               required
-              className="w-full"
+              aria-label="Proponente"
+              placeholder="Selecione…"
               value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-            >
-              <option value="" disabled>
-                Selecione…
-              </option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.cgccpf})
-                </option>
-              ))}
-            </select>
+              onValueChange={setAccountId}
+              options={accountOptions}
+            />
           </label>
           <ProjectCapsFields />
           <label className="field">
             <span>Ano da IN (opcional, só informativo)</span>
-            <select name="rulesetVersion" className="w-full" defaultValue="">
-              <option value="">Não informar</option>
-              {federalRules.map((r) => (
-                <option key={r.version} value={r.version}>
-                  {r.sourceCode}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              name="rulesetVersion"
+              aria-label="Ano da IN"
+              defaultValue=""
+              emptyOption="Não informar"
+              options={federalRules.map((r) => ({ value: r.version, label: r.sourceCode }))}
+            />
           </label>
           <label className="field">
             <span>PRONAC</span>
@@ -133,38 +132,26 @@ export function PlanningOnboardForm({
           </p>
           <label className="field">
             <span>UF</span>
-            <select
+            <SearchSelect
               name="jurisdiction"
               required
-              className="w-full"
+              aria-label="UF"
               value={uf}
-              onChange={(e) => setUf(e.target.value)}
-            >
-              {UFS.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
+              onValueChange={setUf}
+              options={UF_OPTIONS}
+            />
           </label>
           <label className="field">
             <span>Proponente</span>
-            <select
+            <SearchSelect
               name="accountId"
               required
-              className="w-full"
+              aria-label="Proponente"
+              placeholder="Selecione…"
               value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-            >
-              <option value="" disabled>
-                Selecione…
-              </option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.cgccpf})
-                </option>
-              ))}
-            </select>
+              onValueChange={setAccountId}
+              options={accountOptions}
+            />
           </label>
           <ProjectCapsFields />
           <label className="field">

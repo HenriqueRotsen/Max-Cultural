@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { SearchSelect } from "@max/ui";
 import { formatCurrency } from "@/lib/format";
 import { type ActiveRules } from "@/lib/compliance/defaults";
 import {
@@ -199,18 +200,13 @@ export function PronacPanoramaTable({
             <FieldLabel htmlFor="accountId" help={HELP.filterProponente}>
               Proponente
             </FieldLabel>
-            <select
+            <SearchSelect
               id="accountId"
               value={accountId || ""}
-              onChange={(e) => setParam({ accountId: e.target.value || null })}
-            >
-              <option value="">Todos os proponentes</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
+              onValueChange={(v) => setParam({ accountId: v || null })}
+              emptyOption="Todos os proponentes"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+            />
           </div>
         </div>
 
@@ -261,16 +257,19 @@ export function PronacPanoramaTable({
               <FieldLabel htmlFor="watchedOnly" help={HELP.watchedOnly}>
                 Valores de
               </FieldLabel>
-              <select
+              <SearchSelect
                 id="watchedOnly"
                 value={watchedOnly ? "1" : "0"}
-                onChange={(e) => setParam({ watchedOnly: e.target.value === "1" ? "1" : null })}
-              >
-                <option value="0">Todos os fornecedores</option>
-                <option value="1" disabled={watchedCount === 0}>
-                  Só observados{watchedCount > 0 ? ` (${watchedCount})` : " (nenhum cadastrado)"}
-                </option>
-              </select>
+                onValueChange={(v) => setParam({ watchedOnly: v === "1" ? "1" : null })}
+                options={[
+                  { value: "0", label: "Todos os fornecedores" },
+                  {
+                    value: "1",
+                    label: `Só observados${watchedCount > 0 ? ` (${watchedCount})` : " (nenhum cadastrado)"}`,
+                    disabled: watchedCount === 0,
+                  },
+                ]}
+              />
             </div>
           </div>
         </details>
@@ -307,7 +306,7 @@ export function PronacPanoramaTable({
                 <th>No SALIC</th>
                 <th>Proponente</th>
                 <th>{watchedOnly ? "Pago a observados" : "Já pago"}</th>
-                <th>Soma do art. 23</th>
+                <th>Vínculo com proponente</th>
                 <th className="w-10" aria-label="Abrir" />
               </tr>
             </thead>

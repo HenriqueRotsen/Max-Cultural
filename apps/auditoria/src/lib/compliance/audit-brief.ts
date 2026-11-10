@@ -232,7 +232,7 @@ export function buildDeterministicBrief(params: {
       code: "watched_bond_off",
       severity: "medium",
       title: "Observados com pagamento sem vínculo ligado nesta IN",
-      detail: `${unpaidBonds.length} observado(s) receberam no projeto sem o vínculo on/off ativo para esta IN. Sem o vínculo, eles não entram na soma do art. 23.`,
+      detail: `${unpaidBonds.length} observado(s) receberam no projeto sem o vínculo ligado neste PRONAC. Sem o vínculo, eles não entram na soma do vínculo com o proponente.`,
     });
     recommendations.push({
       code: "fill_bonds",

@@ -542,7 +542,7 @@ export const RELATION_HINTS: Record<RelationKind, string> = {
   PROPONENT_PF: "A parte é o próprio proponente pessoa física.",
   PROPONENT_PJ: "A parte é o próprio proponente pessoa jurídica.",
   DIRECTOR_THIRD_SECTOR:
-    "Diretor(a) de entidade do terceiro setor — não gera vínculo art. 23.",
+    "Diretor(a) de entidade do terceiro setor — não gera vínculo com o proponente.",
   SAME_ADDRESS: "Mesmo endereço cadastral do proponente.",
   OTHER: "Tipo legado — tratado como sem vínculo.",
 };

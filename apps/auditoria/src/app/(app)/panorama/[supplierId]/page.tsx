@@ -160,6 +160,7 @@ export default async function SupplierDetailPage({
             documentNumber: p.documentNumber,
             amount: Number(p.amount),
             source: p.source,
+            countsForBond: p.countsForBond,
           }))}
         />
       </section>
