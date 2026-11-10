@@ -11,8 +11,7 @@ Auditoria de gastos SALIC por fornecedor (multi-proponente).
 
 ## Rodar localmente
 
-Na raiz do repo: `npm run dev:teste` (banco local com dados demo) ou `npm run dev`
-(banco de homologação). O Financeiro abre em http://localhost:3001.
+Na raiz do repo: `npm run dev` (banco local com dados demo). O Financeiro abre em http://localhost:3001.
 
 Sem `AUTH_SECRET` + `NEXT_PUBLIC_CULTURAL_URL`, o layout pode falhar o SSO — configure o hub.
 

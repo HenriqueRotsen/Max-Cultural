@@ -1,31 +1,30 @@
 #!/usr/bin/env node
 /**
- * Os dois jeitos de rodar o MAX localmente (nunca no banco de produção):
+ * Roda o MAX localmente, num Postgres local com dados demo (nunca no banco de produção):
  *
- *   npm run dev                      # homologação: banco de homologação (.env.homolog)
- *   npm run dev:teste                # teste: Postgres local com dados demo (.env.teste)
+ *   npm run dev                      # (ou npm run dev:teste) sobe os apps no banco local (.env.teste)
  *
- * Os dois sobem os 4 apps: Cultural :3000 (login), Financeiro :3001,
+ * Sobe os 4 apps: Cultural :3000 (login), Financeiro :3001,
  * Indicadores :3002, Auditoria :3003. Para subir só alguns (o Cultural sempre
  * vem junto, porque é o login):  npm run dev -- indicadores
  *
- * Só no teste:
+ * Banco local:
  *   npm run dev:teste -- setup       # cria/atualiza o banco local, contas e dados demo
  *   npm run dev:teste -- reset       # apaga o banco local e roda o setup de novo
  *   npm run dev:teste -- liberar     # simula "recurso liberado" em todos os projetos
  *
- * Rodar um comando de um app num dos ambientes (ex.: criar uma migração):
+ * Rodar um comando de um app no banco local (ex.: criar uma migração):
  *   npm run dev:teste -- run financeiro npx prisma migrate dev --name minha_mudanca
  *
  * Segurança: as variáveis dos `.env.local` (produção) são todas zeradas no
  * processo, MAX_AMBIENTE impede que o Prisma e os seeds recarreguem o
  * `.env.local`, e o script aborta se qualquer valor apontar para a produção
- * (e, no teste, para fora do localhost). Os apps também se recusam a abrir o
+ * ou para fora do localhost. Os apps também se recusam a abrir o
  * banco de produção fora da Vercel (`bloquearProducao`).
  */
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
 import pg from "pg";
@@ -44,8 +43,8 @@ const APPS = {
 };
 
 const [modo, ...args] = process.argv.slice(2);
-if (modo !== "homolog" && modo !== "teste") {
-  console.error("Uso: npm run dev  |  npm run dev:teste [-- setup|reset|liberar]");
+if (modo !== "teste") {
+  console.error("Uso: npm run dev [-- setup|reset|liberar|run]");
   process.exit(1);
 }
 const comando = ["setup", "reset", "liberar", "run"].includes(args[0]) ? args.shift() : "start";
@@ -103,37 +102,8 @@ function ambienteTeste() {
   return novo;
 }
 
-/** `.env.homolog`: credenciais do banco de homologação (já existe; ganha segredos locais se faltarem). */
-function ambienteHomolog() {
-  const arquivo = resolve(root, ".env.homolog");
-  if (!existsSync(arquivo)) falhar("Falta .env.homolog na raiz do repositório (credenciais do banco de homologação).");
-  const atual = readEnv(arquivo);
-  if (!atual.DIRECT_URL) falhar("DIRECT_URL vazia em .env.homolog.");
-  if (Object.values(atual).some((v) => PRODUCAO.test(v))) falhar(".env.homolog aponta para a produção. Abortado.");
-  if (!atual.AUTH_SECRET || !atual.CREDENTIALS_SECRET) {
-    const novo = novosSegredos();
-    const faltam = Object.entries(novo).filter(([k]) => !atual[k]);
-    appendFileSync(
-      arquivo,
-      ["", "# Segredos para rodar a homologação localmente (npm run dev).", ...faltam.map(([k, v]) => `${k}="${v}"`), ""].join("\n"),
-    );
-    Object.assign(atual, Object.fromEntries(faltam));
-    console.log("🔑 .env.homolog ganhou AUTH_SECRET/CREDENTIALS_SECRET para o uso local.");
-  }
-  return atual;
-}
-
-/** Conexão pelo Session pooler (:5432, IPv4), com a senha codificada para URL. */
-function poolerHomolog(raw) {
-  const m = raw.match(/^(postgres(?:ql)?):\/\/([^:]+):(.*)@([^@/]+)\/([^?]*)/);
-  if (!m) falhar("DIRECT_URL inválida em .env.homolog");
-  const [, , user, pass, host, db] = m;
-  const encoded = encodeURIComponent(decodeURIComponent(pass));
-  return `postgresql://${user}:${encoded}@${host.split(":")[0]}:5432/${db || "postgres"}`;
-}
-
-const s = modo === "teste" ? ambienteTeste() : ambienteHomolog();
-const baseDb = modo === "teste" ? `${PG}/${DB}` : poolerHomolog(s.DIRECT_URL);
+const s = ambienteTeste();
+const baseDb = `${PG}/${DB}`;
 
 /** Variáveis de um app: tudo do `.env.local` (produção) zerado, mais as do ambiente. */
 function envDoApp(app) {
@@ -166,23 +136,16 @@ function envDoApp(app) {
     NEXT_PUBLIC_INDICADORES_URL: `http://localhost:${APPS.indicadores.port}`,
     NEXT_PUBLIC_AUDITORIA_URL: `http://localhost:${APPS.auditoria.port}`,
   };
-  if (modo === "teste") {
-    Object.assign(env, {
-      BOOTSTRAP_ADMIN_EMAIL: "admin@maxcultural.local",
-      BOOTSTRAP_ADMIN_PASSWORD: s.TESTE_PASSWORD,
-      BOOTSTRAP_ADMIN_RESET: "true",
-      DEMO_PASSWORD: s.TESTE_PASSWORD,
-    });
-  } else {
-    // Supabase (storage etc.) da homologação. As contas de login são as da própria homologação.
-    for (const k of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"]) {
-      if (s[k]) env[k] = s[k];
-    }
-  }
+  Object.assign(env, {
+    BOOTSTRAP_ADMIN_EMAIL: "admin@maxcultural.local",
+    BOOTSTRAP_ADMIN_PASSWORD: s.TESTE_PASSWORD,
+    BOOTSTRAP_ADMIN_RESET: "true",
+    DEMO_PASSWORD: s.TESTE_PASSWORD,
+  });
   for (const [k, v] of Object.entries(env)) {
     if (!(k in zerado) && !k.startsWith("NEXT_PUBLIC_") && !/URL$|KEY$|SECRET$/.test(k)) continue;
     if (PRODUCAO.test(String(v))) falhar(`${app}: ${k} aponta para a produção. Abortado.`);
-    if (modo === "teste" && /supabase|pooler|vercel\.app|maxcultural\.com\.br|upstash|resend/i.test(String(v))) {
+    if (/supabase|pooler|vercel\.app|maxcultural\.com\.br|upstash|resend/i.test(String(v))) {
       falhar(`${app}: ${k} aponta para fora do localhost. Abortado.`);
     }
   }
@@ -333,7 +296,7 @@ async function start() {
       falhar(`A porta ${port} (${app}) já está em uso. Feche o outro servidor (lsof -i :${port}) e rode de novo.`);
     }
   }
-  if (modo === "teste") await postgresLocal();
+  await postgresLocal();
   const procs = apps.map((app) => {
     const { port, extra } = APPS[app];
     const p = spawn("npx", ["next", "dev", "--port", String(port), ...extra], {
@@ -349,14 +312,9 @@ async function start() {
     p.on("exit", (code) => code && console.log(`[${app}] saiu com código ${code}`));
     return p;
   });
-  const nome = modo === "teste" ? "TESTE (banco local)" : "HOMOLOGAÇÃO (banco de homologação)";
-  console.log(`\n🚀 ${nome}`);
+  console.log("\n🚀 TESTE (banco local)");
   for (const app of apps) console.log(`   ${app.padEnd(12)} http://localhost:${APPS[app].port}`);
-  console.log(
-    modo === "teste"
-      ? "   Login: admin@maxcultural.local, senha TESTE_PASSWORD em .env.teste. Ctrl+C encerra.\n"
-      : "   Login: as contas da homologação. Ctrl+C encerra.\n",
-  );
+  console.log("   Login: admin@maxcultural.local, senha TESTE_PASSWORD em .env.teste. Ctrl+C encerra.\n");
   const parar = () => {
     for (const p of procs) {
       try {
@@ -374,10 +332,9 @@ async function start() {
 if (comando === "start") await start();
 else if (comando === "run") {
   const [app, ...cmd] = args;
-  if (!APPS[app] || !cmd.length) falhar(`Uso: npm run dev${modo === "teste" ? ":teste" : ""} -- run <app> <comando…>`);
+  if (!APPS[app] || !cmd.length) falhar("Uso: npm run dev -- run <app> <comando…>");
   if (cmd[0] === "npx") cmd.shift();
   run(app, cmd);
-} else if (modo !== "teste") falhar(`"${comando}" só existe no teste: npm run dev:teste -- ${comando}`);
-else if (comando === "setup") await setup({ reset: false });
+} else if (comando === "setup") await setup({ reset: false });
 else if (comando === "reset") await setup({ reset: true });
 else if (comando === "liberar") await liberar();

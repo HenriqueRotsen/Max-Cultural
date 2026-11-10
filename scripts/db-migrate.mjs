@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 /**
- * Aplica as migrações de todos os apps num banco remoto.
+ * Aplica as migrações de todos os apps no banco de produção (a main).
  *
- *   npm run db:migrate:homolog              # banco de homologação (.env.homolog)
- *   npm run db:migrate:homolog -- status    # só mostra o que falta
  *   npm run db:migrate:producao -- status   # produção: só mostra o que falta
  *   npm run db:migrate:producao             # produção: aplica, depois de digitar "producao"
  *
  * É o único caminho local que abre o banco de produção (MAX_AMBIENTE=producao).
- * As credenciais da produção vêm dos `.env.local` de cada app; as da
- * homologação, do `.env.homolog` na raiz. Os dois ficam fora do git.
+ * As credenciais vêm dos `.env.local` de cada app, fora do git.
+ * O banco local é migrado pelo `npm run dev -- setup`.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -20,8 +18,8 @@ const root = resolve(import.meta.dirname, "..");
 const PRODUCAO = /maogvvcvrgokfcpjqksv/;
 const alvo = process.argv[2];
 const mode = process.argv[3] === "status" ? "status" : "deploy";
-if (alvo !== "homolog" && alvo !== "producao") {
-  console.error("Uso: node scripts/db-migrate.mjs <homolog|producao> [status]");
+if (alvo !== "producao") {
+  console.error("Uso: node scripts/db-migrate.mjs producao [status]");
   process.exit(1);
 }
 
@@ -58,28 +56,19 @@ const APPS = [
   { app: "indicadores", schema: "indicadores" },
 ];
 
-let urls;
-if (alvo === "homolog") {
-  const env = readEnv(resolve(root, ".env.homolog"));
-  if (!env.DIRECT_URL) falhar("Falta DIRECT_URL em .env.homolog (raiz do repositório).");
-  const base = directUrl(env.DIRECT_URL, ".env.homolog");
-  if (PRODUCAO.test(base)) falhar(".env.homolog aponta para o banco de produção. Abortado.");
-  urls = APPS.map(({ app, schema }) => ({ app, url: comSchema(base, schema) }));
-} else {
-  urls = APPS.map(({ app, schema }) => {
-    const env = readEnv(resolve(root, "apps", app, ".env.local"));
-    if (!env.DIRECT_URL) falhar(`Falta DIRECT_URL da produção em apps/${app}/.env.local.`);
-    const url = comSchema(directUrl(env.DIRECT_URL, `apps/${app}/.env.local`), schema);
-    if (!PRODUCAO.test(url)) falhar(`apps/${app}/.env.local não aponta para a produção. Abortado.`);
-    return { app, url };
-  });
-  if (mode === "deploy") {
-    console.log("⚠️  Isto aplica as migrações no banco de PRODUÇÃO (só com autorização, no merge para a main).");
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const resposta = await rl.question('Digite "producao" para continuar: ');
-    rl.close();
-    if (resposta.trim() !== "producao") falhar("Cancelado.");
-  }
+const urls = APPS.map(({ app, schema }) => {
+  const env = readEnv(resolve(root, "apps", app, ".env.local"));
+  if (!env.DIRECT_URL) falhar(`Falta DIRECT_URL da produção em apps/${app}/.env.local.`);
+  const url = comSchema(directUrl(env.DIRECT_URL, `apps/${app}/.env.local`), schema);
+  if (!PRODUCAO.test(url)) falhar(`apps/${app}/.env.local não aponta para a produção. Abortado.`);
+  return { app, url };
+});
+if (mode === "deploy") {
+  console.log("⚠️  Isto aplica as migrações no banco de PRODUÇÃO (só com autorização, no merge para a main).");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const resposta = await rl.question('Digite "producao" para continuar: ');
+  rl.close();
+  if (resposta.trim() !== "producao") falhar("Cancelado.");
 }
 
 for (const { app, url } of urls) {
@@ -90,4 +79,4 @@ for (const { app, url } of urls) {
     env: { ...process.env, MAX_AMBIENTE: alvo, DATABASE_URL: url, DIRECT_URL: url },
   });
 }
-console.log(`\n✅ ${alvo === "homolog" ? "Homologação" : "Produção"} em dia.`);
+console.log("\n✅ Produção em dia.");
