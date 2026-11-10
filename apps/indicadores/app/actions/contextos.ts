@@ -1,5 +1,6 @@
 "use server";
 
+import { proponenteParaGravar } from "@/lib/inscricao-filters";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import type {
@@ -1063,7 +1064,7 @@ export async function createProjetoAction(
       id,
       nome,
       pronac: (input.pronac ?? "").trim(),
-      proponente: (input.proponente ?? "").trim(),
+      proponente: await proponenteParaGravar(input.proponente ?? ""),
       ano,
       contextoId: input.contextoId,
     },
@@ -1131,7 +1132,7 @@ export async function updateProjetoAction(
     data: {
       nome: input.nome.trim(),
       pronac: (input.pronac ?? "").trim(),
-      proponente: (input.proponente ?? "").trim(),
+      proponente: await proponenteParaGravar(input.proponente ?? "", id),
       ano,
       contextoId: input.contextoId,
     },

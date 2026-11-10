@@ -17,13 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { extractProjectYear } from "@/lib/normalize";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
 import {
   Table,
   TableBody,
@@ -191,6 +185,25 @@ export function InscricoesTable({
     [filterOptions],
   );
 
+  // Opções com "Todos" no topo; a busca do SearchSelect ignora acento.
+  const filterSearchOptions = useMemo(() => {
+    const comTodos = (todos: string, items: Record<string, string>): SearchSelectOption[] => [
+      { value: "all", label: todos },
+      ...Object.entries(items)
+        .filter(([v]) => v !== "all")
+        .map(([value, label]) => ({ value, label })),
+    ];
+    return {
+      projeto: comTodos("Todos", filterSelectItems.projeto),
+      acao: comTodos("Todas", filterSelectItems.acao),
+      proponente: comTodos("Todos", filterSelectItems.proponente),
+      pronac: comTodos("Todos", filterSelectItems.pronac),
+      ano: comTodos("Todos", filterSelectItems.ano),
+      flag: comTodos("Todos", filterSelectItems.flag),
+    };
+  }, [filterSelectItems]);
+
+
   useEffect(() => {
     setQ(searchParams.get("q") ?? "");
   }, [searchParams]);
@@ -334,157 +347,93 @@ export function InscricoesTable({
           >
             <div className="space-y-1.5">
               <Label className="text-xs">Projeto</Label>
-              <Select
+              <SearchSelect
                 value={searchParams.get("idProjeto") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ idProjeto: value ?? "all", idAcao: "all" })
+                  updateParams({ idProjeto: value || "all", idAcao: "all" })
                 }
-                items={filterSelectItems.projeto}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {filterOptions.projetos.map((p) => (
-                    <SelectItem key={p.idProjeto} value={p.idProjeto}>
-                      {p.nomeProjeto || p.idProjeto}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={filterSearchOptions.projeto}
+                aria-label="Projeto"
+                showHintInTrigger={false}
+                />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Ação</Label>
-              <Select
+              <SearchSelect
                 value={searchParams.get("idAcao") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ idAcao: value ?? "all" })
+                  updateParams({ idAcao: value || "all" })
                 }
-                items={filterSelectItems.acao}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {filterOptions.acoes.map((o) => (
-                    <SelectItem key={o.idAcao} value={o.idAcao}>
-                      {o.nomeAcao || o.idAcao}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={filterSearchOptions.acao}
+                aria-label="Ação"
+                showHintInTrigger={false}
+                />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Proponente</Label>
-              <Select
+              <SearchSelect
                 value={searchParams.get("proponente") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ proponente: value ?? "all" })
+                  updateParams({ proponente: value || "all" })
                 }
-                items={filterSelectItems.proponente}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {filterOptions.proponentes.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={filterSearchOptions.proponente}
+                aria-label="Proponente"
+                showHintInTrigger={false}
+                />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">PRONAC</Label>
-              <Select
+              <SearchSelect
                 value={searchParams.get("pronac") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ pronac: value ?? "all" })
+                  updateParams({ pronac: value || "all" })
                 }
-                items={filterSelectItems.pronac}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {filterOptions.pronacs.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={filterSearchOptions.pronac}
+                aria-label="PRONAC"
+                showHintInTrigger={false}
+                />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Ano do projeto</Label>
-              <Select
+              <SearchSelect
                 value={searchParams.get("anoProjeto") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ anoProjeto: value ?? "all" })
+                  updateParams({ anoProjeto: value || "all" })
                 }
-                items={filterSelectItems.ano}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {filterOptions.anos.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={filterSearchOptions.ano}
+                aria-label="Ano do projeto"
+                showHintInTrigger={false}
+                />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Selecionados</Label>
-              <Select
+              <SearchSelect
                 value={searchParams.get("selecionados") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ selecionados: value ?? "all" })
+                  updateParams({ selecionados: value || "all" })
                 }
-                items={filterSelectItems.flag}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="1">Sim</SelectItem>
-                  <SelectItem value="0">Não</SelectItem>
-                </SelectContent>
-              </Select>
+                options={filterSearchOptions.flag}
+                aria-label="Selecionados"
+                showHintInTrigger={false}
+                />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Participantes</Label>
-              <Select
+              <SearchSelect
                 value={searchParams.get("participantes") ?? "all"}
                 onValueChange={(value) =>
-                  updateParams({ participantes: value ?? "all" })
+                  updateParams({ participantes: value || "all" })
                 }
-                items={filterSelectItems.flag}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="1">Sim</SelectItem>
-                  <SelectItem value="0">Não</SelectItem>
-                </SelectContent>
-              </Select>
+                options={filterSearchOptions.flag}
+                aria-label="Participantes"
+                showHintInTrigger={false}
+                />
             </div>
           </div>
         ) : null}
