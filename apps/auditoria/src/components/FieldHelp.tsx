@@ -1,102 +1,20 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useAnchoredBubble } from "@/components/useAnchoredBubble";
 
 type FieldHelpProps = {
   text: string;
 };
 
-type BubblePos = {
-  top: number;
-  left: number;
-  placement: "above" | "below";
-};
-
-const GAP = 8;
 const MAX_WIDTH = 280;
-
-function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, n));
-}
 
 /** Círculo com “?” — tooltip via portal (não é cortado por overflow de tabelas). */
 export function FieldHelp({ text }: FieldHelpProps) {
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const bubbleRef = useRef<HTMLSpanElement>(null);
   const tooltipId = useId();
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [pos, setPos] = useState<BubblePos | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const updatePosition = useCallback(() => {
-    const trigger = triggerRef.current;
-    const bubble = bubbleRef.current;
-    if (!trigger || !bubble) return;
-
-    const rect = trigger.getBoundingClientRect();
-    const bubbleRect = bubble.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const width = Math.min(bubbleRect.width || MAX_WIDTH, Math.min(MAX_WIDTH, vw - 16));
-
-    const spaceAbove = rect.top;
-    const spaceBelow = vh - rect.bottom;
-    const preferAbove = spaceAbove >= bubbleRect.height + GAP || spaceAbove >= spaceBelow;
-    const placement: "above" | "below" = preferAbove ? "above" : "below";
-
-    const top =
-      placement === "above"
-        ? rect.top - GAP - (bubbleRect.height || 0)
-        : rect.bottom + GAP;
-
-    const left = clamp(rect.left + rect.width / 2 - width / 2, 8, vw - width - 8);
-
-    setPos({ top, left, placement });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setPos(null);
-      return;
-    }
-    updatePosition();
-    const id = requestAnimationFrame(() => updatePosition());
-    return () => cancelAnimationFrame(id);
-  }, [open, text, updatePosition]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function onScrollOrResize() {
-      updatePosition();
-    }
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, updatePosition]);
+  const { triggerRef, bubbleRef, open, setOpen, mounted, pos } =
+    useAnchoredBubble<HTMLButtonElement>(MAX_WIDTH, text);
 
   const bubble =
     mounted && open
