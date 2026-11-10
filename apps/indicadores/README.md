@@ -1,96 +1,52 @@
-# SigaCultural
+# MAX Indicadores
 
-Sistema Integrado de Gestão e Acompanhamento Cultural — padronização de inscrições em oficinas no esquema oficial de **35 colunas** (PRONAC / Lei Rouanet).
+Execução dos projetos: inscrições nas ações (no esquema oficial de 35 colunas do PRONAC/Lei
+Rouanet), análise, acompanhamento e prestação de contas.
 
-## Stack
+Menu: **Operação** (Base, Análise, Acompanhamento, Prestação de contas, Contextos, Importar,
+Formulários), **Consultas** (CPF, Território) e **Acesso** (Usuários, Papéis, Auditoria).
+Hierarquia dos dados: Contexto → Projeto → Ação. Páginas públicas: inscrição numa ação
+(`/inscricao/[acaoId]`) e formulários (`/f/[slug]`).
 
-- Next.js (App Router) + TypeScript
-- Tailwind CSS + shadcn/ui
-- **Supabase** (PostgreSQL) + Prisma ORM
-- Ollama local (ETL inteligente)
-- SheetJS / PapaParse
+Local: `:3002` (webpack), subido pelo `npm run dev` da raiz. Schema `indicadores`, com migrações em
+`prisma/migrations`. Variáveis: `.env.example`.
 
-## Rodar localmente
+## Base completa (`/dashboard`)
 
-Na raiz do repo: `npm run dev` (banco local com dados demo). Ver o README da raiz. O banco de produção é bloqueado fora da Vercel.
+Filtros em cascata: cada filtro (Projeto, Ação, Proponente, PRONAC, Ano) mostra só o que combina com
+os outros já escolhidos. As opções saem das próprias inscrições, com um `groupBy` por filtro usando
+"todos os filtros menos o próprio" — o mesmo padrão da Análise (`app/actions/inscricoes.ts`).
 
-## Setup com Supabase
+## Acompanhamento
 
-1. Crie um projeto em [supabase.com](https://supabase.com).
+O cron `/api/cron/acompanhamento-recurso` (07:30 BRT) confere o "recurso liberado" dos projetos que
+ainda aguardam, no projeto ligado do MAX Financeiro. Roda depois do cron do Financeiro, que atualiza a
+captação pelo SALIC.
 
-2. Copie o ambiente:
+## Proponentes
 
-```bash
-cp .env.example .env.local
-```
+Proponente é texto livre (projeto e planilhas), então o mesmo proponente aparece escrito de vários
+jeitos. `lib/proponente.ts`:
 
-3. Em **Project Settings → API**, preencha:
+- `proponenteKey` compara sem acento, caixa, pontuação, CNPJ/CPF no nome e sufixos jurídicos (LTDA,
+  ME, EPP, EIRELI, S/A…);
+- `PROPONENTE_APELIDOS` junta nomes diferentes confirmados pela equipe (ex.: "Instituto Vivas" →
+  "Instituto Morada Vivas") — para um par novo, inclua a chave aqui;
+- fica sempre o nome mais completo (`nomeCanonico`).
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (só servidor)
-
-4. Em **Project Settings → Database → Connection string**, preencha:
-
-- `DATABASE_URL` — URI do **pooler** (Transaction, porta `6543`, com `?pgbouncer=true`)
-- `DIRECT_URL` — URI **direta / Session** (porta `5432`) para migrations do Prisma
-
-5. Ajuste `AUTH_SECRET`, `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` (só para o seed do superadmin).
-
-6. Aplique o schema no banco Supabase:
+Os filtros da Base e da Análise mostram uma opção por proponente e acham todas as grafias; projeto
+novo ou editado reaproveita a grafia já cadastrada. Para unificar o que está gravado:
 
 ```bash
-npx prisma db push
-# ou, com histórico de migrations:
-npx prisma migrate deploy
+npm run dev -- run indicadores npx tsx scripts/unificar-proponentes.ts   # local, dry-run (--aplicar grava)
+npm run indicadores:unificar-proponentes:producao                       # produção, na raiz (ver docs/git-flow.md)
 ```
 
-7. Crie papéis/permissões e o admin inicial:
+Com `--aplicar`, o script salva antes um backup JSON em `backups/` (fora do git). Nomes de teste não são
+alterados; pares parecidos aparecem como "possíveis duplicados" para revisão.
 
-```bash
-npx tsx scripts/seed-auth.ts
-```
+## Scripts
 
-8. (Opcional) Ollama local:
-
-```bash
-ollama pull llama3.2
-ollama serve
-```
-
-9. Rode o app:
-
-```bash
-npm run dev
-```
-
-- Home: http://localhost:3000
-- Dashboard: http://localhost:3000/dashboard (login = usuário do banco; seed cria o superadmin `BOOTSTRAP_ADMIN_EMAIL`)
-- Importar: http://localhost:3000/dashboard/importar
-- Inscrição pública: http://localhost:3000/inscricao/[oficinaId]
-
-## Arquitetura de dados
-
-| Camada | Uso |
-|--------|-----|
-| Supabase Postgres | Banco hospedado |
-| Prisma | Schema das 35 colunas, queries, migrations |
-| `@supabase/ssr` / `@supabase/supabase-js` | Clients em [`lib/supabase/`](lib/supabase/) |
-| Auth admin | Cookie HMAC + usuários/papéis no Postgres |
-
-## Variáveis
-
-| Variável | Descrição |
-|----------|-----------|
-| `NEXT_PUBLIC_APP_NAME` | Nome do sistema |
-| `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon (pública) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role (somente servidor) |
-| `DATABASE_URL` | Postgres pooler (Prisma app) |
-| `DIRECT_URL` | Postgres direto (Prisma migrate) |
-| `OLLAMA_HOST` | Default `http://127.0.0.1:11434` |
-| `OLLAMA_MODEL` | Default `llama3.2` |
-| `AUTH_SECRET` | Segredo HMAC do cookie de sessão |
-| `BOOTSTRAP_ADMIN_EMAIL` | E-mail do superadmin (`scripts/seed-auth.ts`) |
-| `BOOTSTRAP_ADMIN_PASSWORD` | Senha inicial do superadmin (`scripts/seed-auth.ts`) |
-| `BOOTSTRAP_ADMIN_RESET` | Se `true`, redefine a senha do superadmin no seed |
+`scripts/`: `seed-auth.ts` (papéis e admin), `seed-base.ts`/`seed-demo.ts` (dados), `unificar-proponentes.ts`
+e as correções de dados `fix-*`, `split-territorio-composto.ts`, `strip-string-fields.ts`,
+`reassign-id-projeto.ts` e `migrate-hierarquia-contexto.ts`.
