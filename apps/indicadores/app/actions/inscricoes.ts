@@ -50,7 +50,7 @@ import {
   type SocioBreakdown,
   type SocioCohort,
 } from "@/lib/socio";
-import { getInscricaoFilterOptions } from "@/lib/inscricao-filters";
+import { agruparProponentes, proponenteVariantes } from "@/lib/inscricao-filters";
 import { chaveCpf, cpfsUnicosDoFiltro, type CpfsUnicos } from "@/lib/cpfs-unicos";
 import {
   listContextosPanoramaAction,
@@ -363,13 +363,16 @@ function andWhere(
   return { AND: [a, b] };
 }
 
+/** Filtros da Base que têm lista de opções (cada um em cascata com os outros). */
+type FiltroBase = "idProjeto" | "idAcao" | "proponente" | "pronac" | "anoProjeto";
+
 export async function listInscricoesAction(filters: ListFilters = {}) {
   const user = await requirePermission("inscricoes:read");
   const scope = await resolveDataScope(user.id);
   const scopeWhere = inscricaoWhereFromScope(scope);
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = Math.min(100, Math.max(10, filters.pageSize ?? 20));
-  let where: Prisma.InscricaoWhereInput = {};
+  let fixo: Prisma.InscricaoWhereInput = {};
 
   if (filters.q?.trim()) {
     const q = filters.q.trim();
@@ -384,39 +387,39 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
     if (cpfDigits.length >= 3) {
       or.push({ cpf: { contains: cpfDigits } });
     }
-    where.OR = or;
-  }
-  if (filters.idProjeto?.trim()) {
-    where.idProjeto = filters.idProjeto.trim();
-  }
-  if (filters.idAcao?.trim()) {
-    where.idAcao = filters.idAcao.trim();
-  }
-  if (filters.proponente?.trim()) {
-    where.proponente = filters.proponente.trim();
-  }
-  if (filters.pronac?.trim()) {
-    where.pronac = filters.pronac.trim();
+    fixo.OR = or;
   }
   if (filters.nomeProjeto?.trim()) {
-    where.nomeProjeto = filters.nomeProjeto.trim();
-  }
-  if (filters.anoProjeto?.trim()) {
-    const ano =
-      extractProjectYear(filters.anoProjeto) || filters.anoProjeto.trim();
-    where.identificacaoAnoProjeto = {
-      contains: ano,
-      mode: "insensitive",
-    };
+    fixo.nomeProjeto = filters.nomeProjeto.trim();
   }
   if (filters.selecionados === "1" || filters.selecionados === "0") {
-    where.selecionados = Number(filters.selecionados);
+    fixo.selecionados = Number(filters.selecionados);
   }
   if (filters.participantes === "1" || filters.participantes === "0") {
-    where.participantes = Number(filters.participantes);
+    fixo.participantes = Number(filters.participantes);
   }
+  fixo = andWhere(fixo, scopeWhere);
 
-  where = andWhere(where, scopeWhere);
+  const ano = filters.anoProjeto?.trim()
+    ? extractProjectYear(filters.anoProjeto) || filters.anoProjeto.trim()
+    : "";
+  const proponente = filters.proponente?.trim() ?? "";
+  // Todas as grafias do proponente ("… LTDA", com CNPJ, apelidos) contam como ele.
+  const variantes = proponente ? await proponenteVariantes(user.id, proponente) : [];
+  const conds: Record<FiltroBase, Prisma.InscricaoWhereInput | null> = {
+    idProjeto: filters.idProjeto?.trim() ? { idProjeto: filters.idProjeto.trim() } : null,
+    idAcao: filters.idAcao?.trim() ? { idAcao: filters.idAcao.trim() } : null,
+    proponente: proponente ? { proponente: { in: variantes } } : null,
+    pronac: filters.pronac?.trim() ? { pronac: filters.pronac.trim() } : null,
+    anoProjeto: ano
+      ? { identificacaoAnoProjeto: { contains: ano, mode: "insensitive" } }
+      : null,
+  };
+  const whereSem = (sem?: FiltroBase): Prisma.InscricaoWhereInput =>
+    (Object.keys(conds) as FiltroBase[])
+      .filter((k) => k !== sem && conds[k])
+      .reduce<Prisma.InscricaoWhereInput>((acc, k) => andWhere(acc, conds[k]!), fixo);
+  const where = whereSem();
 
   const sort = parseInscricaoSort(filters.sort);
   const sortDir = parseSortDir(filters.sortDir);
@@ -430,9 +433,20 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    getInscricaoFilterOptions(user.id),
+    // Cada filtro mostra só o que combina com os outros já escolhidos (cascata).
+    opcoesDaBaseEmCascata(whereSem),
     cpfsUnicosDoFiltro(where),
   ]);
+
+  // O valor escolhido continua na lista, mesmo que a cascata o tenha tirado.
+  if (proponente && !filterOptions.proponentes.includes(proponente)) {
+    filterOptions.proponentes = [proponente, ...filterOptions.proponentes];
+  }
+  if (ano && !filterOptions.anos.includes(ano)) filterOptions.anos = [ano, ...filterOptions.anos];
+  const pronacSel = filters.pronac?.trim();
+  if (pronacSel && !filterOptions.pronacs.includes(pronacSel)) {
+    filterOptions.pronacs = [pronacSel, ...filterOptions.pronacs];
+  }
 
   return {
     total,
@@ -443,6 +457,47 @@ export async function listInscricoesAction(filters: ListFilters = {}) {
     rows: records.map((r) => ({ id: r.id, ...prismaToRow(r) })),
     acoes: filterOptions.acoes,
     filterOptions,
+  };
+}
+
+/** Opções de cada filtro da Base considerando os demais filtros ativos. */
+async function opcoesDaBaseEmCascata(
+  whereSem: (sem: FiltroBase) => Prisma.InscricaoWhereInput,
+): Promise<ContextFilterOptions> {
+  const [projetos, acoes, proponentes, pronacs, anos] = await Promise.all([
+    prisma.inscricao.groupBy({ by: ["idProjeto", "nomeProjeto"], where: whereSem("idProjeto") }),
+    prisma.inscricao.groupBy({ by: ["idAcao", "nomeAcao"], where: whereSem("idAcao") }),
+    prisma.inscricao.groupBy({
+      by: ["proponente"],
+      where: whereSem("proponente"),
+      _count: { _all: true },
+    }),
+    prisma.inscricao.groupBy({ by: ["pronac"], where: whereSem("pronac") }),
+    prisma.inscricao.groupBy({ by: ["identificacaoAnoProjeto"], where: whereSem("anoProjeto") }),
+  ]);
+  const unicos = (l: string[]) =>
+    [...new Set(l.map((v) => v.trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, "pt-BR", { numeric: true }),
+    );
+  const porId = <T extends { id: string; nome: string }>(l: T[]) =>
+    [...new Map(l.filter((x) => x.id.trim()).map((x) => [x.id, x])).values()].sort((a, b) =>
+      a.nome.localeCompare(b.nome, "pt-BR"),
+    );
+  return {
+    projetos: porId(projetos.map((g) => ({ id: g.idProjeto, nome: g.nomeProjeto || g.idProjeto }))).map(
+      (p) => ({ idProjeto: p.id, nomeProjeto: p.nome }),
+    ),
+    acoes: porId(acoes.map((g) => ({ id: g.idAcao, nome: g.nomeAcao || g.idAcao }))).map((a) => ({
+      idAcao: a.id,
+      nomeAcao: a.nome,
+    })),
+    proponentes: agruparProponentes(
+      proponentes.map((g) => ({ nome: g.proponente, n: g._count._all })),
+    ).map((o) => o.value),
+    pronacs: unicos(pronacs.map((g) => g.pronac)),
+    anos: unicos(
+      anos.map((g) => extractProjectYear(g.identificacaoAnoProjeto) || g.identificacaoAnoProjeto),
+    ),
   };
 }
 
@@ -571,7 +626,9 @@ async function opcoesDosFiltros(
       .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { numeric: true }));
   }
   return {
-    proponente: juntar(proponentes.map((g) => ({ value: g.proponente, label: g.proponente, n: g._count._all }))),
+    proponente: agruparProponentes(
+      proponentes.map((g) => ({ nome: g.proponente, n: g._count._all })),
+    ).map((o) => ({ value: o.value, label: o.label, inscricoes: o.n })),
     idProjeto: juntar(projetos.map((g) => ({ value: g.idProjeto, label: g.nomeProjeto || g.idProjeto, n: g._count._all }))),
     idAcao: juntar(acoes.map((g) => ({ value: g.idAcao, label: g.nomeAcao || g.idAcao, hint: g.nomeProjeto, n: g._count._all }))),
     estado: juntar(estados.map((g) => ({ value: g.estado, label: g.estado, n: g._count._all }))),
@@ -595,7 +652,9 @@ export async function getAnaliseAction(
   // Uma condição por filtro; as opções de cada filtro respeitam os outros filtros.
   const igual = (v: string) => ({ equals: v, mode: "insensitive" as const });
   const conds: Record<FiltroAnalise, Prisma.InscricaoWhereInput | null> = {
-    proponente: filters.proponente?.trim() ? { proponente: igual(filters.proponente.trim()) } : null,
+    proponente: filters.proponente?.trim()
+      ? { proponente: { in: await proponenteVariantes(user.id, filters.proponente.trim()) } }
+      : null,
     idProjeto: filters.idProjeto?.trim() ? { idProjeto: filters.idProjeto.trim() } : null,
     idAcao: filters.idAcao?.trim() ? { idAcao: filters.idAcao.trim() } : null,
     estado: filters.estado?.trim() ? { estado: igual(filters.estado.trim()) } : null,

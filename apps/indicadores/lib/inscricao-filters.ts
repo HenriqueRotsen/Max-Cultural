@@ -6,6 +6,55 @@ import {
   resolveDataScope,
 } from "@/lib/data-scope";
 import { extractProjectYear } from "@/lib/normalize";
+import { nomeCanonico, proponenteKey } from "@/lib/proponente";
+
+/**
+ * Junta grafias do mesmo proponente ("… LTDA", com CNPJ, apelidos confirmados)
+ * numa opção só, com o nome mais completo. `value` = nome exibido.
+ */
+export function agruparProponentes<T extends { nome: string; n: number }>(
+  lista: T[],
+): Array<{ value: string; label: string; n: number }> {
+  const porKey = new Map<string, Array<{ nome: string; usos: number }>>();
+  for (const x of lista) {
+    const nome = x.nome.trim();
+    if (!nome) continue;
+    const key = proponenteKey(nome) || nome.toLowerCase();
+    const l = porKey.get(key) ?? [];
+    l.push({ nome, usos: x.n });
+    porKey.set(key, l);
+  }
+  return [...porKey.values()]
+    .map((variantes) => {
+      const nome = nomeCanonico(variantes);
+      return { value: nome, label: nome, n: variantes.reduce((s, v) => s + v.usos, 0) };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+}
+
+/**
+ * Todas as grafias gravadas do proponente escolhido no filtro (projetos +
+ * inscrições), para o filtro achar "Vivas Cultura e Esporte" e "… LTDA" juntos.
+ */
+export const proponenteVariantes = cache(
+  async (userId: string, nome: string): Promise<string[]> => {
+    const key = proponenteKey(nome);
+    if (!key) return [nome];
+    const scope = await resolveDataScope(userId);
+    const [deInscricoes, deProjetos] = await Promise.all([
+      prisma.inscricao.groupBy({ by: ["proponente"], where: inscricaoWhereFromScope(scope) }),
+      prisma.projeto.findMany({ select: { proponente: true }, distinct: ["proponente"] }),
+    ]);
+    const nomes = new Set<string>([nome]);
+    for (const n of [
+      ...deInscricoes.map((g) => g.proponente),
+      ...deProjetos.map((p) => p.proponente),
+    ]) {
+      if (n && proponenteKey(n) === key) nomes.add(n);
+    }
+    return [...nomes];
+  },
+);
 
 export type InscricaoFilterOptions = {
   projetos: Array<{ idProjeto: string; nomeProjeto: string }>;
@@ -108,9 +157,9 @@ export const getInscricaoFilterOptions = cache(
       orderBy: { nome: "asc" },
     });
 
-    const proponentes = [
-      ...new Set(projetos.map((p) => p.proponente.trim()).filter(Boolean)),
-    ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const proponentes = agruparProponentes(
+      projetos.map((p) => ({ nome: p.proponente, n: 1 })),
+    ).map((o) => o.value);
     const pronacs = [
       ...new Set(projetos.map((p) => p.pronac.trim()).filter(Boolean)),
     ].sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -172,3 +221,23 @@ export const getAnaliseFilterOptions = cache(
     };
   },
 );
+
+/**
+ * Nome a gravar no projeto: se outro projeto já tem o mesmo proponente com
+ * outra grafia, usa o nome mais completo entre elas (evita novas duplicatas).
+ */
+export async function proponenteParaGravar(nome: string, exceptProjetoId?: string): Promise<string> {
+  const limpo = nome.trim().replace(/\s+/g, " ");
+  const key = proponenteKey(limpo);
+  if (!key) return limpo;
+  const outros = await prisma.projeto.groupBy({
+    by: ["proponente"],
+    where: exceptProjetoId ? { id: { not: exceptProjetoId } } : undefined,
+    _count: { _all: true },
+  });
+  const variantes = outros
+    .filter((g) => g.proponente.trim() && proponenteKey(g.proponente) === key)
+    .map((g) => ({ nome: g.proponente, usos: g._count._all }));
+  if (!variantes.length) return limpo;
+  return nomeCanonico([...variantes, { nome: limpo, usos: 1 }]);
+}
