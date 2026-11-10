@@ -21,6 +21,13 @@ describe("proponenteKey", () => {
 
   it("junta apelidos confirmados", () => {
     expect(proponenteKey("Instituto Vivas")).toBe(proponenteKey("Instituto Morada Vivas"));
+    expect(proponenteKey("ATELIÊ 22")).toBe(proponenteKey("ATELIE 22 - ARTE E CULTURA LTDA"));
+    expect(
+      agruparProponentes([
+        { nome: "ATELIÊ 22", usos: 5 },
+        { nome: "ATELIE 22 - ARTE E CULTURA LTDA", usos: 1 },
+      ]).grupos.map((g) => g.nome),
+    ).toEqual(["ATELIE 22 - ARTE E CULTURA LTDA"]);
   });
 
   it("não junta nomes diferentes", () => {

@@ -76,6 +76,7 @@ export function proponenteKeyBase(nome: string): string {
  */
 export const PROPONENTE_APELIDOS: Record<string, string> = {
   "instituto vivas": "instituto morada vivas",
+  "atelie 22": "atelie 22 arte e cultura",
 };
 
 /** Chave que identifica o proponente (normalizada + apelidos confirmados). */
