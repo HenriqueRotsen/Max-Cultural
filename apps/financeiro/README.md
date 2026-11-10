@@ -9,17 +9,10 @@ Auditoria de gastos SALIC por fornecedor (multi-proponente).
 - Playwright (crawler fallback)
 - API pública: https://api.salic.cultura.gov.br/docs
 
-## Setup local
+## Rodar localmente
 
-```bash
-cp .env.example .env
-npm install
-npm run db:up          # Postgres em localhost:5433
-npx prisma migrate dev
-npm run dev
-```
-
-Abra http://localhost:3000
+Na raiz do repo: `npm run dev:teste` (banco local com dados demo) ou `npm run dev`
+(banco de homologação). O Financeiro abre em http://localhost:3001.
 
 Sem `AUTH_SECRET` + `NEXT_PUBLIC_CULTURAL_URL`, o layout pode falhar o SSO — configure o hub.
 
