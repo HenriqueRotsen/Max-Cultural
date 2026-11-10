@@ -75,9 +75,9 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
     () => ({
       contextos: data.contextos,
       projetos: data.projetos,
-      oficinas: data.oficinas,
+      acoes: data.acoes,
     }),
-    [data.contextos, data.projetos, data.oficinas],
+    [data.contextos, data.projetos, data.acoes],
   );
 
   const [form, setForm] = useState({
@@ -625,7 +625,7 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
                     : "Dados da conta — acesso completo aos dados. Login pelo MAX Cultural (mesmo e-mail)."
                   : step === 1
                     ? "Etapa 1 de 2 — dados da conta (login pelo MAX Cultural)"
-                    : "Etapa 2 de 2 — defina o acesso por contexto, projeto e oficina"}
+                    : "Etapa 2 de 2 — defina o acesso por contexto, projeto e ação"}
             </DialogDescription>
           </DialogHeader>
 

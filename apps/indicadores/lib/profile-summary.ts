@@ -7,7 +7,7 @@ import {
 } from "@/lib/permission-catalog";
 
 export type ProfileScopeItem = {
-  kind: "CONTEXTO" | "PROJETO" | "OFICINA";
+  kind: "CONTEXTO" | "PROJETO" | "ACAO";
   id: string;
   label: string;
   access: "viewer" | "editor";
@@ -55,14 +55,14 @@ export async function getOwnProfileSummary(
     throw new Error("Usuário não encontrado");
   }
 
-  const [perms, scope, contextos, projetos, oficinas] = await Promise.all([
+  const [perms, scope, contextos, projetos, acoes] = await Promise.all([
     getEffectivePermissions(userId),
     resolveDataScope(userId),
     prisma.contexto.findMany({ select: { id: true, nome: true } }),
     prisma.projeto.findMany({
       select: { id: true, nome: true, contextoId: true },
     }),
-    prisma.oficina.findMany({
+    prisma.acao.findMany({
       select: { id: true, nome: true, projetoId: true },
     }),
   ]);
@@ -96,13 +96,13 @@ export async function getOwnProfileSummary(
         parentLabel: ctxName.get(p.contextoId),
       });
     }
-    for (const o of oficinas) {
-      const level = scope.accessByKey.get(`OFICINA:${o.id}`);
+    for (const o of acoes) {
+      const level = scope.accessByKey.get(`ACAO:${o.id}`);
       if (level !== "viewer" && level !== "editor") continue;
       const parentLevel = scope.accessByKey.get(`PROJETO:${o.projetoId}`);
       if (parentLevel === level) continue;
       scopeItems.push({
-        kind: "OFICINA",
+        kind: "ACAO",
         id: o.id,
         label: o.nome,
         access: level,

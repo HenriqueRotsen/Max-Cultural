@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!result.ok) return { title: `Online · ${appName}` };
   return {
     title: `${result.data.label} · Online · ${appName}`,
-    description: `Oficina online: ${result.data.label}`,
+    description: `Ação online: ${result.data.label}`,
   };
 }
 
@@ -66,10 +66,10 @@ export default async function TerritorioOnlineDetailPage({
 
           <section className="space-y-4">
             <h2 className="font-heading text-2xl font-semibold text-brand-deep">
-              Oficinas
+              Ações
             </h2>
             <div className="space-y-3">
-              {result.data.oficinas.map((o) => (
+              {result.data.acoes.map((o) => (
                 <Link
                   key={`${o.id_projeto}-${o.id_oficina}`}
                   href={o.href}

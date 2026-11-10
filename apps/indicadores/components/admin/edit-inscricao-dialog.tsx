@@ -17,6 +17,7 @@ import { columnLabel } from "@/lib/column-labels";
 import { normalizeSimComDetalhe } from "@/lib/normalize";
 import { formatCellDisplay, parseCellInput } from "@/lib/validate";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -68,7 +69,7 @@ const SECTIONS: Array<{
   cols: SigaCulturalColumn[];
 }> = [
   {
-    title: "Projeto e oficina",
+    title: "Projeto e ação",
     cols: [
       "id_projeto",
       "id_oficina",
@@ -116,7 +117,7 @@ const SECTIONS: Array<{
     cols: ["Possui_deficiencia", "RestricaoAlimentar"],
   },
   {
-    title: "Status na oficina",
+    title: "Status na ação",
     cols: ["Inscritos", "Selecionados", "Participantes", "Certificado"],
   },
 ];
@@ -129,6 +130,7 @@ type Props = {
 
 export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState<Partial<SigaCulturalRow>>({});
 
@@ -184,15 +186,15 @@ export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
     });
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!record) return;
-    if (
-      !confirm(
-        "Excluir este registro da base? Essa ação não pode ser desfeita.",
-      )
-    ) {
-      return;
-    }
+    const ok = await confirmar({
+      title: "Excluir esta inscrição?",
+      description: "O registro sai da base e dos indicadores. Essa ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await deleteInscricaoAction(record.id);
       if (!result.ok) {
@@ -358,7 +360,7 @@ export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
               <section key={section.title} className="space-y-3">
                 <h3 className="border-b border-brand/10 pb-1.5 text-sm font-medium text-brand-deep">
                   {section.title}
-                  {section.title === "Projeto e oficina" ? (
+                  {section.title === "Projeto e ação" ? (
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
                       (somente leitura)
                     </span>

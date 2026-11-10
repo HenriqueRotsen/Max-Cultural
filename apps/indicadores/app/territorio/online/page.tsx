@@ -13,7 +13,7 @@ const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "MAX Indicadores";
 
 export const metadata: Metadata = {
   title: `Online · Territórios · ${appName}`,
-  description: "Oficinas e comunidades online (sem localidade física).",
+  description: "Ações e comunidades online (sem localidade física).",
 };
 
 export default async function TerritorioOnlineIndexPage({
@@ -32,7 +32,7 @@ export default async function TerritorioOnlineIndexPage({
             Online
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Oficinas e territórios remotos, sem vínculo obrigatório a cidade/UF.
+            Ações e territórios remotos, sem vínculo obrigatório a cidade/UF.
           </p>
           <TerritorioKpiGrid kpis={data.kpis} />
         </section>
@@ -61,7 +61,7 @@ export default async function TerritorioOnlineIndexPage({
                     </div>
                     <div className="text-xs tabular-nums text-muted-foreground">
                       {item.kpis.inscritos} insc. <CpfsUnicosInline n={item.kpis.cpfsUnicos.inscritos} /> · {item.kpis.selecionados} sel.{" "}
-                      <CpfsUnicosInline n={item.kpis.cpfsUnicos.selecionados} /> · {item.kpis.oficinas} ofc.
+                      <CpfsUnicosInline n={item.kpis.cpfsUnicos.selecionados} /> · {item.kpis.acoes} ações
                     </div>
                   </div>
                 </Link>

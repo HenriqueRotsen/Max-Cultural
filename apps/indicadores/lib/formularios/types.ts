@@ -1,5 +1,6 @@
 export const FORMULARIO_CAMPO_TIPOS = [
   "SECTION",
+  "INFO",
   "SHORT_TEXT",
   "LONG_TEXT",
   "MULTIPLE_CHOICE",
@@ -18,10 +19,15 @@ export const FORMULARIO_CAMPO_TIPOS = [
   "ADDRESS_BR",
   "DECLARACAO",
   "PARTICIPACAO",
-  "TERRITORIO_OFICINA",
+  "TERRITORIO_ACAO",
 ] as const;
 
 export type FormularioCampoTipoCode = (typeof FORMULARIO_CAMPO_TIPOS)[number];
+
+/** Itens que só apresentam informação (seção e texto informativo): não recebem resposta. */
+export function campoSemResposta(tipo: string): boolean {
+  return tipo === "SECTION" || tipo === "INFO";
+}
 
 export type FormularioCampoDraft = {
   id?: string;
@@ -55,8 +61,8 @@ export const EMPTY_ADDRESS_BR: AddressBrValue = {
   Estado: "",
 };
 
-/** Valor do campo TERRITORIO_OFICINA no formulário público. */
-export type TerritorioOficinaValue = {
+/** Valor do campo TERRITORIO_ACAO no formulário público. */
+export type TerritorioAcaoValue = {
   modalidade: "ONLINE" | "PRESENCIAL" | "";
   cidade: string;
   estado: string;
@@ -64,7 +70,7 @@ export type TerritorioOficinaValue = {
   territorio: string;
 };
 
-export const EMPTY_TERRITORIO_OFICINA: TerritorioOficinaValue = {
+export const EMPTY_TERRITORIO_ACAO: TerritorioAcaoValue = {
   modalidade: "",
   cidade: "",
   estado: "",
@@ -73,6 +79,7 @@ export const EMPTY_TERRITORIO_OFICINA: TerritorioOficinaValue = {
 
 export const FORMULARIO_CAMPO_TIPO_LABELS: Record<FormularioCampoTipoCode, string> = {
   SECTION: "Seção / título",
+  INFO: "Texto informativo",
   SHORT_TEXT: "Texto curto",
   LONG_TEXT: "Parágrafo",
   MULTIPLE_CHOICE: "Múltipla escolha",
@@ -91,7 +98,7 @@ export const FORMULARIO_CAMPO_TIPO_LABELS: Record<FormularioCampoTipoCode, strin
   ADDRESS_BR: "Endereço (CEP)",
   DECLARACAO: "Declaração",
   PARTICIPACAO: "Participação (avaliação)",
-  TERRITORIO_OFICINA: "Território da oficina",
+  TERRITORIO_ACAO: "Território da ação",
 };
 
 export function slugifyTitulo(titulo: string): string {

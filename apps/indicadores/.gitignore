@@ -46,3 +46,6 @@ next-env.d.ts
 
 # uploads de capa de formulários (gerados em runtime)
 /public/uploads
+
+# arquivos privados da prestação de contas no ambiente local
+/.storage

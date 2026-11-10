@@ -12,7 +12,7 @@ export default async function ImportarPage() {
           Importar planilha
         </h1>
         <p className="text-sm text-muted-foreground">
-          Escolha contexto → projeto → oficina e importe as pessoas da planilha.
+          Escolha contexto → projeto → ação e importe as pessoas da planilha.
         </p>
       </div>
       <ImportWizard />

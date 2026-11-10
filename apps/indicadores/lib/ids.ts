@@ -16,7 +16,7 @@ export async function nextIdProjeto(): Promise<string> {
   return String(maxNumericId(rows.map((r) => r.id)) + 1);
 }
 
-export async function nextIdOficina(): Promise<string> {
-  const rows = await prisma.oficina.findMany({ select: { id: true } });
+export async function nextIdAcao(): Promise<string> {
+  const rows = await prisma.acao.findMany({ select: { id: true } });
   return String(maxNumericId(rows.map((r) => r.id)) + 1);
 }

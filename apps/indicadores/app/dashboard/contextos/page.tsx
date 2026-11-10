@@ -1,8 +1,9 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ContextosManager } from "@/components/admin/contextos-manager";
+import { podeVerAcompanhamento, podeVerPrestacao } from "@/lib/acompanhamento/acesso";
 import {
   listContextosPageAction,
-  listOficinasPageAction,
+  listAcoesPageAction,
   listProjetosPageAction,
 } from "@/app/actions/contextos";
 import { HIERARQUIA_PAGE_SIZE } from "@/lib/hierarchy-list";
@@ -13,10 +14,11 @@ import {
 } from "@/components/admin/list-pager";
 import { requireDashboardPermission } from "@/lib/dashboard-gate";
 
-type Tab = "contextos" | "projetos" | "oficinas";
+type Tab = "contextos" | "projetos" | "acoes";
 
 function parseTab(raw: string | undefined): Tab {
-  if (raw === "projetos" || raw === "oficinas") return raw;
+  if (raw === "projetos" || raw === "acoes") return raw;
+  if (raw === "acoes") return "acoes"; // link antigo
   return "contextos";
 }
 
@@ -51,7 +53,7 @@ export default async function ContextosPage({
       ReturnType<typeof listContextosPageAction>
     >["items"],
     projetos: [] as Awaited<ReturnType<typeof listProjetosPageAction>>["items"],
-    oficinas: [] as Awaited<ReturnType<typeof listOficinasPageAction>>["items"],
+    acoes: [] as Awaited<ReturnType<typeof listAcoesPageAction>>["items"],
   };
 
   try {
@@ -72,13 +74,13 @@ export default async function ContextosPage({
       canWrite = data.canWrite;
       empty.projetos = data.items;
     } else {
-      const data = await listOficinasPageAction(listParams);
+      const data = await listAcoesPageAction(listParams);
       pageCount = data.pageCount;
       page = parseListPage(sp.page, pageCount);
       total = data.total;
       canCreate = data.canCreate;
       canWrite = data.canWrite;
-      empty.oficinas = data.items;
+      empty.acoes = data.items;
     }
   } catch (err) {
     console.error("[contextos]", err);
@@ -94,11 +96,11 @@ export default async function ContextosPage({
     <AdminShell title="Contextos">
       <div className="mb-6 space-y-1">
         <h1 className="font-heading text-2xl font-semibold tracking-tight text-brand-deep">
-          Contexto → Projeto → Oficina
+          Contexto → Projeto → Ação
         </h1>
         <p className="text-sm text-muted-foreground">
-          Contextos, projetos e oficinas são cadastrados aqui (ou direto na importação e
-          na criação de formulários). Cada oficina informa onde acontece: online e/ou
+          Contextos, projetos e ações são cadastrados aqui (ou direto na importação e
+          na criação de formulários). Cada ação informa onde acontece: online e/ou
           os territórios presenciais. Só é possível excluir itens sem dados vinculados.
         </p>
       </div>
@@ -118,9 +120,11 @@ export default async function ContextosPage({
           sortDir={sortDir}
           contextos={empty.contextos}
           projetos={empty.projetos}
-          oficinas={empty.oficinas}
+          acoes={empty.acoes}
           canCreate={canCreate}
           canWrite={canWrite}
+          canAcompanhamento={await podeVerAcompanhamento()}
+          canPrestacao={await podeVerPrestacao()}
         />
       )}
     </AdminShell>

@@ -21,6 +21,14 @@ export const PERMISSION_CODES = [
   "roles:write",
   "audit:read",
   "perfil:write",
+  "acompanhamento:read",
+  "comunicacao:write",
+  "producao:write",
+  "acompanhamento:gestao",
+  "prestacao:read",
+  "prestacao:producao",
+  "prestacao:comunicacao",
+  "prestacao:gestao",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -63,19 +71,19 @@ export const PERMISSION_CATALOG: Array<{
   },
   {
     code: "contextos:read",
-    label: "Ver contextos, projetos e oficinas",
+    label: "Ver contextos, projetos e ações",
     group: "Hierarquia",
   },
   {
     code: "contextos:create",
-    label: "Cadastrar contextos, projetos e oficinas",
+    label: "Cadastrar contextos, projetos e ações",
     group: "Hierarquia",
     description:
       "Permite criar itens e excluir os que ainda não tenham dados vinculados.",
   },
   {
     code: "contextos:write",
-    label: "Editar contextos, projetos e oficinas",
+    label: "Editar contextos, projetos e ações",
     group: "Hierarquia",
     description:
       "Permite alterar nomes e vínculos. Também aparece na auditoria. Exclusão só sem dados vinculados.",
@@ -89,14 +97,14 @@ export const PERMISSION_CATALOG: Array<{
     code: "formularios:write",
     label: "Criar e editar formulários",
     group: "Formulários",
-    description: "Criar formulários por oficina, capa, campos e professores.",
+    description: "Criar formulários por ação, capa, campos e professores.",
   },
   {
     code: "formularios:review",
     label: "Avaliar respostas de formulários",
     group: "Formulários",
     description:
-      "Papel Professor: ver e marcar Selecionado/Professor nas oficinas atribuídas.",
+      "Papel Professor: ver e marcar Selecionado/Professor nas ações atribuídas.",
   },
   {
     code: "formularios:merge",
@@ -108,13 +116,13 @@ export const PERMISSION_CATALOG: Array<{
     code: "consultas:cpf",
     label: "Consultar CPF",
     group: "Consultas",
-    description: "Respeita o acesso por contexto/projeto/oficina do usuário.",
+    description: "Respeita o acesso por contexto/projeto/ação do usuário.",
   },
   {
     code: "consultas:territorio",
     label: "Consultar território",
     group: "Consultas",
-    description: "Respeita o acesso por contexto/projeto/oficina do usuário.",
+    description: "Respeita o acesso por contexto/projeto/ação do usuário.",
   },
   {
     code: "usuarios:read",
@@ -145,6 +153,50 @@ export const PERMISSION_CATALOG: Array<{
     code: "perfil:write",
     label: "Editar próprio perfil",
     group: "Perfil",
+  },
+  {
+    code: "acompanhamento:read",
+    label: "Ver acompanhamento",
+    group: "Acompanhamento",
+    description: "Ver as tarefas de Comunicação e Produção dos projetos.",
+  },
+  {
+    code: "comunicacao:write",
+    label: "Atualizar tarefas de Comunicação",
+    group: "Acompanhamento",
+  },
+  {
+    code: "producao:write",
+    label: "Atualizar tarefas de Produção",
+    group: "Acompanhamento",
+  },
+  {
+    code: "acompanhamento:gestao",
+    label: "Gestão do acompanhamento",
+    group: "Acompanhamento",
+    description: "Datas do projeto, agenda das ações, ocorrências e escaladas.",
+  },
+  {
+    code: "prestacao:read",
+    label: "Ver prestação de contas",
+    group: "Prestação de contas",
+    description: "Ver as fichas de prestação de contas dos projetos.",
+  },
+  {
+    code: "prestacao:producao",
+    label: "Preencher a parte da Produção",
+    group: "Prestação de contas",
+  },
+  {
+    code: "prestacao:comunicacao",
+    label: "Preencher a parte da Comunicação",
+    group: "Prestação de contas",
+  },
+  {
+    code: "prestacao:gestao",
+    label: "Gestão da prestação de contas",
+    group: "Prestação de contas",
+    description: "Dados do projeto, produtos e metas, parte da gestão e modelo da ficha.",
   },
 ];
 

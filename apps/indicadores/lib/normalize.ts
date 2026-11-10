@@ -17,7 +17,7 @@ import {
 } from "@/lib/column-map";
 import { enrichCidadeEstado } from "@/lib/municipio-uf";
 import { applyParsedFullAddress } from "@/lib/address-parse";
-import { parseTerritorioInscricao } from "@/lib/oficina-territorio";
+import { parseTerritorioInscricao } from "@/lib/acao-territorio";
 
 export { normalizeHeaderKey, HEADER_SYNONYMS } from "@/lib/column-map";
 export type { SigaCulturalColumn } from "@/lib/schema";
@@ -850,7 +850,7 @@ export function normalizeRow(
   const addressSplit = applyParsedFullAddress(merged);
   Object.assign(merged, addressSplit);
 
-  const catalog = context?.oficinaTerritorioCatalog ?? null;
+  const catalog = context?.acaoTerritorioCatalog ?? null;
   let cidadeNorm = "";
   let estadoNorm = "";
   let territorioNorm = "";
@@ -993,20 +993,20 @@ export function formatRowsWithMapping(
   );
 }
 
-/** Chave de pessoa na oficina (CPF; senão e-mail). */
+/** Chave de pessoa na ação (CPF; senão e-mail). */
 function inscricaoDedupeKey(row: SigaCulturalRow): string | null {
   const cpf = String(row.CPF ?? "").replace(/\D/g, "");
-  const oficina = String(row.id_oficina ?? "").trim();
-  if (cpf.length === 11) return `cpf:${cpf}|of:${oficina}`;
+  const acao = String(row.id_oficina ?? "").trim();
+  if (cpf.length === 11) return `cpf:${cpf}|of:${acao}`;
   const email = String(row["E-mail"] ?? "")
     .trim()
     .toLowerCase();
-  if (email) return `em:${email}|of:${oficina}`;
+  if (email) return `em:${email}|of:${acao}`;
   return null;
 }
 
 /**
- * Mantém só a resposta mais recente por CPF (ou e-mail) na mesma oficina.
+ * Mantém só a resposta mais recente por CPF (ou e-mail) na mesma ação.
  * Empate: maior índice na planilha.
  */
 export function dedupeInscricaoRowsByRecency(

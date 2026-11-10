@@ -30,7 +30,7 @@ export type ProgramaEdicao = {
   certificados: number;
   /** Pessoas diferentes (CPFs únicos) na edição. */
   cpfsUnicos: CpfsUnicos;
-  oficinas: number;
+  acoes: number;
   canEditContexto?: boolean;
 };
 
@@ -152,7 +152,7 @@ export async function getContextoPanoramaAction(
     include: {
       projetos: {
         include: {
-          oficinas: { select: { id: true } },
+          acoes: { select: { id: true } },
         },
       },
     },
@@ -214,7 +214,7 @@ export async function getContextoPanoramaAction(
         participantes: a?._sum.participantes ?? 0,
         certificados: a?._sum.certificado ?? 0,
         cpfsUnicos: cpfsDoProjeto.total(p.id),
-        oficinas: p.oficinas.length,
+        acoes: p.acoes.length,
         canEditContexto: writeAccess,
       };
     }),
@@ -302,7 +302,7 @@ export async function getContextoForProjeto(
     where: { id: idProjeto },
     include: {
       contexto: { select: { id: true, nome: true } },
-      _count: { select: { oficinas: true } },
+      _count: { select: { acoes: true } },
     },
   });
   if (!projeto) {

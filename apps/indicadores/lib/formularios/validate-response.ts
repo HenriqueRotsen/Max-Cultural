@@ -1,5 +1,6 @@
 import {
   EMPTY_ADDRESS_BR,
+  campoSemResposta,
   type AddressBrValue,
   type FormularioCampoTipoCode,
 } from "@/lib/formularios/types";
@@ -16,9 +17,9 @@ import {
 } from "@/lib/normalize";
 import { GENEROS, ETNIAS } from "@/lib/schema";
 import {
-  asTerritorioOficinaFormValue,
-  applyTerritorioOficinaFormToSiga,
-} from "@/lib/oficina-territorio";
+  asTerritorioAcaoFormValue,
+  applyTerritorioAcaoFormToSiga,
+} from "@/lib/acao-territorio";
 
 export type CampoValidavel = {
   id: string;
@@ -74,7 +75,7 @@ export function validateFormularioAnswers(
   let cpf = "";
 
   for (const campo of campos) {
-    if (campo.tipo === "SECTION") continue;
+    if (campoSemResposta(campo.tipo)) continue;
     const rawVal = raw[campo.id];
 
     if (campo.obrigatorio && isEmpty(rawVal)) {
@@ -203,8 +204,8 @@ export function validateFormularioAnswers(
         }
         break;
       }
-      case "TERRITORIO_OFICINA": {
-        const terr = asTerritorioOficinaFormValue(rawVal);
+      case "TERRITORIO_ACAO": {
+        const terr = asTerritorioAcaoFormValue(rawVal);
         terr.estado = normalizeUf(terr.estado);
         values[campo.id] = terr;
         if (campo.obrigatorio && !terr.modalidade) {
@@ -222,7 +223,7 @@ export function validateFormularioAnswers(
             terr.cidade.trim() &&
             terr.estado.trim())
         ) {
-          applyTerritorioOficinaFormToSiga(sigaPartial, terr);
+          applyTerritorioAcaoFormToSiga(sigaPartial, terr);
         }
         break;
       }

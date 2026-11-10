@@ -19,7 +19,8 @@ import { Pool } from "pg";
 import { normalizeRow } from "../lib/normalize";
 import { rowToPrisma, type SigaCulturalRow } from "../lib/schema";
 
-config({ path: ".env.local", override: true });
+// `npm run dev:teste` (MAX_AMBIENTE): o ambiente já vem no processo.
+if (!process.env.MAX_AMBIENTE) config({ path: ".env.local", override: true });
 
 const BATCH = 250;
 const PREFERRED_SHEETS = ["Base 2026", "Base Completa", "base"];
@@ -153,11 +154,11 @@ async function main() {
   try {
     if (replace) {
       const delIns = await prisma.inscricao.deleteMany();
-      const delOf = await prisma.oficina.deleteMany();
+      const delOf = await prisma.acao.deleteMany();
       const delProj = await prisma.projeto.deleteMany();
       const delCtx = await prisma.contexto.deleteMany();
       console.log(
-        `Replace: removidas ${delIns.count} inscrição(ões), ${delOf.count} oficinas, ${delProj.count} projetos, ${delCtx.count} contextos`,
+        `Replace: removidas ${delIns.count} inscrição(ões), ${delOf.count} ações, ${delProj.count} projetos, ${delCtx.count} contextos`,
       );
     }
 
@@ -172,7 +173,7 @@ async function main() {
     }
     console.log(`\nInscrições inseridas: ${inserted}`);
     console.log(
-      "Hierarquia Contexto→Projeto→Oficina: rode `npx tsx scripts/migrate-hierarquia-contexto.ts` se necessário.",
+      "Hierarquia Contexto→Projeto→Ação: rode `npx tsx scripts/migrate-hierarquia-contexto.ts` se necessário.",
     );
   } finally {
     await prisma.$disconnect();

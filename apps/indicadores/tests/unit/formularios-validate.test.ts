@@ -120,6 +120,23 @@ describe("validateFormularioAnswers", () => {
     expect(result.sigaPartial).not.toHaveProperty("decl");
   });
 
+  it("texto informativo não pede resposta nem entra nos valores", () => {
+    const campos: CampoValidavel[] = [
+      ...baseCampos,
+      {
+        id: "aviso",
+        rotulo: "Leia antes",
+        obrigatorio: true,
+        tipo: "INFO",
+        sigaColumn: null,
+        opcoes: null,
+      },
+    ];
+    const result = validateFormularioAnswers(campos, validAnswers);
+    expect(result.ok).toBe(true);
+    expect(result.values).not.toHaveProperty("aviso");
+  });
+
   it("telefone BR inválido falha", () => {
     const campos: CampoValidavel[] = [
       ...baseCampos,
@@ -140,14 +157,14 @@ describe("validateFormularioAnswers", () => {
     expect(result.errors.tel).toMatch(/telefone/i);
   });
 
-  it("TERRITORIO_OFICINA presencial preenche Cidade/Estado/Territorio", () => {
+  it("TERRITORIO_ACAO presencial preenche Cidade/Estado/Territorio", () => {
     const campos: CampoValidavel[] = [
       ...baseCampos,
       {
         id: "terr",
         rotulo: "Território",
         obrigatorio: true,
-        tipo: "TERRITORIO_OFICINA",
+        tipo: "TERRITORIO_ACAO",
         sigaColumn: "Territorio",
         opcoes: null,
       },

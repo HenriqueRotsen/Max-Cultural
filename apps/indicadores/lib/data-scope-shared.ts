@@ -1,4 +1,4 @@
-export type DataScopeKind = "CONTEXTO" | "PROJETO" | "OFICINA";
+export type DataScopeKind = "CONTEXTO" | "PROJETO" | "ACAO";
 export type DataScopeAccess = "NONE" | "VIEWER" | "EDITOR";
 export type ScopeAccessLevel = "none" | "viewer" | "editor";
 
@@ -30,7 +30,7 @@ export function accessFromDb(access: DataScopeAccess): ScopeAccessLevel {
 /**
  * Compacta o mapa da UI para persistência:
  * - grava VIEWER/EDITOR em contextos
- * - em projeto/oficina, só grava se divergir do ancestral imediato (incl. NONE)
+ * - em projeto/ação, só grava se divergir do ancestral imediato (incl. NONE)
  */
 export function compactScopeEntries(input: {
   entries: Array<{
@@ -39,7 +39,7 @@ export function compactScopeEntries(input: {
     access: ScopeAccessLevel;
   }>;
   projetos: Array<{ id: string; contextoId: string }>;
-  oficinas: Array<{ id: string; projetoId: string }>;
+  acoes: Array<{ id: string; projetoId: string }>;
 }): ScopeEntry[] {
   const map = new Map<string, ScopeAccessLevel>();
   for (const e of input.entries) {
@@ -66,8 +66,8 @@ export function compactScopeEntries(input: {
       parent = p
         ? (map.get(scopeKey("CONTEXTO", p.contextoId)) ?? "none")
         : "none";
-    } else if (e.kind === "OFICINA") {
-      const o = input.oficinas.find((x) => x.id === e.resourceId);
+    } else if (e.kind === "ACAO") {
+      const o = input.acoes.find((x) => x.id === e.resourceId);
       parent = o
         ? (map.get(scopeKey("PROJETO", o.projetoId)) ?? "none")
         : "none";

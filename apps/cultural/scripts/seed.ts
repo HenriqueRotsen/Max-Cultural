@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 
-config({ path: ".env.local", override: true });
+// `npm run dev:teste` (MAX_AMBIENTE): o ambiente já vem no processo.
+if (!process.env.MAX_AMBIENTE) config({ path: ".env.local", override: true });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";

@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronUp,
   Heading2,
+  Info,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -34,10 +35,11 @@ const BUILDER_TIPOS = FORMULARIO_CAMPO_TIPOS.filter((t) => t !== "PARTICIPACAO")
 
 const VINCULO_DISABLED_TIPOS = new Set([
   "SECTION",
+  "INFO",
   "ADDRESS_BR",
   "DECLARACAO",
   "FILE_UPLOAD",
-  "TERRITORIO_OFICINA",
+  "TERRITORIO_ACAO",
 ]);
 
 const COLUNAS_VINCULAVEIS = PERSON_COLUMNS.filter(
@@ -52,6 +54,19 @@ function newPergunta(): FormularioCampoDraft {
     descricao: "",
     obrigatorio: false,
     tipo: "SHORT_TEXT",
+    sigaColumn: null,
+    opcoes: null,
+    config: null,
+  };
+}
+
+function newInfo(): FormularioCampoDraft {
+  return {
+    ordem: 0,
+    rotulo: "Informação",
+    descricao: "",
+    obrigatorio: false,
+    tipo: "INFO",
     sigaColumn: null,
     opcoes: null,
     config: null,
@@ -171,7 +186,7 @@ export function CampoEditor({ campos, onChange }: Props) {
     e.stopPropagation();
     const pad = 8;
     const menuW = 240;
-    const menuH = 160;
+    const menuH = 240;
     const x = Math.min(e.clientX, window.innerWidth - menuW - pad);
     const y = Math.min(e.clientY, window.innerHeight - menuH - pad);
     setMenu({ index, x: Math.max(pad, x), y: Math.max(pad, y) });
@@ -180,6 +195,7 @@ export function CampoEditor({ campos, onChange }: Props) {
   function renderCampo(i: number, opts?: { nested?: boolean; secaoTitulo?: string }) {
     const campo = campos[i]!;
     const isSection = campo.tipo === "SECTION";
+    const isInfo = campo.tipo === "INFO";
     const nested = Boolean(opts?.nested);
 
     return (
@@ -190,7 +206,9 @@ export function CampoEditor({ campos, onChange }: Props) {
           "rounded-lg border bg-card p-4 space-y-3",
           isSection
             ? "border-brand-deep/35 bg-white"
-            : nested
+            : isInfo
+              ? "border-sky-200 bg-sky-50/60"
+              : nested
               ? "border-border/70 bg-white shadow-sm"
               : "border-border/80",
         )}
@@ -205,7 +223,14 @@ export function CampoEditor({ campos, onChange }: Props) {
               </span>
             ) : (
               <>
-                <span className="text-xs text-muted-foreground">Pergunta</span>
+                {isInfo ? (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
+                    <Info className="size-3.5" />
+                    Texto informativo
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Pergunta</span>
+                )}
                 {opts?.secaoTitulo ? (
                   <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
                     em: {opts.secaoTitulo}
@@ -233,7 +258,7 @@ export function CampoEditor({ campos, onChange }: Props) {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1 sm:col-span-2">
-            <Label>{isSection ? "Título da seção" : "Rótulo"}</Label>
+            <Label>{isSection ? "Título da seção" : isInfo ? "Título" : "Rótulo"}</Label>
             <Input
               value={campo.rotulo}
               onChange={(e) => update(i, { rotulo: e.target.value })}
@@ -250,10 +275,10 @@ export function CampoEditor({ campos, onChange }: Props) {
                         if (!v) return;
                         update(i, {
                           tipo: v as FormularioCampoTipoCode,
-                          ...(v === "SECTION"
+                          ...(v === "SECTION" || v === "INFO"
                             ? { obrigatorio: false, sigaColumn: null }
                             : {}),
-                          ...(v === "TERRITORIO_OFICINA"
+                          ...(v === "TERRITORIO_ACAO"
                             ? { sigaColumn: "Territorio", obrigatorio: true }
                             : {}),
                         });
@@ -277,11 +302,12 @@ export function CampoEditor({ campos, onChange }: Props) {
                       </SelectContent>
                     </Select>
                   </div>
+                  {!isInfo ? (
                   <div className="space-y-1">
                     <Label>Coluna vinculada</Label>
                     <Select
                       value={
-                        campo.tipo === "TERRITORIO_OFICINA"
+                        campo.tipo === "TERRITORIO_ACAO"
                           ? "Territorio"
                           : (campo.sigaColumn ?? "__none__")
                       }
@@ -294,7 +320,7 @@ export function CampoEditor({ campos, onChange }: Props) {
                       disabled={VINCULO_DISABLED_TIPOS.has(campo.tipo)}
                       items={{
                         __none__: "Nenhuma (pergunta extra)",
-                        ...(campo.tipo === "TERRITORIO_OFICINA"
+                        ...(campo.tipo === "TERRITORIO_ACAO"
                           ? { Territorio: columnLabel("Territorio") }
                           : {}),
                         ...(campo.sigaColumn &&
@@ -336,25 +362,30 @@ export function CampoEditor({ campos, onChange }: Props) {
                       </SelectContent>
                     </Select>
                   </div>
+                  ) : null}
                 </>
               ) : null}
 
           <div className="space-y-1 sm:col-span-2">
-            <Label>{isSection ? "Texto da seção" : "Ajuda / descrição"}</Label>
+            <Label>
+              {isSection ? "Texto da seção" : isInfo ? "Texto" : "Ajuda / descrição"}
+            </Label>
             <Textarea
-              rows={isSection ? 3 : 2}
+              rows={isSection || isInfo ? 4 : 2}
               value={campo.descricao}
               onChange={(e) => update(i, { descricao: e.target.value })}
               placeholder={
-                isSection ? "Ementa, programação, critérios, avisos…" : undefined
+                isSection || isInfo
+                  ? "Ementa, programação, critérios, avisos…"
+                  : undefined
               }
             />
           </div>
 
-          {campo.tipo === "TERRITORIO_OFICINA" && (
+          {campo.tipo === "TERRITORIO_ACAO" && (
             <p className="text-xs text-muted-foreground sm:col-span-2">
               No formulário público a pessoa escolhe Online e/ou Presencial (conforme
-              a oficina) e, se presencial, informa cidade, território/comunidade e
+              a ação) e, se presencial, informa cidade, território/comunidade e
               UF. Preenche automaticamente as colunas SIGA Cidade, Estado e
               Territorio.
             </p>
@@ -408,7 +439,14 @@ export function CampoEditor({ campos, onChange }: Props) {
             </div>
           )}
 
-          {!isSection ? (
+          {isInfo ? (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Aparece no formulário como um bloco de leitura, sem resposta. Quebras
+              de linha são mantidas.
+            </p>
+          ) : null}
+
+          {!isSection && !isInfo ? (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:col-span-2">
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -497,6 +535,7 @@ export function CampoEditor({ campos, onChange }: Props) {
                   <p className="text-xs font-medium uppercase tracking-wide text-brand-deep/80">
                     Perguntas desta seção
                   </p>
+                  <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     size="sm"
@@ -511,6 +550,21 @@ export function CampoEditor({ campos, onChange }: Props) {
                     <Plus className="mr-1 size-3.5" />
                     Pergunta nesta seção
                   </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      insertAt(
+                        group.sectionIndex + group.questionIndices.length + 1,
+                        newInfo(),
+                      )
+                    }
+                  >
+                    <Info className="mr-1 size-3.5" />
+                    Texto nesta seção
+                  </Button>
+                  </div>
                 </div>
 
                 {qCount === 0 ? (
@@ -538,11 +592,15 @@ export function CampoEditor({ campos, onChange }: Props) {
           <Heading2 className="mr-1 size-4" />
           Adicionar seção
         </Button>
+        <Button type="button" variant="outline" onClick={() => insertAt(campos.length, newInfo())}>
+          <Info className="mr-1 size-4" />
+          Adicionar texto informativo
+        </Button>
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Clique com o botão direito em qualquer bloco para inserir pergunta ou
-        seção acima/abaixo.
+        Clique com o botão direito em qualquer bloco para inserir pergunta,
+        seção ou texto informativo acima/abaixo.
       </p>
 
       {menu ? (
@@ -596,6 +654,29 @@ export function CampoEditor({ campos, onChange }: Props) {
             }}
           >
             Adicionar seção abaixo
+          </button>
+          <div className="my-1 h-px bg-border" />
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-muted"
+            onClick={() => {
+              insertAt(menu.index, newInfo());
+              setMenu(null);
+            }}
+          >
+            Adicionar texto informativo acima
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-muted"
+            onClick={() => {
+              insertAt(menu.index + 1, newInfo());
+              setMenu(null);
+            }}
+          >
+            Adicionar texto informativo abaixo
           </button>
         </div>
       ) : null}

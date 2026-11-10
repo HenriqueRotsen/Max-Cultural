@@ -88,7 +88,7 @@ export default async function TerritorioIndexPage({
                     <div className="text-xs tabular-nums text-muted-foreground">
                       {e.kpis.inscritos} insc. <CpfsUnicosInline n={e.kpis.cpfsUnicos.inscritos} /> · {e.kpis.selecionados} sel.{" "}
                       <CpfsUnicosInline n={e.kpis.cpfsUnicos.selecionados} /> ·{" "}
-                      {e.kpis.oficinas} ofc. · {e.kpis.projetos} proj.
+                      {e.kpis.acoes} ações · {e.kpis.projetos} proj.
                     </div>
                   </div>
                 </Link>

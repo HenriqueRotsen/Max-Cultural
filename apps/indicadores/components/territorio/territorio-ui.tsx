@@ -112,9 +112,9 @@ export function TerritorioKpiGrid({
         <CpfsUnicosNota n={kpis.cpfsUnicos.certificados} />
       </div>
       <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
-        <div className="text-xs text-muted-foreground">Oficinas</div>
+        <div className="text-xs text-muted-foreground">Ações</div>
         <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
-          {kpis.oficinas}
+          {kpis.acoes}
         </div>
       </div>
       <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">

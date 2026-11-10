@@ -3,38 +3,38 @@ import { getEffectivePermissions } from "@/lib/permissions";
 import type { SessionUser } from "@/lib/auth";
 import type { PermissionCode } from "@/lib/permission-catalog";
 
-export async function isOficinaProfessor(
+export async function isAcaoResponsavel(
   userId: string,
-  oficinaId: string,
+  acaoId: string,
 ): Promise<boolean> {
-  const row = await prisma.oficinaProfessor.findUnique({
+  const row = await prisma.acaoResponsavel.findUnique({
     where: {
-      oficinaId_userId: { oficinaId, userId },
+      acaoId_userId: { acaoId, userId },
     },
     select: { id: true },
   });
   return Boolean(row);
 }
 
-export async function listProfessorOficinaIds(userId: string): Promise<string[]> {
-  const rows = await prisma.oficinaProfessor.findMany({
+export async function listProfessorAcaoIds(userId: string): Promise<string[]> {
+  const rows = await prisma.acaoResponsavel.findMany({
     where: { userId },
-    select: { oficinaId: true },
+    select: { acaoId: true },
   });
-  return rows.map((r) => r.oficinaId);
+  return rows.map((r) => r.acaoId);
 }
 
 export async function canReviewFormulario(
   user: SessionUser,
-  oficinaId: string,
+  acaoId: string,
 ): Promise<boolean> {
   if (user.isSuperAdmin) return true;
   const perms = await getEffectivePermissions(user.id);
   if (!perms.has("formularios:review")) return false;
-  return isOficinaProfessor(user.id, oficinaId);
+  return isAcaoResponsavel(user.id, acaoId);
 }
 
-/** Professor de oficina sem write/merge — edição limitada na fila. */
+/** Professor de ação sem write/merge — edição limitada na fila. */
 export function isProfessorOnlyMode(
   user: SessionUser,
   perms: Set<PermissionCode>,

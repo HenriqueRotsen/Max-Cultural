@@ -31,18 +31,18 @@ import {
 } from "@/lib/rate-limit";
 import { uploadPublicImage } from "@/lib/storage/object-store";
 import {
-  applyTerritorioOficinaFormToSiga,
-  asTerritorioOficinaFormValue,
-  catalogFromOficinaParts,
-  territorioOficinaStructuredMeta,
-  type OficinaTerritorioCatalog,
-} from "@/lib/oficina-territorio";
+  applyTerritorioAcaoFormToSiga,
+  asTerritorioAcaoFormValue,
+  catalogFromAcaoParts,
+  territorioAcaoStructuredMeta,
+  type AcaoTerritorioCatalog,
+} from "@/lib/acao-territorio";
 
-async function loadOficinaTerritorioCatalog(
-  oficinaId: string,
-): Promise<OficinaTerritorioCatalog | null> {
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: oficinaId },
+async function loadAcaoTerritorioCatalog(
+  acaoId: string,
+): Promise<AcaoTerritorioCatalog | null> {
+  const acao = await prisma.acao.findUnique({
+    where: { id: acaoId },
     select: {
       ofereceOnline: true,
       oferecePresencial: true,
@@ -54,7 +54,7 @@ async function loadOficinaTerritorioCatalog(
         select: {
           rawNormalized: true,
           online: true,
-          oficinaTerritorioId: true,
+          acaoTerritorioId: true,
           cidade: true,
           estado: true,
           territorio: true,
@@ -62,16 +62,16 @@ async function loadOficinaTerritorioCatalog(
       },
     },
   });
-  if (!oficina) return null;
-  return catalogFromOficinaParts({
-    ofereceOnline: oficina.ofereceOnline,
-    oferecePresencial: oficina.oferecePresencial,
-    territorios: oficina.territorios,
-    aliases: oficina.territorioAliases,
+  if (!acao) return null;
+  return catalogFromAcaoParts({
+    ofereceOnline: acao.ofereceOnline,
+    oferecePresencial: acao.oferecePresencial,
+    territorios: acao.territorios,
+    aliases: acao.territorioAliases,
   });
 }
 
-function hydrateTerritorioOficinaCampos<
+function hydrateTerritorioAcaoCampos<
   T extends {
     tipo: string;
     obrigatorio: boolean;
@@ -79,10 +79,10 @@ function hydrateTerritorioOficinaCampos<
     config: Record<string, unknown> | null;
     sigaColumn: string | null;
   },
->(campos: T[], catalog: OficinaTerritorioCatalog | null): T[] {
-  const meta = territorioOficinaStructuredMeta(catalog);
+>(campos: T[], catalog: AcaoTerritorioCatalog | null): T[] {
+  const meta = territorioAcaoStructuredMeta(catalog);
   return campos.map((c) => {
-    if (c.tipo !== "TERRITORIO_OFICINA") return c;
+    if (c.tipo !== "TERRITORIO_ACAO") return c;
     return {
       ...c,
       obrigatorio: meta.showField ? c.obrigatorio || true : false,
@@ -220,23 +220,23 @@ function cleanOpcoes(opcoes: string[] | null | undefined) {
 }
 
 /** Modelos antigos ainda têm SHORT_TEXT em Territorio — promove para o tipo tipado. */
-function upgradeTerritorioOficinaCampos(
+function upgradeTerritorioAcaoCampos(
   campos: FormularioCampoDraft[],
 ): FormularioCampoDraft[] {
   return campos.map((c) => {
     if (c.sigaColumn !== "Territorio") return c;
-    if (c.tipo === "TERRITORIO_OFICINA") return c;
+    if (c.tipo === "TERRITORIO_ACAO") return c;
     if (c.tipo !== "SHORT_TEXT" && c.tipo !== "DROPDOWN") return c;
     return {
       ...c,
-      tipo: "TERRITORIO_OFICINA",
+      tipo: "TERRITORIO_ACAO",
       rotulo:
         c.rotulo.includes("comunidade") || c.rotulo === "Território / comunidade"
           ? "Em qual território você quer se inscrever?"
           : c.rotulo,
       descricao:
         c.descricao?.trim() ||
-        "Escolha Online ou o território presencial (cidade/UF). As opções vêm do cadastro da oficina.",
+        "Escolha Online ou o território presencial (cidade/UF). As opções vêm do cadastro da ação.",
       obrigatorio: true,
       opcoes: null,
     };
@@ -244,14 +244,14 @@ function upgradeTerritorioOficinaCampos(
 }
 
 function mapCamposCreate(campos: FormularioCampoDraft[]) {
-  return upgradeTerritorioOficinaCampos(campos).map((c, i) => ({
+  return upgradeTerritorioAcaoCampos(campos).map((c, i) => ({
     ordem: c.ordem ?? i,
     rotulo: c.rotulo.trim(),
     descricao: c.descricao ?? "",
     obrigatorio: Boolean(c.obrigatorio),
     tipo: asCampoTipo(c.tipo),
     sigaColumn:
-      c.tipo === "TERRITORIO_OFICINA"
+      c.tipo === "TERRITORIO_ACAO"
         ? c.sigaColumn ?? "Territorio"
         : c.sigaColumn,
     opcoes: cleanOpcoes(c.opcoes) as Prisma.InputJsonValue | undefined,
@@ -260,22 +260,22 @@ function mapCamposCreate(campos: FormularioCampoDraft[]) {
   }));
 }
 
-async function oficinaBatch(oficinaId: string): Promise<BatchContext> {
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: oficinaId },
+async function acaoBatch(acaoId: string): Promise<BatchContext> {
+  const acao = await prisma.acao.findUnique({
+    where: { id: acaoId },
     include: { projeto: { include: { contexto: true } } },
   });
-  if (!oficina) throw new Error("Oficina não encontrada");
+  if (!acao) throw new Error("Ação não encontrada");
   return {
-    contextoId: oficina.projeto.contextoId,
-    Nome_contexto: oficina.projeto.contexto.nome,
-    id_projeto: oficina.projetoId,
-    id_oficina: oficina.id,
-    PROPONENTE: oficina.projeto.proponente,
-    PRONAC: oficina.projeto.pronac,
-    Nome_projeto: oficina.projeto.nome,
-    Identificacao_ano_projeto: oficina.projeto.ano || String(new Date().getFullYear()),
-    Nome_oficina: oficina.nome,
+    contextoId: acao.projeto.contextoId,
+    Nome_contexto: acao.projeto.contexto.nome,
+    id_projeto: acao.projetoId,
+    id_oficina: acao.id,
+    PROPONENTE: acao.projeto.proponente,
+    PRONAC: acao.projeto.pronac,
+    Nome_projeto: acao.projeto.nome,
+    Identificacao_ano_projeto: acao.projeto.ano || String(new Date().getFullYear()),
+    Nome_oficina: acao.nome,
   };
 }
 
@@ -284,7 +284,7 @@ export async function listFormulariosAction() {
   const { getEffectivePermissions } = await import("@/lib/permissions");
   const {
     isProfessorOnlyMode,
-    listProfessorOficinaIds,
+    listProfessorAcaoIds,
   } = await import("@/lib/formularios/access");
   const perms = await getEffectivePermissions(user.id);
   const canWrite = perms.has("formularios:write");
@@ -294,28 +294,28 @@ export async function listFormulariosAction() {
     throw new Error("Sem permissão.");
   }
 
-  let oficinaFilter: string[] | null = null;
+  let acaoFilter: string[] | null = null;
   if (isProfessorOnlyMode(user, perms)) {
-    oficinaFilter = await listProfessorOficinaIds(user.id);
-    if (oficinaFilter.length === 0) return [];
+    acaoFilter = await listProfessorAcaoIds(user.id);
+    if (acaoFilter.length === 0) return [];
   }
 
   const rows = await prisma.formulario.findMany({
-    where: oficinaFilter ? { oficinaId: { in: oficinaFilter } } : undefined,
+    where: acaoFilter ? { acaoId: { in: acaoFilter } } : undefined,
     orderBy: { updatedAt: "desc" },
     include: {
       _count: { select: { respostas: true, campos: true } },
     },
   });
-  const oficinaIds = [...new Set(rows.map((r) => r.oficinaId))];
-  const oficinas = await prisma.oficina.findMany({
-    where: { id: { in: oficinaIds } },
+  const acaoIds = [...new Set(rows.map((r) => r.acaoId))];
+  const acoes = await prisma.acao.findMany({
+    where: { id: { in: acaoIds } },
     include: { projeto: { include: { contexto: true } } },
   });
-  const byId = new Map(oficinas.map((o) => [o.id, o]));
+  const byId = new Map(acoes.map((o) => [o.id, o]));
   return rows.map((r) => ({
     ...r,
-    oficina: byId.get(r.oficinaId) ?? null,
+    acao: byId.get(r.acaoId) ?? null,
   }));
 }
 
@@ -338,25 +338,25 @@ export async function getFormularioAction(id: string) {
   if (!form) throw new Error("Formulário não encontrado");
 
   if (!perms.has("formularios:write") && !perms.has("formularios:merge")) {
-    const asProfessor = await canReviewFormulario(user, form.oficinaId);
+    const asProfessor = await canReviewFormulario(user, form.acaoId);
     if (!asProfessor) throw new Error("Sem permissão para este formulário.");
-  } else if (!(await assertDataAccess(user.id, { idOficina: form.oficinaId }))) {
-    throw new Error("Oficina fora do seu escopo de dados.");
+  } else if (!(await assertDataAccess(user.id, { idAcao: form.acaoId }))) {
+    throw new Error("Ação fora do seu escopo de dados.");
   }
 
-  const professores = await prisma.oficinaProfessor.findMany({
-    where: { oficinaId: form.oficinaId },
+  const professores = await prisma.acaoResponsavel.findMany({
+    where: { acaoId: form.acaoId },
     include: { user: { select: { id: true, name: true, email: true } } },
   });
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: form.oficinaId },
+  const acao = await prisma.acao.findUnique({
+    where: { id: form.acaoId },
     include: { projeto: { include: { contexto: true } } },
   });
-  return { form, professores, oficina };
+  return { form, professores, acao };
 }
 
 export async function createFormularioAction(input: {
-  oficinaId: string;
+  acaoId: string;
   titulo: string;
   descricao?: string;
   abreEm?: string | null;
@@ -367,18 +367,18 @@ export async function createFormularioAction(input: {
   tipo?: "INSCRICAO" | "AVALIACAO";
 }) {
   const user = await requirePermission("formularios:write");
-  if (!(await assertDataAccess(user.id, { idOficina: input.oficinaId }, { write: true }))) {
-    throw new Error("Oficina fora do seu escopo de dados.");
+  if (!(await assertDataAccess(user.id, { idAcao: input.acaoId }, { write: true }))) {
+    throw new Error("Ação fora do seu escopo de dados.");
   }
 
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: input.oficinaId },
+  const acao = await prisma.acao.findUnique({
+    where: { id: input.acaoId },
     include: { _count: { select: { territorios: true } } },
   });
-  if (!oficina) throw new Error("Oficina não encontrada");
-  if (!oficina.ofereceOnline && oficina._count.territorios === 0) {
+  if (!acao) throw new Error("Ação não encontrada");
+  if (!acao.ofereceOnline && acao._count.territorios === 0) {
     throw new Error(
-      "Informe onde a oficina acontece (online ou território presencial) antes de criar o formulário.",
+      "Informe onde a ação acontece (online ou território presencial) antes de criar o formulário.",
     );
   }
 
@@ -394,7 +394,7 @@ export async function createFormularioAction(input: {
 
   const created = await prisma.formulario.create({
     data: {
-      oficinaId: input.oficinaId,
+      acaoId: input.acaoId,
       titulo,
       descricao: input.descricao?.trim() ?? "",
       slug,
@@ -417,7 +417,7 @@ export async function createFormularioAction(input: {
     action: "formulario.created",
     entityType: "formulario",
     entityId: created.id,
-    meta: { oficinaId: input.oficinaId, slug, tipo },
+    meta: { acaoId: input.acaoId, slug, tipo },
   });
 
   revalidatePath("/dashboard/formularios");
@@ -440,8 +440,8 @@ export async function updateFormularioAction(
   const user = await requirePermission("formularios:write");
   const existing = await prisma.formulario.findUnique({ where: { id } });
   if (!existing) throw new Error("Formulário não encontrado");
-  if (!(await assertDataAccess(user.id, { idOficina: existing.oficinaId }, { write: true }))) {
-    throw new Error("Oficina fora do seu escopo de dados.");
+  if (!(await assertDataAccess(user.id, { idAcao: existing.acaoId }, { write: true }))) {
+    throw new Error("Ação fora do seu escopo de dados.");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -489,13 +489,13 @@ export async function updateFormularioAction(
   return { ok: true as const };
 }
 
-export async function setOficinaProfessoresAction(
-  oficinaId: string,
+export async function setAcaoResponsavelesAction(
+  acaoId: string,
   userIds: string[],
 ) {
   const user = await requirePermission("formularios:write");
-  if (!(await assertDataAccess(user.id, { idOficina: oficinaId }, { write: true }))) {
-    throw new Error("Oficina fora do seu escopo de dados.");
+  if (!(await assertDataAccess(user.id, { idAcao: acaoId }, { write: true }))) {
+    throw new Error("Ação fora do seu escopo de dados.");
   }
 
   const unique = [...new Set(userIds.filter(Boolean))];
@@ -509,10 +509,10 @@ export async function setOficinaProfessoresAction(
     }
   }
   await prisma.$transaction(async (tx) => {
-    await tx.oficinaProfessor.deleteMany({ where: { oficinaId } });
+    await tx.acaoResponsavel.deleteMany({ where: { acaoId } });
     if (unique.length) {
-      await tx.oficinaProfessor.createMany({
-        data: unique.map((userId) => ({ oficinaId, userId })),
+      await tx.acaoResponsavel.createMany({
+        data: unique.map((userId) => ({ acaoId, userId })),
       });
     }
   });
@@ -520,8 +520,8 @@ export async function setOficinaProfessoresAction(
   await writeAuditLog({
     actorUserId: user.id,
     action: "formulario.professores_set",
-    entityType: "oficina",
-    entityId: oficinaId,
+    entityType: "acao",
+    entityId: acaoId,
     meta: { userIds: unique },
   });
 
@@ -566,12 +566,12 @@ export async function getPublicFormularioBySlugAction(slug: string) {
   if (form.encerraEm && now > form.encerraEm) {
     return { ok: false as const, error: "As inscrições estão encerradas." };
   }
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: form.oficinaId },
+  const acao = await prisma.acao.findUnique({
+    where: { id: form.acaoId },
     include: { projeto: { include: { contexto: true } } },
   });
-  const catalog = await loadOficinaTerritorioCatalog(form.oficinaId);
-  const campos = hydrateTerritorioOficinaCampos(
+  const catalog = await loadAcaoTerritorioCatalog(form.acaoId);
+  const campos = hydrateTerritorioAcaoCampos(
     form.campos.map((c) => ({
       id: c.id,
       ordem: c.ordem,
@@ -597,8 +597,8 @@ export async function getPublicFormularioBySlugAction(slug: string) {
       mensagemConfirmacao: form.mensagemConfirmacao,
       campos,
     },
-    oficinaNome: oficina?.nome ?? "",
-    projetoNome: oficina?.projeto.nome ?? "",
+    acaoNome: acao?.nome ?? "",
+    projetoNome: acao?.projeto.nome ?? "",
   };
 }
 
@@ -643,8 +643,8 @@ export async function submitPublicFormularioAction(input: {
   );
   if (!captcha.ok) return { ok: false, error: captcha.error };
 
-  const catalog = await loadOficinaTerritorioCatalog(form.oficinaId);
-  const camposHydrated = hydrateTerritorioOficinaCampos(
+  const catalog = await loadAcaoTerritorioCatalog(form.acaoId);
+  const camposHydrated = hydrateTerritorioAcaoCampos(
     form.campos.map((c) => ({
       id: c.id,
       rotulo: c.rotulo,
@@ -659,10 +659,10 @@ export async function submitPublicFormularioAction(input: {
 
   const answers = { ...input.answers };
   for (const c of camposHydrated) {
-    if (c.tipo !== "TERRITORIO_OFICINA") continue;
+    if (c.tipo !== "TERRITORIO_ACAO") continue;
     const auto = c.config?.autoModalidade;
     if (auto !== "ONLINE" && auto !== "PRESENCIAL") continue;
-    const current = asTerritorioOficinaFormValue(answers[c.id]);
+    const current = asTerritorioAcaoFormValue(answers[c.id]);
     if (!current.modalidade) {
       answers[c.id] = { ...current, modalidade: auto };
     }
@@ -687,35 +687,35 @@ export async function submitPublicFormularioAction(input: {
     };
   }
 
-  let oficinaTerritorioId: string | null = null;
+  let acaoTerritorioId: string | null = null;
   let territorioOnline = false;
   for (const c of camposHydrated) {
-    if (c.tipo !== "TERRITORIO_OFICINA") continue;
-    const terr = asTerritorioOficinaFormValue(validated.values[c.id]);
+    if (c.tipo !== "TERRITORIO_ACAO") continue;
+    const terr = asTerritorioAcaoFormValue(validated.values[c.id]);
     if (!terr.modalidade) continue;
-    const applied = applyTerritorioOficinaFormToSiga(
+    const applied = applyTerritorioAcaoFormToSiga(
       validated.sigaPartial,
       terr,
       catalog,
     );
-    oficinaTerritorioId = applied.oficinaTerritorioId;
+    acaoTerritorioId = applied.acaoTerritorioId;
     territorioOnline = applied.online;
   }
 
   const existingInscricao = await prisma.inscricao.findFirst({
-    where: { cpf: validated.cpf, idOficina: form.oficinaId },
+    where: { cpf: validated.cpf, idAcao: form.acaoId },
     select: { id: true },
   });
   if (form.tipo === "INSCRICAO" && existingInscricao) {
     return {
       ok: false,
-      error: "Já existe uma inscrição deste CPF nesta oficina.",
+      error: "Já existe uma inscrição deste CPF nesta ação.",
     };
   }
   if (form.tipo === "AVALIACAO" && !existingInscricao) {
     return {
       ok: false,
-      error: "Não encontramos inscrição deste CPF nesta oficina.",
+      error: "Não encontramos inscrição deste CPF nesta ação.",
     };
   }
 
@@ -727,7 +727,7 @@ export async function submitPublicFormularioAction(input: {
         payload: {
           answers: validated.values,
           sigaPartial: validated.sigaPartial,
-          oficinaTerritorioId,
+          acaoTerritorioId,
           territorioOnline,
         } as Prisma.InputJsonValue,
         status: "PENDING",
@@ -769,13 +769,13 @@ export async function listRespostasAction(formularioId: string) {
     cpfOcultoParaProfessor,
   } = await import("@/lib/formularios/access");
   const p = await getEffectivePermissions(user.id);
-  const asProfessor = await canReviewFormulario(user, form.oficinaId);
+  const asProfessor = await canReviewFormulario(user, form.acaoId);
   if (!asProfessor && !p.has("formularios:write") && !p.has("formularios:merge")) {
     throw new Error("Sem permissão para ver estas respostas.");
   }
   if (!asProfessor) {
-    if (!(await assertDataAccess(user.id, { idOficina: form.oficinaId }))) {
-      throw new Error("Oficina fora do seu escopo de dados.");
+    if (!(await assertDataAccess(user.id, { idAcao: form.acaoId }))) {
+      throw new Error("Ação fora do seu escopo de dados.");
     }
   }
 
@@ -835,7 +835,7 @@ export async function updateRespostaReviewAction(
   const canEditData = user.isSuperAdmin || p.has("formularios:write");
   const asProfessor = await canReviewFormulario(
     user,
-    resposta.formulario.oficinaId,
+    resposta.formulario.acaoId,
   );
 
   if (canEditData) {
@@ -843,14 +843,14 @@ export async function updateRespostaReviewAction(
       !user.isSuperAdmin &&
       !(await assertDataAccess(
         user.id,
-        { idOficina: resposta.formulario.oficinaId },
+        { idAcao: resposta.formulario.acaoId },
         { write: true },
       ))
     ) {
-      throw new Error("Oficina fora do seu escopo de dados.");
+      throw new Error("Ação fora do seu escopo de dados.");
     }
   } else if (!asProfessor) {
-    throw new Error("Sem permissão para avaliar esta oficina.");
+    throw new Error("Sem permissão para avaliar esta ação.");
   }
 
   const professorOnly = isProfessorOnlyMode(user, p);
@@ -974,11 +974,11 @@ export async function mergeRespostasAction(input: {
     where: { id: input.formularioId },
   });
   if (!form) throw new Error("Formulário não encontrado");
-  if (!(await assertDataAccess(user.id, { idOficina: form.oficinaId }, { write: true }))) {
-    throw new Error("Oficina fora do seu escopo de dados.");
+  if (!(await assertDataAccess(user.id, { idAcao: form.acaoId }, { write: true }))) {
+    throw new Error("Ação fora do seu escopo de dados.");
   }
 
-  const batch = await oficinaBatch(form.oficinaId);
+  const batch = await acaoBatch(form.acaoId);
   const respostas = await prisma.formularioResposta.findMany({
     where: {
       id: { in: input.respostaIds },
@@ -1003,7 +1003,7 @@ export async function mergeRespostasAction(input: {
         sigaPartial?: Record<string, unknown>;
       };
       const existing = await prisma.inscricao.findFirst({
-        where: { cpf: resp.cpf, idOficina: form.oficinaId },
+        where: { cpf: resp.cpf, idAcao: form.acaoId },
         select: { id: true },
       });
 
@@ -1012,7 +1012,7 @@ export async function mergeRespostasAction(input: {
           results.push({
             id: resp.id,
             ok: false,
-            error: "CPF não encontrado na base desta oficina",
+            error: "CPF não encontrado na base desta ação",
           });
           continue;
         }
@@ -1039,7 +1039,7 @@ export async function mergeRespostasAction(input: {
         results.push({
           id: resp.id,
           ok: false,
-          error: "CPF já existe na base desta oficina",
+          error: "CPF já existe na base desta ação",
         });
         continue;
       }
@@ -1225,20 +1225,20 @@ export async function updateFormularioModeloAction(
   return { ok: true as const };
 }
 
-export async function listOficinasParaFormularioAction() {
+export async function listAcoesParaFormularioAction() {
   const user = await requirePermission("formularios:write");
-  const oficinas = await prisma.oficina.findMany({
+  const acoes = await prisma.acao.findMany({
     orderBy: { nome: "asc" },
     include: { projeto: { include: { contexto: true } } },
   });
   const out = [];
-  for (const o of oficinas) {
+  for (const o of acoes) {
     const ok = await assertDataAccess(
       user.id,
       {
         contextoId: o.projeto.contextoId,
         idProjeto: o.projetoId,
-        idOficina: o.id,
+        idAcao: o.id,
       },
       { write: true },
     );

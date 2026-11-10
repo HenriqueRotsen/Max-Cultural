@@ -27,6 +27,10 @@ import { normalizeCgccpf } from "@/lib/format";
 import { RELATION_LABELS } from "@/lib/compliance/defaults";
 import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 import { hiddenProjectIds, notFoundIfHiddenPronac } from "@/lib/compliance/over-limit-visibility";
+import { prisma } from "@/lib/db";
+import { pronacYear } from "@/lib/compliance/choose-ruleset";
+import { periodsInYear } from "@/lib/corporate/at-year";
+import { CorporateMapYearChip } from "@/components/CorporateMapYearChip";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +111,34 @@ export default async function PronacDetailPage({
     projectRules.version,
   );
   const accountCgccpf = detail.accounts[0]?.cgccpf || null;
+
+  const projectYear = pronacYear(detail.pronac);
+  const mapAccount = primaryAccountId
+    ? await prisma.salicAccount.findFirst({
+        where: { id: primaryAccountId, workspaceId },
+        select: {
+          id: true,
+          institutionalMap: true,
+          corporatePeriods: {
+            include: { members: { orderBy: { name: "asc" } } },
+          },
+        },
+      })
+    : null;
+  const mapPeriods = mapAccount
+    ? periodsInYear(mapAccount.corporatePeriods, projectYear).map((p) => ({
+        validFrom: p.validFrom.toISOString(),
+        validFromPrecision: p.validFromPrecision,
+        validTo: p.validTo?.toISOString() ?? null,
+        validToPrecision: p.validToPrecision,
+        members: p.members.map((m) => ({
+          name: m.name,
+          role: m.role,
+          sharePct: m.sharePct != null ? Number(m.sharePct) : null,
+          notes: m.notes,
+        })),
+      }))
+    : [];
   const personType = meta.personType || detail.accounts[0]?.personType;
 
   const pronacDocs = new Set(
@@ -187,6 +219,16 @@ export default async function PronacDetailPage({
             {detail.name
               ? `${detail.name}${detail.accounts[0] ? ` · ${detail.accounts[0].name}` : ""}`
               : detail.accounts.map((a) => a.name).join(", ") || null}
+            {mapAccount ? (
+              <span className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                <CorporateMapYearChip
+                  accountId={mapAccount.id}
+                  year={projectYear}
+                  institutional={mapAccount.institutionalMap}
+                  periods={mapPeriods}
+                />
+              </span>
+            ) : null}
             {situacao ? (
               <span className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-semibold text-[var(--gray-500)]">Situação no SALIC:</span>

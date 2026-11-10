@@ -4,6 +4,7 @@ import { CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 import { getContextoPanoramaAction } from "@/app/actions/programa";
 import { ContextoTimelineItem } from "@/components/admin/contexto-timeline-item";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
+import { podeVerAcompanhamento } from "@/lib/acompanhamento/acesso";
 import { SiteShell } from "@/components/app-header";
 import { StatusKindBadge } from "@/components/status-badges";
 import { parseSocioCohort } from "@/lib/socio";
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ContextoPage({ params, searchParams }: Props) {
   const { id } = await params;
   const cohort = parseSocioCohort((await searchParams).perfil);
-  const result = await getContextoPanoramaAction(id, cohort);
+  const [result, acomp] = await Promise.all([getContextoPanoramaAction(id, cohort), podeVerAcompanhamento()]);
 
   return (
     <SiteShell
@@ -105,6 +106,7 @@ export default async function ContextoPage({ params, searchParams }: Props) {
                   edicao={e}
                   contextoId={result.data.id}
                   contextoNome={result.data.label}
+                  acomp={acomp}
                 />
               ))}
             </ol>

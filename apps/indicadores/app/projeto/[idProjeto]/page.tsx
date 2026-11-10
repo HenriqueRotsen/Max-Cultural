@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import { CpfsUnicosInline, CpfsUnicosNota } from "@/components/cpfs-unicos-nota";
 import type { ProjetoPageData } from "@/app/actions/projeto";
 import { getProjetoPageAction } from "@/app/actions/projeto";
+import { AcompanhamentoLink } from "@/components/acompanhamento/acompanhamento-link";
+import { podeVerAcompanhamento, podeVerPrestacao } from "@/lib/acompanhamento/acesso";
+import { PrestacaoLink } from "@/components/prestacao/prestacao-link";
 import { SocioBreakdownPanel } from "@/components/analise/socio-breakdown";
 import { ProjetoContextEditor } from "@/components/admin/projeto-context-editor";
 import { SiteShell } from "@/components/app-header";
@@ -22,14 +25,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!result.ok) return { title: `Projeto · ${appName}` };
   return {
     title: `${result.data.Nome_projeto} · ${appName}`,
-    description: `Oficinas e indicadores do projeto ${result.data.Nome_projeto}`,
+    description: `Ações e indicadores do projeto ${result.data.Nome_projeto}`,
   };
 }
 
 export default async function ProjetoPage({ params, searchParams }: Props) {
   const { idProjeto } = await params;
   const cohort = parseSocioCohort((await searchParams).perfil);
-  const result = await getProjetoPageAction(idProjeto, cohort);
+  const [result, acomp, prest] = await Promise.all([
+    getProjetoPageAction(idProjeto, cohort),
+    podeVerAcompanhamento(),
+    podeVerPrestacao(),
+  ]);
   const back = result.ok
     ? {
         href: `/contexto/${encodeURIComponent(result.data.contextoId)}`,
@@ -52,7 +59,7 @@ export default async function ProjetoPage({ params, searchParams }: Props) {
           <p className="mt-2 text-sm text-amber-900">{result.error}</p>
         </div>
       ) : (
-        <ProjetoView data={result.data} cohort={cohort} />
+        <ProjetoView data={result.data} cohort={cohort} acomp={acomp} prest={prest} />
       )}
     </SiteShell>
   );
@@ -61,9 +68,13 @@ export default async function ProjetoPage({ params, searchParams }: Props) {
 function ProjetoView({
   data,
   cohort,
+  acomp,
+  prest,
 }: {
   data: ProjetoPageData;
   cohort: ReturnType<typeof parseSocioCohort>;
+  acomp: boolean;
+  prest: boolean;
 }) {
   return (
     <div className="space-y-10">
@@ -83,6 +94,12 @@ function ProjetoView({
             .filter(Boolean)
             .join(" · ")}
         </p>
+        {acomp || prest ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {acomp ? <AcompanhamentoLink projetoId={data.id_projeto} /> : null}
+            {prest ? <PrestacaoLink projetoId={data.id_projeto} /> : null}
+          </div>
+        ) : null}
         {data.canEditContexto ? (
           <ProjetoContextEditor
             projetoId={data.id_projeto}
@@ -112,9 +129,9 @@ function ProjetoView({
         ) : null}
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">Oficinas</div>
+            <div className="text-xs text-muted-foreground">Ações</div>
             <div className="font-heading text-2xl font-semibold tabular-nums text-brand-deep">
-              {data.totais.oficinas}
+              {data.totais.acoes}
             </div>
           </div>
           <div className="rounded-xl border border-brand/10 bg-white/80 px-4 py-3 shadow-sm">
@@ -153,32 +170,32 @@ function ProjetoView({
       <section className="space-y-4">
         <div>
           <h2 className="font-heading text-2xl font-semibold text-brand-deep">
-            Oficinas
+            Ações
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cada oficina deste projeto — clique para ver a lista de inscritos.
-            {data.totais.oficinas === 0
-              ? " Ainda não há oficinas cadastradas."
+            Cada ação deste projeto — clique para ver a lista de inscritos.
+            {data.totais.acoes === 0
+              ? " Ainda não há ações cadastradas."
               : null}
           </p>
         </div>
-        {data.oficinas.length === 0 ? (
+        {data.acoes.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nenhuma oficina. Cadastre em{" "}
+            Nenhuma ação. Cadastre em{" "}
             <Link
-              href="/dashboard/contextos?tab=oficinas"
+              href="/dashboard/contextos?tab=acoes"
               className="text-brand underline-offset-2 hover:underline"
             >
-              Contextos → Oficinas
+              Contextos → Ações
             </Link>
             .
           </p>
         ) : (
         <div className="space-y-3">
-          {data.oficinas.map((o) => (
+          {data.acoes.map((o) => (
             <Link
               key={o.id_oficina}
-              href={`/projeto/${encodeURIComponent(data.id_projeto)}/${encodeURIComponent(o.id_oficina)}`}
+              href={`/projeto/${encodeURIComponent(data.id_projeto)}/acao/${encodeURIComponent(o.id_oficina)}`}
               className="block rounded-2xl border border-brand/10 bg-white/90 px-5 py-4 shadow-sm transition hover:border-brand/30 hover:bg-white"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

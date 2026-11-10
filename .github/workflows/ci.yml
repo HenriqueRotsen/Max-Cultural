@@ -1,0 +1,45 @@
+name: CI
+
+# Git flow: features entram na develop por PR; release/* e hotfix/* vão para a main.
+on:
+  push:
+    branches: [main, develop, "release/**", "hotfix/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: cultural
+            workspace: max-cultural-app
+          - app: financeiro
+            workspace: max-financeiro
+          - app: indicadores
+            workspace: max-indicadores
+          - app: auditoria
+            workspace: max-auditoria
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # O cliente Prisma não fica no git; gerar não conecta no banco.
+      - name: Prisma generate
+        working-directory: apps/${{ matrix.app }}
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      - name: Tipos (tsc)
+        working-directory: apps/${{ matrix.app }}
+        run: npx tsc --noEmit -p .
+      - name: Testes (vitest)
+        run: npm test -w ${{ matrix.workspace }}

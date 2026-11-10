@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { bloquearProducao } from "./ambiente";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -18,18 +19,15 @@ function schemaFromDatabaseUrl(url: string | undefined): string | undefined {
 }
 
 function createPrismaClient() {
-  if (process.env.NODE_ENV !== "production") {
+  // Fora de `npm run dev` / `npm run dev:teste` (que definem MAX_AMBIENTE), vale o .env.local do app.
+  if (process.env.NODE_ENV !== "production" && !process.env.MAX_AMBIENTE) {
     config({ path: resolve(process.cwd(), ".env.local"), override: true });
   }
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
-  if (/supabase\.co|pooler\.supabase/i.test(connectionString)) {
-    console.warn(
-      "[cultural] DATABASE_URL aponta para Supabase em desenvolvimento. Rode: npm run db:use-local",
-    );
-  }
+  bloquearProducao(connectionString);
   const schema = schemaFromDatabaseUrl(connectionString);
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool, schema ? { schema } : undefined);

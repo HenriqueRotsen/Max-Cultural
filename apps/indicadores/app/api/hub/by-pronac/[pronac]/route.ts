@@ -47,7 +47,7 @@ export async function GET(
         nome: true,
         proponente: true,
         ano: true,
-        _count: { select: { oficinas: true } },
+        _count: { select: { acoes: true } },
       },
     });
 
@@ -62,10 +62,10 @@ export async function GET(
       _count: { _all: true },
     });
 
-    const oficinasDistinct = await prisma.inscricao.findMany({
+    const acoesDistinct = await prisma.inscricao.findMany({
       where: { pronac },
-      distinct: ["idOficina"],
-      select: { idOficina: true },
+      distinct: ["idAcao"],
+      select: { idAcao: true },
     });
 
     const [topEstados, socio, socioSelecionados, socioCertificados] =
@@ -97,7 +97,9 @@ export async function GET(
         nome: p.nome,
         proponente: p.proponente,
         ano: p.ano,
-        oficinasCount: p._count.oficinas,
+        acoesCount: p._count.acoes,
+        /** @deprecated nome antigo (antes de a oficina virar ação) — hub antigo ainda lê. */
+        oficinasCount: p._count.acoes,
         url: `${indicadoresBaseUrl()}/projeto/${p.id}`,
       })),
       totais: {
@@ -105,7 +107,9 @@ export async function GET(
         selecionados,
         participantes,
         certificados,
-        oficinas: oficinasDistinct.length,
+        acoes: acoesDistinct.length,
+        /** @deprecated nome antigo — hub antigo ainda lê. */
+        oficinas: acoesDistinct.length,
         registros: aggregates._count._all ?? 0,
         taxaSelecao: pct(selecionados, inscritos),
         taxaParticipacao: pct(participantes, selecionados),

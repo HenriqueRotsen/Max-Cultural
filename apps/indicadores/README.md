@@ -10,32 +10,9 @@ Sistema Integrado de Gestão e Acompanhamento Cultural — padronização de ins
 - Ollama local (ETL inteligente)
 - SheetJS / PapaParse
 
-## Banco local (recomendado no dev)
+## Rodar localmente
 
-Para testar **sem tocar** no Supabase/produção:
-
-```bash
-# Postgres Docker (porta 5436, apps/cultural/docker-compose.yml)
-npm run db:local:up
-
-# Aponta .env.local para localhost (backup do remoto em .env.local.remote)
-npm run db:use-local
-
-# Schema + admin local
-npx prisma db push
-npm run db:seed-auth
-
-npm run dev
-```
-
-Voltar ao remoto: `npm run db:use-remote`.
-
-Se o terminal tiver `DATABASE_URL` exportada (Supabase), o Prisma pode ignorar o `.env.local`.
-O `prisma.config.ts` agora força override do `.env.local`; ainda assim, no shell:
-
-```bash
-unset DATABASE_URL DIRECT_URL
-```
+Na raiz do repo: `npm run dev` (banco local com dados demo). Ver o README da raiz. O banco de produção é bloqueado fora da Vercel.
 
 ## Setup com Supabase
 
@@ -71,7 +48,7 @@ npx prisma migrate deploy
 7. Crie papéis/permissões e o admin inicial:
 
 ```bash
-npm run db:seed-auth
+npx tsx scripts/seed-auth.ts
 ```
 
 8. (Opcional) Ollama local:
@@ -114,6 +91,6 @@ npm run dev
 | `OLLAMA_HOST` | Default `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | Default `llama3.2` |
 | `AUTH_SECRET` | Segredo HMAC do cookie de sessão |
-| `BOOTSTRAP_ADMIN_EMAIL` | E-mail do superadmin (`db:seed-auth`) |
-| `BOOTSTRAP_ADMIN_PASSWORD` | Senha inicial do superadmin (`db:seed-auth`) |
+| `BOOTSTRAP_ADMIN_EMAIL` | E-mail do superadmin (`scripts/seed-auth.ts`) |
+| `BOOTSTRAP_ADMIN_PASSWORD` | Senha inicial do superadmin (`scripts/seed-auth.ts`) |
 | `BOOTSTRAP_ADMIN_RESET` | Se `true`, redefine a senha do superadmin no seed |

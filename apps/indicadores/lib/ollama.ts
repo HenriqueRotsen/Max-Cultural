@@ -126,7 +126,7 @@ Regras:
 - Só mapeie correspondência clara; senão null
 - Cada target no máximo 1 vez
 - "Carimbo de data/hora" / timestamp / hora de envio → Data_inscricao
-- Ignore pergunta de escolha de oficina
+- Ignore pergunta de escolha de ação
 - Cabeçalhos "Endereço completo (Rua, número, bairro, cidade, CEP…)" → Lougradouro (o sistema divide depois)
 
 Cabeçalhos:
@@ -270,7 +270,7 @@ export async function reprocessValuesWithAi(
     const prompt = `Padronize valores MAX Indicadores. JSON: {"rows":[{"_i":0,...}]}
 Colunas: ${columns.join(", ")}
 CPF=11 digitos; Telefone=(XX) XXXXX-XXXX; CEP=8 digitos; Genero=${GENEROS.slice(0, 3).join("|")}; Etnia=${ETNIAS.slice(0, 4).join("|")}; PCD=Sim|Não; UF=2 letras; datas=DD/MM/YYYY
-Contexto: projeto=${context.id_projeto} oficina=${context.id_oficina}
+Contexto: projeto=${context.id_projeto} ação=${context.id_oficina}
 Linhas: ${JSON.stringify(slim)}
 `;
 

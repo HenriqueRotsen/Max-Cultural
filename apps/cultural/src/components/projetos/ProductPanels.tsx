@@ -368,7 +368,7 @@ export function IndicadoresPanel({
               ]}
             />
             <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Meta label="Oficinas" value={String(indicadores.totais.oficinas)} />
+              <Meta label="Ações" value={String(indicadores.totais.acoes)} />
               <Meta label="Seleção" value={`${indicadores.totais.taxaSelecao}%`} />
               <Meta label="Participação" value={`${indicadores.totais.taxaParticipacao}%`} />
               <Meta label="Certificação" value={`${indicadores.totais.taxaCertificado}%`} />

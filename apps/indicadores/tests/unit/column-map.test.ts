@@ -13,7 +13,7 @@ const ctx: BatchContext = {
   PRONAC: "257517",
   Nome_projeto: "Projeto",
   Identificacao_ano_projeto: "2025",
-  Nome_oficina: "Oficina",
+  Nome_oficina: "Ação",
 };
 
 describe("column-map", () => {

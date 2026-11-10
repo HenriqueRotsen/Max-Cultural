@@ -1,8 +1,10 @@
 import { config } from "dotenv";
 import { defineConfig } from "prisma/config";
+import { bloquearProducao } from "./src/lib/ambiente";
 
-// .env.local manda no dev — sobrescreve DATABASE_URL exportada no shell.
-config({ path: ".env.local", override: true });
+// Fora de `npm run dev` / `npm run dev:teste` (que definem MAX_AMBIENTE), vale o .env.local do app.
+if (!process.env.MAX_AMBIENTE) config({ path: ".env.local", override: true });
+bloquearProducao(process.env.DATABASE_URL, process.env.DIRECT_URL);
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

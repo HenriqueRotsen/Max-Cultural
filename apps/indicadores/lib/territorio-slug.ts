@@ -18,7 +18,7 @@ export function buildTerritorioPath(parts: {
   estado?: string;
   cidade?: string;
   territorio?: string;
-  nomeOficina?: string;
+  nomeAcao?: string;
   online?: boolean;
 }): string {
   const online =
@@ -26,13 +26,13 @@ export function buildTerritorioPath(parts: {
     isOnlineRow({
       territorio: parts.territorio,
       cidade: parts.cidade,
-      nomeOficina: parts.nomeOficina,
+      nomeAcao: parts.nomeAcao,
     });
 
   if (online) {
     const label = onlineLabel({
       territorio: parts.territorio,
-      nomeOficina: parts.nomeOficina,
+      nomeAcao: parts.nomeAcao,
     });
     const slug = slugifyPart(label) || "online";
     return `/territorio/online/${slug}`;

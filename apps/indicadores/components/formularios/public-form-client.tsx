@@ -9,10 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { GENEROS, ETNIAS } from "@/lib/schema";
 import type { FormularioCampoTipoCode } from "@/lib/formularios/types";
 import {
-  EMPTY_TERRITORIO_OFICINA_FORM,
-  asTerritorioOficinaFormValue,
-  type TerritorioOficinaFormValue,
-} from "@/lib/oficina-territorio";
+  EMPTY_TERRITORIO_ACAO_FORM,
+  asTerritorioAcaoFormValue,
+  type TerritorioAcaoFormValue,
+} from "@/lib/acao-territorio";
 import { executeRecaptcha } from "@/components/formularios/recaptcha-execute";
 
 type CampoPublico = {
@@ -169,14 +169,14 @@ function validatePageFields(
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const campo of page.campos) {
-    if (!campo.obrigatorio) continue;
+    if (!campo.obrigatorio || campo.tipo === "INFO") continue;
     const v = values[campo.id];
     if (campo.tipo === "DECLARACAO") {
       if (v !== true) errors[campo.id] = "É necessário declarar o cumprimento.";
       continue;
     }
-    if (campo.tipo === "TERRITORIO_OFICINA") {
-      const terr = asTerritorioOficinaFormValue(v);
+    if (campo.tipo === "TERRITORIO_ACAO") {
+      const terr = asTerritorioAcaoFormValue(v);
       if (!terr.modalidade) {
         errors[campo.id] = "Escolha Online ou Presencial.";
       } else if (
@@ -332,6 +332,24 @@ export function PublicFormClient({
     const help = campo.descricao ? (
       <p className="text-xs text-slate-500">{campo.descricao}</p>
     ) : null;
+
+    if (campo.tipo === "INFO") {
+      return (
+        <div
+          key={campo.id}
+          className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
+        >
+          {campo.rotulo.trim() ? (
+            <h3 className="text-base font-semibold text-slate-900">{campo.rotulo}</h3>
+          ) : null}
+          {campo.descricao?.trim() ? (
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+              {campo.descricao}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
 
     if (campo.tipo === "ADDRESS_BR") {
       const addr = (values[campo.id] as AddressValue) || {};
@@ -551,7 +569,7 @@ export function PublicFormClient({
       );
     }
 
-    if (campo.tipo === "TERRITORIO_OFICINA") {
+    if (campo.tipo === "TERRITORIO_ACAO") {
       if (campo.config?.hidden === true) return null;
       const canOnline =
         campo.config?.ofereceOnline == null
@@ -566,16 +584,16 @@ export function PublicFormClient({
         campo.config?.autoModalidade === "PRESENCIAL"
           ? campo.config.autoModalidade
           : null;
-      const stored = asTerritorioOficinaFormValue(values[campo.id]);
-      const terr: TerritorioOficinaFormValue = {
-        ...EMPTY_TERRITORIO_OFICINA_FORM,
+      const stored = asTerritorioAcaoFormValue(values[campo.id]);
+      const terr: TerritorioAcaoFormValue = {
+        ...EMPTY_TERRITORIO_ACAO_FORM,
         ...stored,
         modalidade: stored.modalidade || autoMod || "",
       };
       const showModalityPick = canOnline && canPresencial && !autoMod;
       const isPresencial = terr.modalidade === "PRESENCIAL";
 
-      const setTerr = (patch: Partial<TerritorioOficinaFormValue>) => {
+      const setTerr = (patch: Partial<TerritorioAcaoFormValue>) => {
         const next = { ...terr, ...patch };
         if (next.modalidade === "ONLINE") {
           next.cidade = "";

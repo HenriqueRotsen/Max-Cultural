@@ -1,5 +1,5 @@
 /**
- * Padroniza territórios da oficina Cultura na Praça 8 (Oficinas de Cinema).
+ * Padroniza territórios da ação Cultura na Praça 8 (Ações de Cinema).
  * Uso: npx tsx scripts/fix-cnp8-territorios.ts
  */
 import { config } from "dotenv";
@@ -7,24 +7,24 @@ config({ path: ".env.local" });
 
 import { prisma } from "../lib/prisma";
 import { enrichCidadeEstado } from "../lib/municipio-uf";
-import { normalizeTerritorioRawKey } from "../lib/oficina-territorio";
+import { normalizeTerritorioRawKey } from "../lib/acao-territorio";
 
-const OFICINA_ID = "62";
+const ACAO_ID = "62";
 
 async function main() {
-  const oficina = await prisma.oficina.findUnique({
-    where: { id: OFICINA_ID },
+  const acao = await prisma.acao.findUnique({
+    where: { id: ACAO_ID },
     include: {
       projeto: { select: { nome: true, pronac: true } },
       territorios: true,
     },
   });
-  if (!oficina) {
-    throw new Error(`Oficina ${OFICINA_ID} não encontrada`);
+  if (!acao) {
+    throw new Error(`Ação ${ACAO_ID} não encontrada`);
   }
 
   const rows = await prisma.inscricao.findMany({
-    where: { idOficina: OFICINA_ID },
+    where: { idAcao: ACAO_ID },
     select: {
       id: true,
       cidade: true,
@@ -67,28 +67,28 @@ async function main() {
   }
 
   console.log(
-    `${oficina.projeto.nome} · ${oficina.nome} · ${rows.length} inscrições`,
+    `${acao.projeto.nome} · ${acao.nome} · ${rows.length} inscrições`,
   );
   console.log("locais", [...locations.values()]);
 
-  await prisma.oficina.update({
-    where: { id: OFICINA_ID },
+  await prisma.acao.update({
+    where: { id: ACAO_ID },
     data: { ofereceOnline: false, oferecePresencial: true },
   });
 
-  await prisma.oficinaTerritorioAlias.deleteMany({
-    where: { oficinaId: OFICINA_ID },
+  await prisma.acaoTerritorioAlias.deleteMany({
+    where: { acaoId: ACAO_ID },
   });
-  await prisma.oficinaTerritorio.deleteMany({
-    where: { oficinaId: OFICINA_ID },
+  await prisma.acaoTerritorio.deleteMany({
+    where: { acaoId: ACAO_ID },
   });
 
   const created = [];
   let ordem = 0;
   for (const loc of locations.values()) {
-    const rec = await prisma.oficinaTerritorio.create({
+    const rec = await prisma.acaoTerritorio.create({
       data: {
-        oficinaId: OFICINA_ID,
+        acaoId: ACAO_ID,
         nome: loc.nome,
         cidade: loc.cidade,
         estado: loc.estado,
@@ -107,16 +107,16 @@ async function main() {
 
   for (const [rawNormalized, locKey] of aliasRaw) {
     const [cidade, estado, nome] = locKey.split("|");
-    const oficinaTerritorioId =
+    const acaoTerritorioId =
       locIdByKey.get(
         `${normalizeTerritorioRawKey(cidade)}|${estado}|${normalizeTerritorioRawKey(nome)}`,
       ) ?? null;
-    await prisma.oficinaTerritorioAlias.create({
+    await prisma.acaoTerritorioAlias.create({
       data: {
-        oficinaId: OFICINA_ID,
+        acaoId: ACAO_ID,
         rawNormalized,
         online: false,
-        oficinaTerritorioId,
+        acaoTerritorioId,
         cidade: cidade ?? "",
         estado: estado ?? "",
         territorio: nome ?? "",

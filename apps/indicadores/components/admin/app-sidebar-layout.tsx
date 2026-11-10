@@ -17,6 +17,8 @@ import {
   Users,
   LayoutDashboard,
   X,
+  ListChecks,
+  FileCheck2,
 } from "lucide-react";
 import { MobileBottomNav, MobileTableCards, useMobileMenu } from "@max/mobile-nav";
 import { BrandLogo } from "@/components/brand-logo";
@@ -64,6 +66,20 @@ const NAV_GROUPS: NavGroup[] = [
         match: (p) => p.startsWith("/dashboard/analise"),
         permission: "analise:read",
         icon: BarChart3,
+      },
+      {
+        href: "/dashboard/acompanhamento",
+        label: "Acompanhamento",
+        match: (p) => p.startsWith("/dashboard/acompanhamento"),
+        permission: "acompanhamento:read",
+        icon: ListChecks,
+      },
+      {
+        href: "/dashboard/prestacao",
+        label: "Prestação de contas",
+        match: (p) => p.startsWith("/dashboard/prestacao"),
+        permission: "prestacao:read",
+        icon: FileCheck2,
       },
       {
         href: "/dashboard/contextos",

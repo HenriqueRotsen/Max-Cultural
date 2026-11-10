@@ -39,7 +39,7 @@ export type TerritorioKpis = {
   certificados: number;
   /** Pessoas diferentes (CPFs únicos) por etapa. */
   cpfsUnicos: CpfsUnicos;
-  oficinas: number;
+  acoes: number;
   projetos: number;
 };
 
@@ -69,7 +69,7 @@ export type TerritorioListItem = {
   kpis: TerritorioKpis;
 };
 
-export type OficinaListItem = {
+export type AcaoListItem = {
   id_projeto: string;
   id_oficina: string;
   Nome_projeto: string;
@@ -85,7 +85,7 @@ function emptyKpis(): TerritorioKpis {
     participantes: 0,
     certificados: 0,
     cpfsUnicos: { ...CPFS_ZERO },
-    oficinas: 0,
+    acoes: 0,
     projetos: 0,
   };
 }
@@ -100,11 +100,11 @@ function accumulate(
     selecionados: number;
     participantes: number;
     certificado: number;
-    idOficina: string;
+    idAcao: string;
     idProjeto: string;
     cpf?: string;
   },
-  seenOficina: Set<string>,
+  seenAcao: Set<string>,
   seenProjeto: Set<string>,
 ) {
   acc.inscritos += row.inscritos;
@@ -117,9 +117,9 @@ function accumulate(
     vistos.add(row);
     acc.cpfsUnicos = vistos.total();
   }
-  if (row.idOficina && !seenOficina.has(row.idOficina)) {
-    seenOficina.add(row.idOficina);
-    acc.oficinas += 1;
+  if (row.idAcao && !seenAcao.has(row.idAcao)) {
+    seenAcao.add(row.idAcao);
+    acc.acoes += 1;
   }
   if (row.idProjeto && !seenProjeto.has(row.idProjeto)) {
     seenProjeto.add(row.idProjeto);
@@ -143,9 +143,9 @@ async function loadAggRows(where: Prisma.InscricaoWhereInput) {
       cidade: true,
       territorio: true,
       idProjeto: true,
-      idOficina: true,
+      idAcao: true,
       nomeProjeto: true,
-      nomeOficina: true,
+      nomeAcao: true,
       inscritos: true,
       selecionados: true,
       participantes: true,
@@ -164,9 +164,9 @@ async function loadDetailRows(where: Prisma.InscricaoWhereInput) {
       cidade: true,
       territorio: true,
       idProjeto: true,
-      idOficina: true,
+      idAcao: true,
       nomeProjeto: true,
-      nomeOficina: true,
+      nomeAcao: true,
       inscritos: true,
       selecionados: true,
       participantes: true,
@@ -290,7 +290,7 @@ export async function listTerritoriosOverviewAction(
 
   const byEstado = new Map<
     string,
-    { kpis: TerritorioKpis; oficinas: Set<string>; projetos: Set<string> }
+    { kpis: TerritorioKpis; acoes: Set<string>; projetos: Set<string> }
   >();
   const byCidade = new Map<
     string,
@@ -298,7 +298,7 @@ export async function listTerritoriosOverviewAction(
       cidade: string;
       estado: string;
       kpis: TerritorioKpis;
-      oficinas: Set<string>;
+      acoes: Set<string>;
       projetos: Set<string>;
     }
   >();
@@ -316,7 +316,7 @@ export async function listTerritoriosOverviewAction(
     const online = isOnlineRow({
       territorio: row.territorio,
       cidade: row.cidade,
-      nomeOficina: row.nomeOficina,
+      nomeAcao: row.nomeAcao,
     });
 
     accumulate(totais, row, totOf, totPr);
@@ -326,7 +326,7 @@ export async function listTerritoriosOverviewAction(
       onlineLabels.add(
         onlineLabel({
           territorio: row.territorio,
-          nomeOficina: row.nomeOficina,
+          nomeAcao: row.nomeAcao,
         }),
       );
       continue;
@@ -335,10 +335,10 @@ export async function listTerritoriosOverviewAction(
     if (uf) {
       const entry = byEstado.get(uf) ?? {
         kpis: emptyKpis(),
-        oficinas: new Set<string>(),
+        acoes: new Set<string>(),
         projetos: new Set<string>(),
       };
-      accumulate(entry.kpis, row, entry.oficinas, entry.projetos);
+      accumulate(entry.kpis, row, entry.acoes, entry.projetos);
       byEstado.set(uf, entry);
     }
 
@@ -348,10 +348,10 @@ export async function listTerritoriosOverviewAction(
         cidade,
         estado: uf,
         kpis: emptyKpis(),
-        oficinas: new Set<string>(),
+        acoes: new Set<string>(),
         projetos: new Set<string>(),
       };
-      accumulate(entry.kpis, row, entry.oficinas, entry.projetos);
+      accumulate(entry.kpis, row, entry.acoes, entry.projetos);
       byCidade.set(key, entry);
     }
   }
@@ -421,7 +421,7 @@ export async function getEstadoPageAction(
       !isOnlineRow({
         territorio: r.territorio,
         cidade: r.cidade,
-        nomeOficina: r.nomeOficina,
+        nomeAcao: r.nomeAcao,
       }),
   );
   if (filtered.length === 0) {
@@ -436,7 +436,7 @@ export async function getEstadoPageAction(
     {
       cidade: string;
       kpis: TerritorioKpis;
-      oficinas: Set<string>;
+      acoes: Set<string>;
       projetos: Set<string>;
       terrs: Set<string>;
     }
@@ -448,11 +448,11 @@ export async function getEstadoPageAction(
     const entry = byCidade.get(cidade) ?? {
       cidade,
       kpis: emptyKpis(),
-      oficinas: new Set<string>(),
+      acoes: new Set<string>(),
       projetos: new Set<string>(),
       terrs: new Set<string>(),
     };
-    accumulate(entry.kpis, row, entry.oficinas, entry.projetos);
+    accumulate(entry.kpis, row, entry.acoes, entry.projetos);
     const terr = normalizeAddressLine(row.territorio);
     // Comunidade sob cidade: nunca município IBGE nem modalidade online
     if (
@@ -506,7 +506,7 @@ export async function getCidadePageAction(
         href: string;
         kpis: TerritorioKpis;
         territorios: TerritorioListItem[];
-        oficinas: OficinaListItem[];
+        acoes: AcaoListItem[];
         mapPoints: MapPoint[];
         socio: SocioBreakdown;
       };
@@ -538,7 +538,7 @@ export async function getCidadePageAction(
       !isOnlineRow({
         territorio: r.territorio,
         cidade: r.cidade,
-        nomeOficina: r.nomeOficina,
+        nomeAcao: r.nomeAcao,
       }),
   );
 
@@ -554,11 +554,11 @@ export async function getCidadePageAction(
     {
       territorio: string;
       kpis: TerritorioKpis;
-      oficinas: Set<string>;
+      acoes: Set<string>;
       projetos: Set<string>;
     }
   >();
-  const byOficina = new Map<
+  const byAcao = new Map<
     string,
     {
       id_projeto: string;
@@ -566,7 +566,7 @@ export async function getCidadePageAction(
       Nome_projeto: string;
       Nome_oficina: string;
       kpis: TerritorioKpis;
-      oficinas: Set<string>;
+      acoes: Set<string>;
       projetos: Set<string>;
     }
   >();
@@ -584,24 +584,24 @@ export async function getCidadePageAction(
       const entry = byTerr.get(terr) ?? {
         territorio: terr,
         kpis: emptyKpis(),
-        oficinas: new Set<string>(),
+        acoes: new Set<string>(),
         projetos: new Set<string>(),
       };
-      accumulate(entry.kpis, row, entry.oficinas, entry.projetos);
+      accumulate(entry.kpis, row, entry.acoes, entry.projetos);
       byTerr.set(terr, entry);
     }
-    const ok = `${row.idProjeto}|${row.idOficina}`;
-    const of = byOficina.get(ok) ?? {
+    const ok = `${row.idProjeto}|${row.idAcao}`;
+    const of = byAcao.get(ok) ?? {
       id_projeto: row.idProjeto,
-      id_oficina: row.idOficina,
+      id_oficina: row.idAcao,
       Nome_projeto: row.nomeProjeto,
-      Nome_oficina: row.nomeOficina || row.idOficina,
+      Nome_oficina: row.nomeAcao || row.idAcao,
       kpis: emptyKpis(),
-      oficinas: new Set<string>(),
+      acoes: new Set<string>(),
       projetos: new Set<string>(),
     };
-    accumulate(of.kpis, row, of.oficinas, of.projetos);
-    byOficina.set(ok, of);
+    accumulate(of.kpis, row, of.acoes, of.projetos);
+    byAcao.set(ok, of);
   }
 
   const territorios: TerritorioListItem[] = [...byTerr.values()]
@@ -616,13 +616,13 @@ export async function getCidadePageAction(
     }))
     .sort((a, b) => a.territorio.localeCompare(b.territorio, "pt-BR"));
 
-  const oficinas: OficinaListItem[] = [...byOficina.values()]
+  const acoes: AcaoListItem[] = [...byAcao.values()]
     .map((o) => ({
       id_projeto: o.id_projeto,
       id_oficina: o.id_oficina,
       Nome_projeto: o.Nome_projeto,
       Nome_oficina: o.Nome_oficina,
-      href: `/projeto/${encodeURIComponent(o.id_projeto)}/${encodeURIComponent(o.id_oficina)}`,
+      href: `/projeto/${encodeURIComponent(o.id_projeto)}/acao/${encodeURIComponent(o.id_oficina)}`,
       kpis: o.kpis,
     }))
     .sort((a, b) => a.Nome_oficina.localeCompare(b.Nome_oficina, "pt-BR"));
@@ -642,7 +642,7 @@ export async function getCidadePageAction(
       href: buildTerritorioPath({ estado, cidade }),
       kpis,
       territorios,
-      oficinas,
+      acoes,
       mapPoints,
       socio,
     },
@@ -663,7 +663,7 @@ export async function getTerritorioPageAction(
         territorio: string;
         href: string;
         kpis: TerritorioKpis;
-        oficinas: OficinaListItem[];
+        acoes: AcaoListItem[];
         inscritos: Array<{
           id: string;
           Nome: string;
@@ -721,7 +721,7 @@ export async function getTerritorioPageAction(
       !isOnlineRow({
         territorio: r.territorio,
         cidade: r.cidade,
-        nomeOficina: r.nomeOficina,
+        nomeAcao: r.nomeAcao,
       }),
   );
 
@@ -759,7 +759,7 @@ export async function getTerritorioPageAction(
   const kpis = emptyKpis();
   const ofSet = new Set<string>();
   const prSet = new Set<string>();
-  const byOficina = new Map<
+  const byAcao = new Map<
     string,
     {
       id_projeto: string;
@@ -767,33 +767,33 @@ export async function getTerritorioPageAction(
       Nome_projeto: string;
       Nome_oficina: string;
       kpis: TerritorioKpis;
-      oficinas: Set<string>;
+      acoes: Set<string>;
       projetos: Set<string>;
     }
   >();
 
   for (const row of fullRows) {
     accumulate(kpis, row, ofSet, prSet);
-    const ok = `${row.idProjeto}|${row.idOficina}`;
-    const of = byOficina.get(ok) ?? {
+    const ok = `${row.idProjeto}|${row.idAcao}`;
+    const of = byAcao.get(ok) ?? {
       id_projeto: row.idProjeto,
-      id_oficina: row.idOficina,
+      id_oficina: row.idAcao,
       Nome_projeto: row.nomeProjeto,
-      Nome_oficina: row.nomeOficina || row.idOficina,
+      Nome_oficina: row.nomeAcao || row.idAcao,
       kpis: emptyKpis(),
-      oficinas: new Set<string>(),
+      acoes: new Set<string>(),
       projetos: new Set<string>(),
     };
-    accumulate(of.kpis, row, of.oficinas, of.projetos);
-    byOficina.set(ok, of);
+    accumulate(of.kpis, row, of.acoes, of.projetos);
+    byAcao.set(ok, of);
   }
 
-  const oficinas: OficinaListItem[] = [...byOficina.values()].map((o) => ({
+  const acoes: AcaoListItem[] = [...byAcao.values()].map((o) => ({
     id_projeto: o.id_projeto,
     id_oficina: o.id_oficina,
     Nome_projeto: o.Nome_projeto,
     Nome_oficina: o.Nome_oficina,
-    href: `/projeto/${encodeURIComponent(o.id_projeto)}/${encodeURIComponent(o.id_oficina)}`,
+    href: `/projeto/${encodeURIComponent(o.id_projeto)}/acao/${encodeURIComponent(o.id_oficina)}`,
     kpis: o.kpis,
   }));
 
@@ -821,7 +821,7 @@ export async function getTerritorioPageAction(
       territorio,
       href: buildTerritorioPath({ estado, cidade, territorio }),
       kpis,
-      oficinas,
+      acoes,
       inscritos,
       mapPoints,
       socio,
@@ -849,7 +849,7 @@ export async function listOnlineTerritoriosAction(
     isOnlineRow({
       territorio: r.territorio,
       cidade: r.cidade,
-      nomeOficina: r.nomeOficina,
+      nomeAcao: r.nomeAcao,
     }),
   );
 
@@ -871,7 +871,7 @@ export async function listOnlineTerritoriosAction(
     {
       label: string;
       kpis: TerritorioKpis;
-      oficinas: Set<string>;
+      acoes: Set<string>;
       projetos: Set<string>;
     }
   >();
@@ -880,15 +880,15 @@ export async function listOnlineTerritoriosAction(
     accumulate(kpis, row, ofSet, prSet);
     const label = onlineLabel({
       territorio: row.territorio,
-      nomeOficina: row.nomeOficina,
+      nomeAcao: row.nomeAcao,
     });
     const entry = byLabel.get(label) ?? {
       label,
       kpis: emptyKpis(),
-      oficinas: new Set<string>(),
+      acoes: new Set<string>(),
       projetos: new Set<string>(),
     };
-    accumulate(entry.kpis, row, entry.oficinas, entry.projetos);
+    accumulate(entry.kpis, row, entry.acoes, entry.projetos);
     byLabel.set(label, entry);
   }
 
@@ -916,7 +916,7 @@ export async function getOnlineTerritorioPageAction(
         label: string;
         href: string;
         kpis: TerritorioKpis;
-        oficinas: OficinaListItem[];
+        acoes: AcaoListItem[];
         inscritos: Array<{
           id: string;
           Nome: string;
@@ -945,33 +945,33 @@ export async function getOnlineTerritorioPageAction(
         !isOnlineRow({
           territorio: r.territorio,
           cidade: r.cidade,
-          nomeOficina: r.nomeOficina,
+          nomeAcao: r.nomeAcao,
         })
       ) {
         return false;
       }
       const label = onlineLabel({
         territorio: r.territorio,
-        nomeOficina: r.nomeOficina,
+        nomeAcao: r.nomeAcao,
       });
       return matchesSlug(label, slug);
     })
     .map((r) => r.id);
 
   if (matchIds.length === 0) {
-    return { ok: false, error: "Oficina online não encontrada." };
+    return { ok: false, error: "Ação online não encontrada." };
   }
 
   const fullRows = await loadDetailRows({ id: { in: matchIds } });
 
   const label = onlineLabel({
     territorio: fullRows[0]!.territorio,
-    nomeOficina: fullRows[0]!.nomeOficina,
+    nomeAcao: fullRows[0]!.nomeAcao,
   });
   const kpis = emptyKpis();
   const ofSet = new Set<string>();
   const prSet = new Set<string>();
-  const byOficina = new Map<
+  const byAcao = new Map<
     string,
     {
       id_projeto: string;
@@ -979,25 +979,25 @@ export async function getOnlineTerritorioPageAction(
       Nome_projeto: string;
       Nome_oficina: string;
       kpis: TerritorioKpis;
-      oficinas: Set<string>;
+      acoes: Set<string>;
       projetos: Set<string>;
     }
   >();
 
   for (const row of fullRows) {
     accumulate(kpis, row, ofSet, prSet);
-    const ok = `${row.idProjeto}|${row.idOficina}`;
-    const of = byOficina.get(ok) ?? {
+    const ok = `${row.idProjeto}|${row.idAcao}`;
+    const of = byAcao.get(ok) ?? {
       id_projeto: row.idProjeto,
-      id_oficina: row.idOficina,
+      id_oficina: row.idAcao,
       Nome_projeto: row.nomeProjeto,
-      Nome_oficina: row.nomeOficina || row.idOficina,
+      Nome_oficina: row.nomeAcao || row.idAcao,
       kpis: emptyKpis(),
-      oficinas: new Set<string>(),
+      acoes: new Set<string>(),
       projetos: new Set<string>(),
     };
-    accumulate(of.kpis, row, of.oficinas, of.projetos);
-    byOficina.set(ok, of);
+    accumulate(of.kpis, row, of.acoes, of.projetos);
+    byAcao.set(ok, of);
   }
 
   const socio = await aggregateSocio(
@@ -1010,12 +1010,12 @@ export async function getOnlineTerritorioPageAction(
       label,
       href: buildTerritorioPath({ online: true, territorio: label }),
       kpis,
-      oficinas: [...byOficina.values()].map((o) => ({
+      acoes: [...byAcao.values()].map((o) => ({
         id_projeto: o.id_projeto,
         id_oficina: o.id_oficina,
         Nome_projeto: o.Nome_projeto,
         Nome_oficina: o.Nome_oficina,
-        href: `/projeto/${encodeURIComponent(o.id_projeto)}/${encodeURIComponent(o.id_oficina)}`,
+        href: `/projeto/${encodeURIComponent(o.id_projeto)}/acao/${encodeURIComponent(o.id_oficina)}`,
         kpis: o.kpis,
       })),
       inscritos: fullRows.map((row) => ({

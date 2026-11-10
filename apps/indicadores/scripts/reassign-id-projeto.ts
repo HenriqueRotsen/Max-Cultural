@@ -1,5 +1,5 @@
 /**
- * @deprecated IDs agora vivem em projetos/oficinas. Mantido só para histórico.
+ * @deprecated IDs agora vivem em projetos/ações. Mantido só para histórico.
  * // @ts-nocheck
  */
 // @ts-nocheck

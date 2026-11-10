@@ -1,0 +1,1605 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { toast } from "sonner";
+import { BarChart3, CheckCircle2, ChevronDown, FileCheck2, ChevronRight, Flag, MessageSquare, Pencil, Plus, RotateCcw, Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DatePicker, DateRangePicker } from "@/components/ui/date-picker";
+import { SimpleSelect } from "@/components/ui/simple-select";
+import { SearchSelect } from "@/components/ui/search-select";
+import { cn } from "@/lib/utils";
+import {
+  addComentarioAction,
+  atualizarPreDefinicaoProjetoAction,
+  buscarFinanceiroAction,
+  setRecursoLiberadoAction,
+  vincularFinanceiroAction,
+  createTarefaAvulsaAction,
+  editTarefaAction,
+  listComentariosAction,
+  setDatasProjetoAction,
+  setPrazoProjetoAction,
+  setTarefaStatusAction,
+} from "@/app/actions/acompanhamento";
+import {
+  AREA_LABEL,
+  FASE_LABEL,
+  FASES_NIVEL1,
+  FASES_NIVEL2,
+  GESTAO_LABEL,
+  regraLabel,
+  STATUS_LABEL,
+  type AcaoAcompDTO,
+  type AcompanhamentoDTO,
+  type PrazoProjetoDTO,
+  type AreaTarefa,
+  type ComentarioDTO,
+  type FaseTarefa,
+  type StatusGestao,
+  type StatusTarefa,
+  type TarefaDTO,
+} from "@/lib/acompanhamento/types";
+import { useConfirm } from "@/components/ui/confirm";
+import { RegraCampo } from "@/components/acompanhamento/predefinicao-editor";
+import { AbasArea, TarefasPorFase } from "@/components/acompanhamento/tarefas-por-fase";
+import { AgendaAcoes, normalizar } from "@/components/acompanhamento/agenda-acoes";
+
+export type Aba = "comunicacao" | "producao" | "configuracao";
+
+const ABA_AREA: Record<"comunicacao" | "producao", AreaTarefa> = {
+  comunicacao: "COMUNICACAO",
+  producao: "PRODUCAO",
+};
+
+const STATUS_ORDEM: StatusTarefa[] = ["NAO_CONTEMPLADA", "NAO_INICIADA", "EM_ANDAMENTO", "CONCLUIDA"];
+
+const STATUS_DOT: Record<StatusTarefa, string> = {
+  NAO_CONTEMPLADA: "bg-slate-300",
+  NAO_INICIADA: "bg-slate-500",
+  EM_ANDAMENTO: "bg-amber-500",
+  CONCLUIDA: "bg-emerald-600",
+};
+
+const STATUS_CHIP: Record<StatusTarefa, string> = {
+  NAO_CONTEMPLADA: "border-border bg-white text-muted-foreground",
+  NAO_INICIADA: "border-slate-300 bg-slate-100 text-slate-700",
+  EM_ANDAMENTO: "border-amber-300 bg-amber-100 text-amber-900",
+  CONCLUIDA: "border-emerald-300 bg-emerald-100 text-emerald-800",
+};
+
+const GESTAO_COR: Record<StatusGestao, string> = {
+  AGUARDANDO_LIBERACAO: "bg-slate-300",
+  NAO_CONTEMPLADA: "bg-slate-200",
+  CONCLUIDA: "bg-emerald-600",
+  SEM_PRAZO: "bg-slate-300",
+  NO_PRAZO: "bg-emerald-600",
+  PRAZO_PROXIMO: "bg-amber-500",
+  EM_ATRASO: "bg-red-600",
+};
+
+const CRITICIDADE: Record<StatusGestao, number> = {
+  EM_ATRASO: 0,
+  PRAZO_PROXIMO: 1,
+  NO_PRAZO: 2,
+  SEM_PRAZO: 3,
+  AGUARDANDO_LIBERACAO: 4,
+  CONCLUIDA: 5,
+  NAO_CONTEMPLADA: 6,
+};
+
+function fmtDia(iso: string | null) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function fmtCurto(iso: string | null) {
+  if (!iso) return "sem prazo";
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+/** "09/11" ou "09/11 a 11/11" (período da realização). */
+function periodoCurto(g: { data: string; dataFim: string | null }) {
+  return g.dataFim && g.dataFim !== g.data ? `${fmtCurto(g.data)} a ${fmtCurto(g.dataFim)}` : fmtCurto(g.data);
+}
+
+/** "Concluída em 15/11 · 2 dias depois do prazo" (vermelho se atrasou). */
+function ConclusaoInfo({ t }: { t: TarefaDTO }) {
+  if (!t.concluidaEm) return null;
+  const d = t.diasAposPrazo;
+  const comparacao =
+    d == null ? "" : d === 0 ? "no dia do prazo" : `${Math.abs(d)} ${Math.abs(d) === 1 ? "dia" : "dias"} ${d > 0 ? "depois" : "antes"} do prazo`;
+  return (
+    <span className={cn("text-xs tabular-nums", d != null && d > 0 ? "font-medium text-red-700" : "text-emerald-700")}>
+      {"Concluída em "}
+      {fmtCurto(t.concluidaEm)}
+      {comparacao ? ` · ${comparacao}` : ""}
+    </span>
+  );
+}
+
+function pct(ts: TarefaDTO[]) {
+  const validas = ts.filter((t) => t.status !== "NAO_CONTEMPLADA");
+  if (!validas.length) return 0;
+  return Math.round((validas.filter((t) => t.status === "CONCLUIDA").length / validas.length) * 100);
+}
+
+function Progresso({ valor, cor }: { valor: number; cor: string }) {
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div className={cn("h-full rounded-full transition-all", cor)} style={{ width: `${valor}%` }} />
+    </div>
+  );
+}
+
+function GestaoBadge({ s }: { s: StatusGestao }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", GESTAO_COR[s])} />
+      <span
+        className={cn(
+          s === "EM_ATRASO" && "font-medium text-red-700",
+          s === "PRAZO_PROXIMO" && "text-amber-800",
+        )}
+      >
+        {GESTAO_LABEL[s]}
+      </span>
+    </span>
+  );
+}
+
+export function AcompanhamentoView({
+  data,
+  abaInicial,
+  podePrestacao = false,
+}: {
+  data: AcompanhamentoDTO;
+  abaInicial: Aba;
+  podePrestacao?: boolean;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [aba, setAba] = useState<Aba>(abaInicial);
+  // Pelo id: depois de salvar, o diálogo mostra os dados atualizados da tarefa.
+  const [abertaId, setAbertaId] = useState<string | null>(null);
+  const aberta = abertaId ? (data.tarefas.find((t) => t.id === abertaId) ?? null) : null;
+  const [avulsa, setAvulsa] = useState<{ area: AreaTarefa; nivel: 1 | 2 } | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const acaoNome = useMemo(() => new Map(data.acoes.map((a) => [a.id, a.nome])), [data.acoes]);
+  const agendaPorId = useMemo(
+    () => new Map(data.acoes.flatMap((a) => a.agenda.map((g) => [g.id, g] as const))),
+    [data.acoes],
+  );
+
+  function trocarAba(a: Aba) {
+    setAba(a);
+    router.replace(`${pathname}?aba=${a}`, { scroll: false });
+  }
+
+  function mudarStatus(t: TarefaDTO, status: StatusTarefa) {
+    startTransition(async () => {
+      const r = await setTarefaStatusAction(t.id, status);
+      if (!r.ok) toast.error(r.error);
+      else router.refresh();
+    });
+  }
+
+  const podeArea = (a: AreaTarefa) => (a === "COMUNICACAO" ? data.pode.comunicacao : data.pode.producao);
+
+  /** Rótulo da realização: "Oficina de Teatro · 09/11 · Januária/MG". */
+  function rotuloRealizacao(t: Pick<TarefaDTO, "acaoId" | "agendaId">) {
+    const nome = t.acaoId ? acaoNome.get(t.acaoId) ?? "Ação" : "Ação";
+    const g = t.agendaId ? agendaPorId.get(t.agendaId) : null;
+    if (!g) return `${nome} · sem data`;
+    return [nome, g.titulo || periodoCurto(g), g.local].filter(Boolean).join(" · ");
+  }
+
+  const liberado = Boolean(data.recursoLiberadoEm);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <Link href="/dashboard/acompanhamento" className="text-xs text-muted-foreground hover:text-brand-deep">
+            ← Acompanhamento
+          </Link>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-brand-deep">{data.projeto.nome}</h1>
+          <p className="text-sm text-muted-foreground">
+            {data.projeto.contextoNome}
+            {data.projeto.pronac ? ` · PRONAC ${data.projeto.pronac}` : ""}
+            {data.inicioExecucao || data.fimExecucao
+              ? ` · Execução ${fmtDia(data.inicioExecucao)} a ${fmtDia(data.fimExecucao)}`
+              : " · Execução sem datas"}
+          </p>
+          <Link
+            href={`/projeto/${encodeURIComponent(data.projeto.id)}`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-teal-800 hover:underline"
+          >
+            <BarChart3 className="size-4" /> Indicadores do projeto (inscrições e ações)
+          </Link>
+          {podePrestacao ? (
+            <Link
+              href={`/dashboard/prestacao/${encodeURIComponent(data.projeto.id)}`}
+              className="ml-4 inline-flex items-center gap-1 text-sm font-medium text-teal-800 hover:underline"
+            >
+              <FileCheck2 className="size-4" /> Prestação de contas
+            </Link>
+          ) : null}
+        </div>
+        <div className="text-right text-xs">
+          {liberado ? (
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+              Recurso liberado em {fmtDia(data.recursoLiberadoEm)}
+              {data.recursoFonte === "GESTAO" ? " (informado pela gestão)" : ""}
+            </span>
+          ) : (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
+              Aguardando liberação do recurso
+            </span>
+          )}
+        </div>
+      </div>
+
+      {!liberado ? (
+        <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          As tarefas começam a valer quando o recurso for liberado: o sistema detecta a primeira
+          transferência no MAX Financeiro. Até lá, nada aparece como atrasado.
+        </p>
+      ) : null}
+      {!data.inicioExecucao && data.pode.gestao ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Informe as datas de execução em{" "}
+          <button type="button" className="font-semibold underline" onClick={() => trocarAba("configuracao")}>
+            Configuração
+          </button>{" "}
+          para calcular os prazos das tarefas do projeto.
+        </p>
+      ) : null}
+
+      <nav className="flex flex-wrap gap-1 rounded-xl border border-border/60 bg-white p-1 text-sm" aria-label="Áreas">
+        {(
+          [
+            ["comunicacao", "Comunicação"],
+            ["producao", "Produção"],
+            ["configuracao", "Configuração"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => trocarAba(id)}
+            aria-current={aba === id ? "page" : undefined}
+            className={cn(
+              "rounded-lg px-3 py-1.5 font-medium transition",
+              aba === id ? "bg-brand-deep text-white" : "text-muted-foreground hover:bg-muted/50",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {aba === "configuracao" ? (
+        <Configuracao data={data} />
+      ) : (
+        <AreaPainel
+          key={aba}
+          area={ABA_AREA[aba]}
+          acoes={data.acoes}
+          tarefas={data.tarefas.filter((t) => t.area === ABA_AREA[aba])}
+          podeEditar={podeArea(ABA_AREA[aba])}
+          pending={pending}
+          onStatus={mudarStatus}
+          onAbrir={(t) => setAbertaId(t.id)}
+          onAvulsa={(nivel) => setAvulsa({ area: ABA_AREA[aba], nivel })}
+          rotuloRealizacao={rotuloRealizacao}
+        />
+      )}
+
+      {aberta ? (
+        <TarefaDialog
+          tarefa={aberta}
+          podeEditar={podeArea(aberta.area)}
+          podeComentar={podeArea(aberta.area) || data.pode.gestao}
+          contexto={aberta.nivel === 2 ? (aberta.unidade === "CIDADE" ? `${aberta.cidade}, ${aberta.uf}` : rotuloRealizacao(aberta)) : null}
+          onClose={() => setAbertaId(null)}
+          onStatus={(s) => mudarStatus(aberta, s)}
+        />
+      ) : null}
+      {avulsa ? (
+        <AvulsaDialog projetoId={data.projeto.id} area={avulsa.area} nivel={avulsa.nivel} data={data} onClose={() => setAvulsa(null)} />
+      ) : null}
+    </div>
+  );
+}
+
+function StatusChip({
+  t,
+  podeEditar,
+  pending,
+  onStatus,
+}: {
+  t: TarefaDTO;
+  podeEditar: boolean;
+  pending: boolean;
+  onStatus: (t: TarefaDTO, s: StatusTarefa) => void;
+}) {
+  if (!podeEditar) {
+    return (
+      <span className={cn("inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium", STATUS_CHIP[t.status])}>
+        {STATUS_LABEL[t.status]}
+      </span>
+    );
+  }
+  return (
+    <SimpleSelect
+      aria-label={`Status de ${t.titulo}`}
+      value={t.status}
+      disabled={pending}
+      size="sm"
+      onChange={(v) => onStatus(t, v as StatusTarefa)}
+      className={cn("h-7 cursor-pointer rounded-full px-2.5 text-xs font-medium", STATUS_CHIP[t.status])}
+      options={STATUS_ORDEM.map((s) => ({ value: s, label: STATUS_LABEL[s], dot: STATUS_DOT[s] }))}
+    />
+  );
+}
+
+type AreaProps = {
+  area: AreaTarefa;
+  tarefas: TarefaDTO[];
+  podeEditar: boolean;
+  pending: boolean;
+  onStatus: (t: TarefaDTO, s: StatusTarefa) => void;
+  onAbrir: (t: TarefaDTO) => void;
+  onAvulsa: (nivel: 1 | 2) => void;
+  rotuloRealizacao: (t: Pick<TarefaDTO, "acaoId" | "agendaId">) => string;
+  acoes: AcaoAcompDTO[];
+};
+
+function AreaPainel(props: AreaProps) {
+  const n1 = props.tarefas.filter((t) => t.nivel === 1);
+  const n2 = props.tarefas.filter((t) => t.nivel === 2);
+  const corBarra = props.area === "COMUNICACAO" ? "bg-teal-700" : "bg-orange-500";
+  const atrasoN1 = n1.filter((t) => t.gestao === "EM_ATRASO").length;
+
+  return (
+    <div className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        {props.podeEditar
+          ? `Equipe de ${AREA_LABEL[props.area]} atualiza; as demais áreas e a gestão consultam.`
+          : `Só consulta: quem atualiza é a equipe de ${AREA_LABEL[props.area]}.`}
+      </p>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-heading text-lg font-semibold text-brand-deep">
+            Nível 1 · Projeto{" "}
+            <span className="text-sm font-normal text-muted-foreground">
+              {n1.length} tarefas · {n1.filter((t) => t.status === "CONCLUIDA").length} concluídas
+              {atrasoN1 ? ` · ${atrasoN1} em atraso` : ""}
+            </span>
+          </h2>
+          {props.podeEditar ? (
+            <Button variant="outline" size="sm" onClick={() => props.onAvulsa(1)}>
+              <Plus className="size-4" /> Tarefa avulsa
+            </Button>
+          ) : null}
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {FASES_NIVEL1.map((fase) => {
+            const ts = n1.filter((t) => t.fase === fase);
+            const concl = ts.filter((t) => t.status === "CONCLUIDA").length;
+            return (
+              <div key={fase} className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <h3 className="font-semibold text-brand-deep">{FASE_LABEL[fase]}</h3>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {concl}/{ts.filter((t) => t.status !== "NAO_CONTEMPLADA").length}
+                  </span>
+                </div>
+                <Progresso valor={pct(ts)} cor={corBarra} />
+                <ul className="mt-3 space-y-2">
+                  {ts.length === 0 ? <li className="text-xs text-muted-foreground">Sem tarefas.</li> : null}
+                  {ts.map((t) => (
+                    <li key={t.id} className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => props.onAbrir(t)}
+                        className={cn(
+                          "inline-flex items-start gap-1.5 text-left text-sm leading-snug hover:text-brand-deep hover:underline",
+                          t.status === "CONCLUIDA" && "text-muted-foreground",
+                          t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
+                        )}
+                      >
+                        {t.status === "CONCLUIDA" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" /> : null}
+                        {t.titulo}
+                      </button>
+                      {t.prazo || t.concluidaEm ? (
+                        <div className="text-xs tabular-nums text-muted-foreground">
+                          {t.prazo ? `Prazo ${fmtCurto(t.prazo)}` : ""}
+                          {t.concluidaEm ? (
+                            <>
+                              {t.prazo ? " · " : ""}
+                              <ConclusaoInfo t={t} />
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
+                        {t.gestao === "EM_ATRASO" || t.gestao === "PRAZO_PROXIMO" ? (
+                          <GestaoBadge s={t.gestao} />
+                        ) : null}
+                        {t.escaladasAbertas ? <Flag className="size-3.5 text-red-600" aria-label="Escalada à gestão" /> : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <Nivel2 {...props} tarefas={n2} corBarra={corBarra} />
+    </div>
+  );
+}
+
+type Grupo = { chave: string; titulo: string; subtitulo: string; tarefas: TarefaDTO[]; data: string | null; ordem: string };
+
+type Agrupar = "execucao" | "acao" | "cidade" | "mes";
+type Situacao = "todas" | "atraso" | "proximo" | "aberto" | "concluidas";
+
+const AGRUPAR_LABEL: Record<Agrupar, string> = {
+  execucao: "Por execução",
+  acao: "Por ação",
+  cidade: "Por cidade",
+  mes: "Por mês",
+};
+
+const GRUPOS_POR_PAGINA = 30;
+const TAREFAS_POR_GRUPO = 50;
+
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+function mesLabel(ym: string) {
+  const [y, m] = ym.split("-");
+  const nome = MESES[Number(m) - 1] ?? m;
+  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${y}`;
+}
+
+const fechada = (t: TarefaDTO) => t.status === "CONCLUIDA" || t.status === "NAO_CONTEMPLADA";
+
+function passaSituacao(t: TarefaDTO, s: Situacao) {
+  if (s === "atraso") return t.gestao === "EM_ATRASO";
+  if (s === "proximo") return t.gestao === "PRAZO_PROXIMO";
+  if (s === "aberto") return !fechada(t);
+  if (s === "concluidas") return t.status === "CONCLUIDA";
+  return true;
+}
+
+function Nivel2(props: AreaProps & { corBarra: string }) {
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [agrupar, setAgrupar] = useState<Agrupar>(props.area === "PRODUCAO" ? "cidade" : "execucao");
+  const [busca, setBusca] = useState("");
+  const [situacao, setSituacao] = useState<Situacao>("todas");
+  const [tipo, setTipo] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [mes, setMes] = useState("");
+  const [limite, setLimite] = useState(GRUPOS_POR_PAGINA);
+  const [linhasPorGrupo, setLinhasPorGrupo] = useState<Record<string, number>>({});
+
+  const acaoPorId = useMemo(() => new Map(props.acoes.map((a) => [a.id, a])), [props.acoes]);
+  const agendaPorId = useMemo(
+    () => new Map(props.acoes.flatMap((a) => a.agenda.map((g) => [g.id, g] as const))),
+    [props.acoes],
+  );
+
+  /** Mês da tarefa: o do início da execução; tarefa por cidade usa o do prazo. */
+  const mesDe = useCallback(
+    (t: TarefaDTO) => (t.agendaId ? agendaPorId.get(t.agendaId)?.data : null)?.slice(0, 7) ?? t.prazo?.slice(0, 7) ?? "",
+    [agendaPorId],
+  );
+  const cidadeDe = (t: TarefaDTO) => (t.cidade ? `${t.cidade}/${t.uf}` : "");
+
+  // Opções dos filtros (só o que existe nas tarefas desta área).
+  const opcoes = useMemo(() => {
+    const tipos = new Map<string, string>();
+    const cidades = new Map<string, string>();
+    const meses = new Set<string>();
+    for (const t of props.tarefas) {
+      const a = t.acaoId ? acaoPorId.get(t.acaoId) : null;
+      if (a) tipos.set(a.tipoId, a.tipoNome);
+      if (t.cidade) cidades.set(`${t.cidade}/${t.uf}`, `${t.cidade}, ${t.uf}`);
+      const m = mesDe(t);
+      if (m) meses.add(m);
+    }
+    return {
+      tipos: [...tipos].sort((a, b) => a[1].localeCompare(b[1])),
+      cidades: [...cidades].sort((a, b) => a[1].localeCompare(b[1])),
+      meses: [...meses].sort(),
+    };
+  }, [props.tarefas, acaoPorId, mesDe]);
+
+  // Filtros sem a situação: base dos contadores (clicáveis) do topo.
+  const semSituacao = useMemo(() => {
+    const q = normalizar(busca.trim());
+    return props.tarefas.filter((t) => {
+      const a = t.acaoId ? acaoPorId.get(t.acaoId) : null;
+      if (tipo && a?.tipoId !== tipo) return false;
+      if (cidade && cidadeDe(t) !== cidade) return false;
+      if (mes && mesDe(t) !== mes) return false;
+      if (!q) return true;
+      const texto = [t.titulo, props.rotuloRealizacao(t), a?.tipoNome ?? "", t.cidade ?? ""].join(" ");
+      return normalizar(texto).includes(q);
+    });
+  }, [props, busca, tipo, cidade, mes, acaoPorId, mesDe]);
+
+  const filtradas = useMemo(() => semSituacao.filter((t) => passaSituacao(t, situacao)), [semSituacao, situacao]);
+  const contagem = useMemo(
+    () => ({
+      atraso: semSituacao.filter((t) => t.gestao === "EM_ATRASO").length,
+      proximo: semSituacao.filter((t) => t.gestao === "PRAZO_PROXIMO").length,
+      aberto: semSituacao.filter((t) => !fechada(t)).length,
+      concluidas: semSituacao.filter((t) => t.status === "CONCLUIDA").length,
+    }),
+    [semSituacao],
+  );
+
+  const grupos = useMemo<Grupo[]>(() => {
+    const m = new Map<string, Grupo>();
+    for (const t of filtradas) {
+      let chave: string;
+      let titulo: string;
+      let ordem = "";
+      const a = t.acaoId ? acaoPorId.get(t.acaoId) : null;
+      if (agrupar === "cidade") {
+        chave = t.cidade ? `${t.cidade}/${t.uf}`.toLowerCase() : `sem-cidade:${t.acaoId ?? ""}`;
+        titulo = t.cidade ? `${t.cidade}, ${t.uf}` : props.rotuloRealizacao(t);
+      } else if (agrupar === "acao") {
+        chave = t.acaoId ? `acao:${t.acaoId}` : `cid:${cidadeDe(t)}`;
+        titulo = a ? `${a.nome} · ${a.tipoNome}` : t.cidade ? `Cidade: ${t.cidade}, ${t.uf}` : "Sem ação";
+      } else if (agrupar === "mes") {
+        const ym = mesDe(t);
+        chave = `mes:${ym}`;
+        titulo = ym ? mesLabel(ym) : "Sem data";
+        ordem = ym || "9999";
+      } else {
+        chave = t.agendaId ?? (t.unidade === "CIDADE" && t.cidade ? `cid:${cidadeDe(t)}` : `acao:${t.acaoId ?? "?"}`);
+        titulo = t.agendaId || !t.cidade ? props.rotuloRealizacao(t) : `Cidade: ${t.cidade}, ${t.uf}`;
+      }
+      const g = m.get(chave) || { chave, titulo, subtitulo: "", tarefas: [], data: null, ordem };
+      g.tarefas.push(t);
+      if (t.prazo && (!g.data || t.prazo < g.data)) g.data = t.prazo;
+      m.set(chave, g);
+    }
+    const lista = [...m.values()];
+    for (const g of lista) {
+      const ativas = g.tarefas.filter((t) => !fechada(t));
+      const atraso = g.tarefas.filter((t) => t.gestao === "EM_ATRASO").length;
+      g.subtitulo = `${g.tarefas.length} tarefas · ${ativas.length} em aberto${atraso ? ` · ${atraso} em atraso` : ""}`;
+    }
+    if (agrupar === "mes") return lista.sort((a, b) => a.ordem.localeCompare(b.ordem));
+    const pior = (g: Grupo) => Math.min(...g.tarefas.map((t) => CRITICIDADE[t.gestao]));
+    return lista.sort((a, b) => pior(a) - pior(b) || (a.data ?? "").localeCompare(b.data ?? ""));
+  }, [filtradas, agrupar, acaoPorId, mesDe, props]);
+
+  const visiveis = grupos.slice(0, limite);
+  const filtrando = Boolean(busca.trim() || tipo || cidade || mes || situacao !== "todas");
+
+  /** Qualquer mudança de filtro volta para a primeira página. */
+  function com<T>(set: (v: T) => void) {
+    return (v: T) => {
+      set(v);
+      setLimite(GRUPOS_POR_PAGINA);
+    };
+  }
+
+  function limpar() {
+    setBusca("");
+    setTipo("");
+    setCidade("");
+    setMes("");
+    setSituacao("todas");
+    setLimite(GRUPOS_POR_PAGINA);
+  }
+
+  const toggle = (set: Set<string>, k: string) => {
+    const n = new Set(set);
+    if (n.has(k)) n.delete(k);
+    else n.add(k);
+    return n;
+  };
+  const todosAbertos = visiveis.length > 0 && visiveis.every((g) => abertos.has(g.chave));
+
+  const chips: Array<[Situacao, string, number, string]> = [
+    ["atraso", "em atraso", contagem.atraso, "border-red-200 bg-red-50 text-red-800"],
+    ["proximo", "prazo próximo", contagem.proximo, "border-amber-200 bg-amber-50 text-amber-900"],
+    ["aberto", "em aberto", contagem.aberto, "border-slate-200 bg-slate-50 text-slate-800"],
+    ["concluidas", "concluídas", contagem.concluidas, "border-emerald-200 bg-emerald-50 text-emerald-800"],
+  ];
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-heading text-lg font-semibold text-brand-deep">
+          Nível 2 · {props.area === "PRODUCAO" ? "Cidades e ações" : "Ações"}{" "}
+          <span className="text-sm font-normal text-muted-foreground">
+            {props.tarefas.length} tarefas · {agrupar === "mes" ? "em ordem de data" : "ordenadas pela criticidade"}
+          </span>
+        </h2>
+        {props.podeEditar && props.tarefas.length ? (
+          <Button variant="outline" size="sm" onClick={() => props.onAvulsa(2)}>
+            <Plus className="size-4" /> Tarefa avulsa
+          </Button>
+        ) : null}
+      </div>
+
+      {props.tarefas.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          Nenhuma ação com data na agenda. A gestão cadastra as datas e cidades das ações em Configuração.
+        </p>
+      ) : (
+        <>
+          <div className="space-y-2 rounded-2xl border border-border/70 bg-white p-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full max-w-xs">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={busca}
+                  onChange={(e) => com(setBusca)(e.target.value)}
+                  placeholder="Buscar ação, tarefa, cidade ou rótulo"
+                  aria-label="Buscar no nível 2"
+                  className="h-9 bg-white pl-8"
+                />
+              </div>
+              {opcoes.tipos.length > 1 ? (
+                <SimpleSelect
+                  value={tipo}
+                  onChange={com(setTipo)}
+                  className="h-9 w-44"
+                  aria-label="Tipo de ação"
+                  options={[{ value: "", label: "Todos os tipos" }, ...opcoes.tipos.map(([id, nome]) => ({ value: id, label: nome }))]}
+                />
+              ) : null}
+              {opcoes.cidades.length > 1 ? (
+                <SimpleSelect
+                  value={cidade}
+                  onChange={com(setCidade)}
+                  className="h-9 w-48"
+                  aria-label="Cidade"
+                  options={[{ value: "", label: "Todas as cidades" }, ...opcoes.cidades.map(([id, nome]) => ({ value: id, label: nome }))]}
+                />
+              ) : null}
+              {opcoes.meses.length > 1 ? (
+                <SimpleSelect
+                  value={mes}
+                  onChange={com(setMes)}
+                  className="h-9 w-44"
+                  aria-label="Mês"
+                  options={[{ value: "", label: "Todos os meses" }, ...opcoes.meses.map((m) => ({ value: m, label: mesLabel(m) }))]}
+                />
+              ) : null}
+              <SimpleSelect
+                value={agrupar}
+                onChange={(v) => {
+                  setAgrupar(v as Agrupar);
+                  setAbertos(new Set());
+                  setLimite(GRUPOS_POR_PAGINA);
+                }}
+                className="h-9 w-40"
+                aria-label="Agrupar"
+                options={(Object.keys(AGRUPAR_LABEL) as Agrupar[]).map((k) => ({ value: k, label: AGRUPAR_LABEL[k] }))}
+              />
+              {filtrando ? (
+                <Button variant="ghost" size="sm" className="h-9" onClick={limpar}>
+                  <X className="size-4" /> Limpar
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {chips.map(([s, label, n, cor]) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => com(setSituacao)(situacao === s ? "todas" : s)}
+                  aria-pressed={situacao === s}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 font-medium tabular-nums transition",
+                    cor,
+                    situacao === s ? "ring-2 ring-brand-deep/40" : "opacity-90 hover:opacity-100",
+                    n === 0 && situacao !== s && "opacity-50",
+                  )}
+                >
+                  {n} {label}
+                </button>
+              ))}
+              <span className="ml-auto text-muted-foreground">
+                {grupos.length} {grupos.length === 1 ? "grupo" : "grupos"}
+                {filtrando ? ` · ${filtradas.length} de ${props.tarefas.length} tarefas` : ""}
+              </span>
+            </div>
+          </div>
+
+          {grupos.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              Nenhuma tarefa com estes filtros.{" "}
+              <button type="button" className="font-semibold underline" onClick={limpar}>
+                Limpar filtros
+              </button>
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm">
+              <div className="flex justify-end border-b border-border/60 px-4 py-1.5">
+                <button
+                  type="button"
+                  className="text-xs font-medium text-teal-800 hover:underline"
+                  onClick={() => setAbertos(todosAbertos ? new Set() : new Set(visiveis.map((g) => g.chave)))}
+                >
+                  {todosAbertos ? "Recolher todos" : `Expandir os ${visiveis.length} grupos`}
+                </button>
+              </div>
+              <div className="divide-y divide-border/60">
+                {visiveis.map((g) => {
+                  const aberto = abertos.has(g.chave);
+                  const piorTarefa = [...g.tarefas].sort((a, b) => CRITICIDADE[a.gestao] - CRITICIDADE[b.gestao])[0]!;
+                  const alerta =
+                    piorTarefa.gestao === "EM_ATRASO"
+                      ? `${piorTarefa.titulo} em atraso`
+                      : piorTarefa.gestao === "PRAZO_PROXIMO"
+                        ? `${piorTarefa.titulo}: prazo próximo`
+                        : null;
+                  // Concluídas e não contempladas continuam na lista, no fim e mais apagadas.
+                  const todas = [...g.tarefas.filter((t) => !fechada(t)), ...g.tarefas.filter(fechada)];
+                  const maxLinhas = linhasPorGrupo[g.chave] ?? TAREFAS_POR_GRUPO;
+                  const linhas = todas.slice(0, maxLinhas);
+                  return (
+                    <div key={g.chave}>
+                      <button
+                        type="button"
+                        onClick={() => setAbertos((s) => toggle(s, g.chave))}
+                        aria-expanded={aberto}
+                        className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left hover:bg-muted/30 sm:grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
+                      >
+                        {aberto ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-brand-deep" title={g.titulo}>
+                            {g.titulo}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">{g.subtitulo}</span>
+                        </span>
+                        <span className="col-start-2 flex items-center gap-2 sm:col-start-auto">
+                          <Progresso valor={pct(g.tarefas)} cor={props.corBarra} />
+                          <span className="w-9 text-xs tabular-nums text-muted-foreground">{pct(g.tarefas)}%</span>
+                        </span>
+                        <span className="col-start-2 truncate text-xs sm:col-start-auto">
+                          {alerta ? (
+                            <span className={cn("inline-flex items-center gap-1.5", piorTarefa.gestao === "EM_ATRASO" ? "text-red-700" : "text-amber-800")}>
+                              <span className={cn("h-2 w-2 shrink-0 rounded-full", GESTAO_COR[piorTarefa.gestao])} />
+                              {alerta}
+                            </span>
+                          ) : (
+                            <GestaoBadge s={piorTarefa.gestao} />
+                          )}
+                        </span>
+                      </button>
+                      {aberto ? (
+                        <div className="border-t border-border/50 bg-muted/10 px-4 py-3">
+                          <table className="w-full text-sm">
+                            <thead className="text-left text-xs text-muted-foreground">
+                              <tr>
+                                <th className="pb-2 font-medium">Tarefa</th>
+                                <th className="hidden pb-2 font-medium sm:table-cell">Fase</th>
+                                <th className="pb-2 font-medium">Prazo</th>
+                                <th className="pb-2 font-medium">Status da equipe</th>
+                                <th className="hidden pb-2 font-medium md:table-cell">Gestão</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/40">
+                              {linhas.map((t) => (
+                                <tr key={t.id} className={cn(fechada(t) && "bg-muted/20")}>
+                                  <td className="py-2 pr-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => props.onAbrir(t)}
+                                      className={cn(
+                                        "inline-flex items-center gap-1.5 text-left hover:text-brand-deep hover:underline",
+                                        t.status === "CONCLUIDA" && "text-muted-foreground",
+                                        t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
+                                      )}
+                                    >
+                                      {t.status === "CONCLUIDA" ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : null}
+                                      {t.titulo}
+                                    </button>
+                                    {agrupar !== "execucao" && t.unidade === "ACAO" ? (
+                                      <div className="text-xs text-muted-foreground">{props.rotuloRealizacao(t)}</div>
+                                    ) : null}
+                                    {agrupar !== "execucao" && t.unidade === "CIDADE" ? (
+                                      <div className="text-xs font-medium text-teal-800">
+                                        Cidade{agrupar !== "cidade" && t.cidade ? `: ${t.cidade}, ${t.uf}` : ""}
+                                      </div>
+                                    ) : null}
+                                  </td>
+                                  <td className="hidden py-2 pr-3 text-xs text-muted-foreground sm:table-cell">{FASE_LABEL[t.fase]}</td>
+                                  <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{fmtCurto(t.prazo)}</td>
+                                  <td className="py-2 pr-3">
+                                    <span className="inline-flex items-center gap-2">
+                                      <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
+                                      {t.comentarios ? (
+                                        <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+                                          <MessageSquare className="size-3.5" />
+                                          {t.comentarios}
+                                        </span>
+                                      ) : null}
+                                      {t.escaladasAbertas ? <Flag className="size-3.5 text-red-600" aria-label="Escalada à gestão" /> : null}
+                                    </span>
+                                  </td>
+                                  <td className="hidden py-2 md:table-cell">
+                                    {t.concluidaEm ? <ConclusaoInfo t={t} /> : <GestaoBadge s={t.gestao} />}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {todas.length > maxLinhas ? (
+                            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <span>
+                                Mostrando {linhas.length} de {todas.length} tarefas
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLinhasPorGrupo((m) => ({ ...m, [g.chave]: maxLinhas + TAREFAS_POR_GRUPO }))}
+                              >
+                                Mostrar mais {Math.min(TAREFAS_POR_GRUPO, todas.length - maxLinhas)}
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              {grupos.length > limite ? (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
+                  <span>
+                    Mostrando {visiveis.length} de {grupos.length} grupos
+                  </span>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setLimite((l) => l + GRUPOS_POR_PAGINA)}>
+                      Mostrar mais {Math.min(GRUPOS_POR_PAGINA, grupos.length - limite)}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setLimite(grupos.length)}>
+                      Mostrar todos
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function TarefaDialog({
+  tarefa,
+  podeEditar,
+  podeComentar,
+  contexto,
+  onClose,
+  onStatus,
+}: {
+  tarefa: TarefaDTO;
+  podeEditar: boolean;
+  podeComentar: boolean;
+  contexto: string | null;
+  onClose: () => void;
+  onStatus: (s: StatusTarefa) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [titulo, setTitulo] = useState(tarefa.titulo);
+  const [detalhamento, setDetalhamento] = useState(tarefa.detalhamento);
+  const [prazo, setPrazo] = useState(tarefa.prazo ?? "");
+  const [concluidaEm, setConcluidaEm] = useState(tarefa.concluidaEm ?? "");
+  const [comentarios, setComentarios] = useState<ComentarioDTO[] | null>(null);
+  const [texto, setTexto] = useState("");
+  const [escalar, setEscalar] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    void listComentariosAction(tarefa.id).then((c) => vivo && setComentarios(c));
+    return () => {
+      vivo = false;
+    };
+  }, [tarefa.id]);
+
+  function salvar() {
+    startTransition(async () => {
+      const r = await editTarefaAction(tarefa.id, {
+        titulo,
+        detalhamento,
+        prazo: prazo || null,
+        concluidaEm: concluidaEm && concluidaEm !== tarefa.concluidaEm ? concluidaEm : null,
+      });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("Tarefa atualizada");
+      router.refresh();
+      onClose();
+    });
+  }
+
+  function comentar() {
+    startTransition(async () => {
+      const r = await addComentarioAction(tarefa.id, { texto, escalar });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(escalar ? "Escalado para a gestão" : "Observação registrada");
+      setTexto("");
+      setEscalar(false);
+      setComentarios(await listComentariosAction(tarefa.id));
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{tarefa.titulo}</DialogTitle>
+          <DialogDescription>
+            {AREA_LABEL[tarefa.area]} · Nível {tarefa.nivel} · {FASE_LABEL[tarefa.fase]}
+            {contexto ? ` · ${contexto}` : ""}
+            {tarefa.avulsa ? " · avulsa" : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusChip t={tarefa} podeEditar={podeEditar} pending={pending} onStatus={(_, s) => onStatus(s)} />
+          {tarefa.concluidaEm ? <ConclusaoInfo t={tarefa} /> : <GestaoBadge s={tarefa.gestao} />}
+        </div>
+
+        {podeEditar ? (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Título</Label>
+              <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Detalhamento</Label>
+              <Textarea rows={3} value={detalhamento} onChange={(e) => setDetalhamento(e.target.value)} />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="space-y-1.5">
+                <Label>Prazo</Label>
+                <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
+              </div>
+              {tarefa.status === "CONCLUIDA" ? (
+                <div className="space-y-1.5">
+                  <Label>Concluída em</Label>
+                  <DatePicker
+                    value={concluidaEm}
+                    onChange={(v) => v && setConcluidaEm(v)}
+                    clearable={false}
+                    className="w-52"
+                    aria-label="Dia da conclusão"
+                  />
+                </div>
+              ) : null}
+            </div>
+            {tarefa.status === "CONCLUIDA" ? (
+              <p className="text-xs text-muted-foreground">
+                O dia da conclusão é gravado quando a tarefa é marcada como concluída. Corrija aqui se ela foi
+                concluída antes de ser marcada.
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-1 text-sm">
+            {tarefa.detalhamento ? <p className="text-muted-foreground">{tarefa.detalhamento}</p> : null}
+            <p>
+              Prazo: {fmtDia(tarefa.prazo)}
+              {tarefa.concluidaEm ? ` · Concluída em ${fmtDia(tarefa.concluidaEm)}` : ""}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-2 border-t border-border/60 pt-3">
+          <h3 className="text-sm font-semibold text-brand-deep">Observações</h3>
+          {comentarios && comentarios.length ? (
+            <ul className="max-h-48 space-y-2 overflow-y-auto">
+              {comentarios.map((c) => (
+                <li key={c.id} className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{c.autorNome}</span>
+                    <span>{new Date(c.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+                    {c.escalada ? (
+                      <span className="inline-flex items-center gap-1 font-medium text-red-700">
+                        <Flag className="size-3" /> Escalada{c.resolvida ? " (resolvida)" : ""}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 whitespace-pre-wrap">{c.texto}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground">Nenhuma observação.</p>
+          )}
+          {podeComentar ? (
+            <div className="space-y-2">
+              <Textarea rows={2} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escreva uma observação" />
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={escalar} onChange={(e) => setEscalar(e.target.checked)} className="size-4 accent-red-600" />
+                Escalar para a gestão
+              </label>
+              <Button variant="outline" size="sm" disabled={pending || !texto.trim()} onClick={comentar}>
+                {escalar ? "Escalar" : "Adicionar observação"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Fechar
+          </Button>
+          {podeEditar ? (
+            <Button disabled={pending} onClick={salvar}>
+              Salvar
+            </Button>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AvulsaDialog({
+  projetoId,
+  area,
+  nivel,
+  data,
+  onClose,
+}: {
+  projetoId: string;
+  area: AreaTarefa;
+  nivel: 1 | 2;
+  data: AcompanhamentoDTO;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [titulo, setTitulo] = useState("");
+  const [fase, setFase] = useState<FaseTarefa>(nivel === 1 ? "PLANEJAMENTO" : "ANTES");
+  const [prazo, setPrazo] = useState("");
+  const realizacoes = data.acoes.flatMap((a) => a.agenda.map((g) => ({ a, g })));
+  const [alvo, setAlvo] = useState(realizacoes[0] ? `ag:${realizacoes[0].g.id}` : "");
+
+  function criar() {
+    const ag = alvo.startsWith("ag:") ? realizacoes.find((r) => r.g.id === alvo.slice(3)) : null;
+    const cidade = alvo.startsWith("cid:") ? alvo.slice(4).split("|") : null;
+    startTransition(async () => {
+      const r = await createTarefaAvulsaAction(projetoId, {
+        area,
+        nivel,
+        fase,
+        titulo,
+        prazo: prazo || null,
+        acaoId: ag?.a.id ?? null,
+        agendaId: ag?.g.id ?? null,
+        cidade: ag?.g.cidade ?? cidade?.[0] ?? null,
+        uf: ag?.g.uf ?? cidade?.[1] ?? null,
+      });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("Tarefa criada");
+      router.refresh();
+      onClose();
+    });
+  }
+
+  const cidades = [...new Map(realizacoes.filter(({ g }) => !g.online).map(({ g }) => [`${g.cidade}|${g.uf}`, g])).values()];
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Tarefa avulsa · {AREA_LABEL[area]}</DialogTitle>
+          <DialogDescription>Fora do padrão, só neste projeto. Nível {nivel}.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Título</Label>
+            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Fase</Label>
+            <SimpleSelect
+              value={fase}
+              onChange={(v) => setFase(v as FaseTarefa)}
+              className="h-9 w-full"
+              aria-label="Fase"
+              options={(nivel === 1 ? FASES_NIVEL1 : FASES_NIVEL2).map((f) => ({ value: f, label: FASE_LABEL[f] }))}
+            />
+          </div>
+          {nivel === 2 ? (
+            <div className="space-y-1.5">
+              <Label>{area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}</Label>
+              <SearchSelect
+                value={alvo}
+                onValueChange={setAlvo}
+                className="h-9 w-full"
+                aria-label={area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}
+                placeholder="Escolha a execução"
+                searchPlaceholder="Buscar ação, data ou local"
+                options={[
+                  ...realizacoes.map(({ a, g }) => ({
+                    value: `ag:${g.id}`,
+                    label: `${a.nome} · ${g.titulo || periodoCurto(g)}`,
+                    hint: g.local,
+                  })),
+                  ...(area === "PRODUCAO"
+                    ? cidades.map((g) => ({ value: `cid:${g.cidade}|${g.uf}`, label: `Cidade: ${g.cidade}, ${g.uf}` }))
+                    : []),
+                ]}
+              />
+            </div>
+          ) : null}
+          <div className="space-y-1.5">
+            <Label>Prazo (opcional)</Label>
+            <DatePicker value={prazo} onChange={setPrazo} className="w-52" aria-label="Prazo" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button disabled={pending || !titulo.trim() || (nivel === 2 && !alvo)} onClick={criar}>
+            Criar tarefa
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Configuracao({ data }: { data: AcompanhamentoDTO }) {
+  const router = useRouter();
+  const confirmar = useConfirm();
+  const [pending, startTransition] = useTransition();
+  const [inicio, setInicio] = useState(data.inicioExecucao ?? "");
+  const [fim, setFim] = useState(data.fimExecucao ?? "");
+  const pode = data.pode.gestao;
+
+  async function atualizarPreDefinicao() {
+    const ok = await confirmar({
+      title: "Usar a pré-definição atual?",
+      description: "As tarefas novas da pré-definição entram neste projeto, e os prazos que não foram editados à mão são recalculados.",
+      confirmLabel: "Usar a atual",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const r = await atualizarPreDefinicaoProjetoAction(data.projeto.id);
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("Projeto atualizado para a pré-definição atual");
+      router.refresh();
+    });
+  }
+
+  function salvarDatas() {
+    startTransition(async () => {
+      const r = await setDatasProjetoAction(data.projeto.id, { inicioExecucao: inicio || null, fimExecucao: fim || null });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("Datas salvas; prazos recalculados");
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="space-y-8">
+      {!pode ? (
+        <p className="text-sm text-muted-foreground">Só consulta: a gestão do acompanhamento altera datas e agenda.</p>
+      ) : null}
+
+      <section className="space-y-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+        <div>
+          <h2 className="font-heading text-lg font-semibold text-brand-deep">Execução do projeto</h2>
+          <p className="text-sm text-muted-foreground">Base dos prazos do nível 1 (ex.: datas do SALIC).</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full max-w-sm space-y-1.5">
+            <Label>Período de execução</Label>
+            <DateRangePicker
+              inicio={inicio}
+              fim={fim}
+              disabled={!pode}
+              aria-label="Período de execução do projeto"
+              onChange={(a, b) => {
+                setInicio(a);
+                setFim(b);
+              }}
+            />
+          </div>
+          {pode ? (
+            <Button disabled={pending} onClick={salvarDatas}>
+              Salvar datas
+            </Button>
+          ) : null}
+        </div>
+      </section>
+
+      <RecursoSecao data={data} />
+
+<PrazosProjeto data={data} pending={pending} onAtualizar={atualizarPreDefinicao} />
+
+      <AgendaAcoes data={data} />
+    </div>
+  );
+}
+
+const mesmoPrazo = (a: { prazoBase: unknown; prazoDias: unknown }, b: { prazoBase: unknown; prazoDias: unknown }) =>
+  a.prazoBase === b.prazoBase && a.prazoDias === b.prazoDias;
+
+/**
+ * Tarefas e prazos deste projeto: começam com a pré-definição (atalho) e a gestão
+ * ajusta o prazo de cada tarefa só aqui, quando o cronograma do projeto pede.
+ */
+function PrazosProjeto({ data, pending, onAtualizar }: { data: AcompanhamentoDTO; pending: boolean; onAtualizar: () => void }) {
+  const [area, setArea] = useState<AreaTarefa>("COMUNICACAO");
+  const [aberto, setAberto] = useState(false);
+  const [editando, setEditando] = useState<PrazoProjetoDTO | null>(null);
+  const pode = data.pode.gestao;
+  const ajustados = data.prazos.filter((p) => p.padrao && !mesmoPrazo(p, p.padrao)).length;
+  const itens = data.prazos
+    .filter((p) => p.area === area)
+    .sort((a, b) => a.ordem - b.ordem)
+    .map((p) => ({ ...p, id: p.modeloId }));
+
+  return (
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <div className="max-w-2xl">
+        <h2 className="font-heading text-lg font-semibold text-brand-deep">Tarefas e prazos deste projeto</h2>
+        <p className="text-sm text-muted-foreground">
+          Começam com a{" "}
+          <Link href="/dashboard/acompanhamento/pre-definicao" className="font-medium text-teal-800 hover:underline">
+            pré-definição das tarefas
+          </Link>{" "}
+          de {fmtDia(data.preDefinicaoEm)}. Se o cronograma deste projeto for diferente, ajuste o prazo: vale só para
+          este projeto.
+          {ajustados ? (
+            <strong className="font-semibold text-foreground">
+              {" "}
+              {ajustados === 1 ? "1 prazo ajustado." : `${ajustados} prazos ajustados.`}
+            </strong>
+          ) : null}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => setAberto(true)}>
+          {pode ? "Ver e ajustar prazos" : "Ver prazos"}
+        </Button>
+        {pode ? (
+          <Button variant="outline" disabled={pending} onClick={onAtualizar}>
+            Usar a pré-definição atual
+          </Button>
+        ) : null}
+      </div>
+
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>Tarefas e prazos deste projeto</DialogTitle>
+            <DialogDescription>
+              {data.projeto.nome} · mesma organização da pré-definição. O D é o início ou o fim da execução do projeto
+              (nível 1) ou da ação (nível 2). Ajustar aqui não muda a pré-definição geral.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <AbasArea area={area} onChange={setArea} />
+            <TarefasPorFase
+              itens={itens}
+              extra={(p) =>
+                p.padrao && !mesmoPrazo(p, p.padrao) ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-900 ring-1 ring-amber-200">
+                      Ajustado neste projeto
+                    </span>
+                    <span className="text-muted-foreground">pré-definição: {regraLabel(p.padrao.prazoBase, p.padrao.prazoDias)}</span>
+                  </div>
+                ) : null
+              }
+              acoes={
+                pode
+                  ? (p) => (
+                      <Button variant="ghost" size="icon-sm" aria-label={`Ajustar prazo de ${p.titulo}`} onClick={() => setEditando(p)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                    )
+                  : undefined
+              }
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {editando ? <PrazoDialog projetoId={data.projeto.id} prazo={editando} onClose={() => setEditando(null)} /> : null}
+    </section>
+  );
+}
+
+function PrazoDialog({ projetoId, prazo, onClose }: { projetoId: string; prazo: PrazoProjetoDTO; onClose: () => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [regra, setRegra] = useState({ prazoBase: prazo.prazoBase, prazoDias: prazo.prazoDias });
+  const padrao = prazo.padrao;
+
+  function salvar(valor: typeof regra, msg: string) {
+    startTransition(async () => {
+      const r = await setPrazoProjetoAction(projetoId, prazo.modeloId, valor);
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(msg);
+      router.refresh();
+      onClose();
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Prazo neste projeto</DialogTitle>
+          <DialogDescription>
+            {prazo.titulo} · {AREA_LABEL[prazo.area]} · Nível {prazo.nivel}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <RegraCampo
+            titulo="Prazo"
+            nivel={prazo.nivel}
+            base={regra.prazoBase}
+            dias={regra.prazoDias}
+            onChange={(prazoBase, prazoDias) => setRegra({ prazoBase, prazoDias })}
+          />
+          {padrao ? (
+            <p className="text-xs text-muted-foreground">Na pré-definição: {regraLabel(padrao.prazoBase, padrao.prazoDias)}.</p>
+          ) : null}
+          <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Os prazos das tarefas deste projeto são recalculados. Vale só para este projeto; a pré-definição geral não muda.
+            {prazo.editadasAMao
+              ? ` ${prazo.editadasAMao} tarefa(s) com o prazo mudado à mão continuam com a data que a equipe pôs.`
+              : ""}
+          </p>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          {padrao && !mesmoPrazo(prazo, padrao) ? (
+            <Button variant="ghost" disabled={pending} onClick={() => salvar(padrao, "Prazo voltou ao da pré-definição")}>
+              <RotateCcw className="size-4" /> Voltar ao da pré-definição
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button disabled={pending || mesmoPrazo(regra, prazo)} onClick={() => salvar(regra, "Prazo ajustado neste projeto")}>
+              Salvar
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const reais = (v: number | null) =>
+  v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+/**
+ * Recurso liberado: vem do projeto do MAX Financeiro ligado a este (PRONAC ou
+ * escolhido pela gestão nas outras leis). A gestão também pode informar a data.
+ */
+function RecursoSecao({ data }: { data: AcompanhamentoDTO }) {
+  const router = useRouter();
+  const confirmar = useConfirm();
+  const [pending, startTransition] = useTransition();
+  const [busca, setBusca] = useState("");
+  const [resultados, setResultados] = useState<Array<{ id: string; nome: string; label: string }> | null>(null);
+  const [trocar, setTrocar] = useState(false);
+  const [dataManual, setDataManual] = useState("");
+  const pode = data.pode.gestao;
+  const fin = data.financeiro;
+
+  function buscar() {
+    startTransition(async () => setResultados(await buscarFinanceiroAction(busca)));
+  }
+
+  function rodar(fn: () => Promise<{ ok: boolean; error?: string }>, msg: string) {
+    startTransition(async () => {
+      const r = await fn();
+      if (!r.ok) return void toast.error(r.error ?? "Não foi possível salvar.");
+      toast.success(msg);
+      setTrocar(false);
+      setDataManual("");
+      setResultados(null);
+      setBusca("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
+      <div>
+        <h2 className="font-heading text-lg font-semibold text-brand-deep">Recurso liberado</h2>
+        <p className="text-sm text-muted-foreground">
+          Os prazos das tarefas só contam depois da liberação. Ela vem do projeto no MAX Financeiro: quando há valor
+          transferido para a conta de movimentação (do SALIC no federal; lançado à mão nas outras leis).
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {data.recursoLiberadoEm ? (
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+            Liberado em {fmtDia(data.recursoLiberadoEm)} ·{" "}
+            {data.recursoFonte === "GESTAO" ? "informado pela gestão" : "detectado no MAX Financeiro"}
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">Aguardando liberação</span>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Projeto no MAX Financeiro</div>
+        {fin && !trocar ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm">
+              <div className="font-medium text-brand-deep">{fin.nome}</div>
+              <div className="text-xs text-muted-foreground">
+                {fin.label} · transferido {reais(fin.captadoTransferido)}
+                {data.financeiroManual ? " · escolhido pela gestão" : " · pelo PRONAC"}
+              </div>
+            </div>
+            {pode ? (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setTrocar(true)}>
+                  Trocar
+                </Button>
+                {data.financeiroManual ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => rodar(() => vincularFinanceiroAction(data.projeto.id, null), "Vínculo desfeito")}
+                  >
+                    Desfazer vínculo
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {!fin ? (
+              <p className="text-sm text-muted-foreground">
+                {data.projeto.pronac
+                  ? `Nenhum projeto do MAX Financeiro com o PRONAC ${data.projeto.pronac}.`
+                  : "Projeto sem PRONAC (outras leis)."}{" "}
+                {pode ? "Escolha o projeto correspondente no MAX Financeiro." : ""}
+              </p>
+            ) : null}
+            {pode ? (
+              <div className="space-y-2">
+                <form
+                  className="flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    buscar();
+                  }}
+                >
+                  <Input
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Nome ou código do projeto no MAX Financeiro"
+                    aria-label="Buscar projeto no MAX Financeiro"
+                    className="h-9 w-full max-w-md bg-white"
+                  />
+                  <Button type="submit" variant="outline" size="sm" className="h-9" disabled={pending}>
+                    Buscar
+                  </Button>
+                  {trocar ? (
+                    <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => setTrocar(false)}>
+                      Cancelar
+                    </Button>
+                  ) : null}
+                </form>
+                {resultados ? (
+                  resultados.length ? (
+                    <ul className="max-w-xl divide-y divide-border/60 rounded-lg border border-border/60 bg-white">
+                      {resultados.map((f) => (
+                        <li key={f.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-brand-deep">{f.nome}</span>
+                            <span className="block text-xs text-muted-foreground">{f.label}</span>
+                          </span>
+                          <Button
+                            size="sm"
+                            disabled={pending || f.id === fin?.id}
+                            onClick={() =>
+                              rodar(() => vincularFinanceiroAction(data.projeto.id, f.id), "Projeto do MAX Financeiro vinculado")
+                            }
+                          >
+                            {f.id === fin?.id ? "Vinculado" : "Vincular"}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nenhum projeto encontrado no MAX Financeiro.</p>
+                  )
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {pode ? (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informar à mão</div>
+          <p className="text-xs text-muted-foreground">
+            Para corrigir a data ou para um projeto que não está no MAX Financeiro.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <DatePicker value={dataManual} onChange={setDataManual} className="w-52" aria-label="Data da liberação" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              disabled={pending || !dataManual}
+              onClick={() => rodar(() => setRecursoLiberadoAction(data.projeto.id, dataManual), "Liberação informada")}
+            >
+              Salvar data
+            </Button>
+            {data.recursoFonte === "GESTAO" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9"
+                disabled={pending}
+                onClick={async () => {
+                  const ok = await confirmar({
+                    title: "Voltar para aguardando liberação?",
+                    description: "A data informada pela gestão sai e o MAX Financeiro volta a ser consultado.",
+                    confirmLabel: "Voltar para aguardando",
+                    destructive: true,
+                  });
+                  if (ok) rodar(() => setRecursoLiberadoAction(data.projeto.id, null), "Voltou para aguardando");
+                }}
+              >
+                Voltar para aguardando
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}

@@ -3,7 +3,8 @@
  * Uso: npx tsx scripts/seed-auth.ts
  */
 import { config } from "dotenv";
-config({ path: ".env.local", override: true });
+// `npm run dev:teste` (MAX_AMBIENTE): o ambiente já vem no processo.
+if (!process.env.MAX_AMBIENTE) config({ path: ".env.local", override: true });
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -87,13 +88,13 @@ async function main() {
       create: {
         name: PROFESSOR_ROLE_NAME,
         description:
-          "Só avalia respostas das oficinas em que está vinculado como professor",
+          "Só avalia respostas das ações em que está vinculado como professor",
         isSystem: true,
         dataScopeMode: "LIMITED",
       },
       update: {
         description:
-          "Só avalia respostas das oficinas em que está vinculado como professor",
+          "Só avalia respostas das ações em que está vinculado como professor",
         isSystem: true,
       },
     });
