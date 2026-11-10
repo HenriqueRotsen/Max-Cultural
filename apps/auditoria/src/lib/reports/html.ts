@@ -5,7 +5,7 @@ import { formatPercent, sharePercent } from "@/lib/audit";
 import {
   computeProponentGroupShare,
   evaluatePronacSupplierCompliance,
-  isExcludedFromBondItem,
+  paymentCountsForBond,
   isNearLimit,
   legalBasisNote,
   proponentLimitPct,
@@ -187,7 +187,7 @@ function relationLabel(relation?: string | null) {
   return RELATION_LABELS[relation as RelationKind] || relation;
 }
 
-/** Seção prioritária: soma % só de quem gera vínculo art. 23 + lista de todos os observados. */
+/** Seção prioritária: soma % só de quem tem vínculo com o proponente + lista dos observados. */
 function bondAndWatchedHtml(params: {
   projectTotal: number;
   paidTotal?: number;
@@ -206,9 +206,8 @@ function bondAndWatchedHtml(params: {
     params.paidTotal && params.paidTotal > 0
       ? params.paidTotal
       : params.projectTotal;
-  const bondList = params.bondSuppliers?.length
-    ? params.bondSuppliers
-    : params.suppliers;
+  const bondList = params.bondSuppliers ??
+    params.suppliers;
   const group = computeProponentGroupShare({
     projectTotal: params.projectTotal,
     accountCgccpf: params.accountCgccpf,
@@ -239,6 +238,10 @@ function bondAndWatchedHtml(params: {
   const paidByCgccpf = new Map(
     params.suppliers.map((s) => [normalizeCgccpf(s.cgccpf), s]),
   );
+  /** Valor que conta para o vínculo (mesma regra da tela: "—" quando nada conta). */
+  const countedByCgccpf = new Map(
+    bondList.map((s) => [normalizeCgccpf(s.cgccpf), s.total]),
+  );
 
   const limitPct =
     params.personType === "PF" || params.personType === "MEI"
@@ -247,7 +250,7 @@ function bondAndWatchedHtml(params: {
 
   const bondSection = group
     ? `
-    <h3>Soma do art. 23</h3>
+    <h3>Soma do vínculo com o proponente</h3>
     <div class="panel keep" style="border-color:${GOLD};background:${GOLD_SOFT}">
       <p style="margin:0 0 10px;font-size:12px;color:${NAVY}">
         Soma apenas de <strong>proponente + observados com vínculo ligado</strong> na
@@ -280,7 +283,7 @@ function bondAndWatchedHtml(params: {
             })
             .join("")}
           <tr style="background:#fff;font-weight:700">
-            <td colspan="2">Soma do art. 23</td>
+            <td colspan="2">Soma do vínculo com o proponente</td>
             <td class="num">${formatCurrency(group.amount)}</td>
             <td class="num" style="color:${group.percent > limitPct ? "#b42318" : NAVY}">
               ${formatPercent(group.amount, params.projectTotal)}
@@ -293,10 +296,10 @@ function bondAndWatchedHtml(params: {
     </div>
   `
     : `
-    <h3>Soma do art. 23</h3>
+    <h3>Soma do vínculo com o proponente</h3>
     <div class="alert info">
       <strong>Sem soma de vínculo neste PRONAC</strong>
-      <p>Não há pagamentos a observados com vínculo ligado nesta IN (${escapeHtml(rules.sourceCode)}). Ative o vínculo no detalhe do PRONAC quando couber.</p>
+      <p>Não há pagamentos a observados com vínculo ligado nesta IN (${escapeHtml(rules.sourceCode)}). Ligue o vínculo no detalhe do PRONAC quando couber.</p>
     </div>
   `;
 
@@ -317,7 +320,8 @@ function bondAndWatchedHtml(params: {
     <h3>Observados neste PRONAC</h3>
     <div class="panel">
       <p style="margin:0 0 10px;font-size:11px;color:${GRAY_500}">
-        Observados com pagamento neste projeto. Vínculo Sim/Não conforme a ${escapeHtml(rules.sourceCode)}.
+        Observados com pagamento neste projeto. Vínculo Sim/Não marcado neste PRONAC, conforme a ${escapeHtml(rules.sourceCode)}.
+        “Valor que conta” segue a marcação de cada pagamento (alimentação e refeição começam fora).
       </p>
       <table>
         <thead>
@@ -325,8 +329,8 @@ function bondAndWatchedHtml(params: {
             <th>#</th>
             <th>Observado</th>
             <th>CNPJ/CPF</th>
-            <th>Vínculo art. 23</th>
-            <th class="num">Pago neste PRONAC</th>
+            <th>Tem vínculo?</th>
+            <th class="num">Valor que conta</th>
             <th class="num">% captado</th>
             <th class="num">% comprovado</th>
           </tr>
@@ -337,6 +341,8 @@ function bondAndWatchedHtml(params: {
               const dig = normalizeCgccpf(w.cgccpf || "");
               const isBond = dig ? bondSet.has(dig) : false;
               const paid = dig ? paidByCgccpf.get(dig) : undefined;
+              const counted = dig ? countedByCgccpf.get(dig) || 0 : 0;
+              const ignored = Math.max(0, (paid?.total || 0) - counted);
               return `
             <tr>
               <td>${i + 1}</td>
@@ -352,14 +358,16 @@ function bondAndWatchedHtml(params: {
                     : `<span style="color:${GRAY_500}">Não</span>`
                 }
               </td>
-              <td class="num">${paid ? formatCurrency(paid.total) : "—"}</td>
-              <td class="num">${
-                paid
-                  ? formatPercent(paid.total, params.projectTotal)
-                  : "—"
+              <td class="num">${counted > 0 ? formatCurrency(counted) : "—"}${
+                ignored > 0
+                  ? `<div style="color:${GRAY_500};font-size:10px;font-weight:400">+ ${formatCurrency(ignored)} que não conta</div>`
+                  : ""
               }</td>
               <td class="num">${
-                paid ? formatPercent(paid.total, comprovado) : "—"
+                counted > 0 ? formatPercent(counted, params.projectTotal) : "—"
+              }</td>
+              <td class="num">${
+                counted > 0 ? formatPercent(counted, comprovado) : "—"
               }</td>
             </tr>`;
             })
@@ -854,11 +862,9 @@ export function buildPronacDetailWarnings(params: {
     relatedParties: params.relatedParties,
     rules,
     suppliers: params.allSuppliers?.length ? params.allSuppliers : params.suppliers,
-    bondSuppliers: params.bondSuppliers?.length
-      ? params.bondSuppliers
-      : params.allSuppliers?.length
-        ? params.allSuppliers
-        : params.suppliers,
+    bondSuppliers:
+      params.bondSuppliers ??
+      (params.allSuppliers?.length ? params.allSuppliers : params.suppliers),
   });
 
   for (const alert of legal) {
@@ -981,7 +987,7 @@ export async function renderPronacOverviewHtml(params: {
     <h2>Todos os observados</h2>
     <div class="panel keep">
       <p style="margin:0 0 10px;font-size:11px;color:${GRAY_500}">
-        Lista completa de observação. No detalhe por PRONAC, a soma prioritária é só de quem gera vínculo art. 23.
+        Lista completa de observação. No detalhe por PRONAC, a soma prioritária é só de quem tem vínculo com o proponente.
       </p>
       <table>
         <thead>
@@ -1013,7 +1019,7 @@ export async function renderPronacOverviewHtml(params: {
     <h2>Fornecedores observados</h2>
     <div class="alert attention">
       <strong>Lista de observados vazia</strong>
-      <p>Cadastre fornecedores em Fornecedores. Os vínculos art. 23 usam o cadastro de relacionamentos da conta.</p>
+      <p>Cadastre fornecedores em Fornecedores. O vínculo com o proponente é marcado em cada PRONAC.</p>
     </div>
   `;
 
@@ -1096,13 +1102,13 @@ export async function renderPronacOverviewHtml(params: {
       const header = `
         <tr class="supplier-row supplier-header">
           <td class="indent" colspan="3" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">
-            <span class="supplier-mark"></span>Fornecedor · CNPJ/CPF · vínculo art. 23 primeiro
+            <span class="supplier-mark"></span>Fornecedor · CNPJ/CPF · vínculo com proponente primeiro
           </td>
           <td style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">IN / detalhe</td>
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Total</td>
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">% captado</td>
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">% comprovado</td>
-          <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Vínculo art. 23</td>
+          <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Vínculo com proponente</td>
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Participação</td>
           <td class="num" style="color:${GRAY_500};font-size:10px;text-transform:uppercase;letter-spacing:0.06em">Pagamentos</td>
         </tr>
@@ -1157,7 +1163,7 @@ export async function renderPronacOverviewHtml(params: {
       const bondFooter = group
         ? `
         <tr class="supplier-row" style="font-weight:700${group.percent > limitPct ? ";background:#fef2f2" : group.percent >= limitPct * 0.8 ? ";background:#fff7ed" : ""}">
-          <td class="indent" colspan="3">Soma dos % com vínculo art. 23</td>
+          <td class="indent" colspan="3">Soma dos % com vínculo com o proponente</td>
           <td style="font-size:10px;color:${GRAY_500}">${escapeHtml(rowRules.sourceCode)}</td>
           <td class="num">${formatCurrency(group.amount)}</td>
           <td class="num" style="color:${group.percent > limitPct ? "#b42318" : NAVY}">
@@ -1228,7 +1234,7 @@ export async function renderPronacOverviewHtml(params: {
             <th>IN</th>
             <th class="num">${params.filters.watchedOnly ? "Total observados" : "Total"}</th>
             ${params.filters.watchedOnly ? `<th class="num">% captado</th><th class="num">% comprovado</th>` : ""}
-            <th class="num">Soma % vínculo art. 23</th>
+            <th class="num">Soma % vínculo com proponente</th>
             <th class="num">Fornecedores</th>
             <th class="num">Pagamentos</th>
           </tr>
@@ -1244,8 +1250,8 @@ export async function renderPronacOverviewHtml(params: {
   return shellHtml({
     title: "Panorama por PRONAC",
     subtitle: params.filters.watchedOnly
-      ? "Observados listados; soma prioritária = só quem gera vínculo art. 23"
-      : "Visão consolidada — coluna de vínculo art. 23 destaca a soma prioritária",
+      ? "Observados listados; soma prioritária = só quem tem vínculo com o proponente"
+      : "Visão consolidada — coluna de vínculo com o proponente destaca a soma prioritária",
     logoDataUri,
     filters: params.filters,
     body,
@@ -1299,6 +1305,7 @@ export async function renderPronacDetailHtml(params: {
     paymentDate: Date | null;
     supplierName: string;
     itemName: string | null;
+    countsForBond?: boolean | null;
     amount: number;
     documentType: string | null;
     documentNumber: string | null;
@@ -1310,9 +1317,8 @@ export async function renderPronacDetailHtml(params: {
   const suppliersForCap = params.allSuppliers?.length
     ? params.allSuppliers
     : params.suppliers;
-  const suppliersForBond = params.bondSuppliers?.length
-    ? params.bondSuppliers
-    : suppliersForCap;
+  const suppliersForBond = params.bondSuppliers ??
+    suppliersForCap;
   const warnings = buildPronacDetailWarnings({
     pronac: params.pronac,
     projectTotal: params.projectTotal,
@@ -1399,7 +1405,7 @@ export async function renderPronacDetailHtml(params: {
     ${sectionTitle(1, "Avisos", `Pontos que passaram ou estão perto dos limites da ${rules.sourceCode}. Vermelho é o que passou do limite; amarelo, o que está perto.`)}
     ${warningsHtml(warnings)}
 
-    ${sectionTitle(2, "Limite do art. 23", rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${rules.sourceCode} não define limite percentual; a soma é só para consulta.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Pela ${rules.sourceCode}, pode chegar a no máximo ${limitPct}% do valor captado. Alimentação e refeição não entram.`)}
+    ${sectionTitle(2, "Limite do Vínculo com Proponente", rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${rules.sourceCode} não define limite percentual; a soma é só para consulta.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Pela ${rules.sourceCode}, pode chegar a no máximo ${limitPct}% do valor captado. Só entram os pagamentos que contam para o vínculo (alimentação e refeição começam fora).`)}
     ${bondBlock}
 
     ${sectionTitle(3, params.watchedOnly ? "Fornecedores observados" : "Fornecedores", rules.caps.noPercentLimits ? `Quem recebeu dinheiro neste PRONAC, do maior para o menor. A ${rules.sourceCode} não define limite por fornecedor.` : `Quem recebeu dinheiro neste PRONAC, do maior para o menor. Cada fornecedor pode receber até ${rules.caps.supplierCapPct}% do valor captado. Destacados: proponente e quem tem vínculo.`)}
@@ -1442,7 +1448,7 @@ export async function renderPronacDetailHtml(params: {
     </div>
 
     <section class="annex">
-      ${sectionTitle("A", `Anexo: pagamentos${params.payments.length > paymentsRows.length ? ` (primeiros ${paymentsRows.length} de ${params.payments.length})` : ""}`, "Cada comprovante lançado no SALIC, para conferência. Itens de alimentação ou refeição não contam para o art. 23.")}
+      ${sectionTitle("A", `Anexo: pagamentos${params.payments.length > paymentsRows.length ? ` (primeiros ${paymentsRows.length} de ${params.payments.length})` : ""}`, "Cada comprovante lançado no SALIC, para conferência. Os marcados não contam para o vínculo com o proponente.")}
       <table>
         <thead>
           <tr>
@@ -1461,8 +1467,8 @@ export async function renderPronacDetailHtml(params: {
               <td>${escapeHtml(formatDate(p.paymentDate))}</td>
               <td>${escapeHtml(p.supplierName)}</td>
               <td>${escapeHtml(p.itemName || "—")}${
-                isExcludedFromBondItem(p.itemName)
-                  ? `<div style="color:${GRAY_500};font-size:11px">Não conta para o art. 23</div>`
+                !paymentCountsForBond(p)
+                  ? `<div style="color:${GRAY_500};font-size:11px">Não conta para o vínculo</div>`
                   : ""
               }</td>
               <td>${escapeHtml(
@@ -1480,7 +1486,7 @@ export async function renderPronacDetailHtml(params: {
 
   return shellHtml({
     title: `PRONAC ${params.pronac}`,
-    subtitle: params.name || "Relação de pagamentos, vínculos art. 23 e observados",
+    subtitle: params.name || "Relação de pagamentos, vínculo com proponente e observados",
     logoDataUri,
     filters: {
       ...params.filters,
@@ -1514,6 +1520,7 @@ export async function renderSupplierDetailHtml(params: {
     pronac: string;
     accountName: string;
     itemName: string | null;
+    countsForBond?: boolean | null;
     amount: number;
     documentType: string | null;
     documentNumber: string | null;
@@ -1619,7 +1626,7 @@ export async function renderSupplierDetailHtml(params: {
 
     <h2>Linhas de pagamento${params.payments.length > paymentsRows.length ? ` (primeiras ${paymentsRows.length})` : ""}</h2>
     <p style="font-size:11px;color:${GRAY_500};margin:0 0 8px">
-      Itens de alimentação ou refeição são marcados e não entram no cálculo do vínculo art. 23.
+      Os pagamentos marcados não entram no cálculo do vínculo com o proponente (alimentação e refeição começam fora; o resto pode ser desligado no PRONAC).
     </p>
     <div class="panel">
       <table>
@@ -1642,8 +1649,8 @@ export async function renderSupplierDetailHtml(params: {
               <td>${escapeHtml(p.pronac)}</td>
               <td>${escapeHtml(p.accountName)}</td>
               <td>${escapeHtml(p.itemName || "—")}${
-                isExcludedFromBondItem(p.itemName)
-                  ? ` <span class="chip" style="margin-left:6px;font-size:9px;background:${GRAY_100};color:${GRAY_500}">Não entrou no cálculo do vínculo art. 23</span>`
+                !paymentCountsForBond(p)
+                  ? ` <span class="chip" style="margin-left:6px;font-size:9px;background:${GRAY_100};color:${GRAY_500}">Não conta para o vínculo</span>`
                   : ""
               }</td>
               <td>${escapeHtml(
@@ -1854,6 +1861,7 @@ export type AuditoriaPronacBlock = {
     paymentDate: string | null;
     supplierName: string;
     itemName: string | null;
+    countsForBond?: boolean | null;
     documentNumber: string | null;
     amount: number;
   }>;
@@ -1938,8 +1946,8 @@ export async function renderAuditoriaReportHtml(params: {
             <td>${p.paymentDate ? escapeHtml(p.paymentDate.slice(0, 10)) : "—"}</td>
             <td>${escapeHtml(p.supplierName)}</td>
             <td>${escapeHtml(p.itemName || "—")}${
-              isExcludedFromBondItem(p.itemName)
-                ? ` <span class="chip" style="margin-left:6px;font-size:9px;background:${GRAY_100};color:${GRAY_500}">Não entrou no cálculo do vínculo art. 23</span>`
+              !paymentCountsForBond(p)
+                ? ` <span class="chip" style="margin-left:6px;font-size:9px;background:${GRAY_100};color:${GRAY_500}">Não conta para o vínculo</span>`
                 : ""
             }</td>
             <td>${escapeHtml(p.documentNumber || "—")}</td>
@@ -1969,13 +1977,13 @@ export async function renderAuditoriaReportHtml(params: {
         </div>
         <p class="section-intro">${escapeHtml(b.alertsSummary)}</p>
 
-        ${sectionTitle(2, corporateMapCopy(Boolean(b.institutionalMap)).reportSection.replace(/^\d+\.\s*/, ""), "Quem fazia parte do proponente em cada período. Ajuda a identificar vínculos.")}
+        ${sectionTitle(2, "Limite do Vínculo com Proponente", b.rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${b.rules.sourceCode} não define limite percentual.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Limite da ${b.rules.sourceCode}: ${b.personType === "PF" || b.personType === "MEI" ? b.rules.caps.proponentMeiCapPct : b.rules.caps.proponentCapPct}% do valor captado.`)}
+        <h3>${escapeHtml(corporateMapCopy(Boolean(b.institutionalMap)).reportSection.replace(/^\d+\.\s*/, ""))}</h3>
+        <p class="section-intro">Lembrete: quem fazia parte do proponente em cada período. Ajuda a decidir quem tem vínculo neste PRONAC.</p>
         ${b.corporateMapHtml}
-
-        ${sectionTitle(3, "Limite do art. 23", b.rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${b.rules.sourceCode} não define limite percentual.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Limite da ${b.rules.sourceCode}: ${b.personType === "PF" || b.personType === "MEI" ? b.rules.caps.proponentMeiCapPct : b.rules.caps.proponentCapPct}% do valor captado.`)}
         ${bondBlock}
 
-        ${sectionTitle(4, "Fornecedores", b.rules.caps.noPercentLimits ? `Quanto cada fornecedor recebeu neste PRONAC. A ${b.rules.sourceCode} não define limite por fornecedor.` : `Quanto cada fornecedor recebeu neste PRONAC. Limite por fornecedor: ${b.rules.caps.supplierCapPct}% do valor captado.`)}
+        ${sectionTitle(3, "Fornecedores", b.rules.caps.noPercentLimits ? `Quanto cada fornecedor recebeu neste PRONAC. A ${b.rules.sourceCode} não define limite por fornecedor.` : `Quanto cada fornecedor recebeu neste PRONAC. Limite por fornecedor: ${b.rules.caps.supplierCapPct}% do valor captado.`)}
         <table>
           <thead>
             <tr>
@@ -1990,7 +1998,7 @@ export async function renderAuditoriaReportHtml(params: {
         </table>
 
         <div class="annex">
-        ${sectionTitle("A", `Anexo do PRONAC ${b.pronac}: pagamentos`, "Cada comprovante lançado no SALIC, para conferência. Itens de alimentação ou refeição não contam para o art. 23.")}
+        ${sectionTitle("A", `Anexo do PRONAC ${b.pronac}: pagamentos`, "Cada comprovante lançado no SALIC, para conferência. Os marcados não contam para o vínculo com o proponente.")}
         <table>
           <thead>
             <tr>
@@ -2027,7 +2035,7 @@ export async function renderAuditoriaReportHtml(params: {
 
   return shellHtml({
     title: "Relatório de Auditoria",
-    subtitle: `${params.blocks.length} PRONAC(s) · situação, mapa do proponente, limite do art. 23, fornecedores e pagamentos`,
+    subtitle: `${params.blocks.length} PRONAC(s) · situação, mapa do proponente, limite do vínculo com proponente, fornecedores e pagamentos`,
     logoDataUri,
     filters: {
       accountName: null,

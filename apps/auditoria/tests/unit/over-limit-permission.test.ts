@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/audit", () => ({ getPronacPanorama: mocks.panorama }));
 vi.mock("@/lib/compliance/context", () => ({
   loadComplianceBundle: mocks.bundle,
-  metaForAccount: () => ({ relatedParties: [], bonds: [] }),
+  metaForProject: () => ({ relatedParties: [] }),
 }));
 vi.mock("@/lib/auth/hub-permissions", () => ({ getHubPermissions: mocks.perms }));
 vi.mock("@/lib/auth/session", () => ({

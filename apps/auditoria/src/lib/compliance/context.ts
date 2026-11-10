@@ -2,24 +2,16 @@ import { prisma } from "@/lib/db";
 import { getActiveRules } from "@/lib/compliance/rules";
 import type { ActiveRules } from "@/lib/compliance/defaults";
 import type { PersonTypeInput, RelatedPartyInput } from "@/lib/compliance/rouanet";
-import {
-  enabledDocsForRuleset,
-  loadObservadoBondsForAccounts,
-} from "@/lib/compliance/bonds";
-import { normalizeCgccpf } from "@/lib/format";
-
-export type AccountBondRow = {
-  cgccpf: string;
-  rulesetVersion: string;
-  enabled: boolean;
-};
+import { loadEnabledBondDocsForProjects } from "@/lib/compliance/bonds";
 
 export type AccountComplianceMeta = {
   personType: PersonTypeInput;
-  /** Vínculos on/off por IN (ObservadoBond). */
-  bonds: AccountBondRow[];
 };
 
+/**
+ * Tipo de pessoa dos proponentes + vínculos ligados de cada PRONAC deles.
+ * O vínculo vale só para o PRONAC em que foi marcado (ProjectObservadoBond).
+ */
 export async function loadComplianceBundle(
   accountIds?: string[],
   options?: { workspaceId?: string },
@@ -30,72 +22,50 @@ export async function loadComplianceBundle(
       : options?.workspaceId
         ? { workspaceId: options.workspaceId }
         : undefined,
-    select: { id: true, personType: true, cgccpf: true },
+    select: { id: true, personType: true, projects: { select: { id: true } } },
   });
-  const ids = accounts.map((a) => a.id);
 
-  const [rules, bondsByAccount] = await Promise.all([
+  const projectIds = accounts.flatMap((a) => a.projects.map((p) => p.id));
+  const [rules, bondsByProject] = await Promise.all([
     getActiveRules(),
-    loadObservadoBondsForAccounts(ids),
+    loadEnabledBondDocsForProjects(projectIds),
   ]);
 
   const byAccountId = new Map<string, AccountComplianceMeta>();
-  for (const a of accounts) {
-    byAccountId.set(a.id, {
-      personType: a.personType,
-      bonds: bondsByAccount.get(a.id) || [],
-    });
-  }
+  for (const a of accounts) byAccountId.set(a.id, { personType: a.personType });
 
-  return { rules, byAccountId };
+  return { rules, byAccountId, bondsByProject };
 }
 
-/** Observados com vínculo ligado sob a IN do projeto → input da soma art. 23. */
-export function relatedPartiesForRuleset(
-  meta: AccountComplianceMeta | undefined,
-  rulesetVersion: string | null | undefined,
+/** Observados com vínculo ligado neste PRONAC → input da soma do vínculo. */
+export function relatedPartiesForDocs(
+  docs: Set<string> | undefined,
   nameByDoc?: Map<string, string>,
 ): RelatedPartyInput[] {
-  const docs = enabledDocsForRuleset(meta?.bonds, rulesetVersion);
-  return Array.from(docs).map((cgccpf) => ({
+  return Array.from(docs || []).map((cgccpf) => ({
     cgccpf,
     name: nameByDoc?.get(cgccpf) || cgccpf,
     countsTowardProponentCap: true as const,
   }));
 }
 
-export function metaForAccount(
+/** Tipo de pessoa do proponente + quem tem vínculo neste PRONAC. */
+export function metaForProject(
   bundle: Awaited<ReturnType<typeof loadComplianceBundle>>,
-  accountId?: string | null,
-  rulesetVersion?: string | null,
+  accountId: string | null | undefined,
+  projectId: string | null | undefined,
   nameByDoc?: Map<string, string>,
 ): {
   rules: ActiveRules;
   personType?: PersonTypeInput;
   relatedParties: RelatedPartyInput[];
-  bonds: AccountBondRow[];
 } {
-  if (!accountId) {
-    return { rules: bundle.rules, relatedParties: [], bonds: [] };
-  }
-  const meta = bundle.byAccountId.get(accountId);
-  const version = rulesetVersion || bundle.rules.version;
+  const meta = accountId ? bundle.byAccountId.get(accountId) : undefined;
   return {
     rules: bundle.rules,
     personType: meta?.personType,
-    relatedParties: relatedPartiesForRuleset(meta, version, nameByDoc),
-    bonds: meta?.bonds || [],
+    relatedParties: projectId
+      ? relatedPartiesForDocs(bundle.bondsByProject.get(projectId), nameByDoc)
+      : [],
   };
-}
-
-export function isBondEnabled(
-  bonds: AccountBondRow[] | undefined,
-  cgccpf: string,
-  rulesetVersion: string | null | undefined,
-): boolean {
-  if (!rulesetVersion) return false;
-  const dig = normalizeCgccpf(cgccpf);
-  return (bonds || []).some(
-    (b) => b.enabled && b.rulesetVersion === rulesetVersion && b.cgccpf === dig,
-  );
 }

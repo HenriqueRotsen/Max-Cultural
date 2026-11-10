@@ -8,7 +8,7 @@ import {
 } from "@/lib/compliance/audit-brief";
 import { listRulesets, toActiveRules } from "@/lib/compliance/rules";
 import type { ActiveRules, RelationKind } from "@/lib/compliance/defaults";
-import { isExcludedFromBondItem } from "@/lib/compliance/rouanet";
+import { paymentCountsForBond } from "@/lib/compliance/rouanet";
 import type { Prisma } from "@/generated/prisma/client";
 
 export function pronacYear(pronac: string): number {
@@ -76,18 +76,13 @@ async function loadProjectContext(projectId: string) {
 
   const bondByCnpj = new Map<string, number>();
   for (const p of project.payments) {
-    if (isExcludedFromBondItem(p.itemName)) continue;
+    if (!paymentCountsForBond(p)) continue;
     const key = p.supplier.cgccpf.replace(/\D/g, "");
     bondByCnpj.set(key, (bondByCnpj.get(key) || 0) + Number(p.amount));
   }
 
   const { loadEnabledBondDocs } = await import("@/lib/compliance/bonds");
-  const rulesetVersion =
-    project.complianceRuleset?.version || "in-minc-29-2026";
-  const bondedDocs = await loadEnabledBondDocs(
-    project.salicAccountId,
-    rulesetVersion,
-  );
+  const bondedDocs = await loadEnabledBondDocs(project.id);
 
   const watched = await prisma.watchedSupplier.findMany({
     where: { workspaceId: project.salicAccount.workspaceId },

@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { setPaymentCountsForBond } from "@/lib/actions";
+import { actionErrorMessage } from "@/lib/action-errors";
 import { formatCurrency, formatCgccpf, formatDate, normalizeCgccpf } from "@/lib/format";
 import { type ActiveRules } from "@/lib/compliance/defaults";
 import {
@@ -13,7 +16,7 @@ import { LimitBadge } from "@/components/ComplianceAlerts";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { FieldLabel } from "@/components/FieldHelp";
 import { TablePagination, usePagedSlice } from "@/components/InfiniteScroll";
-import { Section } from "@/components/ui";
+import { Section, Switch } from "@/components/ui";
 import { HELP } from "@/lib/help";
 
 function formatPercent(part: number, total: number) {
@@ -43,11 +46,16 @@ type PaymentRow = {
   documentNumber: string | null;
   amount: number;
   source: string;
+  /** Conta para o vínculo com o proponente (marcação manual ou automática). */
+  countsForBond: boolean;
+  /** Marcado à mão (senão segue a regra: alimentação/refeição não contam). */
+  bondMarkedByHand: boolean;
 };
 
 /** Partes 2 (Fornecedores) e 3 (Pagamentos) do detalhe do PRONAC. */
 export function PronacDetailTables({
   pronac,
+  projectId,
   projectTotal,
   accountId,
   accountCgccpf,
@@ -61,12 +69,13 @@ export function PronacDetailTables({
   firstStep = 2,
 }: {
   pronac: string;
+  projectId: string | null;
   /** Valor captado (base da norma). */
   projectTotal: number;
   accountId?: string;
   accountCgccpf: string | null;
   personType?: PersonTypeInput | null;
-  /** CNPJ/CPF com vínculo art. 23 ligado (sem o proponente). */
+  /** CNPJ/CPF com vínculo com o proponente ligado neste PRONAC. */
   bondDocs: string[];
   rules: ActiveRules;
   watchedOnly: boolean;
@@ -78,6 +87,33 @@ export function PronacDetailTables({
 }) {
   const [supplierQuery, setSupplierQuery] = useState("");
   const [paymentQuery, setPaymentQuery] = useState("");
+  const router = useRouter();
+  const [savingPayment, setSavingPayment] = useState<string | null>(null);
+  const [bondError, setBondError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  function toggleCounts(p: PaymentRow, next: boolean) {
+    if (!projectId) return;
+    setBondError(null);
+    setSavingPayment(p.id);
+    // Voltar ao que a regra automática diria = tirar a marcação manual.
+    const auto = !isExcludedFromBondItem(p.itemName);
+    const countsForBond = next === auto ? null : next;
+    startTransition(async () => {
+      try {
+        const result = await setPaymentCountsForBond({
+          projectId,
+          changes: [{ paymentId: p.id, countsForBond }],
+        });
+        if (!result.ok) setBondError(result.error);
+        else router.refresh();
+      } catch (err) {
+        setBondError(actionErrorMessage(err, "Não foi possível salvar."));
+      } finally {
+        setSavingPayment(null);
+      }
+    });
+  }
 
   const bondSet = useMemo(() => new Set(bondDocs.map((d) => normalizeCgccpf(d))), [bondDocs]);
   const proponentDoc = accountCgccpf ? normalizeCgccpf(accountCgccpf) : "";
@@ -253,7 +289,7 @@ export function PronacDetailTables({
         step={firstStep + 1}
         title="Pagamentos"
         summary={`${payments.length} pagamento${payments.length === 1 ? "" : "s"}`}
-        description="Cada comprovante lançado no SALIC. Abra quando precisar conferir um pagamento específico."
+        description="Cada comprovante lançado no SALIC. Use o switch “Conta p/ vínculo” para tirar (ou incluir) um pagamento da soma do vínculo com o proponente."
       >
         <div className="field min-w-[16rem] md:max-w-sm">
           <FieldLabel htmlFor="filter-payments">Buscar pagamento</FieldLabel>
@@ -275,31 +311,46 @@ export function PronacDetailTables({
                 <th>Item</th>
                 <th>Comprovante</th>
                 <th>Valor</th>
+                <th className="text-right">Conta p/ vínculo</th>
               </tr>
             </thead>
             <tbody>
               {paymentsPage.slice.map((p) => (
-                <tr key={p.id}>
+                <tr key={p.id} className={p.countsForBond ? undefined : "text-[var(--gray-500)]"}>
                   <td>{formatDate(p.paymentDate)}</td>
                   <td>{p.supplierName}</td>
                   <td>
                     <span>{p.itemName || "—"}</span>
-                    {isExcludedFromBondItem(p.itemName) ? (
+                    {!p.countsForBond ? (
                       <div className="text-sm text-[var(--gray-500)]">
-                        Não conta para o art. 23
+                        Não conta para o vínculo
+                        {p.bondMarkedByHand ? " (desligado à mão)" : " (alimentação/refeição)"}
                       </div>
+                    ) : p.bondMarkedByHand ? (
+                      <div className="text-sm text-[var(--gray-500)]">Conta para o vínculo (ligado à mão)</div>
                     ) : null}
                   </td>
                   <td>
                     {p.documentType || "—"}
                     {p.documentNumber ? ` nº ${p.documentNumber}` : ""}
                   </td>
-                  <td className="font-semibold text-[var(--navy)]">{formatCurrency(p.amount)}</td>
+                  <td className={p.countsForBond ? "font-semibold text-[var(--navy)]" : "font-semibold"}>
+                    {formatCurrency(p.amount)}
+                  </td>
+                  <td className="text-right">
+                    <Switch
+                      size="sm"
+                      checked={p.countsForBond}
+                      disabled={!projectId || savingPayment !== null}
+                      onChange={(next) => toggleCounts(p, next)}
+                      label={`Pagamento de ${formatCurrency(p.amount)} a ${p.supplierName} conta para o vínculo`}
+                    />
+                  </td>
                 </tr>
               ))}
               {filteredPayments.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-[var(--gray-500)]">
+                  <td colSpan={6} className="text-[var(--gray-500)]">
                     {payments.length === 0
                       ? "Sem pagamentos."
                       : "Nenhum pagamento encontrado com essa busca."}
@@ -312,11 +363,13 @@ export function PronacDetailTables({
                 <tr className="table-total-row">
                   <td colSpan={4}>Total ({filteredPayments.length})</td>
                   <td className="font-semibold text-[var(--navy)]">{formatCurrency(paymentTotal)}</td>
+                  <td />
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
+        {bondError ? <p className="mt-2 text-sm text-[#8a4b12]">{bondError}</p> : null}
         <TablePagination
           page={paymentsPage.page}
           pageCount={paymentsPage.pageCount}

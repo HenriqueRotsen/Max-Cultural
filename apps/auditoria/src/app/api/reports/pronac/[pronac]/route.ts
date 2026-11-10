@@ -5,7 +5,7 @@ import {
   getWatchedSupplierCount,
   listWatchedSuppliers,
 } from "@/lib/audit";
-import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
+import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { rulesForProject } from "@/lib/compliance/rules";
 import { prisma } from "@/lib/db";
 import { renderPronacDetailHtml } from "@/lib/reports/html";
@@ -62,7 +62,7 @@ export async function GET(
       primaryAccountId ? [primaryAccountId] : detail.accounts.map((a) => a.id),
       { workspaceId },
     );
-    const meta = metaForAccount(bundle, primaryAccountId, rules.version);
+    const meta = metaForProject(bundle, primaryAccountId, detail.projectId);
 
     const html = await renderPronacDetailHtml({
       filters: {
@@ -100,6 +100,7 @@ export async function GET(
         paymentDate: p.paymentDate,
         supplierName: p.supplier.name,
         itemName: p.itemName,
+        countsForBond: p.countsForBond,
         amount: Number(p.amount),
         documentType: p.documentType,
         documentNumber: p.documentNumber,

@@ -1,7 +1,7 @@
 "use client";
 
 import { formatCurrency, formatDate } from "@/lib/format";
-import { isExcludedFromBondItem } from "@/lib/compliance/rouanet";
+import { paymentCountsForBond } from "@/lib/compliance/rouanet";
 import { TablePagination, usePagedSlice } from "@/components/InfiniteScroll";
 
 type PaymentRow = {
@@ -14,6 +14,7 @@ type PaymentRow = {
   documentNumber: string | null;
   amount: number;
   source: string;
+  countsForBond?: boolean | null;
 };
 
 export function SupplierPaymentsTable({ payments }: { payments: PaymentRow[] }) {
@@ -42,10 +43,10 @@ export function SupplierPaymentsTable({ payments }: { payments: PaymentRow[] }) 
                 <td>{p.accountName}</td>
                 <td>
                   <span>{p.itemName || "—"}</span>
-                  {isExcludedFromBondItem(p.itemName) ? (
+                  {!paymentCountsForBond(p) ? (
                     <span
                       className="badge badge-muted ml-2"
-                      title="Não entra na soma do vínculo art. 23"
+                      title="Não entra na soma do vínculo com o proponente"
                     >
                       Fora do vínculo
                     </span>

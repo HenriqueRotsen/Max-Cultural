@@ -4,7 +4,7 @@ import {
   getWatchedSupplierCount,
   listWatchedSuppliers,
 } from "@/lib/audit";
-import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
+import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { prisma } from "@/lib/db";
 import { renderPronacOverviewHtml } from "@/lib/reports/html";
 import { htmlToPdf, reportFileStamp } from "@/lib/reports/pdf";
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
       rules: bundle.rules,
       watchedSuppliers,
       rows: rows.map((row) => {
-        const meta = metaForAccount(bundle, row.accountId, row.rules.version);
+        const meta = metaForProject(bundle, row.accountId, row.projectId);
         return {
           ...row,
           personType: meta.personType || row.personType,

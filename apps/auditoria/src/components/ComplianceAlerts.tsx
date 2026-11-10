@@ -78,7 +78,7 @@ export function ComplianceAlerts({
                     <span>
                       {m.name}
                       <span className="ml-1 text-[var(--gray-400)]">
-                        ({m.role === "proponent" ? "proponente" : "relacionado art. 23"})
+                        ({m.role === "proponent" ? "proponente" : "com vínculo"})
                       </span>
                     </span>
                     <span className="font-medium text-[var(--navy)]">
@@ -87,7 +87,7 @@ export function ComplianceAlerts({
                   </li>
                 ))}
                 <li className="flex justify-between gap-2 border-t border-dashed border-[var(--border)] pt-1 font-semibold text-[var(--navy)]">
-                  <span>Soma art. 23</span>
+                  <span>Soma do vínculo com o proponente</span>
                   <span>
                     {(alert.percent || 0).toFixed(2).replace(".", ",")}%
                     {alert.limitPct ? ` (limite ${alert.limitPct}%)` : ""}

@@ -121,6 +121,7 @@ model Workspace {
   accounts         SalicAccount[]
   watchedSuppliers WatchedSupplier[]
   observadoBonds   ObservadoBond[]
+  projectBonds     ProjectObservadoBond[]
 
   @@index([plan])
   @@schema("financeiro")
@@ -260,6 +261,7 @@ model Project {
   salicAccountId String
   salicAccount   SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
   payments       Payment[]
+  observadoBonds ProjectObservadoBond[]
 
   auditAlerts AuditAlert[]
   @@unique([salicAccountId, pronac])
@@ -363,6 +365,8 @@ model Payment {
   fileName             String?
   justification        String?
   planilhaAprovacaoId  String?
+  /** Conta para o vínculo com o proponente? null = automático (alimentação/refeição não contam). */
+  countsForBond        Boolean?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -399,8 +403,8 @@ model WatchedSupplier {
 }
 
 /**
- * Vínculo on/off do observado com um proponente sob uma IN.
- * Compartilhado por todos os PRONACs daquela conta com a mesma rulesetVersion.
+ * LEGADO — vínculo on/off do observado com um proponente sob uma IN, que valia
+ * para todos os PRONACs da conta. Mantido como histórico; o app usa ProjectObservadoBond.
  */
 model ObservadoBond {
   id             String   @id @default(cuid())
@@ -419,6 +423,26 @@ model ObservadoBond {
   @@index([workspaceId])
   @@index([cgccpf])
   @@index([rulesetVersion])
+  @@schema("auditoria")
+}
+
+/** Vínculo on/off do observado com o proponente, só neste PRONAC. */
+model ProjectObservadoBond {
+  id             String   @id @default(cuid())
+  cgccpf         String
+  enabled        Boolean  @default(true)
+  updatedByEmail String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, cgccpf])
+  @@index([workspaceId])
+  @@index([cgccpf])
   @@schema("auditoria")
 }
 
