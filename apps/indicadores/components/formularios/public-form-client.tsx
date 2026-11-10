@@ -169,7 +169,7 @@ function validatePageFields(
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const campo of page.campos) {
-    if (!campo.obrigatorio) continue;
+    if (!campo.obrigatorio || campo.tipo === "INFO") continue;
     const v = values[campo.id];
     if (campo.tipo === "DECLARACAO") {
       if (v !== true) errors[campo.id] = "É necessário declarar o cumprimento.";
@@ -332,6 +332,24 @@ export function PublicFormClient({
     const help = campo.descricao ? (
       <p className="text-xs text-slate-500">{campo.descricao}</p>
     ) : null;
+
+    if (campo.tipo === "INFO") {
+      return (
+        <div
+          key={campo.id}
+          className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
+        >
+          {campo.rotulo.trim() ? (
+            <h3 className="text-base font-semibold text-slate-900">{campo.rotulo}</h3>
+          ) : null}
+          {campo.descricao?.trim() ? (
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+              {campo.descricao}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
 
     if (campo.tipo === "ADDRESS_BR") {
       const addr = (values[campo.id] as AddressValue) || {};
