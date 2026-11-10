@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle2, ChevronDown, FileCheck2, ChevronRight, Flag, MessageSquare, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { BarChart3, CheckCircle2, ChevronDown, FileCheck2, ChevronRight, Flag, MessageSquare, Pencil, Plus, RotateCcw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,9 +19,9 @@ import {
 } from "@/components/ui/dialog";
 import { DatePicker, DateRangePicker } from "@/components/ui/date-picker";
 import { SimpleSelect } from "@/components/ui/simple-select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
 import {
-  addAgendaAction,
   addComentarioAction,
   atualizarPreDefinicaoProjetoAction,
   buscarFinanceiroAction,
@@ -30,7 +30,6 @@ import {
   createTarefaAvulsaAction,
   editTarefaAction,
   listComentariosAction,
-  removeAgendaAction,
   setDatasProjetoAction,
   setPrazoProjetoAction,
   setTarefaStatusAction,
@@ -43,6 +42,7 @@ import {
   GESTAO_LABEL,
   regraLabel,
   STATUS_LABEL,
+  type AcaoAcompDTO,
   type AcompanhamentoDTO,
   type PrazoProjetoDTO,
   type AreaTarefa,
@@ -55,6 +55,7 @@ import {
 import { useConfirm } from "@/components/ui/confirm";
 import { RegraCampo } from "@/components/acompanhamento/predefinicao-editor";
 import { AbasArea, TarefasPorFase } from "@/components/acompanhamento/tarefas-por-fase";
+import { AgendaAcoes, normalizar } from "@/components/acompanhamento/agenda-acoes";
 
 export type Aba = "comunicacao" | "producao" | "configuracao";
 
@@ -297,7 +298,9 @@ export function AcompanhamentoView({
         <Configuracao data={data} />
       ) : (
         <AreaPainel
+          key={aba}
           area={ABA_AREA[aba]}
+          acoes={data.acoes}
           tarefas={data.tarefas.filter((t) => t.area === ABA_AREA[aba])}
           podeEditar={podeArea(ABA_AREA[aba])}
           pending={pending}
@@ -365,6 +368,7 @@ type AreaProps = {
   onAbrir: (t: TarefaDTO) => void;
   onAvulsa: (nivel: 1 | 2) => void;
   rotuloRealizacao: (t: Pick<TarefaDTO, "acaoId" | "agendaId">) => string;
+  acoes: AcaoAcompDTO[];
 };
 
 function AreaPainel(props: AreaProps) {
@@ -457,38 +461,164 @@ function AreaPainel(props: AreaProps) {
   );
 }
 
-type Grupo = { chave: string; titulo: string; subtitulo: string; tarefas: TarefaDTO[]; data: string | null };
+type Grupo = { chave: string; titulo: string; subtitulo: string; tarefas: TarefaDTO[]; data: string | null; ordem: string };
+
+type Agrupar = "execucao" | "acao" | "cidade" | "mes";
+type Situacao = "todas" | "atraso" | "proximo" | "aberto" | "concluidas";
+
+const AGRUPAR_LABEL: Record<Agrupar, string> = {
+  execucao: "Por execução",
+  acao: "Por ação",
+  cidade: "Por cidade",
+  mes: "Por mês",
+};
+
+const GRUPOS_POR_PAGINA = 30;
+const TAREFAS_POR_GRUPO = 50;
+
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+function mesLabel(ym: string) {
+  const [y, m] = ym.split("-");
+  const nome = MESES[Number(m) - 1] ?? m;
+  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${y}`;
+}
+
+const fechada = (t: TarefaDTO) => t.status === "CONCLUIDA" || t.status === "NAO_CONTEMPLADA";
+
+function passaSituacao(t: TarefaDTO, s: Situacao) {
+  if (s === "atraso") return t.gestao === "EM_ATRASO";
+  if (s === "proximo") return t.gestao === "PRAZO_PROXIMO";
+  if (s === "aberto") return !fechada(t);
+  if (s === "concluidas") return t.status === "CONCLUIDA";
+  return true;
+}
 
 function Nivel2(props: AreaProps & { corBarra: string }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [agrupar, setAgrupar] = useState<Agrupar>(props.area === "PRODUCAO" ? "cidade" : "execucao");
+  const [busca, setBusca] = useState("");
+  const [situacao, setSituacao] = useState<Situacao>("todas");
+  const [tipo, setTipo] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [mes, setMes] = useState("");
+  const [limite, setLimite] = useState(GRUPOS_POR_PAGINA);
+  const [linhasPorGrupo, setLinhasPorGrupo] = useState<Record<string, number>>({});
+
+  const acaoPorId = useMemo(() => new Map(props.acoes.map((a) => [a.id, a])), [props.acoes]);
+  const agendaPorId = useMemo(
+    () => new Map(props.acoes.flatMap((a) => a.agenda.map((g) => [g.id, g] as const))),
+    [props.acoes],
+  );
+
+  /** Mês da tarefa: o do início da execução; tarefa por cidade usa o do prazo. */
+  const mesDe = useCallback(
+    (t: TarefaDTO) => (t.agendaId ? agendaPorId.get(t.agendaId)?.data : null)?.slice(0, 7) ?? t.prazo?.slice(0, 7) ?? "",
+    [agendaPorId],
+  );
+  const cidadeDe = (t: TarefaDTO) => (t.cidade ? `${t.cidade}/${t.uf}` : "");
+
+  // Opções dos filtros (só o que existe nas tarefas desta área).
+  const opcoes = useMemo(() => {
+    const tipos = new Map<string, string>();
+    const cidades = new Map<string, string>();
+    const meses = new Set<string>();
+    for (const t of props.tarefas) {
+      const a = t.acaoId ? acaoPorId.get(t.acaoId) : null;
+      if (a) tipos.set(a.tipoId, a.tipoNome);
+      if (t.cidade) cidades.set(`${t.cidade}/${t.uf}`, `${t.cidade}, ${t.uf}`);
+      const m = mesDe(t);
+      if (m) meses.add(m);
+    }
+    return {
+      tipos: [...tipos].sort((a, b) => a[1].localeCompare(b[1])),
+      cidades: [...cidades].sort((a, b) => a[1].localeCompare(b[1])),
+      meses: [...meses].sort(),
+    };
+  }, [props.tarefas, acaoPorId, mesDe]);
+
+  // Filtros sem a situação: base dos contadores (clicáveis) do topo.
+  const semSituacao = useMemo(() => {
+    const q = normalizar(busca.trim());
+    return props.tarefas.filter((t) => {
+      const a = t.acaoId ? acaoPorId.get(t.acaoId) : null;
+      if (tipo && a?.tipoId !== tipo) return false;
+      if (cidade && cidadeDe(t) !== cidade) return false;
+      if (mes && mesDe(t) !== mes) return false;
+      if (!q) return true;
+      const texto = [t.titulo, props.rotuloRealizacao(t), a?.tipoNome ?? "", t.cidade ?? ""].join(" ");
+      return normalizar(texto).includes(q);
+    });
+  }, [props, busca, tipo, cidade, mes, acaoPorId, mesDe]);
+
+  const filtradas = useMemo(() => semSituacao.filter((t) => passaSituacao(t, situacao)), [semSituacao, situacao]);
+  const contagem = useMemo(
+    () => ({
+      atraso: semSituacao.filter((t) => t.gestao === "EM_ATRASO").length,
+      proximo: semSituacao.filter((t) => t.gestao === "PRAZO_PROXIMO").length,
+      aberto: semSituacao.filter((t) => !fechada(t)).length,
+      concluidas: semSituacao.filter((t) => t.status === "CONCLUIDA").length,
+    }),
+    [semSituacao],
+  );
 
   const grupos = useMemo<Grupo[]>(() => {
     const m = new Map<string, Grupo>();
-    for (const t of props.tarefas) {
+    for (const t of filtradas) {
       let chave: string;
       let titulo: string;
-      const subtitulo = "";
-      if (props.area === "PRODUCAO") {
-        // Produção se organiza por cidade (uma cidade pode receber várias ações).
+      let ordem = "";
+      const a = t.acaoId ? acaoPorId.get(t.acaoId) : null;
+      if (agrupar === "cidade") {
         chave = t.cidade ? `${t.cidade}/${t.uf}`.toLowerCase() : `sem-cidade:${t.acaoId ?? ""}`;
         titulo = t.cidade ? `${t.cidade}, ${t.uf}` : props.rotuloRealizacao(t);
+      } else if (agrupar === "acao") {
+        chave = t.acaoId ? `acao:${t.acaoId}` : `cid:${cidadeDe(t)}`;
+        titulo = a ? `${a.nome} · ${a.tipoNome}` : t.cidade ? `Cidade: ${t.cidade}, ${t.uf}` : "Sem ação";
+      } else if (agrupar === "mes") {
+        const ym = mesDe(t);
+        chave = `mes:${ym}`;
+        titulo = ym ? mesLabel(ym) : "Sem data";
+        ordem = ym || "9999";
       } else {
-        chave = t.agendaId ?? `acao:${t.acaoId ?? "?"}`;
-        titulo = props.rotuloRealizacao(t);
+        chave = t.agendaId ?? (t.unidade === "CIDADE" && t.cidade ? `cid:${cidadeDe(t)}` : `acao:${t.acaoId ?? "?"}`);
+        titulo = t.agendaId || !t.cidade ? props.rotuloRealizacao(t) : `Cidade: ${t.cidade}, ${t.uf}`;
       }
-      const g = m.get(chave) || { chave, titulo, subtitulo, tarefas: [], data: null };
+      const g = m.get(chave) || { chave, titulo, subtitulo: "", tarefas: [], data: null, ordem };
       g.tarefas.push(t);
       if (t.prazo && (!g.data || t.prazo < g.data)) g.data = t.prazo;
       m.set(chave, g);
     }
     const lista = [...m.values()];
     for (const g of lista) {
-      const ativas = g.tarefas.filter((t) => t.status !== "CONCLUIDA" && t.status !== "NAO_CONTEMPLADA");
-      g.subtitulo = `${g.tarefas.length} tarefas · ${ativas.length} em aberto`;
+      const ativas = g.tarefas.filter((t) => !fechada(t));
+      const atraso = g.tarefas.filter((t) => t.gestao === "EM_ATRASO").length;
+      g.subtitulo = `${g.tarefas.length} tarefas · ${ativas.length} em aberto${atraso ? ` · ${atraso} em atraso` : ""}`;
     }
+    if (agrupar === "mes") return lista.sort((a, b) => a.ordem.localeCompare(b.ordem));
     const pior = (g: Grupo) => Math.min(...g.tarefas.map((t) => CRITICIDADE[t.gestao]));
     return lista.sort((a, b) => pior(a) - pior(b) || (a.data ?? "").localeCompare(b.data ?? ""));
-  }, [props]);
+  }, [filtradas, agrupar, acaoPorId, mesDe, props]);
+
+  const visiveis = grupos.slice(0, limite);
+  const filtrando = Boolean(busca.trim() || tipo || cidade || mes || situacao !== "todas");
+
+  /** Qualquer mudança de filtro volta para a primeira página. */
+  function com<T>(set: (v: T) => void) {
+    return (v: T) => {
+      set(v);
+      setLimite(GRUPOS_POR_PAGINA);
+    };
+  }
+
+  function limpar() {
+    setBusca("");
+    setTipo("");
+    setCidade("");
+    setMes("");
+    setSituacao("todas");
+    setLimite(GRUPOS_POR_PAGINA);
+  }
 
   const toggle = (set: Set<string>, k: string) => {
     const n = new Set(set);
@@ -496,129 +626,275 @@ function Nivel2(props: AreaProps & { corBarra: string }) {
     else n.add(k);
     return n;
   };
+  const todosAbertos = visiveis.length > 0 && visiveis.every((g) => abertos.has(g.chave));
+
+  const chips: Array<[Situacao, string, number, string]> = [
+    ["atraso", "em atraso", contagem.atraso, "border-red-200 bg-red-50 text-red-800"],
+    ["proximo", "prazo próximo", contagem.proximo, "border-amber-200 bg-amber-50 text-amber-900"],
+    ["aberto", "em aberto", contagem.aberto, "border-slate-200 bg-slate-50 text-slate-800"],
+    ["concluidas", "concluídas", contagem.concluidas, "border-emerald-200 bg-emerald-50 text-emerald-800"],
+  ];
 
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-heading text-lg font-semibold text-brand-deep">
-          Nível 2 · {props.area === "PRODUCAO" ? "Cidades" : "Ações"}{" "}
-          <span className="text-sm font-normal text-muted-foreground">ordenadas pela criticidade</span>
+          Nível 2 · {props.area === "PRODUCAO" ? "Cidades e ações" : "Ações"}{" "}
+          <span className="text-sm font-normal text-muted-foreground">
+            {props.tarefas.length} tarefas · {agrupar === "mes" ? "em ordem de data" : "ordenadas pela criticidade"}
+          </span>
         </h2>
-        {props.podeEditar && grupos.length ? (
+        {props.podeEditar && props.tarefas.length ? (
           <Button variant="outline" size="sm" onClick={() => props.onAvulsa(2)}>
             <Plus className="size-4" /> Tarefa avulsa
           </Button>
         ) : null}
       </div>
 
-      {grupos.length === 0 ? (
+      {props.tarefas.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
           Nenhuma ação com data na agenda. A gestão cadastra as datas e cidades das ações em Configuração.
         </p>
       ) : (
-        <div className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm">
-          {grupos.map((g) => {
-            const aberto = abertos.has(g.chave);
-            const piorTarefa = [...g.tarefas].sort((a, b) => CRITICIDADE[a.gestao] - CRITICIDADE[b.gestao])[0]!;
-            const alerta =
-              piorTarefa.gestao === "EM_ATRASO"
-                ? `${piorTarefa.titulo} em atraso`
-                : piorTarefa.gestao === "PRAZO_PROXIMO"
-                  ? `${piorTarefa.titulo}: prazo próximo`
-                  : null;
-            // Concluídas e não contempladas continuam na lista, no fim e mais apagadas.
-            const fechada = (t: TarefaDTO) => t.status === "CONCLUIDA" || t.status === "NAO_CONTEMPLADA";
-            const visiveis = [...g.tarefas.filter((t) => !fechada(t)), ...g.tarefas.filter(fechada)];
-            return (
-              <div key={g.chave}>
+        <>
+          <div className="space-y-2 rounded-2xl border border-border/70 bg-white p-3 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full max-w-xs">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={busca}
+                  onChange={(e) => com(setBusca)(e.target.value)}
+                  placeholder="Buscar ação, tarefa, cidade ou rótulo"
+                  aria-label="Buscar no nível 2"
+                  className="h-9 bg-white pl-8"
+                />
+              </div>
+              {opcoes.tipos.length > 1 ? (
+                <SimpleSelect
+                  value={tipo}
+                  onChange={com(setTipo)}
+                  className="h-9 w-44"
+                  aria-label="Tipo de ação"
+                  options={[{ value: "", label: "Todos os tipos" }, ...opcoes.tipos.map(([id, nome]) => ({ value: id, label: nome }))]}
+                />
+              ) : null}
+              {opcoes.cidades.length > 1 ? (
+                <SimpleSelect
+                  value={cidade}
+                  onChange={com(setCidade)}
+                  className="h-9 w-48"
+                  aria-label="Cidade"
+                  options={[{ value: "", label: "Todas as cidades" }, ...opcoes.cidades.map(([id, nome]) => ({ value: id, label: nome }))]}
+                />
+              ) : null}
+              {opcoes.meses.length > 1 ? (
+                <SimpleSelect
+                  value={mes}
+                  onChange={com(setMes)}
+                  className="h-9 w-44"
+                  aria-label="Mês"
+                  options={[{ value: "", label: "Todos os meses" }, ...opcoes.meses.map((m) => ({ value: m, label: mesLabel(m) }))]}
+                />
+              ) : null}
+              <SimpleSelect
+                value={agrupar}
+                onChange={(v) => {
+                  setAgrupar(v as Agrupar);
+                  setAbertos(new Set());
+                  setLimite(GRUPOS_POR_PAGINA);
+                }}
+                className="h-9 w-40"
+                aria-label="Agrupar"
+                options={(Object.keys(AGRUPAR_LABEL) as Agrupar[]).map((k) => ({ value: k, label: AGRUPAR_LABEL[k] }))}
+              />
+              {filtrando ? (
+                <Button variant="ghost" size="sm" className="h-9" onClick={limpar}>
+                  <X className="size-4" /> Limpar
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {chips.map(([s, label, n, cor]) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => com(setSituacao)(situacao === s ? "todas" : s)}
+                  aria-pressed={situacao === s}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 font-medium tabular-nums transition",
+                    cor,
+                    situacao === s ? "ring-2 ring-brand-deep/40" : "opacity-90 hover:opacity-100",
+                    n === 0 && situacao !== s && "opacity-50",
+                  )}
+                >
+                  {n} {label}
+                </button>
+              ))}
+              <span className="ml-auto text-muted-foreground">
+                {grupos.length} {grupos.length === 1 ? "grupo" : "grupos"}
+                {filtrando ? ` · ${filtradas.length} de ${props.tarefas.length} tarefas` : ""}
+              </span>
+            </div>
+          </div>
+
+          {grupos.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              Nenhuma tarefa com estes filtros.{" "}
+              <button type="button" className="font-semibold underline" onClick={limpar}>
+                Limpar filtros
+              </button>
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm">
+              <div className="flex justify-end border-b border-border/60 px-4 py-1.5">
                 <button
                   type="button"
-                  onClick={() => setAbertos((s) => toggle(s, g.chave))}
-                  aria-expanded={aberto}
-                  className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-3 text-left hover:bg-muted/30 sm:grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
+                  className="text-xs font-medium text-teal-800 hover:underline"
+                  onClick={() => setAbertos(todosAbertos ? new Set() : new Set(visiveis.map((g) => g.chave)))}
                 >
-                  {aberto ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium text-brand-deep">{g.titulo}</span>
-                    <span className="block text-xs text-muted-foreground">{g.subtitulo}</span>
-                  </span>
-                  <span className="col-start-2 flex items-center gap-2 sm:col-start-auto">
-                    <Progresso valor={pct(g.tarefas)} cor={props.corBarra} />
-                    <span className="w-9 text-xs tabular-nums text-muted-foreground">{pct(g.tarefas)}%</span>
-                  </span>
-                  <span className="col-start-2 text-xs sm:col-start-auto">
-                    {alerta ? (
-                      <span className={cn("inline-flex items-center gap-1.5", piorTarefa.gestao === "EM_ATRASO" ? "text-red-700" : "text-amber-800")}>
-                        <span className={cn("h-2 w-2 rounded-full", GESTAO_COR[piorTarefa.gestao])} />
-                        {alerta}
-                      </span>
-                    ) : (
-                      <GestaoBadge s={piorTarefa.gestao} />
-                    )}
-                  </span>
+                  {todosAbertos ? "Recolher todos" : `Expandir os ${visiveis.length} grupos`}
                 </button>
-                {aberto ? (
-                  <div className="border-t border-border/50 bg-muted/10 px-4 py-3">
-                    <table className="w-full text-sm">
-                      <thead className="text-left text-xs text-muted-foreground">
-                        <tr>
-                          <th className="pb-2 font-medium">Tarefa</th>
-                          <th className="hidden pb-2 font-medium sm:table-cell">Fase</th>
-                          <th className="pb-2 font-medium">Prazo</th>
-                          <th className="pb-2 font-medium">Status da equipe</th>
-                          <th className="hidden pb-2 font-medium md:table-cell">Gestão</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/40">
-                        {visiveis.map((t) => (
-                          <tr key={t.id} className={cn(fechada(t) && "bg-muted/20")}>
-                            <td className="py-2 pr-3">
-                              <button
-                                type="button"
-                                onClick={() => props.onAbrir(t)}
-                                className={cn(
-                                  "inline-flex items-center gap-1.5 text-left hover:text-brand-deep hover:underline",
-                                  t.status === "CONCLUIDA" && "text-muted-foreground",
-                                  t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
-                                )}
-                              >
-                                {t.status === "CONCLUIDA" ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : null}
-                                {t.titulo}
-                              </button>
-                              {props.area === "PRODUCAO" && t.unidade === "ACAO" ? (
-                                <div className="text-xs text-muted-foreground">{props.rotuloRealizacao(t)}</div>
-                              ) : null}
-                              {props.area === "PRODUCAO" && t.unidade === "CIDADE" ? (
-                                <div className="text-xs font-medium text-teal-800">Cidade</div>
-                              ) : null}
-                            </td>
-                            <td className="hidden py-2 pr-3 text-xs text-muted-foreground sm:table-cell">{FASE_LABEL[t.fase]}</td>
-                            <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{fmtCurto(t.prazo)}</td>
-                            <td className="py-2 pr-3">
-                              <span className="inline-flex items-center gap-2">
-                                <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
-                                {t.comentarios ? (
-                                  <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
-                                    <MessageSquare className="size-3.5" />
-                                    {t.comentarios}
-                                  </span>
-                                ) : null}
-                                {t.escaladasAbertas ? <Flag className="size-3.5 text-red-600" aria-label="Escalada à gestão" /> : null}
-                              </span>
-                            </td>
-                            <td className="hidden py-2 md:table-cell">
-                              {t.concluidaEm ? <ConclusaoInfo t={t} /> : <GestaoBadge s={t.gestao} />}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
               </div>
-            );
-          })}
-        </div>
+              <div className="divide-y divide-border/60">
+                {visiveis.map((g) => {
+                  const aberto = abertos.has(g.chave);
+                  const piorTarefa = [...g.tarefas].sort((a, b) => CRITICIDADE[a.gestao] - CRITICIDADE[b.gestao])[0]!;
+                  const alerta =
+                    piorTarefa.gestao === "EM_ATRASO"
+                      ? `${piorTarefa.titulo} em atraso`
+                      : piorTarefa.gestao === "PRAZO_PROXIMO"
+                        ? `${piorTarefa.titulo}: prazo próximo`
+                        : null;
+                  // Concluídas e não contempladas continuam na lista, no fim e mais apagadas.
+                  const todas = [...g.tarefas.filter((t) => !fechada(t)), ...g.tarefas.filter(fechada)];
+                  const maxLinhas = linhasPorGrupo[g.chave] ?? TAREFAS_POR_GRUPO;
+                  const linhas = todas.slice(0, maxLinhas);
+                  return (
+                    <div key={g.chave}>
+                      <button
+                        type="button"
+                        onClick={() => setAbertos((s) => toggle(s, g.chave))}
+                        aria-expanded={aberto}
+                        className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-2.5 text-left hover:bg-muted/30 sm:grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
+                      >
+                        {aberto ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-brand-deep" title={g.titulo}>
+                            {g.titulo}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">{g.subtitulo}</span>
+                        </span>
+                        <span className="col-start-2 flex items-center gap-2 sm:col-start-auto">
+                          <Progresso valor={pct(g.tarefas)} cor={props.corBarra} />
+                          <span className="w-9 text-xs tabular-nums text-muted-foreground">{pct(g.tarefas)}%</span>
+                        </span>
+                        <span className="col-start-2 truncate text-xs sm:col-start-auto">
+                          {alerta ? (
+                            <span className={cn("inline-flex items-center gap-1.5", piorTarefa.gestao === "EM_ATRASO" ? "text-red-700" : "text-amber-800")}>
+                              <span className={cn("h-2 w-2 shrink-0 rounded-full", GESTAO_COR[piorTarefa.gestao])} />
+                              {alerta}
+                            </span>
+                          ) : (
+                            <GestaoBadge s={piorTarefa.gestao} />
+                          )}
+                        </span>
+                      </button>
+                      {aberto ? (
+                        <div className="border-t border-border/50 bg-muted/10 px-4 py-3">
+                          <table className="w-full text-sm">
+                            <thead className="text-left text-xs text-muted-foreground">
+                              <tr>
+                                <th className="pb-2 font-medium">Tarefa</th>
+                                <th className="hidden pb-2 font-medium sm:table-cell">Fase</th>
+                                <th className="pb-2 font-medium">Prazo</th>
+                                <th className="pb-2 font-medium">Status da equipe</th>
+                                <th className="hidden pb-2 font-medium md:table-cell">Gestão</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/40">
+                              {linhas.map((t) => (
+                                <tr key={t.id} className={cn(fechada(t) && "bg-muted/20")}>
+                                  <td className="py-2 pr-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => props.onAbrir(t)}
+                                      className={cn(
+                                        "inline-flex items-center gap-1.5 text-left hover:text-brand-deep hover:underline",
+                                        t.status === "CONCLUIDA" && "text-muted-foreground",
+                                        t.status === "NAO_CONTEMPLADA" && "text-muted-foreground line-through",
+                                      )}
+                                    >
+                                      {t.status === "CONCLUIDA" ? <CheckCircle2 className="size-4 shrink-0 text-emerald-600" /> : null}
+                                      {t.titulo}
+                                    </button>
+                                    {agrupar !== "execucao" && t.unidade === "ACAO" ? (
+                                      <div className="text-xs text-muted-foreground">{props.rotuloRealizacao(t)}</div>
+                                    ) : null}
+                                    {agrupar !== "execucao" && t.unidade === "CIDADE" ? (
+                                      <div className="text-xs font-medium text-teal-800">
+                                        Cidade{agrupar !== "cidade" && t.cidade ? `: ${t.cidade}, ${t.uf}` : ""}
+                                      </div>
+                                    ) : null}
+                                  </td>
+                                  <td className="hidden py-2 pr-3 text-xs text-muted-foreground sm:table-cell">{FASE_LABEL[t.fase]}</td>
+                                  <td className="py-2 pr-3 text-xs tabular-nums whitespace-nowrap">{fmtCurto(t.prazo)}</td>
+                                  <td className="py-2 pr-3">
+                                    <span className="inline-flex items-center gap-2">
+                                      <StatusChip t={t} podeEditar={props.podeEditar} pending={props.pending} onStatus={props.onStatus} />
+                                      {t.comentarios ? (
+                                        <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+                                          <MessageSquare className="size-3.5" />
+                                          {t.comentarios}
+                                        </span>
+                                      ) : null}
+                                      {t.escaladasAbertas ? <Flag className="size-3.5 text-red-600" aria-label="Escalada à gestão" /> : null}
+                                    </span>
+                                  </td>
+                                  <td className="hidden py-2 md:table-cell">
+                                    {t.concluidaEm ? <ConclusaoInfo t={t} /> : <GestaoBadge s={t.gestao} />}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {todas.length > maxLinhas ? (
+                            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <span>
+                                Mostrando {linhas.length} de {todas.length} tarefas
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLinhasPorGrupo((m) => ({ ...m, [g.chave]: maxLinhas + TAREFAS_POR_GRUPO }))}
+                              >
+                                Mostrar mais {Math.min(TAREFAS_POR_GRUPO, todas.length - maxLinhas)}
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              {grupos.length > limite ? (
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
+                  <span>
+                    Mostrando {visiveis.length} de {grupos.length} grupos
+                  </span>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setLimite((l) => l + GRUPOS_POR_PAGINA)}>
+                      Mostrar mais {Math.min(GRUPOS_POR_PAGINA, grupos.length - limite)}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setLimite(grupos.length)}>
+                      Mostrar todos
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </>
       )}
     </section>
   );
@@ -867,15 +1143,18 @@ function AvulsaDialog({
           {nivel === 2 ? (
             <div className="space-y-1.5">
               <Label>{area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}</Label>
-              <SimpleSelect
+              <SearchSelect
                 value={alvo}
-                onChange={setAlvo}
+                onValueChange={setAlvo}
                 className="h-9 w-full"
                 aria-label={area === "PRODUCAO" ? "Ação ou cidade" : "Ação"}
+                placeholder="Escolha a execução"
+                searchPlaceholder="Buscar ação, data ou local"
                 options={[
                   ...realizacoes.map(({ a, g }) => ({
                     value: `ag:${g.id}`,
-                    label: `${a.nome} · ${g.titulo || periodoCurto(g)} · ${g.local}`,
+                    label: `${a.nome} · ${g.titulo || periodoCurto(g)}`,
+                    hint: g.local,
                   })),
                   ...(area === "PRODUCAO"
                     ? cidades.map((g) => ({ value: `cid:${g.cidade}|${g.uf}`, label: `Cidade: ${g.cidade}, ${g.uf}` }))
@@ -908,7 +1187,6 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
   const [pending, startTransition] = useTransition();
   const [inicio, setInicio] = useState(data.inicioExecucao ?? "");
   const [fim, setFim] = useState(data.fimExecucao ?? "");
-  const [nova, setNova] = useState<Record<string, { titulo: string; data: string; dataFim: string; local: string }>>({});
   const pode = data.pode.gestao;
 
   async function atualizarPreDefinicao() {
@@ -931,38 +1209,6 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
       const r = await setDatasProjetoAction(data.projeto.id, { inicioExecucao: inicio || null, fimExecucao: fim || null });
       if (!r.ok) return void toast.error(r.error);
       toast.success("Datas salvas; prazos recalculados");
-      router.refresh();
-    });
-  }
-
-  function adicionar(acaoId: string) {
-    const v = nova[acaoId];
-    if (!v) return;
-    startTransition(async () => {
-      const r = await addAgendaAction(acaoId, {
-        titulo: v.titulo,
-        data: v.data,
-        dataFim: v.dataFim,
-        online: v.local === "online",
-        territorioId: v.local === "online" ? null : v.local,
-      });
-      if (!r.ok) return void toast.error(r.error);
-      toast.success("Execução adicionada; tarefas geradas");
-      setNova((s) => ({ ...s, [acaoId]: { titulo: "", data: "", dataFim: "", local: v.local } }));
-      router.refresh();
-    });
-  }
-
-  async function remover(agendaId: string) {
-    const ok = await confirmar({
-      title: "Remover esta execução da agenda?",
-      description: "As tarefas e a ficha da prestação de contas desta execução também saem, incluindo fotos e documentos.",
-      destructive: true,
-    });
-    if (!ok) return;
-    startTransition(async () => {
-      const r = await removeAgendaAction(agendaId);
-      if (!r.ok) return void toast.error(r.error);
       router.refresh();
     });
   }
@@ -1004,109 +1250,7 @@ function Configuracao({ data }: { data: AcompanhamentoDTO }) {
 
 <PrazosProjeto data={data} pending={pending} onAtualizar={atualizarPreDefinicao} />
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="font-heading text-lg font-semibold text-brand-deep">Agenda das ações</h2>
-          <p className="text-sm text-muted-foreground">
-            Cada execução da ação: período e território (os cadastrados na ação, em Contextos). As tarefas de
-            nível 2 são geradas a partir daqui, com o prazo contado do início ou do fim da execução da ação.
-          </p>
-        </div>
-        {data.acoes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Este projeto ainda não tem ações. Cadastre em Contextos.</p>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {data.acoes.map((a) => {
-              const locais = [
-                ...a.territorios.map((t) => ({ value: t.id, label: t.label })),
-                ...(a.ofereceOnline ? [{ value: "online", label: "Online" }] : []),
-              ];
-              const v = nova[a.id] ?? { titulo: "", data: "", dataFim: "", local: locais.length === 1 ? locais[0]!.value : "" };
-              const set = (k: keyof typeof v, val: string) => setNova((s) => ({ ...s, [a.id]: { ...v, [k]: val } }));
-              return (
-                <div key={a.id} className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm">
-                  <div className="mb-2 flex items-center gap-2">
-                    <h3 className="font-semibold text-brand-deep">{a.nome}</h3>
-                    <span className="rounded-full border border-brand/15 bg-brand-mist/60 px-2 py-0.5 text-[11px] font-medium text-brand-deep">
-                      {a.tipoNome}
-                    </span>
-                  </div>
-                  {a.agenda.length ? (
-                    <ul className="mb-3 divide-y divide-border/50 text-sm">
-                      {a.agenda.map((g) => (
-                        <li key={g.id} className="flex items-center justify-between gap-2 py-1.5">
-                          <span>
-                            <span className="tabular-nums">
-                              {fmtDia(g.data)}
-                              {g.dataFim && g.dataFim !== g.data ? ` a ${fmtDia(g.dataFim)}` : ""}
-                            </span>{" "}
-                            · {g.local}
-                            {g.titulo ? <span className="text-muted-foreground"> · {g.titulo}</span> : null}
-                          </span>
-                          {pode ? (
-                            <button type="button" onClick={() => remover(g.id)} className="text-muted-foreground hover:text-red-700" aria-label="Remover data">
-                              <Trash2 className="size-4" />
-                            </button>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mb-3 text-xs text-muted-foreground">Sem datas.</p>
-                  )}
-                  {pode ? (
-                    <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <span>Período da execução (um clique no início e outro no fim; um dia só = um clique)</span>
-                        <DateRangePicker
-                          inicio={v.data}
-                          fim={v.dataFim}
-                          aria-label={`Período de execução de ${a.nome}`}
-                          onChange={(ini, fimNovo) => setNova((st) => ({ ...st, [a.id]: { ...v, data: ini, dataFim: fimNovo } }))}
-                        />
-                      </div>
-                      {locais.length ? (
-                        <div className="space-y-1 text-xs text-muted-foreground">
-                          <span>Onde (território cadastrado na ação)</span>
-                          <SimpleSelect
-                            value={v.local}
-                            onChange={(val) => set("local", val)}
-                            className="h-9 w-full"
-                            aria-label={`Território de ${a.nome}`}
-                            options={[{ value: "", label: "Escolha o território" }, ...locais]}
-                          />
-                        </div>
-                      ) : (
-                        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                          Esta ação ainda não tem território.{" "}
-                          <Link
-                            href={`/dashboard/contextos?tab=acoes&q=${encodeURIComponent(a.nome)}`}
-                            className="font-semibold underline"
-                          >
-                            Cadastre em Contextos
-                          </Link>{" "}
-                          (zona, cidade e UF, ou online).
-                        </p>
-                      )}
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                        <Input
-                          value={v.titulo}
-                          onChange={(e) => set("titulo", e.target.value)}
-                          placeholder="Rótulo (opcional), ex.: Oficina 2"
-                          aria-label="Rótulo"
-                        />
-                        <Button variant="outline" disabled={pending || !v.data || !v.local} onClick={() => adicionar(a.id)}>
-                          <Plus className="size-4" /> Adicionar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      <AgendaAcoes data={data} />
     </div>
   );
 }
