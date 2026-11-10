@@ -13,7 +13,7 @@ const allowedDevOrigins = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@max/auth", "@max/mobile-nav", "@max/security-headers"],
+  transpilePackages: ["@max/auth", "@max/mobile-nav", "@max/security-headers", "@max/ui"],
   allowedDevOrigins,
   async headers() {
     return [{ source: "/:path*", headers: buildSecurityHeaders() }];

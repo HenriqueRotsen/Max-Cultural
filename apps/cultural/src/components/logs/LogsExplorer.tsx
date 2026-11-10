@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { SearchSelect } from "@max/ui";
 import { auditActionLabel, auditScreenLabel } from "@/lib/audit-labels";
 import {
   LOGS_PAGE_SIZE_OPTIONS,
@@ -353,48 +354,48 @@ export function LogsExplorer({ logs, total, query, filterOptions }: Props) {
           <div className="grid gap-3 border-t border-[var(--border)] pt-3 md:grid-cols-3 lg:grid-cols-6">
             <label className="field md:col-span-2">
               <span>Ação</span>
-              <select name="action" defaultValue={query.action}>
-                <option value="">Todas</option>
-                {filterOptions.actions.map((a) => (
-                  <option key={a} value={a}>
-                    {auditActionLabel(a)} ({a})
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                name="action"
+                defaultValue={query.action}
+                emptyOption="Todas"
+                options={filterOptions.actions.map((a) => ({
+                  value: a,
+                  label: `${auditActionLabel(a)} (${a})`,
+                }))}
+              />
             </label>
             <label className="field">
               <span>Tela</span>
-              <select name="screen" defaultValue={query.screen}>
-                <option value="">Todas</option>
-                {filterOptions.screens.map((s) => (
-                  <option key={s} value={s}>
-                    {auditScreenLabel(s)}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                name="screen"
+                defaultValue={query.screen}
+                emptyOption="Todas"
+                options={filterOptions.screens.map((s) => ({
+                  value: s,
+                  label: auditScreenLabel(s),
+                }))}
+              />
             </label>
             <label className="field">
               <span>Usuário</span>
-              <select name="actor" defaultValue={query.actorId}>
-                <option value="">Todos</option>
-                {filterOptions.actors.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name ? `${a.name} · ` : ""}
-                    {a.email}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                name="actor"
+                defaultValue={query.actorId}
+                emptyOption="Todos"
+                options={filterOptions.actors.map((a) => ({
+                  value: a.id,
+                  label: `${a.name ? `${a.name} · ` : ""}${a.email}`,
+                }))}
+              />
             </label>
             <label className="field">
               <span>Tipo entidade</span>
-              <select name="entityType" defaultValue={query.entityType}>
-                <option value="">Todos</option>
-                {filterOptions.entityTypes.map((e) => (
-                  <option key={e} value={e}>
-                    {e}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                name="entityType"
+                defaultValue={query.entityType}
+                emptyOption="Todos"
+                options={filterOptions.entityTypes.map((e) => ({ value: e, label: e }))}
+              />
             </label>
             <label className="field">
               <span>De</span>
@@ -421,24 +422,18 @@ export function LogsExplorer({ logs, total, query, filterOptions }: Props) {
         </p>
         <label className="inline-flex items-center gap-2">
           <span className="text-xs">Por página</span>
-          <select
-            className="rounded-lg border border-[var(--border)] bg-white px-2 py-1 text-sm"
-            value={query.pageSize}
-            onChange={(e) => {
+          <SearchSelect
+            value={String(query.pageSize)}
+            onValueChange={(v) => {
               const qs = logsQueryToSearchParams(
-                { ...query, pageSize: Number(e.target.value), page: 1 },
+                { ...query, pageSize: Number(v), page: 1 },
                 { page: 1 },
               );
-              qs.set("pageSize", e.target.value);
+              qs.set("pageSize", v);
               router.push(`/logs?${qs.toString()}`);
             }}
-          >
-            {LOGS_PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+            options={LOGS_PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+          />
         </label>
       </div>
 

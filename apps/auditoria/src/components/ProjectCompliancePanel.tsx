@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { SearchSelect } from "@max/ui";
 import type { AuditBrief } from "@/lib/compliance/audit-brief";
 
 type RulesetOption = {
@@ -153,22 +154,21 @@ export function ProjectCompliancePanel({
             <label htmlFor="rulesetVersion" className="text-sm font-medium text-[var(--navy)]">
               Alterar IN
             </label>
-            <select
+            <SearchSelect
               id="rulesetVersion"
               value={version}
-              onChange={(e) => setVersion(e.target.value)}
+              onValueChange={setVersion}
               disabled={pending}
-            >
-              <option value="">Selecione…</option>
-              {rulesets.map((r) => (
-                <option key={r.version} value={r.version}>
-                  {r.sourceCode}
-                  {r.noPercentLimits
+              placeholder="Selecione…"
+              options={rulesets.map((r) => ({
+                value: r.version,
+                label: `${r.sourceCode}${
+                  r.noPercentLimits
                     ? " · sem limites percentuais"
-                    : ` · proponente ${r.proponentCapPct}% · fornecedor ${r.supplierCapPct}%`}
-                </option>
-              ))}
-            </select>
+                    : ` · proponente ${r.proponentCapPct}% · fornecedor ${r.supplierCapPct}%`
+                }`,
+              }))}
+            />
           </div>
           <div className="flex items-end">
             <button

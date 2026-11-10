@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { actionErrorMessage } from "@/lib/action-errors";
 import { Fragment, useMemo, useState, type FormEvent } from "react";
+import { SearchSelect } from "@max/ui";
 import type { CompareResult, CompareRow } from "@/lib/compare/projects-sheet";
 
 type ApiResult = CompareResult & { fileName: string };
@@ -167,17 +168,18 @@ export function ProjectSheetComparePanel() {
                 <label htmlFor="compare-filter" className="text-sm font-medium text-[var(--navy)]">
                   Filtrar
                 </label>
-                <select
+                <SearchSelect
                   id="compare-filter"
                   value={filter}
-                  onChange={(e) => setFilter(e.target.value as Filter)}
-                >
-                  <option value="all">Todos</option>
-                  <option value="diff">Com diferença</option>
-                  <option value="missing_in_system">Só na planilha</option>
-                  <option value="missing_in_sheet">Só no MAX Auditoria</option>
-                  <option value="ok">Batem</option>
-                </select>
+                  onValueChange={(v) => setFilter(v as Filter)}
+                  options={[
+                    { value: "all", label: "Todos" },
+                    { value: "diff", label: "Com diferença" },
+                    { value: "missing_in_system", label: "Só na planilha" },
+                    { value: "missing_in_sheet", label: "Só no MAX Auditoria" },
+                    { value: "ok", label: "Batem" },
+                  ]}
+                />
               </div>
             </div>
 

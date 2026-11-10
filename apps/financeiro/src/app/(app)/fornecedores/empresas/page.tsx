@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { formatCgccpf } from "@/lib/format";
@@ -127,33 +128,39 @@ export default async function CatalogSuppliersPage({
         </div>
         <div className="field">
           <label htmlFor="state">UF</label>
-          <select id="state" name="state" defaultValue={state}>
-            <option value="">Todas</option>
-            {BRAZIL_UF.map((uf) => (
-              <option key={uf.sigla} value={uf.sigla}>
-                {uf.sigla}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            id="state"
+            name="state"
+            className="min-w-[8rem]"
+            defaultValue={state}
+            emptyOption="Todas"
+            options={BRAZIL_UF.map((uf) => ({ value: uf.sigla, label: uf.sigla }))}
+          />
         </div>
         <div className="field">
           <label htmlFor="minRating">Avaliação mín.</label>
-          <select id="minRating" name="minRating" defaultValue={one(sp.minRating) || ""}>
-            <option value="">Qualquer</option>
-            {[4, 3, 2, 1].map((n) => (
-              <option key={n} value={n}>
-                {n}+
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            id="minRating"
+            name="minRating"
+            className="min-w-[8rem]"
+            defaultValue={one(sp.minRating) || ""}
+            emptyOption="Qualquer"
+            options={[4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n}+` }))}
+          />
         </div>
         <div className="field">
           <label htmlFor="sort">Ordenar</label>
-          <select id="sort" name="sort" defaultValue={sort}>
-            <option value="name">Nome</option>
-            <option value="rating">Melhor avaliação</option>
-            <option value="recent">Mais recentes</option>
-          </select>
+          <SearchSelect
+            id="sort"
+            name="sort"
+            className="min-w-[8rem]"
+            defaultValue={sort}
+            options={[
+              { value: "name", label: "Nome" },
+              { value: "rating", label: "Melhor avaliação" },
+              { value: "recent", label: "Mais recentes" },
+            ]}
+          />
         </div>
         <button type="submit" className="btn btn-ghost">
           Filtrar

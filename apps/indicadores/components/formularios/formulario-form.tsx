@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchSelect } from "@/components/ui/search-select";
 import { Textarea } from "@/components/ui/textarea";
 import { CampoEditor } from "@/components/formularios/campo-editor";
 import { CapaField } from "@/components/formularios/capa-field";
@@ -132,19 +133,15 @@ export function FormularioForm({
         {mode === "create" ? (
           <div className="space-y-1">
             <Label>Ação *</Label>
-            <select
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+            <SearchSelect
+              className="h-9 w-full"
+              aria-label="Ação"
               value={acaoId}
-              onChange={(e) => setAcaoId(e.target.value)}
+              onValueChange={setAcaoId}
               required
-            >
-              <option value="">Selecione…</option>
-              {acoes.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              placeholder="Selecione…"
+              options={acoes.map((o) => ({ value: o.id, label: o.label }))}
+            />
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">

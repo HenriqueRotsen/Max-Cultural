@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import type { AppNotificationType } from "@/generated/prisma/enums";
 import { PageHeader } from "@/components/ui";
 import { NotificationSettingsForm } from "@/components/planning/NotificationSettingsForm";
@@ -89,25 +90,34 @@ export default async function NotificacoesPage({
           <form className="card flex flex-wrap items-end gap-3 p-4">
             <label className="field min-w-[12rem]">
               <span>Tipo</span>
-              <select name="type" defaultValue={type} className="w-full">
-                <option value="">Todos (ativos)</option>
-                {(
-                  Object.keys(NOTIFICATION_TYPE_META) as AppNotificationType[]
-                ).map((t) => (
-                  <option key={t} value={t} disabled={!enabledTypes.includes(t)}>
-                    {NOTIFICATION_TYPE_META[t].label}
-                    {!enabledTypes.includes(t) ? " (desligado)" : ""}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                name="type"
+                aria-label="Tipo"
+                defaultValue={type}
+                emptyOption="Todos (ativos)"
+                options={(Object.keys(NOTIFICATION_TYPE_META) as AppNotificationType[]).map(
+                  (t) => ({
+                    value: t,
+                    label: `${NOTIFICATION_TYPE_META[t].label}${
+                      !enabledTypes.includes(t) ? " (desligado)" : ""
+                    }`,
+                    disabled: !enabledTypes.includes(t),
+                  }),
+                )}
+              />
             </label>
             <label className="field min-w-[10rem]">
               <span>Status</span>
-              <select name="status" defaultValue={status} className="w-full">
-                <option value="">Todas</option>
-                <option value="unread">Não lidas</option>
-                <option value="read">Lidas</option>
-              </select>
+              <SearchSelect
+                name="status"
+                aria-label="Status"
+                defaultValue={status}
+                emptyOption="Todas"
+                options={[
+                  { value: "unread", label: "Não lidas" },
+                  { value: "read", label: "Lidas" },
+                ]}
+              />
             </label>
             <button type="submit" className="btn">
               Filtrar

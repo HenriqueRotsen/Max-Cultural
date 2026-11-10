@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import { getPanoramaInsights } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { formatCurrency, formatCgccpf } from "@/lib/format";
@@ -62,27 +63,25 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Sea
             <FieldLabel htmlFor="accountId" help={HELP.filterProponente}>
               Proponente
             </FieldLabel>
-            <select id="accountId" name="accountId" defaultValue={accountId || ""}>
-              <option value="">Todos os proponentes</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              id="accountId"
+              name="accountId"
+              defaultValue={accountId || ""}
+              emptyOption="Todos os proponentes"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+            />
           </div>
           <div className="field">
             <FieldLabel htmlFor="rulesetVersion" help={HELP.filterRuleset}>
               Regra (IN)
             </FieldLabel>
-            <select id="rulesetVersion" name="rulesetVersion" defaultValue={rulesetVersion || ""}>
-              <option value="">Todas as INs</option>
-              {rulesetOptions.map((r) => (
-                <option key={r.version} value={r.version}>
-                  {r.sourceCode}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              id="rulesetVersion"
+              name="rulesetVersion"
+              defaultValue={rulesetVersion || ""}
+              emptyOption="Todas as INs"
+              options={rulesetOptions.map((r) => ({ value: r.version, label: r.sourceCode }))}
+            />
           </div>
           <div className="flex items-end gap-2">
             <button type="submit" className="btn">

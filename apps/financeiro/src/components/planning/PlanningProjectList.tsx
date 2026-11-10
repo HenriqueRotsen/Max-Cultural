@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { SearchSelect } from "@max/ui";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { jurisdictionLabel } from "@/lib/planning/lifecycle";
 
@@ -235,21 +236,31 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
         </label>
         <label className="field min-w-[10rem]">
           <span className="text-xs text-[var(--gray-500)]">Esfera</span>
-          <select value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)}>
-            <option value="all">Todas</option>
-            <option value="FEDERAL">Federal</option>
-            <option value="ESTADUAL">Estadual</option>
-          </select>
+          <SearchSelect
+            aria-label="Esfera"
+            value={jurisdiction}
+            onValueChange={setJurisdiction}
+            options={[
+              { value: "all", label: "Todas" },
+              { value: "FEDERAL", label: "Federal" },
+              { value: "ESTADUAL", label: "Estadual" },
+            ]}
+          />
         </label>
         <label className="field min-w-[10rem]">
           <span className="text-xs text-[var(--gray-500)]">Ordenar por</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-            <option value="name">Nome</option>
-            <option value="code">PRONAC</option>
-            <option value="balance">Saldo</option>
-            <option value="approved">Aprovado</option>
-            <option value="imported">Importação</option>
-          </select>
+          <SearchSelect
+            aria-label="Ordenar por"
+            value={sort}
+            onValueChange={(v) => setSort(v as SortKey)}
+            options={[
+              { value: "name", label: "Nome" },
+              { value: "code", label: "PRONAC" },
+              { value: "balance", label: "Saldo" },
+              { value: "approved", label: "Aprovado" },
+              { value: "imported", label: "Importação" },
+            ]}
+          />
         </label>
       </div>
 

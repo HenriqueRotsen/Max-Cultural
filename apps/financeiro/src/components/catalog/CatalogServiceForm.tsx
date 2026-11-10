@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SearchSelect } from "@max/ui";
 import { upsertCatalogService, type CatalogActionState } from "@/lib/catalog/actions";
 import { SERVICE_CATEGORIES } from "@/lib/catalog/categories";
 import { PRICE_UNITS } from "@/lib/catalog/price-units";
@@ -20,14 +21,14 @@ export function CatalogServiceForm({
       {state.error ? <p className="auth-alert">{state.error}</p> : null}
       <div className="field">
         <label htmlFor="supplierId">Fornecedor</label>
-        <select id="supplierId" name="supplierId" defaultValue={defaultSupplierId ?? ""} required>
-          <option value="">Selecione</option>
-          {suppliers.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        <SearchSelect
+          id="supplierId"
+          name="supplierId"
+          defaultValue={defaultSupplierId ?? ""}
+          required
+          emptyOption="Selecione"
+          options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+        />
       </div>
       <div className="field">
         <label htmlFor="name">Serviço ou produto</label>
@@ -36,24 +37,21 @@ export function CatalogServiceForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="field">
           <label htmlFor="category">Categoria</label>
-          <select id="category" name="category">
-            <option value="">—</option>
-            {SERVICE_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            id="category"
+            name="category"
+            emptyOption="—"
+            options={SERVICE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+          />
         </div>
         <div className="field">
           <label htmlFor="defaultPriceUnit">Unidade padrão</label>
-          <select id="defaultPriceUnit" name="defaultPriceUnit" defaultValue="closed">
-            {PRICE_UNITS.map((u) => (
-              <option key={u.value} value={u.value}>
-                {u.label}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            id="defaultPriceUnit"
+            name="defaultPriceUnit"
+            defaultValue="closed"
+            options={PRICE_UNITS.map((u) => ({ value: u.value, label: u.label }))}
+          />
         </div>
       </div>
       <div className="field">

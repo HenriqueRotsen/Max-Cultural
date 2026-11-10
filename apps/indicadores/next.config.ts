@@ -13,7 +13,7 @@ const allowedDevOrigins = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@max/auth", "@max/mobile-nav", "@max/security-headers"],
+  transpilePackages: ["@max/auth", "@max/mobile-nav", "@max/security-headers", "@max/ui"],
   // Gerador de PDF da prestação de contas: roda no Node, fora do bundle.
   serverExternalPackages: ["@react-pdf/renderer"],
   allowedDevOrigins,

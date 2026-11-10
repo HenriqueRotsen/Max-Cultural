@@ -27,13 +27,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
+
+const SIM_NAO_OPCOES = [
+  { value: "1", label: "Sim" },
+  { value: "0", label: "Não" },
+];
 
 const FLAG_COLS = new Set<SigaCulturalColumn>([
   "Selecionados",
@@ -216,22 +215,15 @@ export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
     if (col === "Genero") {
       return (
         <Field key={col} label={columnLabel(col)} locked={locked}>
-          <Select
-            value={strValue || undefined}
-            onValueChange={(v) => setField(col, v ?? "")}
+          <SearchSelect
+            className="w-full"
+            aria-label={columnLabel(col)}
+            value={strValue}
+            onValueChange={(v) => setField(col, v)}
             disabled={locked}
-          >
-            <SelectTrigger className="w-full" disabled={locked}>
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {GENEROS.map((g) => (
-                <SelectItem key={g} value={g}>
-                  {g}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecione"
+            options={GENEROS.map((g) => ({ value: g, label: g }))}
+          />
         </Field>
       );
     }
@@ -239,22 +231,15 @@ export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
     if (col === "Etnia") {
       return (
         <Field key={col} label={columnLabel(col)} locked={locked}>
-          <Select
-            value={strValue || undefined}
-            onValueChange={(v) => setField(col, v ?? "")}
+          <SearchSelect
+            className="w-full"
+            aria-label={columnLabel(col)}
+            value={strValue}
+            onValueChange={(v) => setField(col, v)}
             disabled={locked}
-          >
-            <SelectTrigger className="w-full" disabled={locked}>
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {ETNIAS.map((g) => (
-                <SelectItem key={g} value={g}>
-                  {g}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecione"
+            options={ETNIAS.map((g) => ({ value: g, label: g }))}
+          />
         </Field>
       );
     }
@@ -283,20 +268,14 @@ export function EditInscricaoDialog({ open, record, onOpenChange }: Props) {
     if (FLAG_COLS.has(col)) {
       return (
         <Field key={col} label={columnLabel(col)} locked={locked}>
-          <Select
+          <SearchSelect
+            className="w-full"
+            aria-label={columnLabel(col)}
             value={strValue === "1" ? "1" : "0"}
-            onValueChange={(v) => setField(col, v ?? "0")}
+            onValueChange={(v) => setField(col, v || "0")}
             disabled={locked}
-            items={{ "1": "Sim", "0": "Não" }}
-          >
-            <SelectTrigger className="w-full" disabled={locked}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Sim</SelectItem>
-              <SelectItem value="0">Não</SelectItem>
-            </SelectContent>
-          </Select>
+            options={SIM_NAO_OPCOES}
+          />
         </Field>
       );
     }
