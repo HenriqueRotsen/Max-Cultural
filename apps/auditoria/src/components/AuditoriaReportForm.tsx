@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { SearchSelect } from "@max/ui";
 
 /** Minúsculas e sem acento, para a busca casar "praca" com "Praça". */
 function norm(s: string) {
@@ -84,18 +85,13 @@ export function AuditoriaReportForm({
         </div>
         <div className="field min-w-[14rem]">
           <label htmlFor="accountFilter">Proponente</label>
-          <select
+          <SearchSelect
             id="accountFilter"
             value={accountFilter}
-            onChange={(e) => setAccountFilter(e.target.value)}
-          >
-            <option value="">Todos</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={setAccountFilter}
+            emptyOption="Todos"
+            options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+          />
         </div>
         <button type="button" className="btn btn-ghost" onClick={selectAllVisible}>
           Marcar visíveis

@@ -33,13 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 
 type FilterOptions = {
   actions: string[];
@@ -154,36 +148,36 @@ export function AuditoriaManager({
     setSortKey(key);
   }
 
-  const groupItems = useMemo(
-    () =>
-      Object.fromEntries(AUDIT_ACTION_GROUPS.map((g) => [g.value, g.label])),
+  const groupOptions = useMemo(
+    () => AUDIT_ACTION_GROUPS.map((g) => ({ value: g.value, label: g.label })),
     [],
   );
-  const actionItems = useMemo(
-    () =>
-      Object.fromEntries([
-        ["all", "Todas as ações"],
-        ...filterOptions.actions.map((a) => [a, auditActionLabel(a)]),
-      ]),
-    [filterOptions.actions],
-  );
-  const entityItems = useMemo(
-    () =>
-      Object.fromEntries([
-        ["all", "Todas"],
-        ...filterOptions.entityTypes.map((e) => [e, e]),
-      ]),
+  const actionOptions = useMemo(() => {
+    const prefix = AUDIT_ACTION_GROUPS.find(
+      (g) => g.value === actionPrefix,
+    )?.prefix;
+    return [
+      { value: "all", label: "Todas as ações" },
+      ...filterOptions.actions
+        .filter((a) => actionPrefix === "all" || !prefix || a.startsWith(prefix))
+        .map((a) => ({ value: a, label: auditActionLabel(a) })),
+    ];
+  }, [filterOptions.actions, actionPrefix]);
+  const entityOptions = useMemo(
+    () => [
+      { value: "all", label: "Todas" },
+      ...filterOptions.entityTypes.map((e) => ({ value: e, label: e })),
+    ],
     [filterOptions.entityTypes],
   );
-  const actorItems = useMemo(
-    () =>
-      Object.fromEntries([
-        ["all", "Todos"],
-        ...filterOptions.actors.map((a) => [
-          a.id,
-          `${a.name} (${a.email})`,
-        ]),
-      ]),
+  const actorOptions = useMemo(
+    () => [
+      { value: "all", label: "Todos" },
+      ...filterOptions.actors.map((a) => ({
+        value: a.id,
+        label: `${a.name} (${a.email})`,
+      })),
+    ],
     [filterOptions.actors],
   );
 
@@ -364,93 +358,46 @@ export function AuditoriaManager({
           <div className="mt-4 grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Categoria</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Categoria"
                 value={actionPrefix}
                 onValueChange={(v) => {
-                  setActionPrefix(v ?? "all");
+                  setActionPrefix(v || "all");
                   setAction("all");
                 }}
-                items={groupItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AUDIT_ACTION_GROUPS.map((g) => (
-                    <SelectItem key={g.value} value={g.value}>
-                      {g.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={groupOptions}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Ação</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Ação"
                 value={action}
-                onValueChange={(v) => setAction(v ?? "all")}
-                items={actionItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as ações</SelectItem>
-                  {filterOptions.actions
-                    .filter((a) => {
-                      if (actionPrefix === "all") return true;
-                      const prefix = AUDIT_ACTION_GROUPS.find(
-                        (g) => g.value === actionPrefix,
-                      )?.prefix;
-                      return prefix ? a.startsWith(prefix) : true;
-                    })
-                    .map((a) => (
-                      <SelectItem key={a} value={a}>
-                        {auditActionLabel(a)}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setAction(v || "all")}
+                options={actionOptions}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Usuário</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Usuário"
                 value={actorId}
-                onValueChange={(v) => setActorId(v ?? "all")}
-                items={actorItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {filterOptions.actors.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name} ({a.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setActorId(v || "all")}
+                options={actorOptions}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Tipo de entidade</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Tipo de entidade"
                 value={entityType}
-                onValueChange={(v) => setEntityType(v ?? "all")}
-                items={entityItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {filterOptions.entityTypes.map((e) => (
-                    <SelectItem key={e} value={e}>
-                      {e}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setEntityType(v || "all")}
+                options={entityOptions}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs" htmlFor="audit-from">

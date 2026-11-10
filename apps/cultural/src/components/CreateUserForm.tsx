@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SearchSelect } from "@max/ui";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { RecaptchaForm } from "@/components/RecaptchaV3";
 import { createUserAction } from "@/lib/actions/iam";
@@ -34,13 +35,13 @@ export function CreateUserForm({
         </div>
         <div className="field">
           <label htmlFor="roleId">Papel</label>
-          <select id="roleId" name="roleId" required defaultValue={roles[0]?.id}>
-            {roles.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            id="roleId"
+            name="roleId"
+            required
+            defaultValue={roles[0]?.id}
+            options={roles.map((r) => ({ value: r.id, label: r.name }))}
+          />
         </div>
       </div>
       {botError ? <p className="auth-alert">{botError}</p> : null}

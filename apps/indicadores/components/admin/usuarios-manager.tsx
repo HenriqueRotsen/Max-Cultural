@@ -31,13 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
 
 type Bootstrap = Awaited<
@@ -89,8 +83,8 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
     overrides: [] as Array<{ permissionId: string; effect: PermissionEffect }>,
   });
 
-  const roleItems = useMemo(
-    () => Object.fromEntries(data.roles.map((r) => [r.id, r.name])),
+  const roleOptions = useMemo(
+    () => data.roles.map((r) => ({ value: r.id, label: r.name })),
     [data.roles],
   );
 
@@ -144,13 +138,12 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
     loginFilter !== "all",
   ].filter(Boolean).length;
 
-  const roleFilterItems = useMemo(
-    () =>
-      Object.fromEntries([
-        ["all", "Todos os papéis"],
-        ["superadmin", "Superadmin"],
-        ...data.roles.map((r) => [r.id, r.name]),
-      ]),
+  const roleFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "Todos os papéis" },
+      { value: "superadmin", label: "Superadmin" },
+      ...data.roles.map((r) => ({ value: r.id, label: r.name })),
+    ],
     [data.roles],
   );
 
@@ -388,87 +381,55 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
           <div className="mt-4 grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Papel</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Papel"
                 value={roleFilter}
-                onValueChange={(v) => setRoleFilter(v ?? "all")}
-                items={roleFilterItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os papéis</SelectItem>
-                  <SelectItem value="superadmin">Superadmin</SelectItem>
-                  {data.roles.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setRoleFilter(v || "all")}
+                options={roleFilterOptions}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Status</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Status"
                 value={statusFilter}
-                onValueChange={(v) => setStatusFilter(v ?? "all")}
-                items={{
-                  all: "Todos",
-                  active: "Ativos",
-                  deactivated: "Desativados",
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="active">Ativos</SelectItem>
-                  <SelectItem value="deactivated">Desativados</SelectItem>
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setStatusFilter(v || "all")}
+                options={[
+                  { value: "all", label: "Todos" },
+                  { value: "active", label: "Ativos" },
+                  { value: "deactivated", label: "Desativados" },
+                ]}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Acesso aos dados</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Acesso aos dados"
                 value={scopeFilter}
-                onValueChange={(v) => setScopeFilter(v ?? "all")}
-                items={{
-                  all: "Todos",
-                  ALL: "Acesso completo",
-                  LIMITED: "Por projeto",
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="ALL">Acesso completo</SelectItem>
-                  <SelectItem value="LIMITED">Por projeto</SelectItem>
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setScopeFilter(v || "all")}
+                options={[
+                  { value: "all", label: "Todos" },
+                  { value: "ALL", label: "Acesso completo" },
+                  { value: "LIMITED", label: "Por projeto" },
+                ]}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Login</Label>
-              <Select
+              <SearchSelect
+                className="w-full"
+                aria-label="Login"
                 value={loginFilter}
-                onValueChange={(v) => setLoginFilter(v ?? "all")}
-                items={{
-                  all: "Todos",
-                  logged: "Já logaram",
-                  never: "Nunca logaram",
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="logged">Já logaram</SelectItem>
-                  <SelectItem value="never">Nunca logaram</SelectItem>
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setLoginFilter(v || "all")}
+                options={[
+                  { value: "all", label: "Todos" },
+                  { value: "logged", label: "Já logaram" },
+                  { value: "never", label: "Nunca logaram" },
+                ]}
+              />
             </div>
           </div>
         ) : null}
@@ -673,22 +634,13 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
                 <>
                   <div className="space-y-1.5">
                     <Label>Papel</Label>
-                    <Select
+                    <SearchSelect
+                      className="w-full"
+                      aria-label="Papel"
                       value={form.roleId}
-                      onValueChange={(v) => applyRole(v ?? "")}
-                      items={roleItems}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {data.roles.map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onValueChange={(v) => applyRole(v)}
+                      options={roleOptions}
+                    />
                     {isAdminRole ? (
                       <p className="text-xs text-muted-foreground">
                         O papel Administrador já inclui todas as permissões e
@@ -699,32 +651,27 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
                   {!isAdminRole ? (
                     <div className="space-y-1.5">
                       <Label>Acesso aos dados</Label>
-                      <Select
+                      <SearchSelect
+                        className="w-full"
+                        aria-label="Acesso aos dados"
                         value={form.dataScopeMode}
                         onValueChange={(v) =>
                           setForm((f) => ({
                             ...f,
-                            dataScopeMode:
-                              (v as "ALL" | "LIMITED") ?? "LIMITED",
+                            dataScopeMode: (v as "ALL" | "LIMITED") || "LIMITED",
                           }))
                         }
-                        items={{
-                          ALL: "Acesso completo",
-                          LIMITED: "Escolher contextos e projetos",
-                        }}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Como este usuário acessa os dados?" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">
-                            Acesso completo — vê e edita tudo
-                          </SelectItem>
-                          <SelectItem value="LIMITED">
-                            Escolher contextos e projetos — libera item a item
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                        placeholder="Como este usuário acessa os dados?"
+                        showHintInTrigger={false}
+                        options={[
+                          { value: "ALL", label: "Acesso completo", hint: "Vê e edita tudo" },
+                          {
+                            value: "LIMITED",
+                            label: "Escolher contextos e projetos",
+                            hint: "Libera item a item",
+                          },
+                        ]}
+                      />
                       <p className="text-xs text-muted-foreground">
                         {form.dataScopeMode === "ALL"
                           ? "Não precisa definir contextos na próxima etapa."
@@ -749,28 +696,20 @@ export function UsuariosManager({ data }: { data: Bootstrap }) {
                           className="flex flex-wrap items-center justify-between gap-2"
                         >
                           <span>{p.label}</span>
-                          <Select
+                          <SearchSelect
+                            className="w-36"
+                            aria-label={`Permissão: ${p.label}`}
                             value={cur ?? "none"}
                             onValueChange={(v) => {
-                              const val =
-                                v === "none" ? null : (v as PermissionEffect);
+                              const val = v === "none" ? null : (v as PermissionEffect);
                               toggleOverride(p.id, val);
                             }}
-                            items={{
-                              none: "Papel",
-                              GRANT: "Conceder",
-                              DENY: "Negar",
-                            }}
-                          >
-                            <SelectTrigger className="w-36">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Papel</SelectItem>
-                              <SelectItem value="GRANT">Conceder</SelectItem>
-                              <SelectItem value="DENY">Negar</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            options={[
+                              { value: "none", label: "Papel" },
+                              { value: "GRANT", label: "Conceder" },
+                              { value: "DENY", label: "Negar" },
+                            ]}
+                          />
                         </div>
                       );
                     })}

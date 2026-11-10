@@ -5,6 +5,7 @@ import { submitPublicFormularioAction } from "@/app/actions/formularios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchSelect } from "@/components/ui/search-select";
 import { Textarea } from "@/components/ui/textarea";
 import { GENEROS, ETNIAS } from "@/lib/schema";
 import type { FormularioCampoTipoCode } from "@/lib/formularios/types";
@@ -702,18 +703,14 @@ export function PublicFormClient({
             </Label>
             {help}
             {errEl}
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            <SearchSelect
+              className="h-10 w-full bg-background"
+              aria-label={campo.rotulo}
               value={String(values[campo.id] ?? "")}
-              onChange={(e) => setField(campo.id, e.target.value)}
-            >
-              <option value="">Selecione…</option>
-              {opts.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+              onValueChange={(v) => setField(campo.id, v)}
+              emptyOption="Selecione…"
+              options={opts.map((o) => ({ value: o, label: o }))}
+            />
           </div>
         );
       }
@@ -783,18 +780,14 @@ export function PublicFormClient({
           </Label>
           {help}
           {errEl}
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          <SearchSelect
+            className="h-10 w-full bg-background"
+            aria-label={campo.rotulo}
             value={String(values[campo.id] ?? "")}
-            onChange={(e) => setField(campo.id, e.target.value)}
-          >
-            <option value="">Selecione…</option>
-            {opts.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
+            onValueChange={(v) => setField(campo.id, v)}
+            emptyOption="Selecione…"
+            options={opts.map((o) => ({ value: o, label: o }))}
+          />
         </div>
       );
     }

@@ -13,22 +13,17 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { SortIndicator } from "@/components/sortable-table-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
 import type { SortDir } from "@/lib/table-sort";
 import { toggleSortDir } from "@/lib/table-sort";
 
 const PAGE_SIZES = [25, 50, 100, 200] as const;
 
-const PAGE_SIZE_ITEMS = Object.fromEntries(
-  PAGE_SIZES.map((size) => [String(size), `${size} / pág.`]),
-);
+const PAGE_SIZE_OPTIONS = PAGE_SIZES.map((size) => ({
+  value: String(size),
+  label: `${size} / pág.`,
+}));
 
 const MIN_COL_WIDTH = 64;
 const MAX_COL_WIDTH = 720;
@@ -200,22 +195,13 @@ export function DataSheet({
             />
           </div>
           {toolbarExtra}
-          <Select
+          <SearchSelect
+            className="h-8 w-[7.5rem] bg-white"
+            aria-label="Linhas por página"
             value={String(pageSize)}
-            onValueChange={(v) => onPageSizeChange(Number(v ?? 50))}
-            items={PAGE_SIZE_ITEMS}
-          >
-            <SelectTrigger className="h-8 w-[7.5rem] bg-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZES.map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size} / pág.
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={(v) => onPageSizeChange(Number(v || 50))}
+            options={PAGE_SIZE_OPTIONS}
+          />
         </div>
       </div>
 

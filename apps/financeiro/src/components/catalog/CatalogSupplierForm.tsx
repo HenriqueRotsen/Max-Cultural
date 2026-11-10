@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { SearchSelect } from "@max/ui";
 import {
   lookupCepAction,
   lookupCnpjAction,
@@ -161,14 +162,14 @@ export function CatalogSupplierForm({
         </div>
         <div className="field">
           <label htmlFor="state">UF</label>
-          <select id="state" name="state" value={stateUf} onChange={(e) => setStateUf(e.target.value)}>
-            <option value="">—</option>
-            {BRAZIL_UF.map((uf) => (
-              <option key={uf.sigla} value={uf.sigla}>
-                {uf.sigla}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            id="state"
+            name="state"
+            value={stateUf}
+            onValueChange={setStateUf}
+            emptyOption="—"
+            options={BRAZIL_UF.map((uf) => ({ value: uf.sigla, label: uf.sigla }))}
+          />
         </div>
         <div className="field">
           <label htmlFor="streetType">Tipo</label>

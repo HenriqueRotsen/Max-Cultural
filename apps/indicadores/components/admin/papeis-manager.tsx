@@ -27,13 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
 import { ADMIN_ROLE_NAME } from "@/lib/permission-catalog";
 
@@ -319,31 +313,26 @@ export function PapeisManager({ data }: { data: Bootstrap }) {
               {!isAdminRole ? (
                 <div className="space-y-1.5">
                   <Label>Acesso padrão aos dados</Label>
-                  <Select
+                  <SearchSelect
+                    className="w-full"
+                    aria-label="Acesso padrão aos dados"
                     value={form.dataScopeMode}
                     onValueChange={(v) =>
                       setForm((f) => ({
                         ...f,
-                        dataScopeMode: (v as "ALL" | "LIMITED") ?? "LIMITED",
+                        dataScopeMode: (v as "ALL" | "LIMITED") || "LIMITED",
                       }))
                     }
-                    items={{
-                      ALL: "Acesso completo",
-                      LIMITED: "Escolher contextos e projetos",
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">
-                        Acesso completo — vê e edita tudo
-                      </SelectItem>
-                      <SelectItem value="LIMITED">
-                        Escolher contextos e projetos — libera item a item
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                    showHintInTrigger={false}
+                    options={[
+                      { value: "ALL", label: "Acesso completo", hint: "Vê e edita tudo" },
+                      {
+                        value: "LIMITED",
+                        label: "Escolher contextos e projetos",
+                        hint: "Libera item a item",
+                      },
+                    ]}
+                  />
                   <p className="text-xs text-muted-foreground">
                     Usuários deste papel herdam esse escopo, a menos que tenham
                     um escopo próprio na ficha do usuário.

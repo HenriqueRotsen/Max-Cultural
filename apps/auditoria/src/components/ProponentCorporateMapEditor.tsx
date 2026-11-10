@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { SearchSelect } from "@max/ui";
 import {
   deleteCorporatePeriod,
   deleteCorporatePeriodMember,
@@ -58,16 +59,17 @@ function PrecisionFields({
     <div className="flex flex-wrap items-end gap-2">
       <div className="field">
         <label htmlFor={`${prefix}-precision`}>Precisão</label>
-        <select
+        <SearchSelect
           id={`${prefix}-precision`}
           name={`${prefix}Precision`}
           value={precision}
-          onChange={(e) => setPrecision(e.target.value)}
-        >
-          <option value="YEAR">Ano</option>
-          <option value="MONTH">Mês/ano</option>
-          <option value="DAY">Dia/mês/ano</option>
-        </select>
+          onValueChange={setPrecision}
+          options={[
+            { value: "YEAR", label: "Ano" },
+            { value: "MONTH", label: "Mês/ano" },
+            { value: "DAY", label: "Dia/mês/ano" },
+          ]}
+        />
       </div>
       <div className="field">
         <label htmlFor={`${prefix}-year`}>Ano</label>
@@ -249,15 +251,16 @@ function MemberForm({
         ) : (
           <div className="field">
             <label htmlFor={`role-${formId}`}>Papel</label>
-            <select
+            <SearchSelect
               id={`role-${formId}`}
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-            >
-              <option value="PARTNER">Sócio</option>
-              <option value="ADMINISTRATOR">Administrador</option>
-              <option value="BOTH">Sócio e administrador</option>
-            </select>
+              onValueChange={setRole}
+              options={[
+                { value: "PARTNER", label: "Sócio" },
+                { value: "ADMINISTRATOR", label: "Administrador" },
+                { value: "BOTH", label: "Sócio e administrador" },
+              ]}
+            />
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "leaflet/dist/leaflet.css";
 @import "@max/mobile-nav/src/mobile-nav.css";
+@import "@max/ui/src/search-select.css";
 
 @custom-variant dark (&:is(.dark *));
 

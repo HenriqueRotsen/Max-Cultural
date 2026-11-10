@@ -21,6 +21,7 @@
     "@max/auth": "*",
     "@max/mobile-nav": "*",
     "@max/security-headers": "*",
+    "@max/ui": "*",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@react-pdf/renderer": "^4.9.0",

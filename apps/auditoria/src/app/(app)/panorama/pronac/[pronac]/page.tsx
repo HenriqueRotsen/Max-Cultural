@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import {
   getPronacDetail,
   getWatchedSupplierCount,
@@ -373,12 +374,19 @@ export default async function PronacDetailPage({
                   <FieldLabel htmlFor="watchedOnly" help={HELP.watchedOnly}>
                     Mostrar
                   </FieldLabel>
-                  <select id="watchedOnly" name="watchedOnly" defaultValue={watchedOnly ? "1" : "0"}>
-                    <option value="0">Todos os fornecedores</option>
-                    <option value="1" disabled={watchedCount === 0}>
-                      Só observados{watchedCount > 0 ? ` (${watchedCount})` : " (nenhum cadastrado)"}
-                    </option>
-                  </select>
+                  <SearchSelect
+                    id="watchedOnly"
+                    name="watchedOnly"
+                    defaultValue={watchedOnly ? "1" : "0"}
+                    options={[
+                      { value: "0", label: "Todos os fornecedores" },
+                      {
+                        value: "1",
+                        label: `Só observados${watchedCount > 0 ? ` (${watchedCount})` : " (nenhum cadastrado)"}`,
+                        disabled: watchedCount === 0,
+                      },
+                    ]}
+                  />
                 </div>
                 <button type="submit" className="btn btn-ghost">
                   Aplicar

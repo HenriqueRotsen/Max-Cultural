@@ -19,6 +19,7 @@
     "@max/auth": "*",
     "@max/mobile-nav": "*",
     "@max/security-headers": "*",
+    "@max/ui": "*",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@sparticuz/chromium": "^153.0.0",

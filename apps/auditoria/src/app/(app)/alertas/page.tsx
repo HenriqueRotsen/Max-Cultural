@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { getWorkspaceContext } from "@/lib/auth/session";
@@ -97,14 +98,13 @@ export default async function AlertasPage({ searchParams }: { searchParams: Sear
         {accounts.length > 1 ? (
           <form action="/alertas" className="ml-auto flex items-center gap-2">
             <input type="hidden" name="status" value={filter} />
-            <select name="conta" defaultValue={accountId} className="field">
-              <option value="">Todos os proponentes</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              name="conta"
+              defaultValue={accountId}
+              aria-label="Proponente"
+              emptyOption="Todos os proponentes"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+            />
             <button type="submit" className="btn btn-ghost">
               Filtrar
             </button>

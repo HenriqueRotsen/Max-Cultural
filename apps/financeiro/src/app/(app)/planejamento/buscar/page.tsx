@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchSelect } from "@max/ui";
 import {
   CatalogPager,
   CATALOG_PAGE_SIZE,
@@ -349,25 +350,23 @@ export default async function BuscarSaldoPage({
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <label className="field">
                 <span>Proponente</span>
-                <select name="accountId" defaultValue={accountId} className="w-full">
-                  <option value="">Todos</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  name="accountId"
+                  aria-label="Proponente"
+                  defaultValue={accountId}
+                  emptyOption="Todos"
+                  options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+                />
               </label>
               <label className="field">
                 <span>Categoria</span>
-                <select name="category" defaultValue={category} className="w-full">
-                  <option value="">Todas</option>
-                  {SERVICE_CATEGORIES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  name="category"
+                  aria-label="Categoria"
+                  defaultValue={category}
+                  emptyOption="Todas"
+                  options={SERVICE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+                />
               </label>
               <label className="field sm:col-span-2 lg:col-span-1">
                 <span>Buscar item</span>

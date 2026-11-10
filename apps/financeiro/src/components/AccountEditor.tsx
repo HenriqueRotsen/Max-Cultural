@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SearchSelect } from "@max/ui";
 import {
   clearAccountPassword,
   deleteAccount,
@@ -10,6 +11,12 @@ import { FieldLabel } from "@/components/FieldHelp";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { formatCgccpf } from "@/lib/format";
 import { HELP } from "@/lib/help";
+
+const PERSON_TYPE_OPTIONS = [
+  { value: "PJ", label: "Empresa (PJ) — até 20%" },
+  { value: "PF", label: "Pessoa física — até 30%" },
+  { value: "MEI", label: "MEI — até 30%" },
+];
 
 type AccountEditorProps = {
   syncEnabled?: boolean;
@@ -76,15 +83,12 @@ export function AccountEditor({ account, syncEnabled = true }: AccountEditorProp
             <FieldLabel htmlFor={`personType-${account.id}`} help={HELP.personType}>
               Tipo de proponente
             </FieldLabel>
-            <select
+            <SearchSelect
               id={`personType-${account.id}`}
               name="personType"
               defaultValue={account.personType}
-            >
-              <option value="PJ">Empresa (PJ) — até 20%</option>
-              <option value="PF">Pessoa física — até 30%</option>
-              <option value="MEI">MEI — até 30%</option>
-            </select>
+              options={PERSON_TYPE_OPTIONS}
+            />
           </div>
 
           {syncEnabled ? (
