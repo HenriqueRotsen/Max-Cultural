@@ -1,4 +1,5 @@
-# Abre PR com `npm audit fix` (sem --force). Nunca aplica direto no main.
+# Abre PR com `npm audit fix` (sem --force) para a develop. Nunca aplica direto no main.
+# Requer em Settings → Actions → General: "Allow GitHub Actions to create and approve pull requests".
 # Fixes só dentro do range semver já declarado — reduz risco de quebrar o código.
 name: Deps audit fix
 
@@ -21,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: develop
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -59,6 +62,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: chore/npm-audit-fix
+          base: develop
           delete-branch: true
           title: "chore(deps): npm audit fix (sem breaking)"
           commit-message: |
