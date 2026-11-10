@@ -220,6 +220,46 @@ textarea {
   transform: translateY(0);
 }
 
+.map-year-chip {
+  cursor: help;
+  text-decoration: none;
+}
+
+.map-year-chip:hover,
+.map-year-chip:focus-visible {
+  background: var(--navy);
+  color: white;
+  outline: none;
+}
+
+.map-year-bubble {
+  max-width: min(360px, calc(100vw - 16px));
+  font-size: 0.8rem;
+}
+
+.map-year-title {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.map-year-period {
+  display: block;
+}
+
+.map-year-period + .map-year-period {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border);
+}
+
+.map-year-range {
+  display: block;
+  color: var(--gray-500);
+  font-weight: 600;
+}
+
 .field input,
 .field select,
 .field textarea {
