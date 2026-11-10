@@ -234,7 +234,7 @@ export function VinculoSection({
             {corporateMap ? (
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--gold-border)] pt-3 text-sm">
                 <span className="text-[var(--gray-600)]">
-                  Confira quem fazia parte do proponente no ano do projeto:
+                  Confira quem fazia parte do proponente nesse período:
                 </span>
                 {corporateMap}
               </div>

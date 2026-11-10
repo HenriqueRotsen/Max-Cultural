@@ -8,6 +8,8 @@ import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { rulesForProject } from "@/lib/compliance/rules";
 import { evaluatePronacSupplierCompliance } from "@/lib/compliance/rouanet";
 import { corporateMapCopy, corporateRoleLabel } from "@/lib/corporate/copy";
+import { mapWindowForProject, periodsInYears } from "@/lib/corporate/at-year";
+import { pronacYear } from "@/lib/compliance/choose-ruleset";
 import { prisma } from "@/lib/db";
 import { formatCgccpf } from "@/lib/format";
 import {
@@ -93,10 +95,32 @@ export async function GET(request: Request) {
       const institutional = Boolean(fullAccount?.institutionalMap);
       const copy = corporateMapCopy(institutional);
 
-      let corporateMapHtml =
-        `<p style="color:#6b7280;font-size:12px">${copy.reportEmpty}</p>`;
-      if (fullAccount?.corporatePeriods.length) {
-        corporateMapHtml = fullAccount.corporatePeriods
+      // Só a composição do período dos pagamentos (sem pagamentos, o ano do PRONAC),
+      // igual ao lembrete do mapa na tela do PRONAC.
+      const paymentRange = detail.projectId
+        ? await prisma.payment.aggregate({
+            where: { projectId: detail.projectId, paymentDate: { not: null } },
+            _min: { paymentDate: true },
+            _max: { paymentDate: true },
+          })
+        : null;
+      const mapWindow = mapWindowForProject({
+        pronacYear: pronacYear(detail.pronac),
+        firstPayment: paymentRange?._min.paymentDate,
+        lastPayment: paymentRange?._max.paymentDate,
+      });
+      const periodosDoProjeto = periodsInYears(
+        fullAccount?.corporatePeriods ?? [],
+        mapWindow.fromYear,
+        mapWindow.toYear,
+      ).reverse();
+      const mapIntro = `<p style="color:#6b7280;font-size:12px;margin:0 0 8px">Composição em ${escape(mapWindow.label)} (${escape(mapWindow.basis)}).</p>`;
+
+      let corporateMapHtml = fullAccount?.corporatePeriods.length
+        ? `${mapIntro}<p style="color:#6b7280;font-size:12px">Nenhum período do mapa cobre ${escape(mapWindow.label)}.</p>`
+        : `<p style="color:#6b7280;font-size:12px">${copy.reportEmpty}</p>`;
+      if (periodosDoProjeto.length) {
+        corporateMapHtml = mapIntro + periodosDoProjeto
           .map((p) => {
             const from = fmtDate(p.validFrom, p.validFromPrecision);
             const to = p.validTo
