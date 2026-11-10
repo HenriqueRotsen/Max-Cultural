@@ -57,9 +57,9 @@ export type PronacTableRow = {
   paymentCount: number;
   supplierCount: number;
   bySupplier: SupplierAgg[];
-  /** Base completa do PRONAC para tom de conformidade art. 23 */
+  /** Base completa do PRONAC para o tom de conformidade (teto por fornecedor). */
   allBySupplier?: SupplierAgg[];
-  /** Totais §1º sem alimentação/refeição */
+  /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
   bondBySupplier?: SupplierAgg[];
   href: string;
 };

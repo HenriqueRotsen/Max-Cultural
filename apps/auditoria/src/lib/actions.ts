@@ -209,7 +209,7 @@ export async function setPaymentCountsForBond(input: {
   return { ok: true as const };
 }
 
-/** Ativa/desativa se um tipo de relacionamento gera vínculo art. 23 sob uma IN (workspace). */
+/** Ativa/desativa se um tipo de relacionamento gera vínculo com o proponente sob uma IN (workspace). */
 export async function setRelationBondOverride(formData: FormData) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { entitlements } = await getWorkspaceContext();

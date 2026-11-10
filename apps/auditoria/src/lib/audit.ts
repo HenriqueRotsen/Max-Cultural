@@ -604,11 +604,11 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
       }
 
       const bySupplier = aggregatePayments(relevant);
-      /** Todos os fornecedores do PRONAC — base do aviso art. 23 §1º (independe do filtro). */
+      /** Todos os fornecedores do PRONAC — base dos avisos de limite (independe do filtro). */
       const allBySupplier = applyWatched
         ? aggregatePayments(project.payments)
         : bySupplier;
-      /** Totais §1º sem alimentação/refeição. */
+      /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
       const bondBySupplier = applyWatched
         ? aggregatePayments(project.payments, { forBond: true })
         : aggregatePayments(relevant, { forBond: true });
@@ -845,9 +845,9 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
     watchedOnly: applyWatched,
     watchedCount: matchers.count,
     suppliers,
-    /** Base completa do PRONAC para avisos art. 23 §1º */
+    /** Base completa do PRONAC para os avisos de limite (independe do filtro). */
     allSuppliers,
-    /** Totais §1º sem alimentação/refeição */
+    /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
     bondSuppliers,
     payments,
   };

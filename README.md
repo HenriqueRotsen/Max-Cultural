@@ -1,16 +1,38 @@
 # MAX Cultural
 
-Suíte: **MAX Cultural** (hub) · **MAX Financeiro** (auditoria SALIC + fornecedores) · **MAX Indicadores** (execução e inscrições).
+Suíte: **MAX Cultural** (hub) · **MAX Financeiro** (planejamento + fornecedores) · **MAX Indicadores** (execução e inscrições) · **MAX Auditoria** (espelho do SALIC e conformidade).
 
 Princípio: portar o que já funciona (Salink, Suply no Salink, SigaCultural) e mudar só a casca — marca MAX, sidebar clara, confirmação em editar/excluir, IAM no hub.
 
 
-| App      | Host (prod)                 | Porta local (`npm run dev`)    | Root Directory (Vercel) |
-| -------- | --------------------------- | ------------------------------ | ----------------------- |
-| Cultural | `maxcultural.com.br`        | :3000 | `apps/cultural`         |
-| Origem   | `financeiro.maxcultural.com.br` | :3001   | `apps/financeiro`           |
-| Fluxo    | `indicadores.maxcultural.com.br`  | :3002    | `apps/indicadores`            |
+| App         | Host (prod)                      | Porta local (`npm run dev`) | Root Directory (Vercel) |
+| ----------- | -------------------------------- | --------------------------- | ----------------------- |
+| Cultural    | `maxcultural.com.br`             | :3000                       | `apps/cultural`         |
+| Financeiro  | `financeiro.maxcultural.com.br`  | :3001                       | `apps/financeiro`       |
+| Indicadores | `indicadores.maxcultural.com.br` | :3002                       | `apps/indicadores`      |
+| Auditoria   | `auditoria.maxcultural.com.br`   | :3003                       | `apps/auditoria`        |
 
+Pacotes compartilhados em `packages/`:
+
+| Pacote                  | Para quê |
+| ----------------------- | -------- |
+| `@max/auth`             | Sessão do hub (SSO), permissões e catálogo de acessos |
+| `@max/ui`               | Componentes comuns: `SearchSelect` (todo menu de seleção, com busca) e `ConfirmDialog` |
+| `@max/mobile-nav`       | Barra de navegação e menu lateral no celular |
+| `@max/security-headers` | Cabeçalhos de segurança (CSP, HSTS…) |
+| `@max/brand`            | Logos e imagens da marca MAX |
+
+Um pacote novo entra no `transpilePackages` do `next.config.ts` de cada app que o usa; se tiver CSS
+(como `@max/ui/src/search-select.css`), ele é importado no `globals.css` do app.
+
+## Menus de seleção
+
+Todo menu de seleção usa o `SearchSelect` de `@max/ui` (nada de `<select>` nativo): busca sem acento e
+por partes ("sao jo" acha "São João"). Ele funciona controlado (`value` + `onValueChange`) ou dentro de
+formulário como um `<select>` (`name`, `defaultValue`, `required`); `emptyOption="Todos"` cria a opção
+vazia e `submitOnChange` envia o formulário ao escolher. As cores vêm das variáveis de cada app.
+No Indicadores, use `@/components/ui/search-select` (mesmo componente, no visual do shadcn) ou o
+`SimpleSelect`, que também tem busca.
 
 
 
@@ -29,7 +51,7 @@ Estes passos usam as contas Vercel / Supabase / Resend / DNS do cliente — o c�
 
 1. **GitHub** `HenriqueRotsen/max-cultural` — este repositório.
 2. **DNS** (`maxcultural.com.br`): apex A/ALIAS Vercel; `www`, `financeiro`, `indicadores` CNAME `cname.vercel-dns.com`.
-3. **Três projetos Vercel** no mesmo repo, Root Directory por app. Production URLs nos hosts da tabela. `SYNC_MODE=chunked` e `SYNC_CONCURRENCY=2` no Financeiro.
+3. **Quatro projetos Vercel** no mesmo repo, Root Directory por app. Production URLs nos hosts da tabela. `SYNC_MODE=chunked` e `SYNC_CONCURRENCY=2` no Financeiro.
 4. **Um projeto Supabase** (Auth + Postgres). Site URL = `https://maxcultural.com.br`. Redirect allow list: os três hosts + `/auth/callback` + `/login/2fa`. Schemas: `public` (Cultural), `financeiro`, `indicadores`. Bootstrap SQL: [`docs/supabase-bootstrap.sql`](docs/supabase-bootstrap.sql). Checklist completo: [`docs/deploy-teste.md`](docs/deploy-teste.md). Pooler `:6543?pgbouncer=true` + `DIRECT_URL` `:5432`.
 5. **Resend** com domínio autenticado. `EMAIL_FROM=MAX Cultural <noreply@maxcultural.com.br>`.
 
@@ -71,7 +93,7 @@ Sobe os 4 apps: Cultural :3000 (login), Financeiro :3001, Indicadores :3002 e Au
 Para subir só alguns: `npm run dev -- indicadores` (o Cultural vem junto, porque é o login).
 
 ```bash
-npm install
+MAX_AMBIENTE=teste npm install   # o MAX_AMBIENTE impede o prisma generate de ler o .env.local (produção)
 npm run dev -- setup     # 1ª vez: Postgres local (Docker), migrações, contas e dados demo
 npm run dev              # sobe os apps no banco local
 npm run dev -- reset     # apaga o banco local e refaz o setup

@@ -1,4 +1,4 @@
-# SigaCultural
+# MAX Indicadores (antigo SigaCultural)
 
 Sistema Integrado de Gestão e Acompanhamento Cultural — padronização de inscrições em oficinas no esquema oficial de **35 colunas** (PRONAC / Lei Rouanet).
 
@@ -13,6 +13,43 @@ Sistema Integrado de Gestão e Acompanhamento Cultural — padronização de ins
 ## Rodar localmente
 
 Na raiz do repo: `npm run dev` (banco local com dados demo). Ver o README da raiz. O banco de produção é bloqueado fora da Vercel.
+
+## Base completa (`/dashboard`)
+
+Filtros em cascata: cada filtro (Projeto, Ação, Proponente, PRONAC, Ano) mostra só as
+opções que combinam com os outros já escolhidos. As opções saem das próprias inscrições,
+com um `groupBy` por filtro usando "todos os filtros menos o próprio" — o mesmo padrão da
+Análise (`listInscricoesAction` em `app/actions/inscricoes.ts`).
+
+## Proponentes
+
+Proponente é texto livre (no projeto e na planilha de inscrições), então o mesmo
+proponente pode aparecer escrito de vários jeitos. `lib/proponente.ts` resolve isso:
+
+- `proponenteKey`: compara sem acento, caixa, pontuação, CNPJ/CPF no nome e sufixos
+  jurídicos (LTDA, ME, EPP, EIRELI, S/A…).
+- `PROPONENTE_APELIDOS`: nomes diferentes que a equipe confirmou serem o mesmo
+  proponente (ex.: "Instituto Vivas" → "Instituto Morada Vivas"). Para juntar um par novo,
+  inclua a chave aqui.
+- Fica sempre o nome mais completo (`nomeCanonico`).
+
+Onde vale: os filtros da Base e da Análise mostram uma opção por proponente e encontram
+todas as grafias; projeto novo ou editado reaproveita a grafia já cadastrada
+(`proponenteParaGravar`).
+
+Para unificar o que já está gravado, use `scripts/unificar-proponentes.ts`. Sem
+`--aplicar` ele só mostra o que faria (dry-run); com `--aplicar` grava e salva antes um
+backup JSON em `backups/` (fora do git). Nomes de teste ("Teste", "Demo"…) não são
+alterados, e pares parecidos aparecem como "possíveis duplicados" para revisão.
+
+```bash
+npm run dev -- run indicadores npx tsx scripts/unificar-proponentes.ts            # local, dry-run
+npm run indicadores:unificar-proponentes:producao                                # produção, dry-run (na raiz)
+npm run indicadores:unificar-proponentes:producao -- --aplicar                   # produção, grava (pede "producao")
+```
+
+Na produção, só com autorização. A primeira unificação foi aplicada em 10/11/2026
+(Ateliê 22, Instituto Morada Vivas e Vivas Cultura e Esporte LTDA).
 
 ## Setup com Supabase
 

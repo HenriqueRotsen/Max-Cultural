@@ -197,7 +197,7 @@ function bondAndWatchedHtml(params: {
   rules: ActiveRules;
   /** Base completa do PRONAC (não só filtro de observados). */
   suppliers: ReportSupplier[];
-  /** Totais §1º sem alimentação/refeição. */
+  /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
   bondSuppliers?: ReportSupplier[];
   watchedSuppliers?: ReportWatched[];
 }) {
@@ -846,9 +846,9 @@ export function buildPronacDetailWarnings(params: {
   relatedParties?: RelatedPartyInput[];
   rules?: ActiveRules;
   suppliers: Array<{ name: string; cgccpf: string; total: number; percent: number }>;
-  /** Base completa do PRONAC para art. 23 §1º (quando filtro de observados). */
+  /** Base completa do PRONAC para os avisos de limite (quando filtro de observados). */
   allSuppliers?: Array<{ name: string; cgccpf: string; total: number; percent: number }>;
-  /** Totais §1º sem alimentação/refeição. */
+  /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
   bondSuppliers?: Array<{ name: string; cgccpf: string; total: number; percent: number }>;
 }): ReportWarning[] {
   const rules = params.rules || DEFAULT_RULES;
