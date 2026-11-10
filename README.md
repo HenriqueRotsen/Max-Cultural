@@ -63,29 +63,25 @@ CI: ESLint, `npm audit`, Gitleaks, CodeQL, Semgrep. Não commitar `.env`. HSTS/C
 
 ## Rodar localmente
 
-Só existem dois jeitos, ambos na raiz do repo, e **nenhum usa o banco de produção**:
+Na raiz do repo, com `npm run dev`. Ele usa um Postgres local (Docker) com dados demo e
+**nunca usa o banco de produção**. Login: `admin@maxcultural.local`, senha `TESTE_PASSWORD`
+do `.env.teste` (criado sozinho, fora do git). `npm run dev:teste` é o mesmo comando.
 
-| Comando | Banco | Arquivo (raiz, fora do git) | Login |
-| ------- | ----- | --------------------------- | ----- |
-| `npm run dev` | Homologação | `.env.homolog` | as contas da homologação |
-| `npm run dev:teste` | Postgres local, com dados demo | `.env.teste` (criado sozinho) | `admin@maxcultural.local`, senha `TESTE_PASSWORD` |
-
-Os dois sobem os 4 apps: Cultural :3000 (login), Financeiro :3001, Indicadores :3002 e Auditoria :3003.
+Sobe os 4 apps: Cultural :3000 (login), Financeiro :3001, Indicadores :3002 e Auditoria :3003.
 Para subir só alguns: `npm run dev -- indicadores` (o Cultural vem junto, porque é o login).
 
 ```bash
 npm install
-npm run dev:teste -- setup     # 1ª vez: Postgres local (Docker), migrações, contas e dados demo
-npm run dev:teste              # sobe os apps no banco local
-npm run dev:teste -- reset     # apaga o banco local e refaz o setup
-npm run dev:teste -- liberar   # simula "recurso liberado" em todos os projetos
-npm run dev                    # sobe os apps no banco de homologação
+npm run dev -- setup     # 1ª vez: Postgres local (Docker), migrações, contas e dados demo
+npm run dev              # sobe os apps no banco local
+npm run dev -- reset     # apaga o banco local e refaz o setup
+npm run dev -- liberar   # simula "recurso liberado" em todos os projetos
 ```
 
-Comando de um app num dos ambientes (ex.: criar uma migração no banco local):
+Comando de um app no banco local (ex.: criar uma migração):
 
 ```bash
-npm run dev:teste -- run financeiro npx prisma migrate dev --name minha_mudanca
+npm run dev -- run financeiro npx prisma migrate dev --name minha_mudanca
 ```
 
 Os `.env.local` de cada app guardam as credenciais da **produção** e só servem para

@@ -6,9 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "node scripts/dev.mjs homolog",
+    "dev": "node scripts/dev.mjs teste",
     "dev:teste": "node scripts/dev.mjs teste",
-    "db:migrate:homolog": "node scripts/db-migrate.mjs homolog",
     "db:migrate:producao": "node scripts/db-migrate.mjs producao",
     "lint": "npm run lint -w max-cultural-app --if-present && npm run lint -w max-financeiro --if-present && npm run lint -w max-indicadores --if-present && npm run lint -w max-auditoria --if-present",
     "test": "npm run test -w max-cultural-app && npm run test -w max-financeiro && npm run test -w max-indicadores && npm run test -w max-auditoria",

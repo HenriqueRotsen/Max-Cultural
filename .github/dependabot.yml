@@ -2,7 +2,7 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: "/"
-    # Git flow: dependências passam pela homologação (develop) antes da main.
+    # Git flow: dependências passam pela develop antes da main.
     target-branch: develop
     schedule:
       interval: weekly
