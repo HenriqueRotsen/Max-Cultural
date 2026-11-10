@@ -189,6 +189,8 @@ enum FormularioRespostaStatus {
 
 enum FormularioCampoTipo {
   SECTION
+  /// Bloco só de leitura (título + texto) dentro da página; não tem resposta.
+  INFO
   SHORT_TEXT
   LONG_TEXT
   MULTIPLE_CHOICE

@@ -120,6 +120,23 @@ describe("validateFormularioAnswers", () => {
     expect(result.sigaPartial).not.toHaveProperty("decl");
   });
 
+  it("texto informativo não pede resposta nem entra nos valores", () => {
+    const campos: CampoValidavel[] = [
+      ...baseCampos,
+      {
+        id: "aviso",
+        rotulo: "Leia antes",
+        obrigatorio: true,
+        tipo: "INFO",
+        sigaColumn: null,
+        opcoes: null,
+      },
+    ];
+    const result = validateFormularioAnswers(campos, validAnswers);
+    expect(result.ok).toBe(true);
+    expect(result.values).not.toHaveProperty("aviso");
+  });
+
   it("telefone BR inválido falha", () => {
     const campos: CampoValidavel[] = [
       ...baseCampos,

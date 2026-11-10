@@ -26,6 +26,7 @@ import {
   formatPhoneDisplay,
 } from "@/lib/normalize";
 import type { FormularioCampoTipoCode } from "@/lib/formularios/types";
+import { campoSemResposta } from "@/lib/formularios/types";
 import {
   asTerritorioAcaoFormValue,
   type TerritorioAcaoFormValue,
@@ -197,8 +198,8 @@ function buildFields(r: RespostaRow, campos: RespostaCampoMeta[], professorMode:
   const answers = r.payload?.answers ?? {};
   const siga = r.payload?.sigaPartial ?? {};
   const visible = professorMode
-    ? campos.filter((c) => !c.ocultoProfessor && c.tipo !== "SECTION")
-    : campos.filter((c) => c.tipo !== "SECTION");
+    ? campos.filter((c) => !c.ocultoProfessor && !campoSemResposta(c.tipo))
+    : campos.filter((c) => !campoSemResposta(c.tipo));
 
   const fields: DisplayField[] = [];
   const usedSiga = new Set<string>();
@@ -334,7 +335,7 @@ function answersFromRow(r: RespostaRow, campos: RespostaCampoMeta[]): Record<str
   const answers = { ...(r.payload?.answers ?? {}) };
   const siga = r.payload?.sigaPartial ?? {};
   for (const c of campos) {
-    if (c.tipo === "SECTION") continue;
+    if (campoSemResposta(c.tipo)) continue;
     if (c.id in answers) continue;
     if (c.sigaColumn && c.sigaColumn in siga) {
       answers[c.id] = siga[c.sigaColumn];
@@ -997,7 +998,7 @@ export function RespostasQueue({
                     {editingId === r.id ? (
                       <div className="grid gap-3 sm:grid-cols-2">
                         {campos
-                          .filter((c) => c.tipo !== "SECTION")
+                          .filter((c) => !campoSemResposta(c.tipo))
                           .map((c) => {
                             const val = draftAnswers[c.id];
                             const opts =

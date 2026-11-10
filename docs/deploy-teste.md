@@ -34,18 +34,14 @@ Ambiente vivo nos hosts de produção. Dados podem ser limpos. SSO requer o mesm
 
 ## 2. Migrations + seed (one-shot, fora do build Vercel)
 
-Na máquina local (ou CI), com as `DATABASE_URL` / `DIRECT_URL` de produção:
+Na máquina local, com as `DIRECT_URL` de produção nos `.env.local` de cada app:
 
 ```bash
-# Cultural (public)
-cd apps/cultural && npx prisma migrate deploy && npm run db:seed
-
-# Financeiro (schema financeiro) — NÃO rode db:seed cego (é destrutivo)
-cd ../financeiro && npx prisma migrate deploy
-
-# Indicadores (schema indicadores)
-cd ../indicadores && npx prisma migrate deploy && npm run db:seed-auth
+npm run db:migrate:producao -- status   # o que falta
+npm run db:migrate:producao             # aplica nos 3 apps (pede para digitar "producao")
 ```
+
+O seed do superadmin roda com `MAX_AMBIENTE=producao` explícito (fora disso o banco de produção é bloqueado).
 
 Bootstrap admin: `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` no seed do Cultural.
 

@@ -15,7 +15,7 @@ Fluxo:
 1. `feature/…` sai da `develop` e volta por **PR para a `develop`**.
 2. Depois do merge, a `develop` publica na homologação. Quem pediu testa lá.
 3. Aprovado, abre-se `release/…` a partir da `develop` e um **PR para a `main`**. No merge:
-   - as migrações vão para a produção, **com autorização**;
+   - as migrações vão para a produção, **com autorização**: `npm run db:migrate:producao -- status` e depois `npm run db:migrate:producao` (pede para digitar `producao`);
    - a `main` recebe a tag `<app>-vX.Y.Z`;
    - a `main` volta para a `develop` (merge de volta).
 4. `hotfix/…` sai da `main`, vai por PR para a `main` e depois é levado para a `develop`.
@@ -37,20 +37,23 @@ BREAKING CHANGE: <o que quebra> (quando houver)
 ## Ambiente local (antes da homologação)
 
 Cada etapa é desenvolvida e testada localmente. Só vai para `develop` (homologação) quando estiver ok.
+São só dois jeitos de rodar, e nenhum usa o banco de produção:
 
 ```bash
-npm run db:local:up -w max-cultural-app   # Postgres local (localhost:5436), uma vez
-npm run dev:local -- setup                # banco max_local: migrações, contas e dados demo
-npm run dev:local                         # MAX Cultural :3000 + MAX Indicadores :3002
-npm run dev:local -- liberar              # simula "recurso liberado" em todos os projetos
-npm run dev:local -- reset                # apaga o banco local e refaz o setup
+npm run dev:teste -- setup     # 1ª vez: Postgres local (localhost:5436), migrações, contas e dados demo
+npm run dev:teste              # os 4 apps no banco local (Cultural :3000, Financeiro :3001, Indicadores :3002, Auditoria :3003)
+npm run dev:teste -- liberar   # simula "recurso liberado" em todos os projetos
+npm run dev:teste -- reset     # apaga o banco local e refaz o setup
+npm run dev                    # os 4 apps no banco de homologação
 ```
 
-- **Login:** `admin@maxcultural.local` em http://localhost:3000. A senha está em `.env.dev-local`, na raiz, criado no primeiro setup e ignorado pelo git. Existem também `operador@` e `professor@maxcultural.local`, com a mesma senha.
+- **Login no teste:** `admin@maxcultural.local` em http://localhost:3000. A senha é `TESTE_PASSWORD` em `.env.teste`, na raiz, criado no primeiro setup e ignorado pelo git. Existem também `operador@` e `professor@maxcultural.local`, com a mesma senha.
+- **Login no `npm run dev`:** as contas da homologação.
 - **Segurança:**
-  - os `.env.local` continuam apontando para a produção e não são alterados;
-  - o script zera todas as variáveis deles no processo e liga `MAX_LOCAL_STACK=1`, que impede o Prisma, os seeds e o hub de recarregarem o `.env.local`;
-  - o script aborta se algum endereço apontar para fora do localhost.
+  - os `.env.local` de cada app guardam a produção e só são usados por `npm run db:migrate:producao`;
+  - o script zera todas as variáveis deles no processo e liga `MAX_AMBIENTE`, que impede o Prisma e os seeds de recarregarem o `.env.local`;
+  - o script aborta se algum valor apontar para a produção (e, no teste, para fora do localhost);
+  - fora da Vercel, os apps, o Prisma e os seeds se recusam a abrir o banco de produção (`bloquearProducao`).
 
 ## Homologação
 
@@ -66,7 +69,7 @@ npm run dev:local -- reset                # apaga o banco local e refaz o setup
   npm run db:migrate:homolog             # aplica nos 3 apps (Auditoria usa as do Financeiro)
   ```
 
-  Os `prisma.homolog.config.ts` não leem o `.env.local`, que aponta para a produção. O script se recusa a rodar se o `.env.homolog` apontar para o host da produção.
+  O script lê só o `.env.homolog` e se recusa a rodar se ele apontar para a produção.
 - **Dados:** seeds de demonstração; nada de dados pessoais da produção.
 
 ## CI (`.github/workflows`)

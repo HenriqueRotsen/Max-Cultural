@@ -6,23 +6,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:cultural": "npm run dev -w max-cultural-app",
-    "dev:financeiro": "npm run dev -w max-financeiro",
-    "dev:indicadores": "npm run dev -w max-indicadores",
-    "dev:auditoria": "npm run dev -w max-auditoria",
+    "dev": "node scripts/dev.mjs homolog",
+    "dev:teste": "node scripts/dev.mjs teste",
+    "db:migrate:homolog": "node scripts/db-migrate.mjs homolog",
+    "db:migrate:producao": "node scripts/db-migrate.mjs producao",
     "lint": "npm run lint -w max-cultural-app --if-present && npm run lint -w max-financeiro --if-present && npm run lint -w max-indicadores --if-present && npm run lint -w max-auditoria --if-present",
     "test": "npm run test -w max-cultural-app && npm run test -w max-financeiro && npm run test -w max-indicadores && npm run test -w max-auditoria",
     "test:e2e": "npm run test:e2e -w max-cultural-app && npm run test:e2e -w max-financeiro && npm run test:e2e -w max-indicadores",
-    "db:migrate:cultural": "npm run db:migrate -w max-cultural-app",
-    "db:migrate:financeiro": "npm run db:migrate -w max-financeiro",
-    "db:migrate:indicadores": "npm run db:migrate -w max-indicadores",
-    "db:migrate:homolog": "node scripts/db-migrate-homolog.mjs",
-    "db:seed:cultural": "npm run db:seed -w max-cultural-app",
-    "db:use-local": "node scripts/dev-use-local-db.mjs local",
-    "db:use-remote": "node scripts/dev-use-local-db.mjs remote",
-    "db:demo": "npm run db:seed:cultural && npm run db:seed -w max-financeiro && npm run db:seed-auth -w max-indicadores && npm run db:seed-demo -w max-indicadores",
-    "audit": "node scripts/ci-audit-gate.mjs",
-    "dev:local": "node scripts/dev-local.mjs"
+    "audit": "node scripts/ci-audit-gate.mjs"
   },
   "overrides": {
     "sharp": "0.35.5",

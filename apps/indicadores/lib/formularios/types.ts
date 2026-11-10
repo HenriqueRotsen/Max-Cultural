@@ -1,5 +1,6 @@
 export const FORMULARIO_CAMPO_TIPOS = [
   "SECTION",
+  "INFO",
   "SHORT_TEXT",
   "LONG_TEXT",
   "MULTIPLE_CHOICE",
@@ -22,6 +23,11 @@ export const FORMULARIO_CAMPO_TIPOS = [
 ] as const;
 
 export type FormularioCampoTipoCode = (typeof FORMULARIO_CAMPO_TIPOS)[number];
+
+/** Itens que só apresentam informação (seção e texto informativo): não recebem resposta. */
+export function campoSemResposta(tipo: string): boolean {
+  return tipo === "SECTION" || tipo === "INFO";
+}
 
 export type FormularioCampoDraft = {
   id?: string;
@@ -73,6 +79,7 @@ export const EMPTY_TERRITORIO_ACAO: TerritorioAcaoValue = {
 
 export const FORMULARIO_CAMPO_TIPO_LABELS: Record<FormularioCampoTipoCode, string> = {
   SECTION: "Seção / título",
+  INFO: "Texto informativo",
   SHORT_TEXT: "Texto curto",
   LONG_TEXT: "Parágrafo",
   MULTIPLE_CHOICE: "Múltipla escolha",

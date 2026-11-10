@@ -2,13 +2,13 @@ import { config } from "dotenv";
 import { prisma } from "../src/lib/db";
 import { encryptCredential } from "../src/lib/crypto";
 
-config({ path: ".env.local", override: true });
+if (!process.env.MAX_AMBIENTE) config({ path: ".env.local", override: true });
 
 async function main() {
   const dbUrl = process.env.DATABASE_URL || "";
   if (!/localhost|127\.0\.0\.1/.test(dbUrl)) {
     throw new Error(
-      "db:seed do Financeiro só deve rodar no Postgres local (apaga dados). Use npm run db:use-local.",
+      "db:seed do Financeiro só deve rodar no Postgres local (apaga dados). Use npm run dev:teste -- setup.",
     );
   }
 

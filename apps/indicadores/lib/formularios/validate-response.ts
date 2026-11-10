@@ -1,5 +1,6 @@
 import {
   EMPTY_ADDRESS_BR,
+  campoSemResposta,
   type AddressBrValue,
   type FormularioCampoTipoCode,
 } from "@/lib/formularios/types";
@@ -74,7 +75,7 @@ export function validateFormularioAnswers(
   let cpf = "";
 
   for (const campo of campos) {
-    if (campo.tipo === "SECTION") continue;
+    if (campoSemResposta(campo.tipo)) continue;
     const rawVal = raw[campo.id];
 
     if (campo.obrigatorio && isEmpty(rawVal)) {
