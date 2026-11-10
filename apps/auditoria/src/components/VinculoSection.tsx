@@ -1,19 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { setObservadoBonds } from "@/lib/actions";
+import { setProjectBonds } from "@/lib/actions";
 import { formatCgccpf, formatCurrency } from "@/lib/format";
-import { Section } from "@/components/ui";
+import { Section, Switch } from "@/components/ui";
 import { HELP } from "@/lib/help";
 import { actionErrorMessage } from "@/lib/action-errors";
 
-export type Art23Row = {
+export type VinculoRow = {
   cgccpf: string;
   name: string;
-  /** Valor que conta para o limite (sem alimentação/refeição). */
+  /** Valor que conta para o limite (pagamentos marcados como "conta para o vínculo"). */
   amount: number;
+  /** Recebido neste PRONAC que não conta (alimentação/refeição ou desmarcado). */
+  ignoredAmount: number;
   enabled: boolean;
 };
 
@@ -26,31 +28,56 @@ function pctLabel(value: number) {
   return `${value.toFixed(2).replace(".", ",")}%`;
 }
 
+/** Valor que conta + (quando houver) o que foi recebido e não conta. Igual no PDF. */
+export function CountedAmount({
+  amount,
+  ignoredAmount,
+  muted,
+}: {
+  amount: number;
+  ignoredAmount: number;
+  muted?: boolean;
+}) {
+  return (
+    <>
+      <span className={muted ? "text-[var(--gray-400)]" : "font-semibold text-[var(--navy)]"}>
+        {amount > 0 ? formatCurrency(amount) : "—"}
+      </span>
+      {ignoredAmount > 0 ? (
+        <div className="text-sm font-normal text-[var(--gray-500)]">
+          + {formatCurrency(ignoredAmount)} que não conta
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /**
- * Parte 1 do detalhe do PRONAC: soma do art. 23 (proponente + quem tem vínculo)
- * e a marcação de vínculo de cada observado, salva em lote.
+ * Parte 1 do detalhe do PRONAC: soma do vínculo com o proponente (proponente +
+ * quem tem vínculo) e a marcação de vínculo de cada observado — só neste PRONAC.
  */
-export function Art23Section({
+export function VinculoSection({
   step,
-  salicAccountId,
-  rulesetVersion,
+  projectId,
   rulesetSourceCode,
   accountName,
   proponentAmount,
+  proponentIgnoredAmount = 0,
   projectTotal,
   limitPct,
   nearPct,
   noLimits = false,
   bondRelations = [],
   artisticGroupException = false,
+  corporateMap,
   rows,
 }: {
   step: number;
-  salicAccountId: string | null;
-  rulesetVersion: string;
+  projectId: string | null;
   rulesetSourceCode: string;
   accountName: string;
   proponentAmount: number;
+  proponentIgnoredAmount?: number;
   projectTotal: number;
   limitPct: number;
   /** A partir daqui conta como "perto do limite" (regra da IN). */
@@ -60,7 +87,9 @@ export function Art23Section({
   /** Tipos de relação que a IN conta como vínculo (rótulos já traduzidos). */
   bondRelations?: string[];
   artisticGroupException?: boolean;
-  rows: Art23Row[];
+  /** Selo do mapa societário/organizacional do ano do PRONAC. */
+  corporateMap?: ReactNode;
+  rows: VinculoRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -68,14 +97,14 @@ export function Art23Section({
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  const isOn = (r: Art23Row) => (draft.has(r.cgccpf) ? draft.get(r.cgccpf) === true : r.enabled);
+  const isOn = (r: VinculoRow) => (draft.has(r.cgccpf) ? draft.get(r.cgccpf) === true : r.enabled);
   const sum = proponentAmount + rows.filter(isOn).reduce((s, r) => s + r.amount, 0);
   const sumPct = pct(sum, projectTotal);
   const over = !noLimits && sumPct > limitPct;
   const near = !noLimits && !over && sumPct >= nearPct;
   const barPct = Math.min(100, limitPct > 0 ? (sumPct / limitPct) * 100 : 0);
 
-  function toggle(r: Art23Row, next: boolean) {
+  function toggle(r: VinculoRow, next: boolean) {
     setError(null);
     setSavedMsg(null);
     setDraft((cur) => {
@@ -87,13 +116,13 @@ export function Art23Section({
   }
 
   function save() {
-    if (!draft.size || !salicAccountId) return;
+    if (!draft.size || !projectId) return;
     setError(null);
     const changes = Array.from(draft, ([cgccpf, on]) => ({ cgccpf, enabled: on }));
     startTransition(async () => {
-      let result: Awaited<ReturnType<typeof setObservadoBonds>>;
+      let result: Awaited<ReturnType<typeof setProjectBonds>>;
       try {
-        result = await setObservadoBonds({ salicAccountId, rulesetVersion, changes });
+        result = await setProjectBonds({ projectId, changes });
       } catch (err) {
         setError(actionErrorMessage(err, "Não foi possível salvar."));
         return;
@@ -114,8 +143,8 @@ export function Art23Section({
     <Section
       step={step}
       tone="highlight"
-      title="Limite do art. 23"
-      help={HELP.art23}
+      title="Limite do Vínculo com Proponente"
+      help={HELP.vinculo}
       description={
         noLimits ? (
           <>
@@ -128,7 +157,8 @@ export function Art23Section({
             Soma do que o proponente e as pessoas ou empresas ligadas a ele receberam
             neste projeto. Pela {rulesetSourceCode}, essa soma pode chegar a no máximo{" "}
             <strong className="font-semibold text-[var(--navy)]">{limitPct}% do valor captado</strong>.
-            Alimentação e refeição não entram.
+            Só entram os pagamentos marcados como “conta para o vínculo” (alimentação e
+            refeição começam desmarcadas).
           </>
         )
       }
@@ -166,7 +196,7 @@ export function Art23Section({
             aria-valuemin={0}
             aria-valuemax={limitPct}
             aria-valuenow={Number(sumPct.toFixed(2))}
-            aria-label="Soma do art. 23 em relação ao limite"
+            aria-label="Soma do vínculo com o proponente em relação ao limite"
           >
             <div
               className={`h-full rounded-full ${over ? "bg-[#d92d20]" : near ? "bg-[#f59e0b]" : "bg-[#16a34a]"}`}
@@ -176,7 +206,7 @@ export function Art23Section({
           )}
         </div>
 
-        {rows.length > 0 ? (
+        {rows.length > 0 || corporateMap ? (
           <div className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-[0.95rem] text-[var(--navy)]">
             <p>
               <strong className="font-semibold">Lembrete da {rulesetSourceCode}:</strong>{" "}
@@ -201,6 +231,14 @@ export function Art23Section({
                 Grupo artístico familiar ou coletivo previsto na IN não conta.
               </p>
             ) : null}
+            {corporateMap ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--gold-border)] pt-3 text-sm">
+                <span className="text-[var(--gray-600)]">
+                  Confira quem fazia parte do proponente no ano do projeto:
+                </span>
+                {corporateMap}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -220,8 +258,8 @@ export function Art23Section({
                   <span className="font-semibold text-[var(--navy)]">{accountName}</span>
                   <div className="text-sm text-[var(--gray-500)]">Proponente — sempre conta</div>
                 </td>
-                <td className="font-semibold text-[var(--navy)]">
-                  {proponentAmount > 0 ? formatCurrency(proponentAmount) : "—"}
+                <td>
+                  <CountedAmount amount={proponentAmount} ignoredAmount={proponentIgnoredAmount} />
                 </td>
                 <td>{proponentAmount > 0 ? pctLabel(pct(proponentAmount, projectTotal)) : "—"}</td>
                 <td className="text-right text-sm text-[var(--gray-500)]">Proponente</td>
@@ -237,27 +275,25 @@ export function Art23Section({
                         Observado · {formatCgccpf(r.cgccpf)}
                       </div>
                     </td>
-                    <td className={on ? "font-semibold text-[var(--navy)]" : "text-[var(--gray-400)]"}>
-                      {r.amount > 0 ? formatCurrency(r.amount) : "—"}
+                    <td>
+                      <CountedAmount amount={r.amount} ignoredAmount={r.ignoredAmount} muted={!on} />
                     </td>
                     <td className={on ? undefined : "text-[var(--gray-400)]"}>
                       {r.amount > 0 ? pctLabel(pct(r.amount, projectTotal)) : "—"}
                     </td>
                     <td className="text-right">
-                      <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                      <span className="inline-flex items-center gap-2 text-sm">
                         <span className={on ? "font-medium text-[var(--navy)]" : "text-[var(--gray-500)]"}>
                           {on ? "Sim" : "Não"}
                           {changed ? " · não salvo" : ""}
                         </span>
-                        <input
-                          type="checkbox"
-                          className="h-5 w-5 accent-[var(--navy)]"
+                        <Switch
                           checked={on}
-                          disabled={pending || !salicAccountId}
-                          onChange={(e) => toggle(r, e.target.checked)}
-                          aria-label={`${r.name} tem vínculo com o proponente`}
+                          disabled={pending || !projectId}
+                          onChange={(next) => toggle(r, next)}
+                          label={`${r.name} tem vínculo com o proponente`}
                         />
-                      </label>
+                      </span>
                     </td>
                   </tr>
                 );
@@ -275,8 +311,9 @@ export function Art23Section({
           <div className="flex flex-wrap items-center justify-end gap-3">
             <p className="mr-auto text-[0.95rem] text-[var(--gray-500)]" aria-live="polite">
               {draft.size
-                ? `${draft.size} alteração${draft.size === 1 ? "" : "ões"} não salva${draft.size === 1 ? "" : "s"}. O vínculo vale para todos os PRONACs de ${accountName} nesta IN.`
-                : savedMsg || "Marque quem tem vínculo com o proponente e clique em Salvar."}
+                ? `${draft.size} ${draft.size === 1 ? "alteração não salva" : "alterações não salvas"}. O vínculo vale só para este PRONAC.`
+                : savedMsg ||
+                  "Ligue quem tem vínculo com o proponente neste PRONAC e clique em Salvar."}
             </p>
             {draft.size ? (
               <button
@@ -315,7 +352,7 @@ export function Art23Section({
                 <div>
                   <div className="text-base font-semibold text-[var(--navy)]">Salvando…</div>
                   <div className="text-sm text-[var(--gray-500)]">
-                    Aplicando os vínculos e atualizando os PRONACs.
+                    Aplicando os vínculos e atualizando o PRONAC.
                   </div>
                 </div>
               </div>

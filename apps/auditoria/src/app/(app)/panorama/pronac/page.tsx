@@ -9,7 +9,7 @@ import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 import {
   evaluatePronacSupplierCompliance,
 } from "@/lib/compliance/rouanet";
-import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
+import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { getPendingRulesetReview } from "@/lib/compliance/rules";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
@@ -67,7 +67,7 @@ export default async function PronacPanoramaPage({
 
   const complianceAlerts = rows
     .flatMap((row) => {
-      const meta = metaForAccount(bundle, row.accountId, row.rules.version);
+      const meta = metaForProject(bundle, row.accountId, row.projectId);
       return evaluatePronacSupplierCompliance({
         pronac: row.pronac,
         projectName: row.name,
@@ -89,7 +89,7 @@ export default async function PronacPanoramaPage({
     if (from) detailQs.set("from", from);
     if (to) detailQs.set("to", to);
     if (watchedOnly) detailQs.set("watchedOnly", "1");
-    const meta = metaForAccount(bundle, row.accountId, row.rules.version);
+    const meta = metaForProject(bundle, row.accountId, row.projectId);
     return {
       projectId: row.projectId,
       pronac: row.pronac,

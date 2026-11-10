@@ -48,6 +48,7 @@ export async function GET(request: Request, context: { params: Params }) {
         pronac: p.project.pronac,
         accountName: p.project.salicAccount.name,
         itemName: p.itemName,
+        countsForBond: p.countsForBond,
         amount: Number(p.amount),
         documentType: p.documentType,
         documentNumber: p.documentNumber,

@@ -4,7 +4,7 @@ import { getHubPermissions } from "@/lib/auth/hub-permissions";
 import { isHidingOverLimit } from "@/lib/compliance/over-limit-permission";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { getPronacPanorama } from "@/lib/audit";
-import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
+import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { worstComplianceTone } from "@/lib/compliance/rouanet";
 
 export { HIDE_OVER_LIMIT_PERMISSION, isHidingOverLimit } from "@/lib/compliance/over-limit-permission";
@@ -41,12 +41,12 @@ async function computeNow(workspaceId: string): Promise<OverLimitScope> {
   const projectIds: string[] = [];
   const pronacs = new Set<string>();
   for (const row of rows) {
-    const meta = metaForAccount(bundle, row.accountId, row.rules.version);
+    const meta = metaForProject(bundle, row.accountId, row.projectId);
     const tone = worstComplianceTone(row.allBySupplier, row.projectTotal, row.accountCgccpf, {
       personType: meta.personType || row.personType,
       relatedParties: meta.relatedParties,
       rules: row.rules,
-      bondSuppliers: row.bondBySupplier.length ? row.bondBySupplier : row.allBySupplier,
+      bondSuppliers: row.bondBySupplier,
     });
     if (tone === "critical") {
       projectIds.push(row.projectId);

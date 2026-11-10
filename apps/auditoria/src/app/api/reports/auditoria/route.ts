@@ -4,7 +4,7 @@ import {
   getPronacDetail,
   listWatchedSuppliers,
 } from "@/lib/audit";
-import { loadComplianceBundle, metaForAccount } from "@/lib/compliance/context";
+import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { rulesForProject } from "@/lib/compliance/rules";
 import { evaluatePronacSupplierCompliance } from "@/lib/compliance/rouanet";
 import { corporateMapCopy, corporateRoleLabel } from "@/lib/corporate/copy";
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
         complianceRulesetId: detail.compliance?.rulesetId,
       });
       const bundle = await loadComplianceBundle([account.id], { workspaceId });
-      const meta = metaForAccount(bundle, account.id, rules.version);
+      const meta = metaForProject(bundle, account.id, detail.projectId);
 
       const alerts = evaluatePronacSupplierCompliance({
         pronac: detail.pronac,
@@ -172,6 +172,7 @@ export async function GET(request: Request) {
           paymentDate: p.paymentDate?.toISOString() ?? null,
           supplierName: p.supplier.name,
           itemName: p.itemName,
+          countsForBond: p.countsForBond,
           documentNumber: p.documentNumber,
           amount: Number(p.amount),
         })),

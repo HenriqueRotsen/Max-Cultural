@@ -106,7 +106,7 @@ export default async function AuditoriaFornecedoresPage() {
           label="Observados nesta lista"
           value={String(watchedCount)}
           hint="Marcados para acompanhamento de vínculos"
-          help="Fornecedores desta lista que também estão na sua lista de Observados (usada na análise de vínculos do art. 23)."
+          help="Fornecedores desta lista que também estão na sua lista de Observados (usada na análise de vínculo com o proponente)."
         />
       </section>
 

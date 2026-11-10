@@ -307,7 +307,7 @@ export function PronacPanoramaTable({
                 <th>No SALIC</th>
                 <th>Proponente</th>
                 <th>{watchedOnly ? "Pago a observados" : "Já pago"}</th>
-                <th>Soma do art. 23</th>
+                <th>Vínculo com proponente</th>
                 <th className="w-10" aria-label="Abrir" />
               </tr>
             </thead>

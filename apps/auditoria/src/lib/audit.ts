@@ -3,7 +3,7 @@ import { normalizeCgccpf } from "@/lib/crypto";
 import { formatCurrency } from "@/lib/format";
 import { toActiveRules } from "@/lib/compliance/rules";
 import { DEFAULT_RULES, type ActiveRules } from "@/lib/compliance/defaults";
-import { isExcludedFromBondItem } from "@/lib/compliance/rouanet";
+import { paymentCountsForBond } from "@/lib/compliance/rouanet";
 
 export type PanoramaFilters = {
   accountId?: string;
@@ -581,7 +581,7 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
           { supplierId: string; name: string; cgccpf: string; total: number; count: number }
         >();
         for (const p of list) {
-          if (opts?.forBond && isExcludedFromBondItem(p.itemName)) continue;
+          if (opts?.forBond && !paymentCountsForBond(p)) continue;
           const amount = Number(p.amount);
           const agg = bySupplierMap.get(p.supplierId) || {
             supplierId: p.supplierId,
@@ -768,7 +768,7 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
 
   const bondBySupplier = new Map<string, SupplierAgg>();
   for (const p of allPayments) {
-    if (isExcludedFromBondItem(p.itemName)) continue;
+    if (!paymentCountsForBond(p)) continue;
     const amount = Number(p.amount);
     const agg = bondBySupplier.get(p.supplierId) || {
       supplierId: p.supplierId,

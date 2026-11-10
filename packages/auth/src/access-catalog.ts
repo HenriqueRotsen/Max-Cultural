@@ -237,7 +237,7 @@ export const ACCESS_CATALOG = [
     id: "auditoria.ins.editar",
     label: "Cadastrar e editar INs",
     description:
-      "Cria, edita e exclui as instruções normativas (limites e vínculos do art. 23) usadas nas análises.",
+      "Cria, edita e exclui as instruções normativas (limites e vínculo com o proponente) usadas nas análises.",
     kind: "capability",
     group: "Auditoria",
     product: "auditoria",

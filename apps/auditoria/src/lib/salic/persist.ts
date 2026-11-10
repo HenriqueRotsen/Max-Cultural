@@ -134,6 +134,7 @@ async function upsertPaymentFromProduto(params: {
 
   // Uma fonte de verdade: remove o mesmo comprovante gravado por outra origem (api vs crawler).
   if (externalId && !params.skipCrossSourceCleanup) {
+    await carryBondMarks([externalId], source);
     await prisma.payment.deleteMany({
       where: {
         externalId,
@@ -144,6 +145,28 @@ async function upsertPaymentFromProduto(params: {
   }
 
   return payment;
+}
+
+/**
+ * Antes de apagar o mesmo comprovante gravado pela outra origem (api × crawler),
+ * leva a marcação "conta para o vínculo" para a linha que fica.
+ */
+export async function carryBondMarks(externalIds: string[], keepSource: "api" | "crawler") {
+  if (!externalIds.length) return;
+  const marked = await prisma.payment.findMany({
+    where: {
+      externalId: { in: externalIds },
+      source: { not: keepSource },
+      countsForBond: { not: null },
+    },
+    select: { externalId: true, countsForBond: true },
+  });
+  for (const m of marked) {
+    await prisma.payment.updateMany({
+      where: { externalId: m.externalId, source: keepSource, countsForBond: null },
+      data: { countsForBond: m.countsForBond },
+    });
+  }
 }
 
 /**

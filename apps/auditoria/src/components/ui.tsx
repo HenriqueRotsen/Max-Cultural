@@ -177,3 +177,40 @@ export function StatusBanner({
     </div>
   );
 }
+
+/** Switch on/off acessível (role="switch"). */
+export function Switch({
+  checked,
+  onChange,
+  disabled,
+  label,
+  size = "md",
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  disabled?: boolean;
+  /** Nome acessível (lido pelo leitor de tela). */
+  label: string;
+  size?: "sm" | "md";
+}) {
+  const track = size === "sm" ? "h-5 w-9" : "h-6 w-11";
+  const knob = size === "sm" ? "h-4 w-4" : "h-5 w-5";
+  const shift = size === "sm" ? "translate-x-4" : "translate-x-5";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex shrink-0 cursor-pointer items-center rounded-full border border-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--navy)] disabled:cursor-not-allowed disabled:opacity-50 ${track} ${checked ? "bg-[var(--navy)]" : "bg-[var(--gray-300,#d0d5dd)]"}`}
+    >
+      <span
+        aria-hidden
+        className={`pointer-events-none inline-block transform rounded-full bg-white shadow ring-0 transition-transform ${knob} ${checked ? shift : "translate-x-0.5"}`}
+      />
+    </button>
+  );
+}

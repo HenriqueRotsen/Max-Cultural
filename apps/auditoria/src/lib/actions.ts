@@ -100,21 +100,47 @@ export async function setPartyRelation(formData: FormData) {
  * Grava de uma vez os vínculos marcados no detalhe do PRONAC (vale p/ todos os
  * PRONACs dessa conta+IN) e recalcula o briefing desses projetos uma única vez.
  */
-export async function setObservadoBonds(input: {
-  salicAccountId: string;
-  rulesetVersion: string;
+/** Projeto do workspace atual (ou erro). */
+async function projectInWorkspace(projectId: string) {
+  const { getWorkspaceContext } = await import("@/lib/auth/session");
+  const { session, entitlements } = await getWorkspaceContext();
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, salicAccount: { workspaceId: entitlements.workspaceId } },
+    select: { id: true, pronac: true },
+  });
+  return project
+    ? { project, workspaceId: entitlements.workspaceId, email: session?.email ?? null }
+    : null;
+}
+
+async function refreshProjectAfterBondChange(project: { id: string; pronac: string }) {
+  const { ensureProjectRuleset } = await import("@/lib/compliance/choose-ruleset");
+  await ensureProjectRuleset(project.id, { forceBriefRefresh: true }).catch((err) => {
+    console.warn(
+      "[bond] falha ao atualizar briefing",
+      project.id,
+      err instanceof Error ? err.message : err,
+    );
+  });
+  revalidatePath("/observados");
+  revalidatePath("/panorama");
+  revalidatePath("/panorama/pronac");
+  revalidatePath("/auditoria");
+  revalidatePath(`/panorama/pronac/${project.pronac}`);
+}
+
+/**
+ * Liga/desliga o vínculo de observados com o proponente — só neste PRONAC
+ * (o mapa societário e as relações pessoais mudam durante o projeto).
+ */
+export async function setProjectBonds(input: {
+  projectId: string;
   changes: Array<{ cgccpf: string; enabled: boolean }>;
 }) {
-  const { getWorkspaceContext } = await import("@/lib/auth/session");
-  const { assertAccountInWorkspace } = await import("@/lib/auth/workspace");
-  const { entitlements } = await getWorkspaceContext();
-
-  const salicAccountId = String(input.salicAccountId || "").trim();
-  const rulesetVersion = String(input.rulesetVersion || "").trim();
-  if (!salicAccountId || !rulesetVersion) {
-    return { ok: false as const, error: "Proponente e IN são obrigatórios" };
-  }
-  await assertAccountInWorkspace(salicAccountId, entitlements.workspaceId);
+  const projectId = String(input.projectId || "").trim();
+  if (!projectId) return { ok: false as const, error: "PRONAC obrigatório" };
+  const ctx = await projectInWorkspace(projectId);
+  if (!ctx) return { ok: false as const, error: "PRONAC não encontrado neste espaço" };
 
   const byDoc = new Map<string, boolean>();
   for (const c of Array.isArray(input.changes) ? input.changes : []) {
@@ -128,61 +154,58 @@ export async function setObservadoBonds(input: {
 
   await prisma.$transaction(
     Array.from(byDoc, ([cgccpf, enabled]) =>
-      prisma.observadoBond.upsert({
-        where: {
-          salicAccountId_cgccpf_rulesetVersion: {
-            salicAccountId,
-            cgccpf,
-            rulesetVersion,
-          },
-        },
+      prisma.projectObservadoBond.upsert({
+        where: { projectId_cgccpf: { projectId, cgccpf } },
         create: {
-          workspaceId: entitlements.workspaceId,
-          salicAccountId,
+          workspaceId: ctx.workspaceId,
+          projectId,
           cgccpf,
-          rulesetVersion,
           enabled,
+          updatedByEmail: ctx.email,
         },
-        update: { enabled },
+        update: { enabled, updatedByEmail: ctx.email },
       }),
     ),
   );
 
-  // Atualiza o briefing dos PRONACs deste proponente com a mesma IN
-  const projects = await prisma.project.findMany({
-    where: {
-      salicAccountId,
-      complianceRuleset: { version: rulesetVersion },
-    },
-    select: { id: true, pronac: true },
-  });
-  if (projects.length) {
-    const { ensureProjectRuleset } = await import(
-      "@/lib/compliance/choose-ruleset"
-    );
-    // Poucos por vez: cada um carrega todos os pagamentos do projeto.
-    for (let i = 0; i < projects.length; i += 4) {
-      await Promise.all(
-        projects.slice(i, i + 4).map((p) =>
-          ensureProjectRuleset(p.id, { forceBriefRefresh: true }).catch((err) => {
-            console.warn(
-              "[bond] falha ao atualizar briefing",
-              p.id,
-              err instanceof Error ? err.message : err,
-            );
-          }),
-        ),
-      );
-    }
+  await refreshProjectAfterBondChange(ctx.project);
+  return { ok: true as const };
+}
+
+/**
+ * Marca se um pagamento conta para o vínculo com o proponente.
+ * `null` volta ao automático (alimentação e refeição não contam).
+ */
+export async function setPaymentCountsForBond(input: {
+  projectId: string;
+  changes: Array<{ paymentId: string; countsForBond: boolean | null }>;
+}) {
+  const projectId = String(input.projectId || "").trim();
+  if (!projectId) return { ok: false as const, error: "PRONAC obrigatório" };
+  const ctx = await projectInWorkspace(projectId);
+  if (!ctx) return { ok: false as const, error: "PRONAC não encontrado neste espaço" };
+
+  const changes = (Array.isArray(input.changes) ? input.changes : []).filter(
+    (c) => typeof c?.paymentId === "string" && c.paymentId,
+  );
+  if (!changes.length) return { ok: true as const };
+
+  const result = await prisma.$transaction(
+    changes.map((c) =>
+      prisma.payment.updateMany({
+        where: { id: c.paymentId, projectId },
+        data: {
+          countsForBond:
+            c.countsForBond === true ? true : c.countsForBond === false ? false : null,
+        },
+      }),
+    ),
+  );
+  if (result.some((r) => r.count === 0)) {
+    return { ok: false as const, error: "Pagamento não encontrado neste PRONAC" };
   }
 
-  revalidatePath("/observados");
-  revalidatePath("/panorama");
-  revalidatePath("/panorama/pronac");
-  revalidatePath("/auditoria");
-  for (const p of projects) {
-    revalidatePath(`/panorama/pronac/${p.pronac}`);
-  }
+  await refreshProjectAfterBondChange(ctx.project);
   return { ok: true as const };
 }
 

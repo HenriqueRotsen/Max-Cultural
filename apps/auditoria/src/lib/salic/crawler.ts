@@ -5,6 +5,7 @@ import path from "path";
 import { prisma } from "@/lib/db";
 import { decryptCredential, normalizeCgccpf } from "@/lib/crypto";
 import {
+  carryBondMarks,
   upsertPaymentFromProduto,
   upsertSupplier,
   reconcileProjectPayments,
@@ -511,6 +512,7 @@ export async function syncAccountViaCrawler(params: {
       });
 
       if (seenExternalIds.size > 0) {
+        await carryBondMarks([...seenExternalIds], "crawler");
         await prisma.payment.deleteMany({
           where: {
             externalId: { in: [...seenExternalIds] },
