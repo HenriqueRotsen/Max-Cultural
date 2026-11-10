@@ -3,9 +3,9 @@
 --
 -- Schemas:
 --   public  → MAX Cultural (hub IAM + audit_logs central)
---   origem  → MAX Financeiro
---   fluxo   → MAX Indicadores
---   auditoria → MAX Auditoria (antigo Salink) — usado a partir da virada (docs/deploy-teste.md §5)
+--   financeiro → MAX Financeiro
+--   indicadores → MAX Indicadores
+--   auditoria → MAX Auditoria (docs/deploy-teste.md §5)
 
 CREATE EXTENSION IF NOT EXISTS vector;
 

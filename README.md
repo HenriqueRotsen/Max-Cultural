@@ -1,112 +1,71 @@
 # MAX Cultural
 
-Suíte: **MAX Cultural** (hub) · **MAX Financeiro** (planejamento + fornecedores) · **MAX Indicadores** (execução e inscrições) · **MAX Auditoria** (espelho do SALIC e conformidade).
+Monorepo da suíte MAX (Next.js 16 + Prisma 7 + Postgres/Supabase), com quatro apps e um login único.
 
-Princípio: portar o que já funciona (Salink, Suply no Salink, SigaCultural) e mudar só a casca — marca MAX, sidebar clara, confirmação em editar/excluir, IAM no hub.
+| App         | Para quê                                                         | Host (produção)                  | Local | Pasta              |
+| ----------- | ---------------------------------------------------------------- | -------------------------------- | ----- | ------------------ |
+| Cultural    | Hub: login, projetos, usuários, papéis e logs                    | `maxcultural.com.br`             | :3000 | `apps/cultural`    |
+| Financeiro  | Planejamento (planilha, pedidos, contas a pagar) e fornecedores  | `financeiro.maxcultural.com.br`  | :3001 | `apps/financeiro`  |
+| Indicadores | Inscrições, análise, acompanhamento e prestação de contas        | `indicadores.maxcultural.com.br` | :3002 | `apps/indicadores` |
+| Auditoria   | Espelho do SALIC e conformidade com a IN de cada PRONAC          | `auditoria.maxcultural.com.br`   | :3003 | `apps/auditoria`   |
 
-
-| App         | Host (prod)                      | Porta local (`npm run dev`) | Root Directory (Vercel) |
-| ----------- | -------------------------------- | --------------------------- | ----------------------- |
-| Cultural    | `maxcultural.com.br`             | :3000                       | `apps/cultural`         |
-| Financeiro  | `financeiro.maxcultural.com.br`  | :3001                       | `apps/financeiro`       |
-| Indicadores | `indicadores.maxcultural.com.br` | :3002                       | `apps/indicadores`      |
-| Auditoria   | `auditoria.maxcultural.com.br`   | :3003                       | `apps/auditoria`        |
-
-Pacotes compartilhados em `packages/`:
+Cada app tem seu README. Pacotes compartilhados em `packages/`:
 
 | Pacote                  | Para quê |
 | ----------------------- | -------- |
-| `@max/auth`             | Sessão do hub (SSO), permissões e catálogo de acessos |
-| `@max/ui`               | Componentes comuns: `SearchSelect` (todo menu de seleção, com busca) e `ConfirmDialog` |
-| `@max/mobile-nav`       | Barra de navegação e menu lateral no celular |
+| `@max/auth`             | Sessão do hub (SSO) e catálogo de acessos |
+| `@max/ui`               | `SearchSelect` (todo menu de seleção) e `ConfirmDialog` |
+| `@max/mobile-nav`       | Navegação no celular (barra no rodapé + menu lateral) |
 | `@max/security-headers` | Cabeçalhos de segurança (CSP, HSTS…) |
-| `@max/brand`            | Logos e imagens da marca MAX |
+| `@max/brand`            | Logos e imagens da marca |
 
-Um pacote novo entra no `transpilePackages` do `next.config.ts` de cada app que o usa; se tiver CSS
-(como `@max/ui/src/search-select.css`), ele é importado no `globals.css` do app.
+Um pacote novo entra no `transpilePackages` do `next.config.ts` de cada app que o usa; se tiver CSS,
+ele é importado no `globals.css` do app.
+
+## Rodar localmente
+
+Tudo roda num Postgres local (Docker, `localhost:5436`) com dados demo — **nunca no banco de produção**.
+
+```bash
+MAX_AMBIENTE=teste npm install   # sem o MAX_AMBIENTE, o prisma generate lê o .env.local (produção) e é barrado
+npm run dev -- setup             # 1ª vez: banco local, migrações, contas e dados demo
+npm run dev                      # os 4 apps (ou só alguns: npm run dev -- indicadores)
+npm run dev -- reset             # apaga o banco local e refaz o setup
+npm run dev -- liberar           # simula "recurso liberado" em todos os projetos
+npm run dev -- run financeiro npx prisma migrate dev --name minha_mudanca   # comando de um app no banco local
+```
+
+Login: `admin@maxcultural.local` em http://localhost:3000, senha `TESTE_PASSWORD` do `.env.teste`
+(criado no setup, fora do git). Também existem `operador@` e `professor@maxcultural.local`.
+
+Os `.env.local` de cada app guardam a **produção** e só servem aos comandos `…:producao`
+(ver [`docs/git-flow.md`](docs/git-flow.md)). Fora da Vercel, apps, Prisma e seeds se recusam a abrir
+o banco de produção (`bloquearProducao`).
+
+## Login e permissões
+
+Login único no Cultural (senha + 2FA; `AUTH_2FA_DISABLED=true` só no ambiente local). O cookie
+`max_session` vale para `.maxcultural.com.br` e os outros apps o aceitam com o mesmo `AUTH_SECRET`.
+Usuários, papéis (ver/editar por tela) e a trilha de logs (`/logs`) ficam no Cultural; os outros apps
+enviam eventos por `POST /api/audit`.
+
+## Banco
+
+Um Postgres (Supabase) com um schema por app: `public` (Cultural), `financeiro`, `indicadores` e
+`auditoria`. A Auditoria não tem migrações próprias: as dela ficam em `apps/financeiro/prisma/migrations`.
+Arquivos (NF, comprovantes, capas) vão para o Supabase Storage ([`docs/supabase-storage.md`](docs/supabase-storage.md)).
 
 ## Menus de seleção
 
 Todo menu de seleção usa o `SearchSelect` de `@max/ui` (nada de `<select>` nativo): busca sem acento e
-por partes ("sao jo" acha "São João"). Ele funciona controlado (`value` + `onValueChange`) ou dentro de
-formulário como um `<select>` (`name`, `defaultValue`, `required`); `emptyOption="Todos"` cria a opção
-vazia e `submitOnChange` envia o formulário ao escolher. As cores vêm das variáveis de cada app.
-No Indicadores, use `@/components/ui/search-select` (mesmo componente, no visual do shadcn) ou o
-`SimpleSelect`, que também tem busca.
+por partes ("sao jo" acha "São João"). Funciona controlado (`value` + `onValueChange`) ou em formulário
+como um `<select>` (`name`, `defaultValue`, `required`); `emptyOption="Todos"` cria a opção vazia e
+`submitOnChange` envia o formulário ao escolher. No Indicadores, use `@/components/ui/search-select`
+(mesmo componente no visual do shadcn) ou o `SimpleSelect`.
 
+## Deploy, git e CI
 
-
-## Financeiro — módulos
-
-1. **Planejamento** — planilha homologada, NF/RPA, rubricas e readequação.
-2. **Proponentes** — contas SALIC, credenciais e mapa societário.
-3. **Auditoria** — sync SALIC, panorama, conformidade e relatório.
-4. **Fornecedores** — banco de preços, serviços, contratações e análises.
-
-Tagline Financeiro: Criação · Planejamento · Auditoria. Indicadores: Execução · Gestão · Acompanhamento.
-
-## Fundação (contas do cliente)
-
-Estes passos usam as contas Vercel / Supabase / Resend / DNS do cliente — o código já espera os hosts abaixo.
-
-1. **GitHub** `HenriqueRotsen/max-cultural` — este repositório.
-2. **DNS** (`maxcultural.com.br`): apex A/ALIAS Vercel; `www`, `financeiro`, `indicadores` CNAME `cname.vercel-dns.com`.
-3. **Quatro projetos Vercel** no mesmo repo, Root Directory por app. Production URLs nos hosts da tabela. `SYNC_MODE=chunked` e `SYNC_CONCURRENCY=2` no Financeiro.
-4. **Um projeto Supabase** (Auth + Postgres). Site URL = `https://maxcultural.com.br`. Redirect allow list: os três hosts + `/auth/callback` + `/login/2fa`. Schemas: `public` (Cultural), `financeiro`, `indicadores`. Bootstrap SQL: [`docs/supabase-bootstrap.sql`](docs/supabase-bootstrap.sql). Checklist completo: [`docs/deploy-teste.md`](docs/deploy-teste.md). Pooler `:6543?pgbouncer=true` + `DIRECT_URL` `:5432`.
-5. **Resend** com domínio autenticado. `EMAIL_FROM=MAX Cultural <noreply@maxcultural.com.br>`.
-
-Cookie de sessão: `max_session`, `domain=.maxcultural.com.br`, `Secure`, `HttpOnly`, `SameSite=Lax`. Preview `*.vercel.app` não compartilha sessão com produção.
-
-**Auditoria:** trilha central no Cultural (`/logs`). Financeiro e Indicadores enviam eventos via `POST /api/audit`.
-
-## Auth e 2FA
-
-Login único no Cultural: senha → TOTP (app autenticador, 6 dígitos, janela ±1). Sem 2FA configurado, o setup é obrigatório antes de Financeiro/Indicadores. `AUTH_2FA_DISABLED=true` só em dev.
-
-Até o hub estar no ar, Financeiro e Indicadores ainda autenticam sozinhos (não bloquear o port). Com `NEXT_PUBLIC_CULTURAL_URL` + `AUTH_SECRET` iguais, Financeiro/Indicadores aceitam o cookie do hub e redirecionam quem não tem sessão para `https://maxcultural.com.br/login?next=`.
-
-Usuários, papéis (view/edit por tela) e logs ficam só no Cultural. O grupo Acesso do Indicadores some quando o SSO estiver estável.
-
-## Envs (resumo)
-
-Ver `.env.example` na raiz e em cada app.
-
-**Cultural:** `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_COOKIE_DOMAIN`, `CREDENTIALS_SECRET` (cifrar TOTP), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_2FA_DISABLED=false`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_FINANCEIRO_URL`, `NEXT_PUBLIC_INDICADORES_URL`.
-
-**Financeiro:** `DATABASE_URL` + `DIRECT_URL` (dados SALIC), `CREDENTIALS_SECRET`, `SYNC_*`. SSO: `AUTH_SECRET` e `NEXT_PUBLIC_CULTURAL_URL`. Login/2FA só no Cultural (`AUTH_2FA_DISABLED`).
-
-**Indicadores:** `DATABASE_URL` do schema Siga; depois do SSO, as mesmas keys públicas de sessão.
-
-Service role e connection strings nunca no client.
-
-## Segurança
-
-CI: ESLint, `npm audit`, Gitleaks, CodeQL, Semgrep. Não commitar `.env`. HSTS/CSP headers nos apps.
-
-## Rodar localmente
-
-Na raiz do repo, com `npm run dev`. Ele usa um Postgres local (Docker) com dados demo e
-**nunca usa o banco de produção**. Login: `admin@maxcultural.local`, senha `TESTE_PASSWORD`
-do `.env.teste` (criado sozinho, fora do git). `npm run dev:teste` é o mesmo comando.
-
-Sobe os 4 apps: Cultural :3000 (login), Financeiro :3001, Indicadores :3002 e Auditoria :3003.
-Para subir só alguns: `npm run dev -- indicadores` (o Cultural vem junto, porque é o login).
-
-```bash
-MAX_AMBIENTE=teste npm install   # o MAX_AMBIENTE impede o prisma generate de ler o .env.local (produção)
-npm run dev -- setup     # 1ª vez: Postgres local (Docker), migrações, contas e dados demo
-npm run dev              # sobe os apps no banco local
-npm run dev -- reset     # apaga o banco local e refaz o setup
-npm run dev -- liberar   # simula "recurso liberado" em todos os projetos
-```
-
-Comando de um app no banco local (ex.: criar uma migração):
-
-```bash
-npm run dev -- run financeiro npx prisma migrate dev --name minha_mudanca
-```
-
-Os `.env.local` de cada app guardam as credenciais da **produção** e só servem para
-`npm run db:migrate:producao`. Fora da Vercel, os apps, o Prisma e os seeds se recusam a
-abrir o banco de produção (`bloquearProducao`).
-
+- Quatro projetos Vercel no mesmo repositório (Root Directory = pasta do app). Checklist e variáveis:
+  [`docs/deploy-teste.md`](docs/deploy-teste.md); cada app tem um `.env.example`.
+- Branches, commits, migrações na produção e scripts de dados: [`docs/git-flow.md`](docs/git-flow.md).
+- CI: `tsc` e `vitest` dos 4 apps, ESLint, `npm audit`, Gitleaks, CodeQL e Semgrep. Nunca commitar `.env`.
