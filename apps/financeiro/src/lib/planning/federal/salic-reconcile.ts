@@ -291,6 +291,10 @@ export async function reconcilePlanningSalicPublishState(
   });
   const salicIds = new Set(salicItems.map((item) => item.id));
 
+  // Guarda cada pagamento (pendências) e liga ao comprovante do sistema.
+  const { recordSalicPayments } = await import("@/lib/planning/federal/salic-payment-records");
+  await recordSalicPayments(planningProjectId, salicItems);
+
   const comprovadoSync = await syncSalicComprovadoFromRelacaoPagamentos(
     planningProjectId,
     salicItems,

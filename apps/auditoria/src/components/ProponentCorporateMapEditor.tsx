@@ -148,6 +148,7 @@ function personTypeFromDoc(raw: string): "PF" | "PJ" {
 
 function MemberForm({
   accountId,
+  ownerField,
   periodId,
   member,
   pending,
@@ -156,6 +157,7 @@ function MemberForm({
   onCancel,
 }: {
   accountId: string;
+  ownerField: OwnerField;
   periodId: string;
   member?: PeriodMember | null;
   pending: boolean;
@@ -199,7 +201,7 @@ function MemberForm({
         e.preventDefault();
         const digits = cgccpf.replace(/\D/g, "");
         const fd = new FormData();
-        fd.set("accountId", accountId);
+        fd.set(ownerField, accountId);
         fd.set("periodId", periodId);
         if (member?.id) fd.set("memberId", member.id);
         fd.set("name", name);
@@ -285,6 +287,7 @@ function MemberForm({
 
 function PeriodForm({
   accountId,
+  ownerField,
   period,
   foundedYear,
   pending,
@@ -292,6 +295,7 @@ function PeriodForm({
   onCancel,
 }: {
   accountId: string;
+  ownerField: OwnerField;
   period?: Period | null;
   foundedYear?: number;
   pending: boolean;
@@ -309,7 +313,7 @@ function PeriodForm({
       onSubmit={(e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
-        fd.set("accountId", accountId);
+        fd.set(ownerField, accountId);
         if (period?.id) fd.set("periodId", period.id);
         if (openEnded) fd.set("openEnded", "1");
         onSubmit(fd);
@@ -381,8 +385,12 @@ function PeriodForm({
   );
 }
 
+/** Campo que identifica o dono do mapa nas ações: proponente ou observado. */
+type OwnerField = "accountId" | "watchedId";
+
 export function ProponentCorporateMapEditor({
   accountId,
+  ownerField = "accountId",
   accountCgccpf,
   foundedAt,
   foundedAtPrecision,
@@ -390,7 +398,9 @@ export function ProponentCorporateMapEditor({
   matchedSupplierDocs,
   institutionalMap = false,
 }: {
+  /** Id do proponente ou do observado (conforme ownerField). */
   accountId: string;
+  ownerField?: OwnerField;
   accountName: string;
   accountCgccpf: string;
   foundedAt: string | null;
@@ -451,6 +461,7 @@ export function ProponentCorporateMapEditor({
       {error ? <p className="text-sm text-[#8a4b12]">{error}</p> : null}
       {status ? <p className="text-sm text-[#176b3a]">{status}</p> : null}
 
+      {ownerField === "accountId" ? (
       <section className="card p-5">
         <label className="flex items-start gap-3">
           <input
@@ -460,7 +471,7 @@ export function ProponentCorporateMapEditor({
             disabled={pending}
             onChange={(e) => {
               const fd = new FormData();
-              fd.set("accountId", accountId);
+              fd.set(ownerField, accountId);
               fd.set("institutionalMap", e.target.checked ? "1" : "0");
               run(setAccountInstitutionalMap, fd);
             }}
@@ -475,6 +486,7 @@ export function ProponentCorporateMapEditor({
           </span>
         </label>
       </section>
+      ) : null}
 
       <section className="card p-5">
         <h2 className="text-lg font-semibold text-[var(--navy)]">
@@ -500,7 +512,7 @@ export function ProponentCorporateMapEditor({
                   return;
                 }
                 const fd = new FormData();
-                fd.set("accountId", accountId);
+                fd.set(ownerField, accountId);
                 if (hasPeriods) fd.set("replace", "1");
                 run(importAccountCorporateMap, fd);
               }}
@@ -533,6 +545,7 @@ export function ProponentCorporateMapEditor({
                   <PeriodForm
                     key={`edit-${p.id}`}
                     accountId={accountId}
+                    ownerField={ownerField}
                     period={p}
                     foundedYear={foundedYear}
                     pending={pending}
@@ -576,7 +589,7 @@ export function ProponentCorporateMapEditor({
                       if (!confirm(copy.removePeriodConfirm))
                         return;
                       const fd = new FormData();
-                      fd.set("accountId", accountId);
+                      fd.set(ownerField, accountId);
                       fd.set("periodId", p.id);
                       run(deleteCorporatePeriod, fd);
                     }}
@@ -607,6 +620,7 @@ export function ProponentCorporateMapEditor({
                             <MemberForm
                               key={m.id}
                               accountId={accountId}
+                    ownerField={ownerField}
                               periodId={p.id}
                               member={m}
                               pending={pending}
@@ -655,7 +669,7 @@ export function ProponentCorporateMapEditor({
                                     if (!confirm(copy.removeMemberConfirm))
                                       return;
                                     const fd = new FormData();
-                                    fd.set("accountId", accountId);
+                                    fd.set(ownerField, accountId);
                                     fd.set("memberId", m.id);
                                     run(deleteCorporatePeriodMember, fd);
                                   }}
@@ -685,6 +699,7 @@ export function ProponentCorporateMapEditor({
                   <MemberForm
                     key={`add-${p.id}-${addFormKey}`}
                     accountId={accountId}
+                    ownerField={ownerField}
                     periodId={p.id}
                     pending={pending}
                     institutional={institutionalMap}
@@ -717,6 +732,7 @@ export function ProponentCorporateMapEditor({
           <PeriodForm
             key={`new-${newPeriodKey}`}
             accountId={accountId}
+                    ownerField={ownerField}
             foundedYear={foundedYear}
             pending={pending}
             onSubmit={(fd) => {
@@ -727,15 +743,16 @@ export function ProponentCorporateMapEditor({
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2">
-        <a
-          className="btn"
-          href={`/api/reports/account/${accountId}/mapa-societario`}
-        >
-          {copy.pdfBtn}
-        </a>
-
-      </div>
+      {ownerField === "accountId" ? (
+        <div className="flex flex-wrap gap-2">
+          <a
+            className="btn"
+            href={`/api/reports/account/${accountId}/mapa-societario`}
+          >
+            {copy.pdfBtn}
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -46,6 +46,30 @@ function parseTab(value: string | undefined): DetailTab {
   return "analise";
 }
 
+/** Intervalos do mapa no formato do selo "Sócios em…". */
+function toChipPeriods(
+  periods: Array<{
+    validFrom: Date;
+    validFromPrecision: "DAY" | "MONTH" | "YEAR";
+    validTo: Date | null;
+    validToPrecision: "DAY" | "MONTH" | "YEAR";
+    members: Array<{ name: string; role: string; sharePct: unknown; notes: string | null }>;
+  }>,
+) {
+  return periods.map((p) => ({
+    validFrom: p.validFrom.toISOString(),
+    validFromPrecision: p.validFromPrecision,
+    validTo: p.validTo?.toISOString() ?? null,
+    validToPrecision: p.validToPrecision,
+    members: p.members.map((m) => ({
+      name: m.name,
+      role: m.role,
+      sharePct: m.sharePct != null ? Number(m.sharePct) : null,
+      notes: m.notes,
+    })),
+  }));
+}
+
 export default async function PronacDetailPage({
   params,
   searchParams,
@@ -137,18 +161,9 @@ export default async function PronacDetailPage({
       })
     : null;
   const mapPeriods = mapAccount
-    ? periodsInYears(mapAccount.corporatePeriods, mapWindow.fromYear, mapWindow.toYear).map((p) => ({
-        validFrom: p.validFrom.toISOString(),
-        validFromPrecision: p.validFromPrecision,
-        validTo: p.validTo?.toISOString() ?? null,
-        validToPrecision: p.validToPrecision,
-        members: p.members.map((m) => ({
-          name: m.name,
-          role: m.role,
-          sharePct: m.sharePct != null ? Number(m.sharePct) : null,
-          notes: m.notes,
-        })),
-      }))
+    ? toChipPeriods(
+        periodsInYears(mapAccount.corporatePeriods, mapWindow.fromYear, mapWindow.toYear),
+      )
     : [];
   const personType = meta.personType || detail.accounts[0]?.personType;
 
@@ -191,6 +206,16 @@ export default async function PronacDetailPage({
     Math.max(0, (paidAmountByDoc.get(dig) || 0) - (bondAmountByDoc.get(dig) || 0));
   const enabledBondDocs = meta.relatedParties.map((r) => normalizeCgccpf(r.cgccpf));
   const enabledSet = new Set(enabledBondDocs);
+  // Sócios das empresas observadas nos mesmos anos do mapa do proponente.
+  const watchedCompanyIds = watchedInPronac
+    .filter((w) => normalizeCgccpf(w.cgccpf || "").length === 14)
+    .map((w) => w.id);
+  const watchedMaps = watchedCompanyIds.length
+    ? await prisma.corporatePeriod.findMany({
+        where: { watchedSupplierId: { in: watchedCompanyIds } },
+        include: { members: { orderBy: { name: "asc" } } },
+      })
+    : [];
   const vinculoRows = watchedInPronac
     .map((w) => normalizeCgccpf(w.cgccpf || ""))
     .filter((dig, i, all) => dig.length >= 11 && dig !== accountDoc && all.indexOf(dig) === i)
@@ -202,6 +227,23 @@ export default async function PronacDetailPage({
         amount: bondAmountByDoc.get(dig) || 0,
         ignoredAmount: ignoredFor(dig),
         enabled: enabledSet.has(dig),
+        corporateMap:
+          dig.length === 14 ? (
+            <CorporateMapYearChip
+              href={`/observados/${w.id}/mapa`}
+              ownerName={w.name}
+              label={mapWindow.label}
+              basis={mapWindow.basis}
+              institutional={false}
+              periods={toChipPeriods(
+                periodsInYears(
+                  watchedMaps.filter((p) => p.watchedSupplierId === w.id),
+                  mapWindow.fromYear,
+                  mapWindow.toYear,
+                ),
+              )}
+            />
+          ) : null,
       };
     })
     .sort((a, b) => b.amount - a.amount);
@@ -349,6 +391,7 @@ export default async function PronacDetailPage({
               mapAccount ? (
                 <CorporateMapYearChip
                   accountId={mapAccount.id}
+                  ownerName={detail.accounts[0]?.name}
                   label={mapWindow.label}
                   basis={mapWindow.basis}
                   institutional={mapAccount.institutionalMap}

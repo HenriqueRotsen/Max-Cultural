@@ -14,6 +14,7 @@ const menuItemClass =
 export function PlanningProjectToolbar({
   projectId,
   reservationsCount = 0,
+  pendenciasCount = 0,
   showSheetVersions = false,
   moreSlot,
   menuOpen: controlledMenuOpen,
@@ -21,6 +22,8 @@ export function PlanningProjectToolbar({
 }: {
   projectId: string;
   reservationsCount?: number;
+  /** Pendências com o SALIC; o botão só aparece quando há alguma. */
+  pendenciasCount?: number;
   /** Mostra "Planilhas do SALIC" no menu (há versões guardadas). */
   showSheetVersions?: boolean;
   /** Ações avançadas (editar rubricas, readequação…), no fim do menu. */
@@ -74,6 +77,18 @@ export function PlanningProjectToolbar({
           </span>
         ) : null}
       </Link>
+
+      {pendenciasCount > 0 ? (
+        <Link
+          href={`/planejamento/${projectId}/pendencias`}
+          className="btn btn-ghost gap-2 border-amber-300 bg-amber-50 text-amber-900"
+        >
+          Pendências
+          <span className="rounded-full bg-amber-600 px-1.5 text-[11px] font-bold leading-5 text-white">
+            {pendenciasCount > 99 ? "99+" : pendenciasCount}
+          </span>
+        </Link>
+      ) : null}
 
       <div className="relative" ref={menuRef}>
         <button

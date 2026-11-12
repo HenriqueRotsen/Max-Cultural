@@ -193,6 +193,26 @@ export const ACCESS_CATALOG = [
     parentId: "financeiro.planejamento",
   },
   {
+    id: "financeiro.planejamento.excluir_pagamento",
+    label: "Excluir pagamento com comprovante",
+    description:
+      "Exclui um lançamento já pago (confirmação dupla e motivo, fica no log) e tira o pagamento do SALIC.",
+    kind: "capability",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
+  },
+  {
+    id: "financeiro.planejamento.liberar_pronac",
+    label: "Liberar documento de outro PRONAC",
+    description:
+      "Segue com NF ou comprovante que menciona outro projeto. Exige motivo e fica no log.",
+    kind: "capability",
+    group: "Financeiro",
+    product: "financeiro",
+    parentId: "financeiro.planejamento",
+  },
+  {
     id: "financeiro.planejamento.encerrar",
     label: "Encerrar projeto",
     description: "Encerra o projeto (confirmação dupla); depois disso ele some do Financeiro.",
@@ -384,6 +404,8 @@ export const FINANCEIRO_PRIVILEGED_CAPABILITIES = [
   "financeiro.planejamento.excluir_nf",
   "financeiro.planejamento.editar_rubricas",
   "financeiro.planejamento.encerrar",
+  "financeiro.planejamento.excluir_pagamento",
+  "financeiro.planejamento.liberar_pronac",
 ] as const;
 
 /**

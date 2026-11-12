@@ -422,6 +422,7 @@ model PlanningProject {
   documents       PlanningDocument[]
   pedidos         PlanningPedido[]
   readequacaoDrafts PlanningReadequacaoDraft[]
+  salicPayments   SalicPaymentRecord[]
   sheetVersions   ProjectBudgetSheetVersion[]
 
   @@unique([workspaceId, accountId, externalCode])
@@ -830,4 +831,39 @@ enum CorporateRole {
   PARTNER
   ADMINISTRATOR
   BOTH
+}
+
+/**
+ * Cada pagamento da relação de pagamentos do SALIC (id_comprovante_pagamento),
+ * guardado a cada conferência. Serve para as pendências do projeto: pago no
+ * SALIC sem lançamento no sistema, e excluído no SALIC mas ainda no sistema.
+ */
+model SalicPaymentRecord {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  planningProjectId   String
+  /** id_comprovante_pagamento no SALIC. */
+  externalId          String
+  planilhaAprovacaoId String?
+  budgetLineId        String?
+  supplierName        String
+  supplierDoc         String
+  amount              Decimal   @db.Decimal(14, 2)
+  paymentDate         String?
+  proofNumber         String?
+  rubricItem          String?
+  firstSeenAt         DateTime  @default(now())
+  lastSeenAt          DateTime  @default(now())
+  /** Sumiu da relação do SALIC (excluído lá). */
+  removedAt           DateTime?
+  /** Comprovante do sistema ligado a este pagamento (quando houver). */
+  linkedProofId       String?
+  /** Pendência resolvida (ex.: excluído também no sistema). */
+  resolvedAt          DateTime?
+
+  planningProject PlanningProject @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([planningProjectId, externalId])
+  @@index([workspaceId])
+  @@map("salic_payment_records")
 }

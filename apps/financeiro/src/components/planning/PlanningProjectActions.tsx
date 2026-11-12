@@ -20,6 +20,7 @@ export function PlanningProjectActions({
   totalApproved,
   rubricOverrunPct = 100,
   showSheetVersions = false,
+  pendenciasCount = 0,
 }: {
   projectId: string;
   reservationsCount: number;
@@ -32,6 +33,7 @@ export function PlanningProjectActions({
   totalApproved: number;
   rubricOverrunPct?: number;
   showSheetVersions?: boolean;
+  pendenciasCount?: number;
 }) {
   const [editRubricsOpen, setEditRubricsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -44,6 +46,7 @@ export function PlanningProjectActions({
         projectId={projectId}
         reservationsCount={reservationsCount}
         showSheetVersions={showSheetVersions}
+        pendenciasCount={pendenciasCount}
         menuOpen={menuOpen}
         onMenuOpenChange={setMenuOpen}
         moreSlot={
