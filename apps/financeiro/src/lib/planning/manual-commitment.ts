@@ -376,6 +376,12 @@ export async function uploadAdvancePayment(
   formData: FormData,
 ): Promise<ActionState> {
   const session = await requireUser();
+  // Documento de apoio opcional (boleto, orçamento…): tipo obrigatório se veio arquivo.
+  const supportFile = formData.get("supportFile");
+  const hasSupport = supportFile instanceof File && supportFile.size > 0;
+  if (hasSupport && !String(formData.get("supportType") || "")) {
+    return { error: "Escolha o tipo do documento de apoio (boleto, orçamento…)." };
+  }
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
   const {
@@ -737,8 +743,20 @@ export async function uploadAdvancePayment(
       },
     });
   }
+  let docQs = "";
+  if (hasSupport) {
+    const { attachSupportDocumentCore } = await import("@/lib/planning/support-attach");
+    const attached = await attachSupportDocumentCore({
+      userId: session.id,
+      workspaceId: entitlements.workspaceId,
+      commitmentId,
+      formData,
+    });
+    // O pagamento já foi registrado; se o documento não entrou, a página avisa.
+    if (attached.error) docQs = `?docErro=${encodeURIComponent(attached.error.slice(0, 300))}`;
+  }
   revalidatePlanning(project.id);
-  redirect(`/planejamento/compromissos/${commitmentId}`);
+  redirect(`/planejamento/compromissos/${commitmentId}${docQs}`);
 }
 
 /** Cria reservas em lote a partir da planilha do produtor. */

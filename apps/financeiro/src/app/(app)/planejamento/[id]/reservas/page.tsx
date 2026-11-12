@@ -52,16 +52,8 @@ function salicStateForCommitment(
       ...emptyFiscal,
     };
   }
-  if (commitment.nfPending) {
-    return {
-      canUpload: false,
-      uploaded: false,
-      publishMode: null,
-      reason: "Anexe a NF/RPA (ou fatura, recibo, apólice ou contrato no lugar dela) antes de enviar ao SALIC.",
-      proofId: null,
-      ...emptyFiscal,
-    };
-  }
+  // NF pendente: pode ir só o comprovante (prazo do SALIC); quando a NF/RPA ou
+  // o documento que faz o papel dela chegar, o pacote completo é reenviado.
   if (!proof) {
     return {
       canUpload: false,
@@ -97,7 +89,11 @@ function salicStateForCommitment(
       canUpload: false,
       uploaded,
       publishMode: proof.salicPublishMode,
-      reason: uploaded ? "Já enviado ao SALIC." : null,
+      reason: uploaded
+        ? commitment.nfPending
+          ? "Enviado só o comprovante. Anexe a NF/RPA para completar no SALIC."
+          : "Já enviado ao SALIC."
+        : null,
       proofId: proof.id,
       ...fiscal,
     };
@@ -107,7 +103,11 @@ function salicStateForCommitment(
     canUpload: true,
     uploaded,
     publishMode: pendingMode,
-    reason: uploaded ? "Republicar versão atualizada (NF + comprovante)." : null,
+    reason: uploaded
+      ? "Republicar versão atualizada (NF + comprovante)."
+      : commitment.nfPending
+        ? "NF pendente: vai só o comprovante. Quando a NF/RPA chegar, o sistema pede o reenvio completo."
+        : null,
     proofId: proof.id,
     ...fiscal,
   };

@@ -353,7 +353,7 @@ export function ReservationsList({
                   {formatDate(c.createdAt)}
                   {c.paidAt ? ` · pago ${formatDate(c.paidAt)}` : ""}
                 </p>
-                {c.salic.reason && !c.salic.canUpload ? (
+                {c.salic.reason && (!c.salic.canUpload || c.nfPending) ? (
                   <p className="mt-1 text-xs text-amber-800">{c.salic.reason}</p>
                 ) : null}
               </div>

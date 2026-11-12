@@ -508,9 +508,7 @@ export async function publishCommitmentToSalic(
   if (!commitment) {
     return { error: "Reserva paga não encontrada." };
   }
-  if (commitment.nfPending) {
-    return { error: "Anexe a NF antes de enviar ao SALIC." };
-  }
+  // NF pendente: vai só o comprovante; o reenvio completo vem quando a NF chegar.
 
   const proof = await findProofForCommitment(commitmentId, entitlements.workspaceId);
   if (!proof) {

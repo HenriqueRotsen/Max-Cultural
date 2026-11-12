@@ -24,10 +24,13 @@ export const dynamic = "force-dynamic";
 
 export default async function CompromissoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ docErro?: string }>;
 }) {
   const { id } = await params;
+  const { docErro } = await searchParams;
   const { entitlements } = await getWorkspaceContext();
   const commitment = await prisma.rubricCommitment.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
@@ -474,6 +477,12 @@ export default async function CompromissoPage({
         </div>
       </div>
 
+      {docErro ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          O pagamento foi registrado, mas o documento de apoio não entrou: {docErro} Anexe de novo
+          em Outros documentos.
+        </p>
+      ) : null}
       <SupportDocsCard
         commitmentId={commitment.id}
         canRemove={canCancelReservation}
