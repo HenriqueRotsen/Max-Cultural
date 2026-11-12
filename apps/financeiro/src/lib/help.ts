@@ -83,7 +83,7 @@ export const HELP = {
   planningCaptacao:
     "Captado, recebido e transferido vêm do SALIC. Rendimentos são manuais. Base de captação = captado + recebido + rendimentos − transferido. Esse valor é o teto operacional do projeto: não se gasta mais do que se tem, mesmo podendo redistribuir e exceder rubricas individuais (até 100% na IN vigente).",
   planningAdminProduto:
-    "Produto Administração: não pode exceder o aprovado da rubrica. Continua contando no teto operacional do projeto.",
+    "Custos vinculados (administração, acessibilidade/divulgação e captação): só podem usar o aprovado × % captado do projeto. O limite sobe sozinho quando entra mais captação e não pode ser excedido.",
   planningTetoProjeto:
     "Teto operacional do projeto = o que se pode gastar no total (base de captação). Sem dados de captação, usa 100% do aprovado. Não se pode reservar além deste teto.",
 } as const;

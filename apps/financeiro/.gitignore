@@ -50,3 +50,6 @@ next-env.d.ts
 /src/generated/prisma
 uploads/
 exports/
+
+# Cópias de dados antes de correções na produção (fora do git)
+/backups/

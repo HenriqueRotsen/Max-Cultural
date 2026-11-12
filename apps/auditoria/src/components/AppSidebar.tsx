@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MobileBottomNav, MobileTableCards, useMobileMenu } from "@max/mobile-nav";
+import {
+  MobileBottomNav,
+  MobileTableCards,
+  SidebarCollapseButton,
+  useMobileMenu,
+  useSidebarCollapsed,
+} from "@max/mobile-nav";
 import { MaxAuditoriaLogo } from "@/components/MaxAuditoriaLogo";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
@@ -50,6 +56,7 @@ export function AppSidebar({
     .map((l) => (l.href === "/alertas" ? { ...l, badge: newAlerts } : l));
 
   const menu = useMobileMenu(pathname);
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   // Rodapé no celular: o essencial; o resto fica no menu.
   const mobileHrefs = ["/inicio", "/alertas", "/panorama", "/panorama/pronac"];
   const mobileItems = links
@@ -68,11 +75,17 @@ export function AppSidebar({
 
   return (
     <>
-    <aside className="shell-sidebar" data-mx-drawer data-open={menu.open ? "true" : undefined}>
-      <div className="flex items-center px-5 py-5">
-        <Link href="/inicio" className="block">
+    <aside
+      className="shell-sidebar"
+      data-mx-drawer
+      data-open={menu.open ? "true" : undefined}
+      data-mx-collapsed={collapsed ? "" : undefined}
+    >
+      <div className="mx-sidebar-head flex items-center justify-between gap-2 px-5 py-5">
+        <Link href="/inicio" className="mx-nav-label block">
           <MaxAuditoriaLogo />
         </Link>
+        <SidebarCollapseButton collapsed={collapsed} onToggle={toggleCollapsed} />
       </div>
 
       <nav className="flex flex-1 flex-col space-y-5 px-3 pb-4">
@@ -86,12 +99,12 @@ export function AppSidebar({
         ))}
         <div className="mt-auto space-y-4">
           <div className="border-t border-[var(--border)] pt-4">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+            <p className="mx-nav-label px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
               Hub
             </p>
             <a
               href={HUB_URL}
-              className="flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+              className="mx-brand-chip flex items-center overflow-hidden rounded-xl px-3 py-2.5 transition hover:opacity-95"
               style={{
                 /* Mix da logo Cultural: laranja + teal + roxo */
                 background:
@@ -109,15 +122,16 @@ export function AppSidebar({
           </div>
 
           <div className="border-t border-[var(--border)] pt-4">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+            <p className="mx-nav-label px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
               Conta
             </p>
             <a
               href="/sair"
+              title="Sair"
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
             >
               <LogoutIcon />
-              <span className="min-w-0">
+              <span className="mx-nav-label min-w-0">
                 <span className="block truncate">Sair</span>
                 {userEmail ? (
                   <span
@@ -155,7 +169,7 @@ function NavGroup({
   if (!links.length) return null;
   return (
     <div>
-      <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+      <p className="mx-nav-label px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
         {title}
       </p>
       {links.map((link) => {
@@ -165,16 +179,20 @@ function NavGroup({
           <Link
             key={link.href}
             href={link.href}
+            title={link.label}
             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.95rem] font-medium transition ${
               active
                 ? "bg-[var(--navy-soft)] text-[var(--navy)]"
                 : "text-[var(--gray-600)] hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
             }`}
           >
-            <Icon active={active} />
-            <span className="flex-1">{link.label}</span>
+            <span className="relative inline-flex">
+              <Icon active={active} />
+              {link.badge ? <span className="mx-collapsed-dot" aria-hidden /> : null}
+            </span>
+            <span className="mx-nav-label flex-1">{link.label}</span>
             {link.badge ? (
-              <span className="rounded-full bg-[#dc2626] px-2 py-0.5 text-[11px] font-semibold text-white">
+              <span className="mx-nav-label rounded-full bg-[#dc2626] px-2 py-0.5 text-[11px] font-semibold text-white">
                 {link.badge > 99 ? "99+" : link.badge}
               </span>
             ) : null}

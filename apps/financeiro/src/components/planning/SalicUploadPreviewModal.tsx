@@ -20,6 +20,63 @@ export type SalicUploadPreviewItem = {
   supplierName: string;
 };
 
+/**
+ * Mostra o PDF que vai para o SALIC. Antes de abrir no quadro, confere se o
+ * arquivo foi gerado: se der erro, mostra a mensagem em vez de um quadro
+ * quebrado (o "fantasminha" do navegador).
+ */
+function SalicPreviewFrame({ proofId, title }: { proofId: string; title: string }) {
+  const url = `/api/planning/salic-preview/${proofId}`;
+  const [state, setState] = useState<"loading" | "ready" | { error: string }>("loading");
+
+  useEffect(() => {
+    let alive = true;
+    fetch(url, { credentials: "include" })
+      .then(async (res) => {
+        if (res.ok) return "ready" as const;
+        const body = await res.text().catch(() => "");
+        let message = `Erro ${res.status} ao gerar o arquivo.`;
+        try {
+          const parsed = JSON.parse(body) as { error?: string };
+          if (parsed.error) message = parsed.error;
+        } catch {
+          if (body.trim()) message = body.trim().slice(0, 300);
+        }
+        return { error: message };
+      })
+      .catch(() => ({ error: "Não foi possível carregar a pré-visualização." }))
+      .then((next) => {
+        if (alive) setState(next);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+
+  const box =
+    "flex min-h-[240px] w-full flex-1 items-center justify-center rounded-lg border border-[var(--border)] bg-white p-4 text-center text-sm md:min-h-[320px]";
+  if (state === "loading") {
+    return <div className={`${box} text-[var(--gray-500)]`}>Gerando o arquivo…</div>;
+  }
+  if (state !== "ready") {
+    return (
+      <div className={`${box} flex-col gap-2`}>
+        <p className="text-red-700">{state.error}</p>
+        <a href={url} target="_blank" rel="noreferrer" className="btn btn-ghost text-xs">
+          Tentar abrir em nova aba
+        </a>
+      </div>
+    );
+  }
+  return (
+    <iframe
+      title={`Preview ${title}`}
+      src={`${url}#navpanes=0&view=FitH`}
+      className="min-h-[240px] w-full flex-1 rounded-lg border border-[var(--border)] bg-white md:min-h-[320px]"
+    />
+  );
+}
+
 export function SalicUploadPreviewModal({
   open,
   items,
@@ -102,12 +159,7 @@ export function SalicUploadPreviewModal({
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--gray-100)] p-3">
-            <iframe
-              key={current.proofId}
-              title={`Preview ${current.title}`}
-              src={`/api/planning/salic-preview/${current.proofId}`}
-              className="min-h-[240px] w-full flex-1 rounded-lg border border-[var(--border)] bg-white md:min-h-[320px]"
-            />
+            <SalicPreviewFrame key={current.proofId} proofId={current.proofId} title={current.title} />
             {carousel ? (
               <div className="mt-2 flex gap-1 overflow-x-auto">
                 {items.map((item, i) => (

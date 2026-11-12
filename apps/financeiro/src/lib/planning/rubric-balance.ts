@@ -2,8 +2,8 @@ export type LineBalance = {
   lineId: string;
   approved: number;
   /**
-   * Teto da rubrica para gastar sem excesso (= aprovado MinC).
-   * Captação não reduz por linha — o teto operacional é do projeto.
+   * Teto da rubrica para gastar sem excesso (= aprovado MinC). Nos custos
+   * vinculados (produto Administração) é aprovado × % captado.
    */
   availableCap: number;
   reserved: number;
@@ -76,7 +76,11 @@ export function roundCents(v: number): number {
   return Math.round((Number.isFinite(v) ? v : 0) * 100) / 100;
 }
 
-/** Produto Administração (SALIC) — não permite excesso sobre a rubrica. */
+/**
+ * Produto Administração (SALIC) = custos vinculados: administração,
+ * acessibilidade/comunicação/divulgação e remuneração para captação. Não
+ * permite excesso e só libera aprovado × % captado.
+ */
 export function isAdminProduct(productName: string | null | undefined): boolean {
   return /administra/i.test(String(productName || ""));
 }
@@ -235,19 +239,24 @@ export function computeProjectBalance(input: {
     bal.paid = roundCents(bal.paid);
     bal.salicComprovado = roundCents(bal.salicComprovado);
     totalApproved += bal.approved;
-    // Rubrica inteira disponível (captação não corta por linha).
-    bal.availableCap = bal.approved;
+    // Rubricas comuns: aprovado inteiro (o teto do projeto limita o total).
+    // Custos vinculados: só a parte já captada (aprovado × % captado), que
+    // sobe sozinha quando entra mais captação.
+    bal.availableCap = bal.isAdmin
+      ? roundCents(bal.approved * Math.min(1, Math.max(0, factors.pctCaptadoT)))
+      : bal.approved;
     bal.saldo = roundCents(bal.approved - bal.paid);
     bal.available = bal.locked
       ? 0
-      : roundCents(bal.approved - bal.reserved);
+      : roundCents(Math.max(0, bal.availableCap - bal.reserved));
     bal.overApproved =
       bal.approved <= 0 || bal.reserved >= bal.approved - 1e-9;
-    bal.over = bal.overApproved;
+    bal.over =
+      bal.overApproved || (bal.isAdmin && bal.reserved >= bal.availableCap - 1e-9);
     bal.near =
       !bal.locked &&
       !bal.over &&
-      bal.reserved >= bal.approved * nearPct - 1e-9;
+      bal.reserved >= bal.availableCap * nearPct - 1e-9;
   }
 
   const projectCap = roundCents(factors.projectCap);
@@ -325,7 +334,7 @@ export function canReserveAmount(params: {
     if (amount > line.available + 1e-6) {
       return {
         ok: false,
-        message: `Administração não pode exceder a rubrica (disponível R$ ${line.available.toFixed(2)})`,
+        message: `Custo vinculado limitado ao percentual captado: ${(params.balance.pctCaptadoT * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% do aprovado (R$ ${line.availableCap.toFixed(2)}). Disponível R$ ${line.available.toFixed(2)}.`,
       };
     }
     return { ok: true, overflow: false };

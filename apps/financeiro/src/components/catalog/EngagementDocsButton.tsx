@@ -306,7 +306,7 @@ export function EngagementDocsButton({
       {mounted && open
         ? createPortal(
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-2 sm:p-3"
+              className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-2 sm:p-3"
               role="presentation"
               onClick={() => setOpen(false)}
             >
