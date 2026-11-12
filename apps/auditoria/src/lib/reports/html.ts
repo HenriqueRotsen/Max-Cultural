@@ -197,7 +197,7 @@ function bondAndWatchedHtml(params: {
   rules: ActiveRules;
   /** Base completa do PRONAC (não só filtro de observados). */
   suppliers: ReportSupplier[];
-  /** Totais §1º sem alimentação/refeição. */
+  /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
   bondSuppliers?: ReportSupplier[];
   watchedSuppliers?: ReportWatched[];
 }) {
@@ -826,7 +826,7 @@ export function buildPronacListWarnings(
   if (legal.length === 0 && rows.length > 0) {
     warnings.push({
       level: "info",
-      title: "Nenhum fornecedor acima do teto da IN do projeto (proxy)",
+      title: "Nenhum fornecedor acima do teto da IN do projeto (estimativa)",
       detail:
         "Os limites aplicados são os da IN vinculada a cada PRONAC (cobertura + tetos). " +
         legalBasisNote(fallbackRules),
@@ -846,9 +846,9 @@ export function buildPronacDetailWarnings(params: {
   relatedParties?: RelatedPartyInput[];
   rules?: ActiveRules;
   suppliers: Array<{ name: string; cgccpf: string; total: number; percent: number }>;
-  /** Base completa do PRONAC para art. 23 §1º (quando filtro de observados). */
+  /** Base completa do PRONAC para os avisos de limite (quando filtro de observados). */
   allSuppliers?: Array<{ name: string; cgccpf: string; total: number; percent: number }>;
-  /** Totais §1º sem alimentação/refeição. */
+  /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
   bondSuppliers?: Array<{ name: string; cgccpf: string; total: number; percent: number }>;
 }): ReportWarning[] {
   const rules = params.rules || DEFAULT_RULES;
@@ -895,7 +895,7 @@ export function buildPronacDetailWarnings(params: {
   if (legal.length === 0 && params.suppliers.length > 0) {
     warnings.push({
       level: "info",
-      title: `Conformidade proxy — teto ${rules.caps.supplierCapPct}%`,
+      title: `Conformidade estimada — teto ${rules.caps.supplierCapPct}%`,
       detail: legalBasisNote(rules),
     });
   }

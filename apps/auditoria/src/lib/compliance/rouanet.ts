@@ -35,7 +35,7 @@ export type ComplianceAlert = {
   limitPct: number;
   /** IN usada neste alerta (por projeto). */
   sourceCode?: string;
-  /** Membros do teto art. 23 §1º (proponente + relacionados). */
+  /** Membros da soma do vínculo com o proponente (proponente + quem tem vínculo). */
   members?: Array<{
     name: string;
     cgccpf: string;
@@ -95,7 +95,8 @@ function isSameCgccpf(a: string, b: string) {
 }
 
 /**
- * Itens de alimentação/refeição não entram na soma do vínculo art. 23.
+ * Regra automática: itens de alimentação/refeição não entram na soma do vínculo com o
+ * proponente. A marcação manual do pagamento vence (ver `paymentCountsForBond`).
  * (continuam nos totais gerais e no teto individual de fornecedor.)
  * “Hospedagem sem alimentação” e similares NÃO são excluídos.
  */
@@ -157,7 +158,7 @@ export function aggregateBondEligibleSuppliers(
   return Array.from(map.values()).filter((s) => s.total > 0);
 }
 
-/** Parte relacionada entra no teto do proponente (ObservadoBond ou legado tipado). */
+/** Parte relacionada entra no teto do proponente (vínculo do PRONAC em ProjectObservadoBond, ou legado tipado). */
 export function relatedPartyCountsTowardCap(
   party: RelatedPartyInput,
   rules: ActiveRules,
@@ -192,7 +193,7 @@ export type ProponentGroupShare = {
   relatedCount: number;
 };
 
-/** Soma só proponente + fornecedores enquadrados no art. 23 da IN do projeto. */
+/** Soma só proponente + quem tem vínculo com ele, conforme a IN do projeto. */
 export function computeProponentGroupShare(params: {
   projectTotal: number;
   accountCgccpf?: string | null;
@@ -311,7 +312,7 @@ export function evaluateSupplierLimit(params: {
   return null;
 }
 
-/** Soma proponente + partes relacionadas no teto do art. 23 §1º. */
+/** Soma proponente + quem tem vínculo e compara com o limite do vínculo da IN. */
 export function evaluateProponentGroupCap(params: {
   pronac: string;
   projectTotal: number;
@@ -387,7 +388,7 @@ export function evaluatePronacSupplierCompliance(params: {
     total: number;
   }>;
   /**
-   * Totais para a soma do §1º (sem alimentação/refeição).
+   * Totais para a soma do vínculo (só pagamentos que contam; ver `paymentCountsForBond`).
    * Se omitido, usa `suppliers`.
    */
   bondSuppliers?: Array<{
@@ -471,7 +472,7 @@ export function worstComplianceTone(
     personType?: PersonTypeInput | null;
     relatedParties?: RelatedPartyInput[];
     rules?: ActiveRules;
-    /** Totais §1º sem alimentação/refeição; se omitido, usa `suppliers`. */
+    /** Totais da soma do vínculo (só pagamentos que contam); se omitido, usa `suppliers`. */
     bondSuppliers?: Array<{ total: number; cgccpf?: string }>;
   },
 ): ComplianceTone {
@@ -508,7 +509,7 @@ export function worstComplianceTone(
     if (isNearLimit(percent, limit, rules)) raise("attention");
   }
 
-  // Soma art. 23 (proponente + relacionados tipificados), se houver vínculo.
+  // Soma do vínculo com o proponente (proponente + quem tem vínculo), se houver.
   if (relatedSet.size > 0) {
     let groupTotal = 0;
     for (const s of bondList) {

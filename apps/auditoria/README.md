@@ -1,32 +1,47 @@
-# MAX Auditoria (antigo Salink)
+# MAX Auditoria
 
-Espelho do SALIC — o "oráculo": projetos (PRONACs), pagamentos, fornecedores,
-observados, mapa societário, conformidade (art. 23) e relatórios de auditoria.
+Espelho do SALIC: projetos (PRONACs), pagamentos e fornecedores de cada proponente, com a
+conformidade de cada PRONAC frente à sua IN (teto por fornecedor e limite do vínculo com o
+proponente), observados, mapa societário e relatórios em PDF. **Não alimenta nenhum outro app.**
 
-**Não alimenta nenhum outro módulo.** Planejamento e Fornecedores (no MAX Financeiro)
-são populados só pelo que é lançado neles.
+Menu: Início, Alertas, Por PRONAC, Panorama geral, Fornecedores pagos, Observados, Mapa societário,
+INs, Relatório de Auditoria e Atualizar SALIC.
 
-- Porta local: `3003` (`npm run dev -w max-auditoria`)
-- Login/permissões: SSO do hub MAX Cultural (`auditoria.app`; na transição
-  também aceita `financeiro.auditoria`)
-- Proponentes (cadastro + login SALIC) são compartilhados e cadastrados no MAX
-  Financeiro; aqui só são lidos. `CREDENTIALS_SECRET` precisa ser o mesmo do Financeiro.
+Proponentes (cadastro + login SALIC) vêm do MAX Financeiro; aqui só são lidos (`CREDENTIALS_SECRET`
+igual ao do Financeiro). Login e permissões: SSO do hub (`auditoria.app`).
 
 ## Banco
 
-Mesmo Postgres dos outros apps, com Prisma `multiSchema`:
+Prisma `multiSchema`: `auditoria` (espelho do SALIC, observados, mapa societário, vínculos por
+PRONAC) e `financeiro` (proponentes, workspace, usuários, INs). O app **não roda migrações**: elas
+ficam em `apps/financeiro/prisma/migrations`. Mudou o `prisma/schema.prisma` daqui? Escreva a migração lá.
 
-- `auditoria`: espelho do SALIC (`Project`, `Payment`, `Supplier`, `SyncRun`,
-  observados, partes relacionadas, quadro societário, snapshots de norma).
-- `financeiro` (compartilhado, só leitura na prática): proponentes (`SalicAccount`),
-  `Workspace`, `AppUser`, `ComplianceRuleset`, `audit_logs` e os enums.
+## Sincronização com o SALIC
 
-O app **não roda migrations** (o `schema.prisma` daqui não conhece as tabelas do
-Planejamento, que vivem no schema `financeiro`). As migrations continuam na pasta do
-MAX Financeiro — a da virada é `20261025010000_move_audit_to_auditoria_schema`.
+Cron `/api/cron/sync-salic` (08:00 BRT) e `/api/cron/sync-resume` (4× ao dia, para quem ficou na
+fila); `/atualizacao` acompanha e dispara à mão. Cada PRONAC recebe uma IN uma vez, por ranking
+(cobertura dos pagamentos na vigência, tetos e vínculos); a sincronização não sobrescreve e a troca
+manual fica na aba "Regra aplicada (IN)" do PRONAC.
 
-## Sync
+## Limite do Vínculo com Proponente
 
-- Cron diário `/api/cron/sync-salic` (08:00 BRT) + retomada `/api/cron/sync-resume`
-  (4× ao dia) para contas que ficaram na fila.
-- `/atualizacao`: acompanha e dispara a atualização manual.
+Seção 1 do detalhe do PRONAC: soma o que o proponente e quem tem vínculo com ele receberam e compara
+com o limite da IN (o nome não cita artigo porque ele muda com a IN).
+
+- **Vínculo por PRONAC:** a chave "Tem vínculo?" grava em `ProjectObservadoBond` e vale só para
+  aquele PRONAC (o mapa societário e as relações mudam durante o projeto). O lembrete do mapa
+  societário do ano fica dentro da seção. `ObservadoBond` (vínculo antigo por proponente × IN) é só
+  histórico.
+- **Pagamento conta ou não:** a chave "Conta p/ vínculo" de cada pagamento grava
+  `Payment.countsForBond`; vazio = automático (alimentação e refeição não contam). A sincronização
+  preserva a marcação, inclusive quando o comprovante troca de origem (api × crawler).
+- **Tela e PDF iguais:** "Valor que conta" ("—" quando nada conta) e "+ R$ X que não conta".
+
+Código: `components/VinculoSection.tsx`, `lib/compliance/` (`bonds.ts`, `context.ts`, `rouanet.ts`) e
+`lib/reports/html.ts`.
+
+## Scripts
+
+`scripts/`: `sync.ts`, `backfill-project-rulesets.ts` (IN de projetos antigos), `backfill-valor-captado.ts`,
+`import-mapa-societario-xlsx.ts`, `encrypt-credentials.ts`, `fix-salic-encoding.ts` e os `debug-*`/`test-*`
+de diagnóstico do crawler. Variáveis: `.env.example`.

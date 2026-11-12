@@ -112,25 +112,35 @@ export function amountsClose(
   return Math.abs(a - b) <= tolerance;
 }
 
+/**
+ * O valor do comprovante de pagamento precisa bater com o esperado (valor da
+ * NF/RPA ou o informado no pagamento antecipado). Comprovante sem valor legível
+ * também bloqueia: sem conferir o valor, o pagamento não é aprovado.
+ */
 export function checkPaymentAmount(params: {
   extractedAmount: number | null | undefined;
   expectedAmount: number;
   tolerance?: number;
+  /** Como o valor esperado aparece na mensagem (padrão: "da NF"). */
+  expectedLabel?: string;
 }): { error?: string; warning?: string } {
   const { extractedAmount, expectedAmount } = params;
   const tolerance = params.tolerance ?? 0.02;
+  const label = params.expectedLabel ?? "da NF";
+  const brl = (n: number) =>
+    n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   if (!(expectedAmount > 0)) return {};
 
   if (extractedAmount == null || !(extractedAmount > 0)) {
     return {
-      warning: `Não foi possível ler o valor do comprovante. Confira se corresponde a R$ ${expectedAmount.toFixed(2)} da NF.`,
+      error: `Não foi possível ler o valor do comprovante, então ele não pode ser conferido com o valor ${label} (${brl(expectedAmount)}). Envie o comprovante em PDF ou numa imagem nítida em que o valor apareça.`,
     };
   }
 
   if (!amountsClose(extractedAmount, expectedAmount, tolerance)) {
     return {
-      error: `Valor do comprovante (R$ ${extractedAmount.toFixed(2)}) difere do valor da NF (R$ ${expectedAmount.toFixed(2)}).`,
+      error: `Valor do comprovante (${brl(extractedAmount)}) difere do valor ${label} (${brl(expectedAmount)}).`,
     };
   }
 

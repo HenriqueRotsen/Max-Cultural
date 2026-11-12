@@ -31,7 +31,7 @@ import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 import { hiddenProjectIds, notFoundIfHiddenPronac } from "@/lib/compliance/over-limit-visibility";
 import { prisma } from "@/lib/db";
 import { pronacYear } from "@/lib/compliance/choose-ruleset";
-import { periodsInYear } from "@/lib/corporate/at-year";
+import { mapWindowForProject, periodsInYears } from "@/lib/corporate/at-year";
 import { CorporateMapYearChip } from "@/components/CorporateMapYearChip";
 
 export const dynamic = "force-dynamic";
@@ -110,7 +110,20 @@ export default async function PronacDetailPage({
   const meta = metaForProject(bundle, primaryAccountId, detail.projectId);
   const accountCgccpf = detail.accounts[0]?.cgccpf || null;
 
-  const projectYear = pronacYear(detail.pronac);
+  // Mapa do período em que os pagamentos aconteceram (mesma base de datas da IN);
+  // sem pagamentos, o ano do PRONAC. Considera todos os pagamentos, sem os filtros da tela.
+  const paymentRange = detail.projectId
+    ? await prisma.payment.aggregate({
+        where: { projectId: detail.projectId, paymentDate: { not: null } },
+        _min: { paymentDate: true },
+        _max: { paymentDate: true },
+      })
+    : null;
+  const mapWindow = mapWindowForProject({
+    pronacYear: pronacYear(detail.pronac),
+    firstPayment: paymentRange?._min.paymentDate,
+    lastPayment: paymentRange?._max.paymentDate,
+  });
   const mapAccount = primaryAccountId
     ? await prisma.salicAccount.findFirst({
         where: { id: primaryAccountId, workspaceId },
@@ -124,7 +137,7 @@ export default async function PronacDetailPage({
       })
     : null;
   const mapPeriods = mapAccount
-    ? periodsInYear(mapAccount.corporatePeriods, projectYear).map((p) => ({
+    ? periodsInYears(mapAccount.corporatePeriods, mapWindow.fromYear, mapWindow.toYear).map((p) => ({
         validFrom: p.validFrom.toISOString(),
         validFromPrecision: p.validFromPrecision,
         validTo: p.validTo?.toISOString() ?? null,
@@ -336,7 +349,8 @@ export default async function PronacDetailPage({
               mapAccount ? (
                 <CorporateMapYearChip
                   accountId={mapAccount.id}
-                  year={projectYear}
+                  label={mapWindow.label}
+                  basis={mapWindow.basis}
                   institutional={mapAccount.institutionalMap}
                   periods={mapPeriods}
                 />

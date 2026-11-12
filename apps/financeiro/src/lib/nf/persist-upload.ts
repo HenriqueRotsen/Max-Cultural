@@ -85,24 +85,26 @@ export async function persistPlanningUpload(params: {
   return { ...stored, contentHash };
 }
 
-/** Detecta NF/RPA provavelmente duplicada (mesmo fornecedor + número + valor). */
+/**
+ * Detecta NF/RPA provavelmente duplicada (mesmo fornecedor + número + valor) em
+ * todos os projetos do workspace: a mesma nota não pode entrar em dois PRONACs.
+ */
 export async function findFiscalDocumentDuplicate(params: {
   workspaceId: string;
-  planningProjectId: string;
   cnpj: string;
   nfNumber: string | null | undefined;
   grossAmount: number;
   excludeDocumentId?: string;
-}): Promise<{ id: string; filename: string } | null> {
-  const nfNum = String(params.nfNumber || "").replace(/\D/g, "");
+}): Promise<{ id: string; filename: string; planningProjectId: string | null } | null> {
+  const nfNum = String(params.nfNumber || "").replace(/\D/g, "").replace(/^0+/, "");
   if (!params.cnpj || !nfNum || !(params.grossAmount > 0)) return null;
 
   const docs = await prisma.planningDocument.findMany({
     where: {
       workspaceId: params.workspaceId,
-      planningProjectId: params.planningProjectId,
       kind: { in: ["NF", "RPA"] },
       status: { in: ["REVIEW", "IMPORTED"] },
+      grossAmount: { gte: params.grossAmount - 0.02, lte: params.grossAmount + 0.02 },
       ...(params.excludeDocumentId
         ? { id: { not: params.excludeDocumentId } }
         : {}),
@@ -112,8 +114,8 @@ export async function findFiscalDocumentDuplicate(params: {
       filename: true,
       grossAmount: true,
       extractedJson: true,
+      planningProjectId: true,
     },
-    take: 200,
   });
 
   const targetDoc = params.cnpj.replace(/\D/g, "");
@@ -124,18 +126,29 @@ export async function findFiscalDocumentDuplicate(params: {
       invoiceNumber?: string | null;
     };
     const docCnpj = String(ext.cnpj || "").replace(/\D/g, "");
-    const docNum = String(ext.nfNumber || ext.invoiceNumber || "").replace(
-      /\D/g,
-      "",
-    );
+    const docNum = String(ext.nfNumber || ext.invoiceNumber || "")
+      .replace(/\D/g, "")
+      .replace(/^0+/, "");
     const gross = d.grossAmount != null ? Number(d.grossAmount) : 0;
     if (
       docCnpj === targetDoc &&
       docNum === nfNum &&
       Math.abs(gross - params.grossAmount) < 0.02
     ) {
-      return { id: d.id, filename: d.filename };
+      return { id: d.id, filename: d.filename, planningProjectId: d.planningProjectId };
     }
   }
   return null;
+}
+
+/** Mensagem do arquivo repetido, dizendo em qual projeto ele já está. */
+export async function duplicateFileMessage(dup: DuplicateDocumentInfo): Promise<string> {
+  const project = dup.planningProjectId
+    ? await prisma.planningProject.findUnique({
+        where: { id: dup.planningProjectId },
+        select: { externalCode: true },
+      })
+    : null;
+  const where = project ? ` no projeto ${project.externalCode}` : "";
+  return `Este arquivo já foi enviado${where} (${dup.kind} · ${dup.filename}). O mesmo documento não pode ser usado duas vezes.`;
 }

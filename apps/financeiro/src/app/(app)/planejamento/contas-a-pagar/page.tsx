@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { ContasAPagarPanel } from "@/components/planning/ContasAPagarPanel";
+import { OtherPendencies } from "@/components/planning/OtherPendencies";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { refreshPaymentDueNotifications } from "@/lib/planning/actions";
@@ -101,6 +102,7 @@ export default async function ContasAPagarPage({
         initialDue={initialDue}
         highlightCommitmentId={highlightCommitmentId || null}
       />
+      <OtherPendencies workspaceId={entitlements.workspaceId} />
     </div>
   );
 }

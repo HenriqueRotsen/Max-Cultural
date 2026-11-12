@@ -5,8 +5,9 @@ Ambiente vivo nos hosts de produção. Dados podem ser limpos. SSO requer o mesm
 | App | Host | Vercel Root Directory |
 |-----|------|------------------------|
 | Cultural | `https://maxcultural.com.br` | `apps/cultural` |
-| Origem | `https://financeiro.maxcultural.com.br` | `apps/financeiro` |
-| Fluxo | `https://indicadores.maxcultural.com.br` | `apps/indicadores` |
+| Financeiro | `https://financeiro.maxcultural.com.br` | `apps/financeiro` |
+| Indicadores | `https://indicadores.maxcultural.com.br` | `apps/indicadores` |
+| Auditoria | `https://auditoria.maxcultural.com.br` | `apps/auditoria` |
 
 ## 1. Supabase (1 projeto)
 
@@ -22,15 +23,16 @@ Ambiente vivo nos hosts de produção. Dados podem ser limpos. SSO requer o mesm
    - Enable automatic RLS: **on**
 6. **Authentication → URL Configuration**
    - Site URL: `https://maxcultural.com.br`
-   - Redirects: `https://maxcultural.com.br/**`, `https://financeiro.maxcultural.com.br/**`, `https://indicadores.maxcultural.com.br/**`, `/auth/callback`, `/login/2fa`
+   - Redirects: `https://maxcultural.com.br/**`, `https://financeiro.maxcultural.com.br/**`, `https://indicadores.maxcultural.com.br/**`, `https://auditoria.maxcultural.com.br/**`, `/auth/callback`, `/login/2fa`
 
 ### Schemas
 
 | App | `?schema=` |
 |-----|------------|
 | Cultural | `public` (default) |
-| Origem | `financeiro` |
-| Fluxo | `indicadores` |
+| Financeiro | `financeiro` |
+| Indicadores | `indicadores` |
+| Auditoria | `financeiro` (o Prisma dela lê os schemas `auditoria` e `financeiro`) |
 
 ## 2. Migrations + seed (one-shot, fora do build Vercel)
 
@@ -105,7 +107,7 @@ Storage: ver [`docs/supabase-storage.md`](./supabase-storage.md). Após deploy, 
 | `AUTH_2FA_DISABLED` | `true` (login fica no Cultural; ignore no Indicadores) |
 | `BOOTSTRAP_ADMIN_*` | seed-auth local |
 
-### Auditoria (antigo Salink)
+### Auditoria
 
 | Var | Nota |
 |-----|------|
@@ -132,7 +134,7 @@ Acesso: permissão `auditoria.app` no hub (na transição o app também aceita `
 - Financeiro/Indicadores enviam via `POST /api/audit` (Bearer / `x-max-session`).
 - Indicadores mantém cópia local em `/dashboard/acesso/auditoria` (legado; nav IAM oculta por padrão).
 
-## 5. Auditoria (antigo Salink) — app próprio
+## 5. Auditoria — app próprio
 
 A Auditoria é o espelho do SALIC e **não alimenta** Planejamento nem Fornecedores.
 Roda no app `apps/auditoria` (`https://auditoria.maxcultural.com.br`, projeto Vercel

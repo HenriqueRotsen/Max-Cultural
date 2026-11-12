@@ -226,8 +226,12 @@ export default async function RevisarNfPage({
         where: {
           id: attachCommitmentId,
           workspaceId: entitlements.workspaceId,
-          nfPending: true,
           planningProjectId: id,
+          // Pagamento sem NF, ou reserva sem nota (manual / planilha do produtor).
+          OR: [
+            { nfPending: true, status: "PAID" },
+            { status: "RESERVED", pedidoId: null, allocations: { none: {} } },
+          ],
         },
         select: { id: true, amount: true, budgetLineId: true },
       })

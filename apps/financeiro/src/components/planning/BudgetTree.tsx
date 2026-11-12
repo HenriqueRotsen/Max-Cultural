@@ -281,19 +281,13 @@ export function BudgetTree({
                                   >
                                     Aprovado (MinC)
                                   </ThHelp>
-                                  <ThHelp
-                                    className="py-1 pr-2"
-                                    help={HELP.planningDisponivel}
-                                  >
-                                    Disponível
-                                  </ThHelp>
-                                  <th className="py-1 pr-2">Reservado</th>
+                                  <th className="py-1 pr-2">A pagar</th>
                                   <th className="py-1 pr-2">Pago</th>
                                   <ThHelp
                                     className="py-1"
-                                    help={HELP.planningSaldo}
+                                    help={HELP.planningDisponivel}
                                   >
-                                    Saldo na rubrica
+                                    Livre
                                   </ThHelp>
                                 </tr>
                               </thead>
@@ -343,23 +337,19 @@ export function BudgetTree({
                                         {formatCurrency(approved)}
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
-                                        {itemLocked
-                                          ? "—"
-                                          : formatCurrency(
-                                              b?.available ?? approved,
-                                            )}
-                                      </td>
-                                      <td className="py-1.5 pr-2 tabular-nums">
-                                        {formatCurrency(b?.reserved ?? 0)}
+                                        {formatCurrency(
+                                          Math.max(0, (b?.reserved ?? 0) - (b?.paid ?? 0)),
+                                        )}
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(b?.paid ?? 0)}
                                       </td>
                                       <td className="py-1.5 tabular-nums font-medium">
-                                        {formatCurrency(
-                                          b?.saldo ??
-                                            approved - (b?.paid ?? 0),
-                                        )}
+                                        {itemLocked
+                                          ? "—"
+                                          : formatCurrency(
+                                              b?.available ?? approved,
+                                            )}
                                       </td>
                                     </tr>
                                   );

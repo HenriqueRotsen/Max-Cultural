@@ -289,7 +289,7 @@ export function PronacDetailTables({
         step={firstStep + 1}
         title="Pagamentos"
         summary={`${payments.length} pagamento${payments.length === 1 ? "" : "s"}`}
-        description="Cada comprovante lançado no SALIC. Use o switch “Conta p/ vínculo” para tirar (ou incluir) um pagamento da soma do vínculo com o proponente."
+        description="Cada comprovante lançado no SALIC. Use a chave “Conta p/ vínculo” para tirar (ou incluir) um pagamento da soma do vínculo com o proponente."
       >
         <div className="field min-w-[16rem] md:max-w-sm">
           <FieldLabel htmlFor="filter-payments">Buscar pagamento</FieldLabel>

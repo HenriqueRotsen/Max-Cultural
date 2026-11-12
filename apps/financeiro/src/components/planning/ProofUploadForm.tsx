@@ -50,6 +50,15 @@ export function ProofUploadForm({
         <span>{label}</span>
         <input name="proofFile" type="file" accept=".pdf,image/*" required />
       </label>
+      {kind === "PAYMENT_PROOF" ? (
+        <label className="field">
+          <span>Data do pagamento</span>
+          <input type="date" name="paidAt" />
+          <span className="text-xs text-[var(--gray-500)]">
+            Vale a data do comprovante. Preencha se ela não aparecer no arquivo.
+          </span>
+        </label>
+      ) : null}
       <button type="submit" className="btn" disabled={pending}>
         {pending
           ? "Enviando…"

@@ -548,6 +548,8 @@ model RubricCommitment {
   allocationSharePct Decimal?        @db.Decimal(7, 4)
   status            CommitmentStatus @default(RESERVED)
   hasBond           Boolean          @default(false)
+  /** Reembolso de despesa: não entra na soma do vínculo com o proponente. */
+  isReimbursement   Boolean          @default(false)
   /** Pagamento feito antes da NF — aguarda documento fiscal. */
   nfPending         Boolean          @default(false)
   paidWithoutNf     Boolean          @default(false)

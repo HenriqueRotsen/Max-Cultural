@@ -22,15 +22,20 @@ export type YearChipPeriod = {
 
 const MAX_WIDTH = 360;
 
-/** Selo “Mapa societário <ano>” — composição daquele ano ao passar o mouse; clique abre o mapa. */
+/**
+ * Selo “Mapa societário <período>” — composição daquele período ao passar o mouse;
+ * clique abre o mapa. `label` é "2024" ou "2023–2024"; `basis` diz de onde veio.
+ */
 export function CorporateMapYearChip({
   accountId,
-  year,
+  label,
+  basis,
   institutional,
   periods,
 }: {
   accountId: string;
-  year: number;
+  label: string;
+  basis?: string;
   institutional: boolean;
   periods: YearChipPeriod[];
 }) {
@@ -51,10 +56,11 @@ export function CorporateMapYearChip({
             data-placement={pos?.placement || "above"}
           >
             <span className="map-year-title">
-              {copy.mapName} em {year}
+              {copy.mapName} em {label}
             </span>
+            {basis ? <span className="block text-[var(--gray-500)]">Base: {basis}.</span> : null}
             {periods.length === 0 ? (
-              <span className="block">Nenhuma {copy.composition} cadastrada para {year}.</span>
+              <span className="block">Nenhuma {copy.composition} cadastrada para {label}.</span>
             ) : (
               periods.map((p) => (
                 <span key={p.validFrom} className="map-year-period">
@@ -94,7 +100,7 @@ export function CorporateMapYearChip({
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
-        {copy.mapName} {year}
+        {copy.mapName} {label}
       </Link>
       {bubble}
     </>

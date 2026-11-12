@@ -35,7 +35,13 @@ export default async function PlanejamentoIndexPage() {
       sheet: { include: { lines: true } },
       commitments: {
         where: { status: { in: ["RESERVED", "PAID"] } },
-        select: { budgetLineId: true, amount: true, status: true },
+        select: {
+          budgetLineId: true,
+          amount: true,
+          status: true,
+          nfPending: true,
+          expectedPayAt: true,
+        },
       },
     },
   });
@@ -46,6 +52,20 @@ export default async function PlanejamentoIndexPage() {
   const publishedByProject = await loadPublishedPaidByLineBatch(
     projects.map((p) => p.id),
   );
+
+  // Pendências por projeto: só aparecem na lista quando existem.
+  const inReview = await prisma.planningDocument.groupBy({
+    by: ["planningProjectId"],
+    where: {
+      workspaceId: entitlements.workspaceId,
+      planningProjectId: { in: projects.map((p) => p.id) },
+      kind: { in: ["NF", "RPA"] },
+      status: "REVIEW",
+    },
+    _count: { _all: true },
+  });
+  const reviewByProject = new Map(inReview.map((r) => [r.planningProjectId, r._count._all]));
+  const now = new Date();
 
   const cards: PlanningProjectCard[] = projects.map((p) => {
     const bal = p.sheet
@@ -66,12 +86,19 @@ export default async function PlanejamentoIndexPage() {
       name: p.name,
       jurisdiction: p.jurisdiction,
       accountName: p.account.name,
-      importedAt: p.importedAt?.toISOString() ?? null,
+      importedAt: (p.importedAt ?? p.sheet?.importedAt)?.toISOString() ?? null,
       importSource: p.importSource,
       situacao: null,
       lifecycleStatus: p.lifecycleStatus,
       totalApproved: bal?.totalApproved ?? 0,
-      totalSaldo: bal?.totalSaldo ?? 0,
+      totalFree: bal?.totalAvailable ?? 0,
+      pending: {
+        overdue: p.commitments.filter(
+          (c) => c.status === "RESERVED" && c.expectedPayAt < now,
+        ).length,
+        nfPending: p.commitments.filter((c) => c.status === "PAID" && c.nfPending).length,
+        inReview: reviewByProject.get(p.id) ?? 0,
+      },
     };
   });
 

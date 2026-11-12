@@ -15,6 +15,7 @@ import {
   canReadequacao,
 } from "@/lib/planning/acl";
 import { CloseProjectButton } from "@/components/planning/CloseProjectButton";
+import { closingBlockers } from "@/lib/planning/closing";
 import { StateBudgetEditor } from "@/components/planning/StateBudgetEditor";
 import { ProjectCapsPanel } from "@/components/planning/ProjectCapsPanel";
 import { projectCapsOf } from "@/lib/planning/project-caps";
@@ -143,6 +144,21 @@ export default async function PlanningProjectPage({
       <PageHeader
         backHref="/planejamento"
         backLabel="Voltar aos projetos"
+        actions={
+          allowClose ? (
+            <CloseProjectButton
+              projectId={project.id}
+              externalCode={project.externalCode}
+              projectName={project.name || project.externalCode}
+              blockers={await closingBlockers(
+                project.id,
+                entitlements.workspaceId,
+                project.jurisdiction,
+              )}
+              evaluationPending={evaluationPending}
+            />
+          ) : undefined
+        }
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> / {project.externalCode}
@@ -190,28 +206,6 @@ export default async function PlanningProjectPage({
         </div>
       ) : null}
 
-      {sheetVersionCount > 0 || allowClose ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {sheetVersionCount > 0 ? (
-            <Link href={`/planejamento/${project.id}/planilhas`} className="btn btn-ghost">
-              Planilhas do SALIC
-            </Link>
-          ) : null}
-          {allowClose ? (
-            <CloseProjectButton
-              projectId={project.id}
-              externalCode={project.externalCode}
-              projectName={project.name || project.externalCode}
-              summary={{
-                openReservations: project.commitments.filter((c) => c.status === "RESERVED").length,
-                nfPending: project.commitments.filter((c) => c.nfPending).length,
-                evaluationPending,
-              }}
-            />
-          ) : null}
-        </div>
-      ) : null}
-
       <PlanningProjectActions
         projectId={project.id}
         reservationsCount={project.commitments.length}
@@ -223,6 +217,7 @@ export default async function PlanningProjectPage({
         editableLines={editableLines}
         totalApproved={project.sheet ? money(project.sheet.totalApproved) : 0}
         rubricOverrunPct={money(project.rubricOverrunPct)}
+        showSheetVersions={sheetVersionCount > 0}
       />
 
       <ProjectCapsPanel
@@ -278,20 +273,20 @@ export default async function PlanningProjectPage({
                 label: `Teto (${pctLabel || "—"})`,
                 value: formatCurrency(bal.totalAvailableCap),
                 help: HELP.planningTetoProjeto,
-                emphasize: true,
               },
               {
-                label: "Reservado",
-                value: formatCurrency(bal.totalReserved),
+                label: "A pagar",
+                value: formatCurrency(Math.max(0, bal.totalReserved - bal.totalPaid)),
               },
               {
                 label: "Pago",
                 value: formatCurrency(bal.totalPaid),
               },
               {
-                label: "Saldo",
-                value: formatCurrency(bal.totalSaldo),
+                label: "Livre para reservar",
+                value: formatCurrency(bal.totalAvailable),
                 help: HELP.planningSaldoProjeto,
+                emphasize: true,
               },
             ]}
           />
