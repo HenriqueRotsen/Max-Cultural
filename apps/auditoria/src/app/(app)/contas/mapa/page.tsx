@@ -20,8 +20,9 @@ export default async function MapasIndexPage() {
     },
   });
 
+  const proponentDocs = new Set(accounts.map((a) => normalizeCgccpf(a.cgccpf)));
   // Empresas observadas também têm mapa societário (CNPJ).
-  const watched = (
+  const watchedAll = (
     await prisma.watchedSupplier.findMany({
       where: { workspaceId: entitlements.workspaceId },
       select: {
@@ -39,8 +40,12 @@ export default async function MapasIndexPage() {
       name: w.label || w.supplier?.name || w.nameQuery || "",
       cgccpf: normalizeCgccpf(w.cgccpf || w.supplier?.cgccpf || ""),
       hasMap: w._count.corporatePeriods > 0,
-    }))
+    }));
+  const watchedDocs = new Set(watchedAll.map((w) => w.cgccpf));
+  const watched = watchedAll
     .filter((w) => w.cgccpf.length === 14)
+    // Observado que também é proponente usa o mapa do proponente (um por CNPJ).
+    .filter((w) => !proponentDocs.has(w.cgccpf))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -75,6 +80,12 @@ export default async function MapasIndexPage() {
                       {formatCgccpf(account.cgccpf)}
                       <span className="mx-1.5 text-[var(--gray-300)]">·</span>
                       {account.institutionalMap ? "Mapa organizacional" : "Mapa societário"}
+                      {watchedDocs.has(normalizeCgccpf(account.cgccpf)) ? (
+                        <>
+                          <span className="mx-1.5 text-[var(--gray-300)]">·</span>
+                          também observado
+                        </>
+                      ) : null}
                     </p>
                   </div>
                   <span className="text-sm font-medium text-[var(--navy)]">Abrir</span>
