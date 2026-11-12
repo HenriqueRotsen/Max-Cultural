@@ -5,7 +5,8 @@ import { DeleteNfButton } from "@/components/planning/DeleteNfButton";
 import { NfReviewForm } from "@/components/planning/NfReviewForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { canDeleteNf } from "@/lib/planning/acl";
+import { canDeleteNf, canOverridePronac } from "@/lib/planning/acl";
+import { pronacMismatchOf } from "@/lib/planning/pronac-override";
 import { computeProjectBalance, isAdminProduct } from "@/lib/planning/rubric-balance";
 import { rubricSelectLabel } from "@/lib/planning/rubric-label";
 import { recommendRubric } from "@/lib/planning/recommend-rubric";
@@ -344,6 +345,8 @@ export default async function RevisarNfPage({
   }
 
   const alertWarnings = [...(extracted.warnings ?? [])].filter(Boolean);
+  const pronacMismatch = pronacMismatchOf(doc.extractedJson);
+  const allowPronacOverride = pronacMismatch ? await canOverridePronac() : false;
   const inlineNotices = [
     ...(doc.errorMessage
       ? doc.errorMessage.split(" · ").filter(Boolean)
@@ -399,6 +402,8 @@ export default async function RevisarNfPage({
         defaultPaymentReminderAt={defaultPaymentReminder}
         taxDueHint={taxHintParts.length ? taxHintParts.join(" ") : null}
         alertWarnings={alertWarnings}
+        pronacMismatch={pronacMismatch}
+        allowPronacOverride={allowPronacOverride}
         complianceWarning={inlineNotices.join(" · ") || null}
       />
     </div>

@@ -7,6 +7,7 @@ import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { formatCgccpf, normalizeCgccpf, parseBrMoney } from "@/lib/format";
 import { canDeleteNf, canEditRubricas, canExceedRubric, canReadequacao } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
+import { enforcePronacMatch, pronacMismatchOf } from "@/lib/planning/pronac-override";
 import { listPlanningRulesets } from "@/lib/planning/rulesets";
 import {
   canReserveAmount,
@@ -311,6 +312,7 @@ async function uploadNfForReviewInner(
         documentKind: kind,
         personType,
         warnings: docWarnings,
+        pronacMismatch: projectCheck.warning ?? null,
       } as object,
       errorMessage: combinedNotice || null,
       personType,
@@ -1019,6 +1021,13 @@ export async function confirmNfReservation(
   });
   if (dupError) return { error: dupError };
 
+  // Trava do PRONAC: NF/RPA de outro projeto só entra com liberação.
+  const pronacMismatch = pronacMismatchOf(doc.extractedJson);
+  const pronacGate = await enforcePronacMatch({ mismatch: pronacMismatch, formData });
+  if (!pronacGate.ok) {
+    return { error: pronacGate.error, pronacOverride: pronacGate.pronacOverride };
+  }
+
   const attachCommitmentId = String(
     formData.get("attachCommitmentId") || "",
   ).trim();
@@ -1493,6 +1502,21 @@ export async function confirmNfReservation(
     throw err;
   }
 
+  if (pronacGate.overrideReason) {
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.pronac_override",
+      entityType: "PlanningDocument",
+      entityId: doc.id,
+      meta: {
+        planningProjectId: project.id,
+        documentKind: doc.kind,
+        commitmentId: firstCommitmentId,
+        reason: pronacGate.overrideReason,
+        warning: pronacMismatch,
+      },
+    });
+  }
   revalidatePlanning(project.id);
   redirect(`/planejamento/compromissos/${firstCommitmentId}`);
 }
@@ -1502,7 +1526,7 @@ export async function uploadPaymentProof(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const session = await requireUser();
   const { entitlements } = await getWorkspaceContext();
   const kind = String(formData.get("kind") || "PAYMENT_PROOF") as
     | "PAYMENT_PROOF"
@@ -1648,7 +1672,27 @@ export async function uploadPaymentProof(
     expectedCode: commitment.planningProject.externalCode,
     extractedPronac: proofExtracted.pronac,
   });
-  if (projectCheck.warning) proofWarnings.push(projectCheck.warning);
+  // Trava do PRONAC: comprovante de outro projeto só entra com liberação.
+  const pronacGate = await enforcePronacMatch({ mismatch: projectCheck.warning, formData });
+  if (!pronacGate.ok) {
+    return { error: pronacGate.error, pronacOverride: pronacGate.pronacOverride };
+  }
+  const logPronacOverride = async (documentId?: string) => {
+    if (!pronacGate.overrideReason) return;
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.pronac_override",
+      entityType: "RubricCommitment",
+      entityId: commitment.id,
+      meta: {
+        planningProjectId: commitment.planningProjectId,
+        documentKind: kind,
+        documentId: documentId ?? null,
+        reason: pronacGate.overrideReason,
+        warning: projectCheck.warning ?? null,
+      },
+    });
+  };
 
   let stored;
   try {
@@ -1689,6 +1733,7 @@ export async function uploadPaymentProof(
         commitmentId: commitment.id,
       },
     });
+    await logPronacOverride();
     revalidatePlanning(commitment.planningProjectId);
     revalidatePath(`/planejamento/compromissos/${commitmentId}`);
     const baseMsg = "Comprovante de imposto salvo (NF ainda pendente).";
@@ -1840,6 +1885,7 @@ export async function uploadPaymentProof(
     }
   });
 
+  await logPronacOverride();
   revalidatePlanning(commitment.planningProjectId);
   revalidatePath(`/planejamento/compromissos/${commitmentId}`);
   const baseMsg =

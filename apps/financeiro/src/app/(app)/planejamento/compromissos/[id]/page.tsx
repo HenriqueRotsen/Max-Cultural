@@ -12,7 +12,8 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { resolveFiscalNumberFromExtracted } from "@/lib/nf/fiscal-number";
-import { canDeleteNf } from "@/lib/planning/acl";
+import { canDeleteNf, canDeletePaidPayment } from "@/lib/planning/acl";
+import { DeletePaidPaymentButton } from "@/components/planning/DeletePaidPaymentButton";
 import {
   commitmentStatusLabel,
   nfPendingBadge,
@@ -30,7 +31,7 @@ export default async function CompromissoPage({
   const commitment = await prisma.rubricCommitment.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
     include: {
-      planningProject: { select: { id: true, externalCode: true } },
+      planningProject: { select: { id: true, externalCode: true, closedAt: true } },
       budgetLine: {
         select: { itemName: true, stageName: true, productName: true },
       },
@@ -154,7 +155,7 @@ export default async function CompromissoPage({
             ],
           },
           orderBy: { createdAt: "desc" },
-          select: { id: true, kind: true, filename: true, mimeType: true },
+          select: { id: true, kind: true, filename: true, mimeType: true, salicComprovanteId: true },
         })
       : null;
 
@@ -168,6 +169,14 @@ export default async function CompromissoPage({
   });
 
   const canCancelReservation = await canDeleteNf();
+  const allowDeletePaid =
+    commitment.status === "PAID" &&
+    !commitment.planningProject.closedAt &&
+    (await canDeletePaidPayment());
+  const paymentTotal =
+    siblingSlices.length > 1
+      ? siblingSlices.reduce((sum, s) => sum + Number(s.amount), 0)
+      : Number(commitment.amount);
   const allowDeleteNf = canCancelReservation && Boolean(sourceNf) && !nfHasLinkedProof;
   const paidViaGroup =
     commitment.status === "PAID" &&
@@ -377,6 +386,18 @@ export default async function CompromissoPage({
                   : "Pagamento marcado como pago."}
             </p>
             <EngagementDocsButton serviceName={supplier.name} documents={allDocs} />
+            {allowDeletePaid ? (
+              <div className="pt-1">
+                <DeletePaidPaymentButton
+                  commitmentId={commitment.id}
+                  supplierName={supplier.name}
+                  amount={paymentTotal}
+                  rubricCount={Math.max(1, siblingSlices.length)}
+                  inSalic={Boolean(proofDoc?.salicComprovanteId)}
+                  redirectTo={`/planejamento/${commitment.planningProject.id}`}
+                />
+              </div>
+            ) : null}
             </div>
           ) : !sourceNf ? (
             <p className="text-sm text-[var(--gray-500)]">

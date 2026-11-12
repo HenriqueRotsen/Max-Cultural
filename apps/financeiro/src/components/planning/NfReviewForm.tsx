@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { confirmNfReservation, type ActionState } from "@/lib/planning/actions";
+import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
 import type { ExtractedFiscalDoc } from "@/lib/nf/extract";
 import {
   fiscalNumberSalicLabel,
@@ -29,6 +30,8 @@ function parsePct(raw: string) {
   return Number(String(raw).replace(",", ".")) || 0;
 }
 
+const noopSubscribe = () => () => {};
+
 function ComplianceAlertDialog({
   open,
   messages,
@@ -47,7 +50,13 @@ function ComplianceAlertDialog({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open || messages.length === 0 || typeof document === "undefined") {
+  // Só no navegador: o portal não existe no HTML do servidor (evita erro de hidratação).
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+  if (!mounted || !open || messages.length === 0) {
     return null;
   }
 
@@ -124,7 +133,12 @@ export function NfReviewForm({
   defaultPaymentReminderAt,
   taxDueHint,
   alertWarnings,
+  pronacMismatch,
+  allowPronacOverride = false,
 }: {
+  /** Documento menciona outro PRONAC: bloqueia, salvo liberação com motivo. */
+  pronacMismatch?: string | null;
+  allowPronacOverride?: boolean;
   documentId: string;
   extracted: ExtractedFiscalDoc;
   lines: LineOpt[];
@@ -156,9 +170,6 @@ export function NfReviewForm({
     [alertWarnings],
   );
   const [alertOpen, setAlertOpen] = useState(() => alertMessages.length > 0);
-  useEffect(() => {
-    if (alertMessages.length > 0) setAlertOpen(true);
-  }, [alertMessages]);
   const firstItem = extracted.items?.[0];
   const resolvedKind = documentKind || extracted.documentKind || "NF";
   const defaultFiscalNumber =
@@ -241,7 +252,8 @@ export function NfReviewForm({
     gross > 0 &&
     Math.abs(shareSum - 100) <= 0.05 &&
     !hasDuplicateLines &&
-    allocs.every((a) => a.budgetLineId);
+    allocs.every((a) => a.budgetLineId) &&
+    (!pronacMismatch || allowPronacOverride);
 
   return (
     <>
@@ -283,6 +295,9 @@ export function NfReviewForm({
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {state.error}
         </p>
+      ) : null}
+      {pronacMismatch ? (
+        <PronacOverrideField mismatch={pronacMismatch} allowed={allowPronacOverride} />
       ) : null}
       {complianceWarning ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
