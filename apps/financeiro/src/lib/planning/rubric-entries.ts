@@ -22,7 +22,7 @@ export type RubricEntry = {
   pedidoParcel: number | null;
 };
 
-const docSelect = { id: true, kind: true, filename: true, mimeType: true } as const;
+const docSelect = { id: true, kind: true, filename: true, mimeType: true, supportType: true } as const;
 
 /**
  * Lançamentos de uma rubrica: reservas e pagamentos feitos no sistema, com os

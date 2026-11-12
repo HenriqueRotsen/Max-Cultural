@@ -9,8 +9,10 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { canPublishToSalic } from "@/lib/planning/acl";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
+import { sortSupportDocs } from "@/lib/planning/support-docs";
 import {
   buildSalicPublishPackages,
+  SALIC_DOC_SELECT,
   type SalicPublishDoc,
 } from "@/lib/planning/federal/salic-publish-packages";
 import { buildSalicUploadFilenameForRow } from "@/lib/salic/salic-publish-metadata";
@@ -55,7 +57,7 @@ function salicStateForCommitment(
       canUpload: false,
       uploaded: false,
       publishMode: null,
-      reason: "Anexe a NF/RPA antes de enviar ao SALIC.",
+      reason: "Anexe a NF/RPA (ou fatura, recibo, apólice ou contrato no lugar dela) antes de enviar ao SALIC.",
       proofId: null,
       ...emptyFiscal,
     };
@@ -183,18 +185,7 @@ export default async function PlanningReservasPage({
   const salicDocRows: SalicPublishDoc[] = await prisma.planningDocument.findMany({
     where: { planningProjectId: id, status: "IMPORTED" },
     orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      kind: true,
-      status: true,
-      filename: true,
-      mimeType: true,
-      storagePath: true,
-      sourceDocumentId: true,
-      salicComprovanteId: true,
-      salicPublishMode: true,
-      salicRepublishPending: true,
-    },
+    select: SALIC_DOC_SELECT,
   });
   const packages = buildSalicPublishPackages(salicDocRows);
 
@@ -234,6 +225,19 @@ export default async function PlanningReservasPage({
     fiscalById.set(f.id, { ...fiscalById.get(f.id)!, ...f });
   }
 
+  // Sem NF/RPA, o nome do arquivo usa o número do documento de apoio (apólice, contrato…).
+  const supportRows = await prisma.planningDocument.findMany({
+    where: { planningProjectId: id, kind: "SUPPORT", status: "IMPORTED" },
+    select: { commitmentId: true, supportType: true, extractedJson: true },
+  });
+  const supportNumberByCommitment = new Map<string, string>();
+  for (const d of sortSupportDocs(supportRows)) {
+    const n = (d.extractedJson as { documentNumber?: string | null } | null)?.documentNumber;
+    if (d.commitmentId && n && !supportNumberByCommitment.has(d.commitmentId)) {
+      supportNumberByCommitment.set(d.commitmentId, n);
+    }
+  }
+
   function salicUploadFilename(
     proof: (typeof salicDocs)[number],
     supplierName: string,
@@ -244,10 +248,17 @@ export default async function PlanningReservasPage({
       : null;
     const fiscalKind =
       fiscal?.kind === "NF" || fiscal?.kind === "RPA" ? fiscal.kind : null;
+    const supportNumber = fiscal
+      ? null
+      : [proof.commitmentId, ...proof.allocations.map((a) => a.commitmentId)]
+          .map((cid) => (cid ? supportNumberByCommitment.get(cid) : undefined))
+          .find(Boolean);
     return buildSalicUploadFilenameForRow({
       sortOrder,
       supplierName,
-      fiscalExtracted: (fiscal?.extractedJson || null) as {
+      fiscalExtracted: (supportNumber
+        ? { nfNumber: supportNumber, invoiceNumber: supportNumber }
+        : fiscal?.extractedJson || null) as {
         nfNumber?: string | null;
         invoiceNumber?: string | null;
       },

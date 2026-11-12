@@ -92,3 +92,39 @@ describe("buildSalicPublishPackages", () => {
     expect(packages).toHaveLength(0);
   });
 });
+
+describe("buildSalicPublishPackages com documentos de apoio", () => {
+  const support = (id: string, supportType: string, commitmentId = "c1") => ({
+    ...doc({ id, kind: "SUPPORT", filename: `${supportType.toLowerCase()}.pdf` }),
+    supportType,
+    commitmentId,
+  });
+  const proof = (extra: Partial<Parameters<typeof doc>[0]> = {}) => ({
+    ...doc({ id: "p1", kind: "PAYMENT_PROOF", filename: "comp.pdf", ...extra }),
+    commitmentId: "c1",
+    allocations: [{ commitmentId: "c1" }],
+  });
+
+  it("sem NF: apólice e boleto entram no mesmo PDF, na ordem certa", () => {
+    const [pkg] = buildSalicPublishPackages([support("b", "BOLETO"), support("a", "APOLICE"), proof()]);
+    expect(pkg?.action).toBe("UPLOAD_MERGED");
+    expect(pkg?.supportIds).toEqual(["a", "b"]);
+    expect(pkg?.fiscalId).toBeNull();
+  });
+
+  it("documento de outro lançamento não entra", () => {
+    const [pkg] = buildSalicPublishPackages([support("x", "BOLETO", "c2"), proof()]);
+    expect(pkg?.action).toBe("UPLOAD_PROOF_ONLY");
+    expect(pkg?.supportIds).toEqual([]);
+  });
+
+  it("já enviado só com o comprovante: a apólice que chegou depois pede reenvio", () => {
+    const [pkg] = buildSalicPublishPackages([
+      support("a", "APOLICE"),
+      proof({ salicComprovanteId: "123", salicPublishMode: "PROOF_ONLY" }),
+    ]);
+    expect(pkg?.action).toBe("REPUBLISH_MERGED");
+    expect(pkg?.replaceSalicId).toBe("123");
+    expect(pkg?.supportIds).toEqual(["a"]);
+  });
+});

@@ -1745,10 +1745,89 @@ export async function uploadPaymentProof(
     };
   }
 
+  // Sem NF/RPA, mas com documento de apoio (boleto, apólice, contrato…): o
+  // comprovante paga o lançamento. Fatura, recibo, apólice ou contrato fazem o
+  // papel da NF; com só boleto/orçamento, a NF fica pendente.
+  if (!sourceNf && kind === "PAYMENT_PROOF" && commitment.status === "RESERVED") {
+    const supports = await prisma.planningDocument.findMany({
+      where: { commitmentId: commitment.id, kind: "SUPPORT", status: "IMPORTED" },
+      select: { extractedJson: true },
+    });
+    if (supports.length > 0) {
+      const amountCheck = checkPaymentAmount({
+        extractedAmount: proofExtracted.amount,
+        expectedAmount: Number(commitment.amount),
+        expectedLabel: "do lançamento",
+      });
+      if (amountCheck.error) return { error: amountCheck.error };
+      if (amountCheck.warning) proofWarnings.push(amountCheck.warning);
+      const paidDate = resolvePaymentDate({
+        extracted: proofExtracted.paymentDate,
+        typed: String(formData.get("paidAt") || ""),
+      });
+      if ("error" in paidDate) return { error: paidDate.error };
+      // Só sai de "NF pendente" se algum documento foi anexado como substituto da NF.
+      const nfStillPending = !supports.some(
+        (d) => (d.extractedJson as { replacesNf?: boolean } | null)?.replacesNf === true,
+      );
+      await prisma.$transaction(async (tx) => {
+        const proof = await tx.planningDocument.create({
+          data: {
+            kind,
+            status: "IMPORTED",
+            filename: proofDisplayName,
+            mimeType: file.type || "application/octet-stream",
+            storagePath: stored.storagePath,
+            byteSize: stored.byteSize,
+            originalByteSize: stored.originalByteSize,
+            contentHash: stored.contentHash,
+            extractedJson: proofExtracted as object,
+            grossAmount: commitment.amount,
+            workspaceId: entitlements.workspaceId,
+            planningProjectId: commitment.planningProjectId,
+            engagementId: commitment.engagementId,
+            commitmentId: commitment.id,
+          },
+        });
+        await tx.documentRubricAllocation.create({
+          data: {
+            documentId: proof.id,
+            budgetLineId: commitment.budgetLineId,
+            commitmentId: commitment.id,
+            sharePct: 100,
+            amount: commitment.amount,
+          },
+        });
+        await tx.rubricCommitment.update({
+          where: { id: commitment.id },
+          data: { status: "PAID", paidAt: paidDate.date, nfPending: nfStillPending },
+        });
+        const { paymentAlertHrefsForCommitment } = await import("@/lib/planning/payment-alerts");
+        await tx.appNotification.deleteMany({
+          where: {
+            workspaceId: entitlements.workspaceId,
+            href: { in: paymentAlertHrefsForCommitment(commitment.id) },
+            type: { in: ["PAYMENT_OVERDUE", "PAYMENT_DUE_SOON"] },
+          },
+        });
+      });
+      await logPronacOverride();
+      revalidatePlanning(commitment.planningProjectId);
+      revalidatePath(`/planejamento/compromissos/${commitmentId}`);
+      const baseMsg = nfStillPending
+        ? "Pagamento registrado. A NF/RPA continua pendente: anexe quando chegar (ou anexe a fatura, recibo, apólice ou contrato)."
+        : "Pagamento registrado com os documentos do lançamento.";
+      return {
+        ok: true,
+        message: proofWarnings.length ? `${baseMsg} Atenção: ${proofWarnings.join(" ")}` : baseMsg,
+      };
+    }
+  }
+
   if (!sourceNf) {
     return {
       error:
-        "Esta reserva não está ligada a uma NF/RPA. Confirme a nota antes de enviar o comprovante.",
+        "Esta reserva não está ligada a uma NF/RPA. Confirme a nota (ou anexe o boleto, contrato, apólice…) antes de enviar o comprovante.",
     };
   }
 
