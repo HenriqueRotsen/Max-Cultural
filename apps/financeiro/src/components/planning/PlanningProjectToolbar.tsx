@@ -3,44 +3,27 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-function IconBtn({
-  href,
-  label,
-  badge,
-  children,
-}: {
-  href: string;
-  label: string;
-  badge?: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      title={label}
-      aria-label={label}
-      className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-[var(--navy)] transition hover:border-[var(--navy)] hover:bg-[var(--navy-soft)]"
-    >
-      {children}
-      {badge != null && badge > 0 ? (
-        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--navy)] px-1 text-[10px] font-bold text-white">
-          {badge > 99 ? "99+" : badge}
-        </span>
-      ) : null}
-    </Link>
-  );
-}
+const menuItemClass =
+  "block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-[var(--navy)] hover:bg-[var(--gray-50)]";
 
+/**
+ * Ações do projeto. Ficam à vista só as do dia a dia, com nome:
+ * NF/RPA (principal), Pagamento sem NF e Reservas. O resto (pedidos, planilha
+ * do produtor, planilhas do SALIC, rubricas e readequação) vai para "Mais".
+ */
 export function PlanningProjectToolbar({
   projectId,
   reservationsCount = 0,
+  showSheetVersions = false,
   moreSlot,
   menuOpen: controlledMenuOpen,
   onMenuOpenChange,
 }: {
   projectId: string;
   reservationsCount?: number;
-  /** Botões avançados (editar rubricas, readequação…) */
+  /** Mostra "Planilhas do SALIC" no menu (há versões guardadas). */
+  showSheetVersions?: boolean;
+  /** Ações avançadas (editar rubricas, readequação…), no fim do menu. */
   moreSlot?: ReactNode;
   menuOpen?: boolean;
   onMenuOpenChange?: (open: boolean) => void;
@@ -57,7 +40,7 @@ export function PlanningProjectToolbar({
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [menuOpen]);
+  }, [menuOpen, setMenuOpen]);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -76,108 +59,68 @@ export function PlanningProjectToolbar({
             strokeLinecap="round"
           />
         </svg>
-        NF / RPA
+        Subir NF / RPA
       </Link>
 
-      <div className="flex items-center gap-1.5">
-        <IconBtn
-          href={`/planejamento/${projectId}/reservas`}
-          label="Reservas"
-          badge={reservationsCount}
+      <Link href={`/planejamento/${projectId}/pagamento-antecipado`} className="btn btn-ghost">
+        Pagamento sem NF
+      </Link>
+
+      <Link href={`/planejamento/${projectId}/reservas`} className="btn btn-ghost gap-2">
+        Reservas
+        {reservationsCount > 0 ? (
+          <span className="rounded-full bg-[var(--navy)] px-1.5 text-[11px] font-bold leading-5 text-white">
+            {reservationsCount > 99 ? "99+" : reservationsCount}
+          </span>
+        ) : null}
+      </Link>
+
+      <div className="relative" ref={menuRef}>
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="btn btn-ghost gap-1.5"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+          Mais
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path
-              d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
+              d="m6 9 6 6 6-6"
               stroke="currentColor"
               strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </IconBtn>
-
-        <IconBtn
-          href={`/planejamento/${projectId}/pedidos`}
-          label="Pedidos / parcelamento"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-            <path
-              d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v0Z"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            />
-            <path
-              d="M9 12h6M9 16h4"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </IconBtn>
-
-        <IconBtn
-          href={`/planejamento/${projectId}/pagamento-antecipado`}
-          label="Pagamento sem NF"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <rect
-              x="2"
-              y="5"
-              width="20"
-              height="14"
-              rx="2"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            />
-            <path
-              d="M2 10h20"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            />
-          </svg>
-        </IconBtn>
-
-        <IconBtn
-          href={`/planejamento/${projectId}/importar-produtor`}
-          label="Importar planilha do produtor"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"
-              stroke="currentColor"
-              strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
-        </IconBtn>
-
-        {moreSlot ? (
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              title="Mais opções"
-              aria-label="Mais opções"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-[var(--navy)] transition hover:border-[var(--navy)] hover:bg-[var(--navy-soft)]"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <circle cx="5" cy="12" r="1.5" fill="currentColor" />
-                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                <circle cx="19" cy="12" r="1.5" fill="currentColor" />
-              </svg>
-            </button>
-            {menuOpen ? (
-              <div className="absolute right-0 z-20 mt-1.5 min-w-[14rem] rounded-xl border border-[var(--border)] bg-white p-2 shadow-lg">
-                <div className="flex flex-col gap-1">{moreSlot}</div>
-              </div>
-            ) : null}
+        </button>
+        {menuOpen ? (
+          <div
+            role="menu"
+            className="absolute left-0 z-20 mt-1.5 min-w-[15rem] rounded-xl border border-[var(--border)] bg-white p-2 shadow-lg sm:left-auto sm:right-0"
+          >
+            <div className="flex flex-col gap-1">
+              <Link href={`/planejamento/${projectId}/pedidos`} className={menuItemClass}>
+                Pedidos / parcelamento
+              </Link>
+              <Link
+                href={`/planejamento/${projectId}/importar-produtor`}
+                className={menuItemClass}
+              >
+                Importar planilha do produtor
+              </Link>
+              {showSheetVersions ? (
+                <Link href={`/planejamento/${projectId}/planilhas`} className={menuItemClass}>
+                  Planilhas do SALIC
+                </Link>
+              ) : null}
+              {moreSlot ? (
+                <>
+                  <hr className="my-1 border-[var(--border)]" />
+                  {moreSlot}
+                </>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>

@@ -6,6 +6,7 @@ import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { logPlanningAction } from "@/lib/activity-audit";
 import { canCloseProject, canEditRubricas } from "@/lib/planning/acl";
 import { parseProjectCaps } from "@/lib/planning/project-caps";
+import { closingBlockers } from "@/lib/planning/closing";
 import type { ActionState } from "@/lib/planning/action-state";
 import { revalidatePlanning } from "@/lib/planning/server-utils";
 
@@ -21,7 +22,7 @@ export async function dismissReadequadaNotice(planningProjectId: string) {
 }
 
 /**
- * Encerra o projeto. Confirmação dupla: o diálogo mostra o resumo e exige a espera
+ * Encerra o projeto. Só encerra sem pendências financeiras (closingBlockers). Confirmação dupla: o diálogo mostra o resumo e exige a espera
  * de 10 s; aqui a pessoa precisa ter digitado o código do projeto (PRONAC/código).
  * Encerrado, o projeto some do Financeiro e a busca no SALIC para.
  */
@@ -37,7 +38,7 @@ export async function closePlanningProject(
   const { entitlements } = await getWorkspaceContext();
   const project = await prisma.planningProject.findFirst({
     where: { id: planningProjectId, workspaceId: entitlements.workspaceId, closedAt: null },
-    select: { id: true, externalCode: true, name: true },
+    select: { id: true, externalCode: true, name: true, jurisdiction: true },
   });
   if (!project) return { error: "Projeto não encontrado ou já encerrado." };
 
@@ -46,6 +47,13 @@ export async function closePlanningProject(
     return { error: `Digite exatamente o código do projeto (${project.externalCode}) para confirmar.` };
   }
   const reason = String(formData.get("reason") || "").trim().slice(0, 1000);
+
+  const pending = await closingBlockers(project.id, entitlements.workspaceId, project.jurisdiction);
+  if (pending.length > 0) {
+    return {
+      error: `Ainda há pendências neste projeto: ${pending.join("; ")}. Resolva antes de encerrar (pague e envie o comprovante, anexe a NF, ou cancele o que não vai acontecer).`,
+    };
+  }
 
   await prisma.planningProject.update({
     where: { id: project.id },

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { NfUploadForm } from "@/components/planning/NfUploadForm";
 import { PendingFiscalDocuments } from "@/components/planning/PendingFiscalDocuments";
+import { MissingSheetNotice } from "@/components/planning/MissingSheetNotice";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 
@@ -23,9 +24,19 @@ export default async function NovaNfPage({
   const { entitlements } = await getWorkspaceContext();
   const project = await prisma.planningProject.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
-    select: { id: true, externalCode: true, importedAt: true },
+    select: { id: true, externalCode: true, sheet: { select: { id: true } } },
   });
-  if (!project?.importedAt) notFound();
+  if (!project) notFound();
+  // Mesmo critério do pagamento sem NF: precisa ter a planilha (rubricas).
+  if (!project.sheet) {
+    return (
+      <MissingSheetNotice
+        projectId={project.id}
+        externalCode={project.externalCode}
+        title="Subir NF ou RPA"
+      />
+    );
+  }
 
   const pendingDocs = await prisma.planningDocument.findMany({
     where: {

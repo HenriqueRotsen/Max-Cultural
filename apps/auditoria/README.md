@@ -28,11 +28,11 @@ manual fica na aba "Regra aplicada (IN)" do PRONAC.
 Seção 1 do detalhe do PRONAC: soma o que o proponente e quem tem vínculo com ele receberam e compara
 com o limite da IN (o nome não cita artigo porque ele muda com a IN).
 
-- **Vínculo por PRONAC:** o switch "Tem vínculo?" grava em `ProjectObservadoBond` e vale só para
+- **Vínculo por PRONAC:** a chave "Tem vínculo?" grava em `ProjectObservadoBond` e vale só para
   aquele PRONAC (o mapa societário e as relações mudam durante o projeto). O lembrete do mapa
   societário do ano fica dentro da seção. `ObservadoBond` (vínculo antigo por proponente × IN) é só
   histórico.
-- **Pagamento conta ou não:** o switch "Conta p/ vínculo" de cada pagamento grava
+- **Pagamento conta ou não:** a chave "Conta p/ vínculo" de cada pagamento grava
   `Payment.countsForBond`; vazio = automático (alimentação e refeição não contam). A sincronização
   preserva a marcação, inclusive quando o comprovante troca de origem (api × crawler).
 - **Tela e PDF iguais:** "Valor que conta" ("—" quando nada conta) e "+ R$ X que não conta".

@@ -73,11 +73,11 @@ export const HELP = {
 
   // Planejamento / disponível
   planningDisponivel:
-    "Disponível na rubrica = aprovado MinC − reservado. Em cada item você pode gastar o valor total da rubrica; com permissão de excesso (IN), até 2×. O teto do projeto (KPI) é o limite do que se tem para operar.",
+    "Livre = aprovado MinC − (a pagar + pago): o que ainda pode ser reservado nesta rubrica. Com permissão de exceder a rubrica, dá para passar do aprovado até o limite do projeto.",
   planningSaldo:
     "Saldo na rubrica = aprovado pelo MinC − valor pago (inclui comprovado no SALIC e pagamentos locais). Reservas em aberto não entram neste saldo.",
   planningSaldoProjeto:
-    "Saldo do projeto = teto operacional − pago. Reservas em aberto não entram neste saldo.",
+    "Livre para reservar = teto − (a pagar + pago). É o que ainda pode virar NF, pedido ou pagamento neste projeto.",
   planningAprovado:
     "Orçamento aprovado (MinC) na planilha homologada do projeto.",
   planningCaptacao:

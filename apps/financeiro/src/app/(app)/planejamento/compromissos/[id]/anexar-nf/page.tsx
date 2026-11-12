@@ -29,7 +29,13 @@ export default async function AnexarNfPage({
       },
     },
   });
-  if (!commitment?.nfPending || commitment.status !== "PAID") notFound();
+  if (!commitment) notFound();
+  const paidWithoutNf = commitment.nfPending && commitment.status === "PAID";
+  const reservedWithoutNf =
+    commitment.status === "RESERVED" &&
+    !commitment.pedidoId &&
+    (await prisma.documentRubricAllocation.count({ where: { commitmentId } })) === 0;
+  if (!paidWithoutNf && !reservedWithoutNf) notFound();
 
   return (
     <div className="space-y-6">
@@ -48,8 +54,8 @@ export default async function AnexarNfPage({
             / Anexar NF
           </>
         }
-        title="Anexar NF/RPA ao pagamento"
-        description={`${commitment.engagement.service.supplier.name} · ${formatCurrency(Number(commitment.amount))} · pagamento já registrado`}
+        title={paidWithoutNf ? "Anexar NF/RPA ao pagamento" : "Anexar NF/RPA à reserva"}
+        description={`${commitment.engagement.service.supplier.name} · ${formatCurrency(Number(commitment.amount))} · ${paidWithoutNf ? "pagamento já registrado" : "reservado, ainda sem nota"}`}
       />
       <NfUploadForm
         planningProjectId={commitment.planningProject.id}

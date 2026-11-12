@@ -19,6 +19,7 @@ export function PlanningProjectActions({
   editableLines,
   totalApproved,
   rubricOverrunPct = 100,
+  showSheetVersions = false,
 }: {
   projectId: string;
   reservationsCount: number;
@@ -30,6 +31,7 @@ export function PlanningProjectActions({
   editableLines: EditableRubricLine[];
   totalApproved: number;
   rubricOverrunPct?: number;
+  showSheetVersions?: boolean;
 }) {
   const [editRubricsOpen, setEditRubricsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -41,6 +43,7 @@ export function PlanningProjectActions({
       <PlanningProjectToolbar
         projectId={projectId}
         reservationsCount={reservationsCount}
+        showSheetVersions={showSheetVersions}
         menuOpen={menuOpen}
         onMenuOpenChange={setMenuOpen}
         moreSlot={

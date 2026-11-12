@@ -1,11 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  readReimbursementAnswer,
+  REIMBURSEMENT_REQUIRED_ERROR,
+} from "@/lib/planning/project-caps";
+import { checkProjectCapsForPayment } from "@/lib/planning/project-caps-db";
+import { resolvePaymentDate } from "@/lib/planning/payment-date";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { normalizeCgccpf, parseBrMoney } from "@/lib/format";
-import { canExceedRubric } from "@/lib/planning/acl";
+import { canDeleteNf, canExceedRubric } from "@/lib/planning/acl";
+import { logPlanningAction } from "@/lib/activity-audit";
 import {
   canReserveAmount,
   computeProjectBalance,
@@ -16,7 +23,11 @@ import { parseReminderDate } from "@/lib/planning/reminder-dates";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import { sendNotificationEmail } from "@/lib/planning/notify-email";
 import { buildPlanningDocumentFilename } from "@/lib/nf/document-filename";
-import { persistPlanningUpload, DuplicateDocumentError } from "@/lib/nf/persist-upload";
+import {
+  persistPlanningUpload,
+  DuplicateDocumentError,
+  duplicateFileMessage,
+} from "@/lib/nf/persist-upload";
 import { extractProofFromBuffer } from "@/lib/nf/extract";
 import {
   checkPaymentAmount,
@@ -213,6 +224,21 @@ export async function createManualReservation(
   });
   if (!check.ok) return { error: check.message };
 
+  const isReimbursement = readReimbursementAnswer(formData);
+  if (isReimbursement === null) return { error: REIMBURSEMENT_REQUIRED_ERROR };
+  // Limites do próprio projeto: fornecedor e vínculo com o proponente.
+  const capError = await checkProjectCapsForPayment({
+    project,
+    projectTotal:
+      valorCaptado > 0 ? valorCaptado : Number(project.sheet!.totalApproved),
+    amount,
+    cnpj,
+    supplierName,
+    hasBond,
+    isReimbursement,
+  });
+  if (capError) return { error: capError };
+
   const isCnpj = cnpj.length === 14;
   if (isCnpj && !cnaeCode) {
     const lookup = await lookupCnpj(cnpj);
@@ -298,6 +324,7 @@ export async function createManualReservation(
           amount,
           status: "RESERVED",
           hasBond,
+          isReimbursement,
           expectedPayAt,
           createdById: session.id,
         },
@@ -364,6 +391,8 @@ export async function uploadAdvancePayment(
   const notes = String(formData.get("notes") || "").trim() || null;
   const hasBond =
     formData.get("hasBond") === "on" || formData.get("hasBond") === "true";
+  const isReimbursement = readReimbursementAnswer(formData);
+  if (isReimbursement === null) return { error: REIMBURSEMENT_REQUIRED_ERROR };
   let cnaeCode = normalizeCnaeCode(String(formData.get("cnaeCode") || ""));
   let cnaeDescription =
     String(formData.get("cnaeDescription") || "").trim() || null;
@@ -442,6 +471,19 @@ export async function uploadAdvancePayment(
     });
   }
 
+  // Limites do próprio projeto: fornecedor e vínculo com o proponente.
+  const capError = await checkProjectCapsForPayment({
+    project,
+    projectTotal:
+      valorCaptado > 0 ? valorCaptado : Number(project.sheet!.totalApproved),
+    amount: grossAmount,
+    cnpj,
+    supplierName,
+    hasBond,
+    isReimbursement,
+  });
+  if (capError) return { error: capError };
+
   const isCnpj = cnpj.length === 14;
   if (isCnpj && !cnaeCode) {
     const lookup = await lookupCnpj(cnpj);
@@ -454,9 +496,29 @@ export async function uploadAdvancePayment(
     return { error: "Informe o CNAE do fornecedor (obrigatório para CNPJ)." };
   }
 
-  const paidAt = new Date();
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const proofExtracted = await extractProofFromBuffer({
+    buffer,
+    filename: file.name,
+    mimeType: file.type || "application/octet-stream",
+  });
+
+  const amountCheck = checkPaymentAmount({
+    extractedAmount: proofExtracted.amount,
+    expectedAmount: grossAmount,
+    expectedLabel: "informado no pagamento",
+  });
+  if (amountCheck.error) return { error: amountCheck.error };
+
+  // Data do pagamento: a do comprovante (ou a informada, se ele não mostrar).
+  const paidDate = resolvePaymentDate({
+    extracted: proofExtracted.paymentDate,
+    typed: String(formData.get("paidAt") || ""),
+  });
+  if ("error" in paidDate) return { error: paidDate.error };
+  const paidAt = paidDate.date;
   const expectedPayAt = fifthBusinessDayNextMonth(paidAt);
-  const defaultNfReminder = new Date(paidAt);
+  const defaultNfReminder = new Date();
   defaultNfReminder.setUTCDate(defaultNfReminder.getUTCDate() + 7);
   const nfReminderAt = parseReminderDate(nfReminderRaw, defaultNfReminder);
 
@@ -471,18 +533,6 @@ export async function uploadAdvancePayment(
     mimeType: file.type || "application/octet-stream",
   });
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const proofExtracted = await extractProofFromBuffer({
-    buffer,
-    filename: file.name,
-    mimeType: file.type || "application/octet-stream",
-  });
-
-  const amountCheck = checkPaymentAmount({
-    extractedAmount: proofExtracted.amount,
-    expectedAmount: grossAmount,
-  });
-  if (amountCheck.error) return { error: amountCheck.error };
 
   const projectCheck = checkProjectCodeInDocument({
     text: proofExtracted.rawText,
@@ -504,14 +554,12 @@ export async function uploadAdvancePayment(
       filename: proofDisplayName,
       mimeType: file.type || "application/octet-stream",
       workspaceId: entitlements.workspaceId,
-      rejectDuplicate: {
-        planningProjectId: project.id,
-        kinds: ["PAYMENT_PROOF"],
-      },
+      // Em todos os projetos: o mesmo comprovante não paga dois PRONACs.
+      rejectDuplicate: { kinds: ["PAYMENT_PROOF"] },
     });
   } catch (e) {
     if (e instanceof DuplicateDocumentError) {
-      return { error: e.message.slice("DUPLICATE:".length) };
+      return { error: await duplicateFileMessage(e.duplicate) };
     }
     throw e;
   }
@@ -610,6 +658,7 @@ export async function uploadAdvancePayment(
             nfPending: true,
             paidWithoutNf: true,
             hasBond,
+            isReimbursement,
             expectedPayAt,
             nfReminderAt,
             paidAt,
@@ -743,6 +792,25 @@ export async function confirmProducerReservations(
     simBalance.totalAvailable -= r.amount;
   }
 
+  // Limites do projeto (fornecedor e vínculo), somando as linhas do próprio lote.
+  const batch: Array<{ cnpj: string; amount: number; hasBond: boolean; isReimbursement: boolean }> = [];
+  for (const r of selected) {
+    const cnpj = normalizeCgccpf(r.cnpj || "");
+    const capError = await checkProjectCapsForPayment({
+      project,
+      projectTotal:
+        valorCaptado > 0 ? valorCaptado : Number(project.sheet!.totalApproved),
+      amount: r.amount,
+      cnpj,
+      supplierName: r.supplier,
+      hasBond: false,
+      isReimbursement: false,
+      pendingInBatch: batch,
+    });
+    if (capError) return { error: `${r.item}: ${capError}` };
+    batch.push({ cnpj, amount: r.amount, hasBond: false, isReimbursement: false });
+  }
+
   const hiredAt = new Date();
   const expectedPayAt = fifthBusinessDayNextMonth(hiredAt);
   const prefs = await getNotificationPrefs(
@@ -874,4 +942,91 @@ export async function parseProducerSheetAction(
       error: e instanceof Error ? e.message : "Falha ao ler planilha",
     };
   }
+}
+
+/**
+ * Cancela uma reserva que ainda não tem NF nem pagamento (reserva manual ou da
+ * planilha do produtor). O valor volta ao saldo da rubrica e sai da soma dos
+ * limites. Reserva feita pela NF se desfaz em "Excluir NF"; parcela de pedido,
+ * em "Cancelar pedido". Exige a permissão de desfazer lançamentos (Excluir
+ * NF/RPA), o motivo, e fica registrado no log.
+ */
+export async function cancelReservationWithoutNf(
+  commitmentId: string,
+  reason: string,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const motivo = reason.trim();
+  if (motivo.length < 5) {
+    return { error: "Explique o motivo do cancelamento (fica registrado)." };
+  }
+  if (!(await canDeleteNf())) {
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.reservation_cancel_denied",
+      entityType: "RubricCommitment",
+      entityId: commitmentId,
+    });
+    return {
+      error:
+        "Sem permissão para cancelar reservas. Peça a funcionalidade «Excluir NF/RPA» no MAX Cultural.",
+    };
+  }
+  const { entitlements } = await getWorkspaceContext();
+
+  const commitment = await prisma.rubricCommitment.findFirst({
+    where: { id: commitmentId, workspaceId: entitlements.workspaceId },
+    include: {
+      planningProject: { select: { id: true, closedAt: true } },
+      _count: { select: { allocations: true, documents: true } },
+    },
+  });
+  if (!commitment) return { error: "Reserva não encontrada." };
+  if (commitment.status !== "RESERVED") {
+    return { error: "Só é possível cancelar uma reserva que ainda não foi paga." };
+  }
+  if (commitment.pedidoId) {
+    return { error: "Esta reserva é parcela de um pedido: use «Cancelar pedido»." };
+  }
+  if (commitment._count.allocations > 0 || commitment._count.documents > 0) {
+    return {
+      error: "Esta reserva já tem NF/RPA ou documentos: exclua a NF em vez de cancelar a reserva.",
+    };
+  }
+  if (commitment.planningProject.closedAt) {
+    return { error: "Projeto encerrado." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.rubricCommitment.updateMany({
+      where: { id: commitment.id, status: "RESERVED" },
+      data: { status: "CANCELLED" },
+    });
+    if (updated.count !== 1) throw new Error("ALREADY_CHANGED");
+    const { paymentAlertHrefsForCommitment } = await import(
+      "@/lib/planning/payment-alerts"
+    );
+    await tx.appNotification.deleteMany({
+      where: {
+        workspaceId: entitlements.workspaceId,
+        href: { in: paymentAlertHrefsForCommitment(commitment.id) },
+      },
+    });
+  });
+
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.reservation_cancelled",
+    entityType: "RubricCommitment",
+    entityId: commitment.id,
+    meta: {
+      planningProjectId: commitment.planningProjectId,
+      amount: Number(commitment.amount),
+      reason: motivo,
+    },
+  });
+  revalidatePlanning(commitment.planningProjectId);
+  revalidatePath(`/planejamento/compromissos/${commitment.id}`);
+  revalidatePath("/planejamento/contas-a-pagar");
+  return { ok: true, message: "Reserva cancelada." };
 }

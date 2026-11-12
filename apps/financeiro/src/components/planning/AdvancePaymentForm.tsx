@@ -12,6 +12,7 @@ import {
 } from "@/components/planning/RubricAllocationFields";
 import type { RubricSelectOption } from "@/components/planning/RubricSearchSelect";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import { useReimbursementPrompt } from "@/components/planning/ReimbursementPrompt";
 
 const initial: ActionState = {};
 
@@ -43,6 +44,8 @@ export function AdvancePaymentForm({
   ]);
   const [amount, setAmount] = useState<number | null>(null);
   const [cnpj, setCnpj] = useState("");
+  const reimbursement = useReimbursementPrompt();
+  const [todayIso] = useState(() => new Date().toISOString().slice(0, 10));
   const [proofName, setProofName] = useState("");
 
   const gross = amount ?? 0;
@@ -138,8 +141,10 @@ export function AdvancePaymentForm({
 
       <form
         action={formAction}
+        onSubmit={reimbursement.onSubmit}
         className="card space-y-6 p-5 sm:p-6"
       >
+        {reimbursement.field}
         {state.error ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
             {state.error}
@@ -239,6 +244,14 @@ export function AdvancePaymentForm({
           </label>
 
           <label className="field sm:max-w-xs">
+            <span>Data do pagamento</span>
+            <input type="date" name="paidAt" max={todayIso} />
+            <span className="text-xs text-[var(--gray-500)]">
+              Vale a data do comprovante. Preencha se ela não aparecer no arquivo.
+            </span>
+          </label>
+
+          <label className="field sm:max-w-xs">
             <span>Lembrar de anexar NF/RPA em</span>
             <input
               type="date"
@@ -253,6 +266,7 @@ export function AdvancePaymentForm({
             name="hasBond"
             label="Vínculo declarado com o projeto"
           />
+          {reimbursement.control}
         </section>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-5">
@@ -281,6 +295,7 @@ export function AdvancePaymentForm({
           </button>
         </div>
       </form>
+      {reimbursement.dialog}
     </div>
   );
 }

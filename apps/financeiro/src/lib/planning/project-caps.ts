@@ -58,7 +58,8 @@ const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curren
 /**
  * Confere os limites do projeto para um novo pagamento:
  * - mesmo fornecedor: até `supplierCapPct` do captado;
- * - proponente + quem tem vínculo com ele, somados: até `bondCapPct`.
+ * - proponente + quem tem vínculo com ele, somados: até `bondCapPct`
+ *   (reembolso de despesa não entra nessa soma).
  * Devolve a mensagem de bloqueio, ou null se couber.
  */
 export function checkProjectCaps(params: {
@@ -70,6 +71,8 @@ export function checkProjectCaps(params: {
   inBondGroup: boolean;
   bondGroupTotalBefore: number;
   supplierName: string;
+  /** Reembolso de despesa: não entra na soma do vínculo (como na Auditoria). */
+  isReimbursement?: boolean;
 }): string | null {
   const { caps, projectTotal, amount } = params;
   if (!(projectTotal > 0) || !(amount > 0)) return null;
@@ -78,7 +81,7 @@ export function checkProjectCaps(params: {
   if (!params.inBondGroup && supplierAfter > supplierLimit + 0.005) {
     return `${params.supplierName} passaria de ${fmt(caps.supplierCapPct)}% do valor captado (${brl(supplierAfter)} de ${brl(projectTotal)}; limite ${brl(supplierLimit)}).`;
   }
-  if (params.inBondGroup) {
+  if (params.inBondGroup && !params.isReimbursement) {
     const bondAfter = params.bondGroupTotalBefore + amount;
     const bondLimit = (projectTotal * caps.bondCapPct) / 100;
     if (bondAfter > bondLimit + 0.005) {
@@ -87,3 +90,17 @@ export function checkProjectCaps(params: {
   }
   return null;
 }
+
+/**
+ * Resposta da pergunta "Este valor é um reembolso?" (Sim/Não) dos formulários
+ * de NF/RPA e de pagamento antecipado. null = não respondida.
+ */
+export function readReimbursementAnswer(formData: FormData): boolean | null {
+  const v = String(formData.get("isReimbursement") ?? "");
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return null;
+}
+
+export const REIMBURSEMENT_REQUIRED_ERROR =
+  "Responda se o valor pago é um reembolso (Sim ou Não).";

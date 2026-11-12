@@ -12,6 +12,7 @@ import {
   type RubricSelectOption,
 } from "@/components/planning/RubricSearchSelect";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import { useReimbursementPrompt } from "@/components/planning/ReimbursementPrompt";
 
 const initial: ActionState = {};
 
@@ -24,12 +25,15 @@ export function ManualReservationForm({
 }) {
   const action = createManualReservation.bind(null, planningProjectId);
   const [state, formAction, pending] = useActionState(action, initial);
+  const reimbursement = useReimbursementPrompt();
   const [budgetLineId, setBudgetLineId] = useState(lines[0]?.id || "");
   const [amount, setAmount] = useState<number | null>(null);
   const [cnpj, setCnpj] = useState("");
 
   return (
-    <form action={formAction} className="card space-y-4 p-5">
+    <>
+    <form action={formAction} onSubmit={reimbursement.onSubmit} className="card space-y-4 p-5">
+      {reimbursement.field}
       <div>
         <h2 className="font-semibold text-[var(--navy)]">Reserva manual (sem NF)</h2>
         <p className="mt-1 text-sm text-[var(--gray-500)]">
@@ -89,9 +93,13 @@ export function ManualReservationForm({
         description="Marque se o fornecedor tem vínculo com o proponente nesta IN."
       />
 
+      {reimbursement.control}
+
       <button type="submit" className="btn" disabled={pending}>
         {pending ? "Reservando…" : "Criar reserva"}
       </button>
     </form>
+    {reimbursement.dialog}
+    </>
   );
 }

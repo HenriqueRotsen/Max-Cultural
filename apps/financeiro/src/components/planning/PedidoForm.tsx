@@ -10,6 +10,7 @@ import {
   type RubricSelectOption,
 } from "@/components/planning/RubricSearchSelect";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import { useReimbursementPrompt } from "@/components/planning/ReimbursementPrompt";
 import {
   INSTALLMENT_COUNT_MAX,
   INSTALLMENT_COUNT_MIN,
@@ -46,6 +47,7 @@ export function PedidoForm({
 }) {
   const action = createPedido.bind(null, planningProjectId);
   const [state, formAction, pending] = useActionState(action, initial);
+  const reimbursement = useReimbursementPrompt();
   const defaultLineId = lines[0]?.id || "";
   const [cnpj, setCnpj] = useState("");
   const [totalAmount, setTotalAmount] = useState<number | null>(null);
@@ -119,7 +121,9 @@ export function PedidoForm({
   }
 
   return (
-    <form action={formAction} className="card space-y-4 p-5">
+    <>
+    <form action={formAction} onSubmit={reimbursement.onSubmit} className="card space-y-4 p-5">
+      {reimbursement.field}
       <input type="hidden" name="parcelsJson" value={parcelsJson} />
       <input type="hidden" name="hasBond" value={hasBond ? "true" : "false"} />
 
@@ -327,6 +331,8 @@ export function PedidoForm({
         label="Possui vínculo com o proponente"
       />
 
+      {reimbursement.control}
+
       <button
         type="submit"
         className="btn"
@@ -335,5 +341,7 @@ export function PedidoForm({
         {pending ? "Criando…" : "Criar pedido e reservar"}
       </button>
     </form>
+    {reimbursement.dialog}
+    </>
   );
 }
