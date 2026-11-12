@@ -106,7 +106,9 @@ function salicStateForCommitment(
     reason: uploaded
       ? "Republicar versão atualizada (NF + comprovante)."
       : commitment.nfPending
-        ? "NF pendente: vai só o comprovante. Quando a NF/RPA chegar, o sistema pede o reenvio completo."
+        ? pkg.supportIds.length > 0
+          ? "NF pendente: vão o comprovante e os documentos anexados. Quando a NF/RPA chegar, o sistema pede o reenvio completo."
+          : "NF pendente: vai só o comprovante. Quando a NF/RPA chegar, o sistema pede o reenvio completo."
         : null,
     proofId: proof.id,
     ...fiscal,
