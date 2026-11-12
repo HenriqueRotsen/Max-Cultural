@@ -23,22 +23,31 @@ export type YearChipPeriod = {
 const MAX_WIDTH = 360;
 
 /**
- * Selo “Mapa societário <período>” — composição daquele período ao passar o mouse;
- * clique abre o mapa. `label` é "2024" ou "2023–2024"; `basis` diz de onde veio.
+ * Selo “Sócios em <anos>” — ao passar o mouse, quem era sócio (ou administrador)
+ * da empresa nesses anos; clique abre o mapa. `label` é "2024" ou "2023–2024";
+ * `basis` diz por que esses anos. As datas do balão são de entrada e saída na
+ * sociedade, nunca de pagamento — o balão diz isso com todas as letras.
  */
 export function CorporateMapYearChip({
   accountId,
+  href,
+  ownerName,
   label,
   basis,
   institutional,
   periods,
 }: {
-  accountId: string;
+  /** Proponente (abre /contas/mapa/<id>). Use `href` para outro dono. */
+  accountId?: string;
+  href?: string;
+  /** Nome da empresa, para o título do balão. */
+  ownerName?: string;
   label: string;
   basis?: string;
   institutional: boolean;
   periods: YearChipPeriod[];
 }) {
+  const link = href ?? `/contas/mapa/${accountId}`;
   const tooltipId = useId();
   const copy = corporateMapCopy(institutional);
   const { triggerRef, bubbleRef, open, setOpen, mounted, pos } =
@@ -56,17 +65,23 @@ export function CorporateMapYearChip({
             data-placement={pos?.placement || "above"}
           >
             <span className="map-year-title">
-              {copy.mapName} em {label}
+              {copy.membersCap} {ownerName ? `de ${ownerName} ` : ""}em {label}
             </span>
-            {basis ? <span className="block text-[var(--gray-500)]">Base: {basis}.</span> : null}
+            {basis ? <span className="block text-[var(--gray-500)]">{basis}</span> : null}
+            <span className="map-year-note">
+              As datas abaixo são de quando cada um entrou e saiu da {institutional ? "organização" : "sociedade"}{" "}
+              — não são datas de pagamento.
+            </span>
             {periods.length === 0 ? (
-              <span className="block">Nenhuma {copy.composition} cadastrada para {label}.</span>
+              <span className="block">
+                Nenhum {copy.member} cadastrado para {label}. Clique para abrir o mapa.
+              </span>
             ) : (
               periods.map((p) => (
                 <span key={p.validFrom} className="map-year-period">
                   <span className="map-year-range">
-                    {formatPrecisionDate(p.validFrom, p.validFromPrecision)} →{" "}
-                    {p.validTo ? formatPrecisionDate(p.validTo, p.validToPrecision) : "hoje"}
+                    {copy.membersCap} de {formatPrecisionDate(p.validFrom, p.validFromPrecision)} até{" "}
+                    {p.validTo ? formatPrecisionDate(p.validTo, p.validToPrecision) : "hoje"}:
                   </span>
                   {p.members.length === 0 ? (
                     <span className="block">{copy.emptyMembers}</span>
@@ -92,7 +107,7 @@ export function CorporateMapYearChip({
     <>
       <Link
         ref={triggerRef}
-        href={`/contas/mapa/${accountId}`}
+        href={link}
         className="badge badge-info map-year-chip"
         aria-describedby={open ? tooltipId : undefined}
         onMouseEnter={() => setOpen(true)}
@@ -100,7 +115,7 @@ export function CorporateMapYearChip({
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
-        {copy.mapName} {label}
+        {copy.membersCap} em {label}
       </Link>
       {bubble}
     </>
