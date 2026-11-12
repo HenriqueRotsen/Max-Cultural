@@ -37,16 +37,19 @@ export default async function ObservadoMapaPage({
   const matched = data.crossRefs.filter((p) => p.watchedId && p.watchedId !== watched.id);
   const matchedDocs = matched.map((p) => p.cgccpf);
   const matchedNames = matched.map((p) => p.name);
+  const proponent = data.proponent;
+  // Observado que também é proponente: o mapa é o do proponente (um só por CNPJ).
   const editor = isCompany ? (
     <ProponentCorporateMapEditor
-      accountId={watched.id}
-      ownerField="watchedId"
-      accountName={data.name}
+      accountId={proponent ? proponent.id : watched.id}
+      ownerField={proponent ? "accountId" : "watchedId"}
+      accountName={proponent ? proponent.name : data.name}
       accountCgccpf={data.doc}
-      foundedAt={watched.foundedAt?.toISOString() || null}
-      foundedAtPrecision="DAY"
+      foundedAt={(proponent ? proponent.foundedAt : watched.foundedAt)?.toISOString() || null}
+      foundedAtPrecision={proponent ? proponent.foundedAtPrecision : "DAY"}
+      institutionalMap={proponent?.institutionalMap ?? false}
       matchedSupplierDocs={new Set(matchedDocs)}
-      periods={watched.corporatePeriods.map((p) => ({
+      periods={data.corporatePeriods.map((p) => ({
         id: p.id,
         label: p.label,
         source: p.source,
@@ -82,6 +85,26 @@ export default async function ObservadoMapaPage({
         title={`${isCompany ? "Mapa societário" : "Empresas e recebimentos"} · ${data.name}`}
         description={`${isCompany ? "CNPJ" : "CPF"} ${formatCgccpf(data.doc)} · observado`}
       />
+
+      {proponent ? (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm text-[var(--navy)]">
+          Este CNPJ também é <strong>proponente</strong>. O mapa societário é um só: o mesmo de{" "}
+          <Link href={`/contas/mapa/${proponent.id}`} className="font-semibold underline">
+            Mapa societário › {proponent.name}
+          </Link>
+          . O que mudar aqui muda lá.
+          {data.unify.moved > 0
+            ? ` ${data.unify.moved === 1 ? "O intervalo que estava" : `Os ${data.unify.moved} intervalos que estavam`} só no observado ${data.unify.moved === 1 ? "passou" : "passaram"} para esse mapa.`
+            : ""}
+        </div>
+      ) : null}
+      {data.unify.leftover > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Este observado tinha {data.unify.leftover} intervalo(s) próprio(s) antes de virar
+          proponente. Como o mapa do proponente já tinha intervalos, eles não foram juntados e não
+          são usados. Confira o mapa do proponente.
+        </div>
+      ) : null}
 
       {matchedNames.length > 0 ? (
         <div className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]">
