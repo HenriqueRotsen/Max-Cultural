@@ -93,7 +93,7 @@ export function HierarchyLockButton({
       disabled={pending || !canToggle || (locked && !exactLocked)}
       className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition ${
         locked
-          ? "border-amber-300 bg-amber-50 text-amber-800"
+          ? "border-blue-400 bg-blue-100 text-blue-800"
           : "border-transparent text-[var(--gray-400)] hover:border-[var(--border)] hover:bg-white hover:text-[var(--navy)]"
       } disabled:cursor-not-allowed disabled:opacity-60`}
       onClick={(e) => {

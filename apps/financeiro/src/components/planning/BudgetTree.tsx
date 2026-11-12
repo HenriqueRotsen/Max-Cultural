@@ -12,6 +12,8 @@ import {
 import { FieldHelp, ThHelp } from "@/components/FieldHelp";
 import { HELP } from "@/lib/help";
 import { HierarchyLockButton } from "@/components/planning/HierarchyLockButton";
+import { RubricEntriesButton } from "@/components/planning/RubricEntriesButton";
+import { rubricItemNumber } from "@/lib/planning/rubric-label";
 
 type Line = {
   id: string;
@@ -21,6 +23,7 @@ type Line = {
   state: string;
   city: string;
   itemName: string;
+  sortOrder?: number;
   approvedAmount: { toString(): string } | number;
 };
 
@@ -45,7 +48,7 @@ function groupLines(lines: Line[]) {
 
 function rowClass(b: LineBalance | undefined) {
   if (!b) return "border-t border-[var(--border)]";
-  if (b.locked) return "border-t border-amber-200 bg-amber-50/70 text-amber-950";
+  if (b.locked) return "border-t border-blue-400 bg-blue-100 text-blue-950";
   if (b.over) return "border-t border-red-200 bg-red-50 text-red-900";
   if (b.near) return "border-t border-amber-200 bg-amber-50 text-amber-950";
   return "border-t border-[var(--border)]";
@@ -88,7 +91,7 @@ export function BudgetTree({
           No limite da rubrica
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-700" />
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-700" />
           Bloqueado (sem edição / saldo)
         </span>
       </div>
@@ -123,7 +126,7 @@ export function BudgetTree({
               ) : null}
               {fonte}
               {fonteLocked ? (
-                <span className="text-xs font-normal text-amber-700">Bloqueado</span>
+                <span className="text-xs font-semibold text-blue-800">Bloqueado</span>
               ) : null}
             </span>
           </summary>
@@ -163,7 +166,7 @@ export function BudgetTree({
                       <FieldHelp text={HELP.planningAdminProduto} />
                     ) : null}
                     {produtoLocked ? (
-                      <span className="text-xs font-normal text-amber-700">
+                      <span className="text-xs font-semibold text-blue-800">
                         Bloqueado
                       </span>
                     ) : null}
@@ -208,7 +211,7 @@ export function BudgetTree({
                           ) : null}
                           {etapa}
                           {etapaLocked ? (
-                            <span className="text-xs font-normal text-amber-700">
+                            <span className="text-xs font-semibold text-blue-800">
                               Bloqueado
                             </span>
                           ) : null}
@@ -263,7 +266,7 @@ export function BudgetTree({
                                 {items.length === 1 ? "item" : "itens"})
                               </span>
                               {cityLocked ? (
-                                <span className="text-xs font-normal text-amber-700">
+                                <span className="text-xs font-semibold text-blue-800">
                                   Bloqueado
                                 </span>
                               ) : null}
@@ -318,14 +321,31 @@ export function BudgetTree({
                                         </td>
                                       ) : null}
                                       <td className="py-1.5 pr-2">
-                                        {line.itemName}
+                                        <RubricEntriesButton
+                                          budgetLineId={line.id}
+                                          itemNumber={rubricItemNumber(line.sortOrder ?? 0)}
+                                          itemName={line.itemName}
+                                          paid={b?.paid ?? 0}
+                                        />
+                                        {b?.isAdmin && b.availableCap < b.approved - 0.005 ? (
+                                          <span className="block text-xs text-[var(--gray-500)]">
+                                            Custo vinculado: limite de{" "}
+                                            {formatCurrency(b.availableCap)} (
+                                            {((b.availableCap / b.approved) * 100).toLocaleString("pt-BR", {
+                                              maximumFractionDigits: 2,
+                                            })}
+                                            % captado)
+                                          </span>
+                                        ) : null}
                                         {itemLocked ? (
-                                          <span className="ml-2 text-xs font-semibold text-amber-800">
+                                          <span className="ml-2 text-xs font-semibold text-blue-800">
                                             bloqueado
                                           </span>
                                         ) : b?.over ? (
                                           <span className="ml-2 text-xs font-semibold">
-                                            no limite
+                                            {b.reserved > b.approved + 0.005
+                                              ? "acima do aprovado · readequar"
+                                              : "no limite"}
                                           </span>
                                         ) : b?.near ? (
                                           <span className="ml-2 text-xs font-semibold">

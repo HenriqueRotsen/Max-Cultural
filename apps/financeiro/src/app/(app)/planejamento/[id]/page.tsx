@@ -14,6 +14,7 @@ import {
   canEditRubricas,
   canReadequacao,
 } from "@/lib/planning/acl";
+import { EditRubricsPanel } from "@/components/planning/EditRubricsPanel";
 import { CloseProjectButton } from "@/components/planning/CloseProjectButton";
 import { closingBlockers } from "@/lib/planning/closing";
 import { StateBudgetEditor } from "@/components/planning/StateBudgetEditor";
@@ -209,7 +210,8 @@ export default async function PlanningProjectPage({
       <PlanningProjectActions
         projectId={project.id}
         reservationsCount={project.commitments.length}
-        allowEditRubricas={allowEditRubricas && Boolean(project.sheet)}
+        // "Editar rubricas" fica ao lado do título da planilha, não no menu.
+        allowEditRubricas={false}
         allowReadequacao={allowReadequacao && Boolean(project.sheet)}
         isFederal={isFederal}
         openDraftId={openDraft?.id ?? null}
@@ -292,9 +294,20 @@ export default async function PlanningProjectPage({
           />
 
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-[var(--navy)]">
-              Planilha orçamentária
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--navy)]">
+                Planilha orçamentária
+              </h2>
+              {allowEditRubricas ? (
+                <EditRubricsPanel
+                  planningProjectId={project.id}
+                  totalApproved={money(project.sheet.totalApproved)}
+                  lines={editableLines}
+                  rubricOverrunPct={money(project.rubricOverrunPct)}
+                  triggerClassName="btn btn-ghost text-sm"
+                />
+              ) : null}
+            </div>
             <BudgetTree
               lines={project.sheet.lines}
               balances={bal.lines}

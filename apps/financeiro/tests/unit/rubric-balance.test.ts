@@ -41,7 +41,7 @@ describe("rubric-balance", () => {
     expect(bal.lines.get("a")!.available).toBe(1000);
   });
 
-  it("administração também usa aprovado integral na rubrica", () => {
+  it("administração (custo vinculado) libera só o percentual captado da rubrica", () => {
     const bal = computeProjectBalance({
       lines: [
         { id: "a", approvedAmount: 1000, productName: "Produção" },
@@ -55,8 +55,8 @@ describe("rubric-balance", () => {
     expect(bal.totalAvailableCap).toBe(600);
     expect(bal.lines.get("a")!.availableCap).toBe(1000);
     expect(bal.lines.get("b")!.isAdmin).toBe(true);
-    expect(bal.lines.get("b")!.availableCap).toBe(200);
-    expect(bal.lines.get("b")!.available).toBe(200);
+    expect(bal.lines.get("b")!.availableCap).toBe(100);
+    expect(bal.lines.get("b")!.available).toBe(100);
   });
 
   it("calcula saldo por linha e total", () => {
@@ -87,7 +87,7 @@ describe("rubric-balance", () => {
     expect(bal.lines.get("b")!.available).toBe(200);
   });
 
-  it("ARTE EM CORES 5ª: teto = operable; rubricas mantêm aprovado integral", () => {
+  it("ARTE EM CORES 5ª: teto = operable; rubrica comum inteira, administração pelo % captado", () => {
     const bal = computeProjectBalance({
       lines: [
         { id: "prod", approvedAmount: 1923662.18, productName: "Produção" },
@@ -106,7 +106,7 @@ describe("rubric-balance", () => {
     expect(bal.operableBase).toBeCloseTo(1394628.56, 2);
     expect(bal.pctCaptadoT).toBeCloseTo(pct, 6);
     expect(bal.totalAvailableCap).toBeCloseTo(1394628.56, 2);
-    expect(bal.lines.get("admin")!.availableCap).toBeCloseTo(823281.78, 2);
+    expect(bal.lines.get("admin")!.availableCap).toBeCloseTo(823281.78 * pct, 1);
     expect(bal.lines.get("prod")!.availableCap).toBeCloseTo(1923662.18, 2);
   });
 
@@ -261,5 +261,32 @@ describe("rubric-balance", () => {
     });
     expect(bal.totalApproved).toBe(30.22);
     expect(bal.lines.get("a")!.approved).toBe(10.11);
+  });
+
+  it("custos vinculados (Administração): só aprovado × % captado, e sobe com a captação", () => {
+    const lines = [
+      { id: "adm", approvedAmount: 150000, productName: "Administração" },
+      { id: "prod", approvedAmount: 850000, productName: "Festival" },
+    ];
+    const bal = computeProjectBalance({ lines, commitments: [], valorCaptado: 400000 });
+    const adm = bal.lines.get("adm")!;
+    expect(adm.availableCap).toBe(60000); // 40% de 150.000
+    expect(adm.available).toBe(60000);
+    expect(bal.lines.get("prod")!.availableCap).toBe(850000); // rubrica comum: inteira
+
+    expect(canReserveAmount({ lineId: "adm", amount: 60000, balance: bal, allowOverflow: true }).ok).toBe(true);
+    const blocked = canReserveAmount({ lineId: "adm", amount: 60000.01, balance: bal, allowOverflow: true });
+    expect(blocked.ok).toBe(false);
+
+    const more = computeProjectBalance({ lines, commitments: [], valorCaptado: 600000 });
+    expect(more.lines.get("adm")!.availableCap).toBe(90000); // 60% depois de mais patrocínio
+
+    const full = computeProjectBalance({
+      lines,
+      commitments: [{ budgetLineId: "adm", amount: 60000, status: "PAID" }],
+      valorCaptado: 400000,
+    });
+    expect(full.lines.get("adm")!.available).toBe(0);
+    expect(full.lines.get("adm")!.over).toBe(true); // vermelho no limite captado
   });
 });

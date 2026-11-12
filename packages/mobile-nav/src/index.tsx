@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 
 export type MobileNavItem = {
   href: string;
@@ -39,6 +39,76 @@ export function useMobileMenu(pathname: string) {
     setOpen: (next: boolean) => setOpenAt(next ? pathname : null),
     toggle: () => setOpenAt(open ? null : pathname),
   };
+}
+
+/**
+ * Menu lateral recolhido (só ícones), no computador. A escolha fica num cookie
+ * do domínio (.maxcultural.com.br; em localhost vale para todas as portas), então
+ * recolher num app vale para os quatro. No servidor o menu aparece aberto.
+ */
+const COLLAPSE_COOKIE = "max_sidebar_collapsed";
+const COLLAPSE_EVENT = "max-sidebar-collapsed";
+
+function readCollapsed(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split("; ").some((c) => c === `${COLLAPSE_COOKIE}=1`);
+}
+
+function subscribeCollapsed(onChange: () => void) {
+  window.addEventListener(COLLAPSE_EVENT, onChange);
+  window.addEventListener("focus", onChange);
+  return () => {
+    window.removeEventListener(COLLAPSE_EVENT, onChange);
+    window.removeEventListener("focus", onChange);
+  };
+}
+
+export function useSidebarCollapsed(): [boolean, () => void] {
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
+  const toggle = useCallback(() => {
+    const host = window.location.hostname;
+    const domain = host.endsWith("maxcultural.com.br") ? "; domain=.maxcultural.com.br" : "";
+    const value = readCollapsed() ? "0" : "1";
+    document.cookie = `${COLLAPSE_COOKIE}=${value}; path=/; max-age=31536000; samesite=lax${domain}`;
+    window.dispatchEvent(new Event(COLLAPSE_EVENT));
+  }, []);
+  return [collapsed, toggle];
+}
+
+/**
+ * Botão de recolher/abrir o menu lateral (só aparece no computador; CSS em
+ * mobile-nav.css, classe mx-collapse-btn).
+ */
+export function SidebarCollapseButton({
+  collapsed,
+  onToggle,
+  className = "",
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  const label = collapsed ? "Abrir menu" : "Recolher menu";
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={label}
+      aria-label={label}
+      aria-expanded={!collapsed}
+      className={`mx-collapse-btn ${className}`}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d={collapsed ? "m9 6 6 6-6 6" : "m15 6-6 6 6 6"}
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
 }
 
 /**
