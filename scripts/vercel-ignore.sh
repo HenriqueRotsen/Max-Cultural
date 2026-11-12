@@ -3,9 +3,9 @@
 #   exit 0 → NÃO compila   ·   exit 1 → compila
 #
 # Regras:
-# 1) Só compila na main (produção) e na develop. Branches de feature, PR e o
-#    "main de volta na develop" não geram build: a CI do GitHub já testa tudo.
-# 2) Na main/develop, só compila o app que mudou desde o último deploy dele
+# 1) Só compila na main (produção). develop, feature, PR e o "main de volta na
+#    develop" não geram build: a CI do GitHub já testa tudo.
+# 2) Na main, só compila o app que mudou desde o último deploy dele
 #    (o próprio app, os pacotes compartilhados ou as dependências da raiz).
 # 3) Na dúvida (sem o commit anterior), compila.
 #
@@ -16,8 +16,8 @@ ref="${VERCEL_GIT_COMMIT_REF:-}"
 prev="${VERCEL_GIT_PREVIOUS_SHA:-}"
 cur="${VERCEL_GIT_COMMIT_SHA:-HEAD}"
 
-if [ "$ref" != "main" ] && [ "$ref" != "develop" ]; then
-  echo "⏭  $app: branch '$ref' não publica (só main e develop)."
+if [ "$ref" != "main" ]; then
+  echo "⏭  $app: branch '$ref' não publica (só a main, que é a produção)."
   exit 0
 fi
 
