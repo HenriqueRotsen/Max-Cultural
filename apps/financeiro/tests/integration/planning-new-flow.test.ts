@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
+  commitmentCount: vi.fn(),
+  documentCount: vi.fn(),
   fetchHomologada: vi.fn(),
   fetchReadequada: vi.fn(),
   persistSheet: vi.fn(),
@@ -78,7 +80,12 @@ vi.mock("@/lib/db", () => ({
       aggregate: m.lineAggregate,
     },
     projectBudgetSheet: { update: m.sheetUpdate, create: vi.fn() },
-    rubricCommitment: { aggregate: m.commitmentAggregate, findFirst: m.commitmentFindFirst },
+    rubricCommitment: {
+      aggregate: m.commitmentAggregate,
+      findFirst: m.commitmentFindFirst,
+      count: m.commitmentCount,
+    },
+    planningDocument: { count: m.documentCount },
     documentRubricAllocation: { findMany: m.allocFindMany },
     catalogEngagement: { findMany: m.engagementFindMany, updateMany: m.engagementUpdateMany },
     appNotification: { deleteMany: m.notificationDeleteMany },
@@ -243,7 +250,20 @@ describe("encerrar projeto", () => {
     expect(m.projectUpdate).not.toHaveBeenCalled();
   });
 
+  it("não encerra com pendências financeiras", async () => {
+    m.canCloseProject.mockResolvedValue(true);
+    m.projectFindFirst.mockResolvedValue({ id: "pp", externalCode: "123456", name: "X", jurisdiction: "FEDERAL" });
+    m.commitmentCount.mockResolvedValueOnce(2).mockResolvedValueOnce(0);
+    m.documentCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    const res = await closePlanningProject("pp", {}, fd({ confirmCode: "123456" }));
+    expect(res.error).toMatch(/2 reserva\(s\) sem pagamento/);
+    expect(res.error).toMatch(/1 NF\/RPA parada/);
+    expect(m.projectUpdate).not.toHaveBeenCalled();
+  });
+
   it("encerra, para a busca no SALIC e registra no log", async () => {
+    m.commitmentCount.mockResolvedValue(0);
+    m.documentCount.mockResolvedValue(0);
     m.projectFindFirst.mockResolvedValue({ id: "pp", externalCode: "123456", name: "X" });
     await expect(
       closePlanningProject("pp", {}, fd({ confirmCode: "123456", reason: "Prestação aprovada" })),

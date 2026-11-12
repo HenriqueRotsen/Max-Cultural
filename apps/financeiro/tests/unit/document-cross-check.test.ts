@@ -49,12 +49,13 @@ describe("document-cross-check", () => {
     expect(result.warning).toBeUndefined();
   });
 
-  it("avisa quando não lê valor no comprovante", () => {
+  it("bloqueia quando não lê valor no comprovante", () => {
     const result = checkPaymentAmount({
       extractedAmount: null,
       expectedAmount: 600,
     });
-    expect(result.warning).toMatch(/Não foi possível ler/);
+    expect(result.error).toMatch(/Não foi possível ler/);
+    expect(result.error).toMatch(/600/);
   });
 
   it("bloqueia impostos divergentes da NF", () => {

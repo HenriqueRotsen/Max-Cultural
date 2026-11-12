@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
-import { normalizeCgccpf, parseBrMoney } from "@/lib/format";
+import { formatCgccpf, normalizeCgccpf, parseBrMoney } from "@/lib/format";
 import { canDeleteNf, canEditRubricas, canExceedRubric, canReadequacao } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
 import { listPlanningRulesets } from "@/lib/planning/rulesets";
@@ -31,6 +31,7 @@ import { buildPlanningDocumentFilename } from "@/lib/nf/document-filename";
 import {
   DuplicateDocumentError,
   findFiscalDocumentDuplicate,
+  duplicateFileMessage,
   persistPlanningUpload,
 } from "@/lib/nf/persist-upload";
 import { findOrCreateCatalogServiceForRubric } from "@/lib/catalog/service-from-rubric";
@@ -45,7 +46,16 @@ import {
 } from "@/lib/nf/payment-details";
 import { lookupCnpj } from "@/lib/catalog/brasil-api";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
-import { checkProjectCaps, projectCapsOf } from "@/lib/planning/project-caps";
+import {
+  projectCapsOf,
+  readReimbursementAnswer,
+  REIMBURSEMENT_REQUIRED_ERROR,
+} from "@/lib/planning/project-caps";
+import {
+  checkProjectCapsForPayment,
+  recheckCapsOnAttach,
+} from "@/lib/planning/project-caps-db";
+import { resolvePaymentDate } from "@/lib/planning/payment-date";
 import {
   READEQUACAO_TTL_MS,
   expireOpenReadequacaoDrafts,
@@ -60,6 +70,35 @@ import { revalidatePlanning } from "@/lib/planning/server-utils";
 
 export type { ActionState } from "@/lib/planning/action-state";
 import type { ActionState } from "@/lib/planning/action-state";
+
+
+/**
+ * A mesma NF/RPA (fornecedor + número + valor) não pode entrar duas vezes, em
+ * nenhum projeto. Roda com o número final (digitado ou corrigido na revisão).
+ */
+async function fiscalDuplicateError(params: {
+  workspaceId: string;
+  cnpj: string;
+  fiscalNumber: string;
+  grossAmount: number;
+  excludeDocumentId: string;
+}): Promise<string | null> {
+  const dup = await findFiscalDocumentDuplicate({
+    workspaceId: params.workspaceId,
+    cnpj: normalizeCgccpf(params.cnpj),
+    nfNumber: params.fiscalNumber,
+    grossAmount: params.grossAmount,
+    excludeDocumentId: params.excludeDocumentId,
+  });
+  if (!dup) return null;
+  const other = dup.planningProjectId
+    ? await prisma.planningProject.findUnique({
+        where: { id: dup.planningProjectId },
+        select: { externalCode: true },
+      })
+    : null;
+  return `Esta nota já foi lançada${other ? ` no projeto ${other.externalCode}` : ""} (${dup.filename}): mesmo fornecedor, número e valor. A mesma NF/RPA não pode entrar duas vezes.`;
+}
 
 export async function updatePlanningCaptacao(
   planningProjectId: string,
@@ -157,8 +196,9 @@ async function uploadNfForReviewInner(
 
   const project = await prisma.planningProject.findFirst({
     where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
+    include: { sheet: { select: { id: true } } },
   });
-  if (!project?.importedAt) return { error: "Projeto sem planilha importada" };
+  if (!project?.sheet) return { error: "Projeto sem planilha importada" };
 
   // Cópia explícita: views sobre ArrayBuffer detached quebram o pdf.js na Vercel.
   const buffer = Buffer.from(new Uint8Array(await file.arrayBuffer()));
@@ -193,10 +233,8 @@ async function uploadNfForReviewInner(
       filename: displayName,
       mimeType: file.type || "application/octet-stream",
       workspaceId: entitlements.workspaceId,
-      rejectDuplicate: {
-        planningProjectId,
-        kinds: ["NF", "RPA"],
-      },
+      // Em todos os projetos: a mesma nota não pode entrar em dois PRONACs.
+      rejectDuplicate: { kinds: ["NF", "RPA"] },
     });
   } catch (e) {
     if (e instanceof DuplicateDocumentError) {
@@ -219,14 +257,13 @@ async function uploadNfForReviewInner(
           error: `Esta nota já foi reservada (${d.filename}). Exclua a NF antes de reenviar o mesmo arquivo.`,
         };
       }
-      return { error: e.message.slice("DUPLICATE:".length) };
+      return { error: await duplicateFileMessage(d) };
     }
     throw e;
   }
 
   const fiscalDup = await findFiscalDocumentDuplicate({
     workspaceId: entitlements.workspaceId,
-    planningProjectId,
     cnpj: normalizeCgccpf(extracted.cnpj || ""),
     nfNumber:
       (extracted as { nfNumber?: string; invoiceNumber?: string }).nfNumber ||
@@ -235,7 +272,7 @@ async function uploadNfForReviewInner(
   });
   if (fiscalDup) {
     return {
-      error: `Possível duplicata: já existe ${fiscalDup.filename} com mesmo fornecedor, número e valor.`,
+      error: `Possível duplicata: já existe ${fiscalDup.filename} com mesmo fornecedor, número e valor${fiscalDup.planningProjectId && fiscalDup.planningProjectId !== planningProjectId ? " (em outro projeto)" : ""}.`,
     };
   }
 
@@ -330,6 +367,7 @@ export async function deletePlanningFiscalDocument(
     include: {
       allocations: { select: { commitmentId: true } },
       derivedProofs: { select: { id: true, kind: true } },
+      pedidoLinked: { select: { id: true } },
     },
   });
   if (!doc) return { error: "Documento não encontrado" };
@@ -371,8 +409,18 @@ export async function deletePlanningFiscalDocument(
 
   const storagePath = doc.storagePath;
 
+  // NF de pedido: as parcelas são do pedido, não da nota. Excluir a NF só
+  // desfaz o vínculo; o pedido volta a aguardar NF com as parcelas intactas.
+  const pedidoId = doc.pedidoLinked?.id ?? null;
+
   await prisma.$transaction(async (tx) => {
-    if (commitmentIds.length > 0) {
+    if (pedidoId) {
+      await tx.documentRubricAllocation.deleteMany({ where: { documentId: doc.id } });
+      await tx.planningPedido.update({
+        where: { id: pedidoId },
+        data: { sourceDocumentId: null, status: "OPEN" },
+      });
+    } else if (commitmentIds.length > 0) {
       await tx.documentRubricAllocation.deleteMany({
         where: {
           OR: [
@@ -471,6 +519,16 @@ export async function updateImportedFiscalNumber(
     };
   }
 
+  const ext = (doc.extractedJson || {}) as { cnpj?: string | null };
+  const dupError = await fiscalDuplicateError({
+    workspaceId: entitlements.workspaceId,
+    cnpj: String(ext.cnpj || ""),
+    fiscalNumber,
+    grossAmount: doc.grossAmount != null ? Number(doc.grossAmount) : 0,
+    excludeDocumentId: doc.id,
+  });
+  if (dupError) return { error: dupError };
+
   await prisma.planningDocument.update({
     where: { id: doc.id },
     data: {
@@ -507,6 +565,7 @@ async function attachNfToPendingCommitment(params: {
   formData: FormData;
   attachCommitmentId: string;
   hasBond: boolean;
+  isReimbursement: boolean;
   supplierName: string;
   cnpj: string;
   grossAmount: number;
@@ -521,6 +580,7 @@ async function attachNfToPendingCommitment(params: {
     formData,
     attachCommitmentId,
     hasBond,
+    isReimbursement,
     supplierName,
     cnpj,
     grossAmount,
@@ -549,16 +609,31 @@ async function attachNfToPendingCommitment(params: {
     }))
     .filter((a) => a.budgetLineId && a.sharePct > 0);
 
+  // Pagamento sem NF (pago, NF pendente) ou reserva sem nota (manual ou da
+  // planilha do produtor), que ainda não tem NF nem pertence a um pedido.
   const commitment = await prisma.rubricCommitment.findFirst({
     where: {
       id: attachCommitmentId,
       workspaceId: entitlements.workspaceId,
-      nfPending: true,
-      status: "PAID",
+      OR: [
+        { nfPending: true, status: "PAID" },
+        {
+          status: "RESERVED",
+          pedidoId: null,
+          allocations: { none: {} },
+          documents: { none: { kind: { in: ["NF", "RPA"] } } },
+        },
+      ],
     },
     include: {
       planningProject: { select: { id: true, externalCode: true } },
-      engagement: { select: { id: true, serviceId: true } },
+      engagement: {
+        select: {
+          id: true,
+          serviceId: true,
+          service: { select: { supplier: { select: { name: true, cnpj: true } } } },
+        },
+      },
     },
   });
   if (!commitment) {
@@ -566,6 +641,13 @@ async function attachNfToPendingCommitment(params: {
   }
   if (commitment.planningProjectId !== doc.planningProjectId) {
     return { error: "NF não pertence ao mesmo projeto do pagamento" };
+  }
+  // A NF precisa ser do mesmo fornecedor que recebeu o pagamento.
+  const paidSupplier = commitment.engagement.service.supplier;
+  if (normalizeCgccpf(paidSupplier.cnpj) !== normalizeCgccpf(cnpj)) {
+    return {
+      error: `O CPF/CNPJ da NF (${formatCgccpf(cnpj)}) não é o de quem recebeu o pagamento (${paidSupplier.name} · ${formatCgccpf(paidSupplier.cnpj)}). Confira a nota.`,
+    };
   }
 
   const proof = await prisma.planningDocument.findFirst({
@@ -690,6 +772,22 @@ async function attachNfToPendingCommitment(params: {
   const taxTotal = taxTotalOf(taxesFromForm);
   const siblingIds = [...new Set(slices.map((s) => s.commitmentId))];
 
+  // Vínculo ou reembolso mudou na NF? Confere os limites do projeto de novo.
+  const siblings = await prisma.rubricCommitment.findMany({
+    where: { id: { in: siblingIds }, workspaceId: entitlements.workspaceId },
+    select: { engagementId: true, hasBond: true, isReimbursement: true },
+  });
+  const attachCapError = await recheckCapsOnAttach({
+    planningProjectId: commitment.planningProjectId,
+    existing: siblings,
+    hasBond,
+    isReimbursement,
+    amount: grossAmount,
+    cnpj,
+    supplierName,
+  });
+  if (attachCapError) return { error: attachCapError };
+
   try {
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.planningDocument.updateMany({
@@ -711,6 +809,7 @@ async function attachNfToPendingCommitment(params: {
             nfNumber: fiscalNumber,
             invoiceNumber: fiscalNumber,
             fiscalNumberSource: "manual",
+            cnpj,
           },
         },
       });
@@ -741,7 +840,18 @@ async function attachNfToPendingCommitment(params: {
         data: {
           nfPending: false,
           hasBond,
+          isReimbursement,
         },
+      });
+      // Reserva sem nota: segue reservada, agora ligada à NF (o comprovante
+      // de pagamento entra depois, como numa reserva feita pela NF).
+      await tx.rubricCommitment.updateMany({
+        where: {
+          id: { in: siblingIds },
+          workspaceId: entitlements.workspaceId,
+          status: "RESERVED",
+        },
+        data: { hasBond, isReimbursement },
       });
 
       if (proof) {
@@ -829,6 +939,8 @@ export async function confirmNfReservation(
   const { entitlements } = await getWorkspaceContext();
 
   const hasBond = formData.get("hasBond") === "on" || formData.get("hasBond") === "true";
+  const isReimbursement = readReimbursementAnswer(formData);
+  if (isReimbursement === null) return { error: REIMBURSEMENT_REQUIRED_ERROR };
   const supplierName = String(formData.get("supplierName") || "").trim();
   const cnpj = normalizeCgccpf(String(formData.get("cnpj") || ""));
   const hiredAtRaw = String(formData.get("hiredAt") || "");
@@ -897,6 +1009,16 @@ export async function confirmNfReservation(
     };
   }
 
+  const dupError = await fiscalDuplicateError({
+    workspaceId: entitlements.workspaceId,
+    cnpj: String(formData.get("cnpj") || ""),
+    fiscalNumber,
+    grossAmount:
+      parseBrMoney(String(formData.get("grossAmount") || formData.get("amount") || "")) || 0,
+    excludeDocumentId: doc.id,
+  });
+  if (dupError) return { error: dupError };
+
   const attachCommitmentId = String(
     formData.get("attachCommitmentId") || "",
   ).trim();
@@ -912,6 +1034,7 @@ export async function confirmNfReservation(
       hasBond:
         formData.get("hasBond") === "on" ||
         formData.get("hasBond") === "true",
+      isReimbursement,
       supplierName: String(formData.get("supplierName") || "").trim(),
       cnpj: normalizeCgccpf(String(formData.get("cnpj") || "")),
       grossAmount:
@@ -960,6 +1083,7 @@ export async function confirmNfReservation(
       hasBond:
         formData.get("hasBond") === "on" ||
         formData.get("hasBond") === "true",
+      isReimbursement,
     });
   }
 
@@ -1089,41 +1213,15 @@ export async function confirmNfReservation(
   }
 
   // Limites do próprio projeto (informados ao começar): fornecedor e vínculo.
-  const projectTotal =
-    valorCaptado > 0 ? valorCaptado : Number(project.sheet.totalApproved);
-  const accountDoc = normalizeCgccpf(
-    (await prisma.salicAccount.findUnique({ where: { id: project.accountId } }))?.cgccpf || "",
-  );
-  const projectEngagements = await prisma.catalogEngagement.findMany({
-    where: {
-      planningProjectId: project.id,
-      OR: [{ commitment: { is: null } }, { commitment: { status: { not: "CANCELLED" } } }],
-    },
-    select: {
-      price: true,
-      commitment: { select: { hasBond: true } },
-      service: { select: { supplier: { select: { cnpj: true } } } },
-    },
-  });
-  const isProponent = Boolean(accountDoc) && normalizeCgccpf(cnpj) === accountDoc;
-  const inBondGroup = isProponent || hasBond;
-  let supplierTotalBefore = 0;
-  let bondGroupTotalBefore = 0;
-  for (const e of projectEngagements) {
-    const doc = normalizeCgccpf(e.service.supplier.cnpj);
-    if (doc === normalizeCgccpf(cnpj)) supplierTotalBefore += Number(e.price);
-    if ((accountDoc && doc === accountDoc) || e.commitment?.hasBond) {
-      bondGroupTotalBefore += Number(e.price);
-    }
-  }
-  const capError = checkProjectCaps({
-    caps: projectCapsOf(project),
-    projectTotal,
+  const capError = await checkProjectCapsForPayment({
+    project,
+    projectTotal:
+      valorCaptado > 0 ? valorCaptado : Number(project.sheet.totalApproved),
     amount: grossAmount,
-    supplierTotalBefore,
-    inBondGroup,
-    bondGroupTotalBefore,
+    cnpj,
     supplierName,
+    hasBond,
+    isReimbursement,
   });
   if (capError) return { error: capError };
 
@@ -1285,6 +1383,7 @@ export async function confirmNfReservation(
           allocationSharePct: slice.sharePct,
           status: "RESERVED",
           hasBond,
+          isReimbursement,
           expectedPayAt,
           paymentReminderAt,
           createdById: session.id,
@@ -1325,6 +1424,9 @@ export async function confirmNfReservation(
           nfNumber: fiscalNumber,
           invoiceNumber: fiscalNumber,
           fiscalNumberSource: "manual",
+          cnpj,
+          // Emissão confirmada na revisão: o pagamento não pode ser anterior a ela.
+          ...(/^\d{4}-\d{2}-\d{2}/.test(hiredAtRaw) ? { hiredAt: hiredAtRaw.slice(0, 10) } : {}),
         },
       },
     });
@@ -1438,6 +1540,7 @@ export async function uploadPaymentProof(
               grossAmount: true,
               taxTotal: true,
               taxesJson: true,
+              extractedJson: true,
               allocations: {
                 select: {
                   budgetLineId: true,
@@ -1461,6 +1564,7 @@ export async function uploadPaymentProof(
           grossAmount: true,
           taxTotal: true,
           taxesJson: true,
+          extractedJson: true,
           allocations: {
             select: {
               budgetLineId: true,
@@ -1487,7 +1591,38 @@ export async function uploadPaymentProof(
       (a.document.kind === "NF" || a.document.kind === "RPA") &&
       a.document.status === "IMPORTED",
   )?.document;
-  const sourceNf = viaAlloc || commitment.documents[0] || null;
+  // Parcela de pedido: a NF é a do pedido, e cada parcela tem o próprio
+  // comprovante (valor da parcela), em vez do valor da nota inteira.
+  const pedidoNf = commitment.pedidoId
+    ? await prisma.planningDocument.findFirst({
+        where: {
+          workspaceId: entitlements.workspaceId,
+          pedidoLinked: { id: commitment.pedidoId },
+          kind: { in: ["NF", "RPA"] },
+          status: "IMPORTED",
+        },
+        select: {
+          id: true,
+          kind: true,
+          status: true,
+          filename: true,
+          grossAmount: true,
+          taxTotal: true,
+          taxesJson: true,
+          extractedJson: true,
+          allocations: {
+            select: {
+              budgetLineId: true,
+              commitmentId: true,
+              sharePct: true,
+              amount: true,
+              taxesJson: true,
+            },
+          },
+        },
+      })
+    : null;
+  const sourceNf = pedidoNf || viaAlloc || commitment.documents[0] || null;
 
   const proofDisplayName = buildPlanningDocumentFilename({
     kind,
@@ -1522,14 +1657,16 @@ export async function uploadPaymentProof(
       filename: proofDisplayName,
       mimeType: file.type || "application/octet-stream",
       workspaceId: entitlements.workspaceId,
-      rejectDuplicate: {
-        planningProjectId: commitment.planningProjectId,
-        kinds: [kind],
-      },
+      // Comprovante de pagamento: em todos os projetos (cada projeto tem a sua
+      // conta). Guia de imposto pode juntar várias notas: só dentro do projeto.
+      rejectDuplicate:
+        kind === "PAYMENT_PROOF"
+          ? { kinds: ["PAYMENT_PROOF"] }
+          : { planningProjectId: commitment.planningProjectId, kinds: [kind] },
     });
   } catch (e) {
     if (e instanceof DuplicateDocumentError) {
-      return { error: e.message.slice("DUPLICATE:".length) };
+      return { error: await duplicateFileMessage(e.duplicate) };
     }
     throw e;
   }
@@ -1570,7 +1707,18 @@ export async function uploadPaymentProof(
     };
   }
 
-  const siblingAllocs = sourceNf.allocations;
+  const siblingAllocs =
+    pedidoNf && kind === "PAYMENT_PROOF"
+      ? [
+          {
+            budgetLineId: commitment.budgetLineId,
+            commitmentId: commitment.id,
+            sharePct: commitment.allocationSharePct ?? 0,
+            amount: commitment.amount,
+            taxesJson: null,
+          },
+        ]
+      : sourceNf.allocations;
   if (siblingAllocs.length === 0) {
     return { error: "NF/RPA sem rateio de rubricas" };
   }
@@ -1583,6 +1731,7 @@ export async function uploadPaymentProof(
     const amountCheck = checkPaymentAmount({
       extractedAmount: proofExtracted.amount,
       expectedAmount: expectedPaymentAmount,
+      expectedLabel: pedidoNf ? "da parcela" : undefined,
     });
     if (amountCheck.error) return { error: amountCheck.error };
     if (amountCheck.warning) proofWarnings.push(amountCheck.warning);
@@ -1605,18 +1754,19 @@ export async function uploadPaymentProof(
     ...new Set(siblingAllocs.map((a) => a.commitmentId)),
   ];
 
-  const paidAt = (() => {
-    if (
-      proofExtracted.paymentDate &&
-      /^\d{4}-\d{2}-\d{2}/.test(proofExtracted.paymentDate)
-    ) {
-      const parsed = new Date(
-        `${proofExtracted.paymentDate.slice(0, 10)}T12:00:00Z`,
-      );
-      if (!Number.isNaN(parsed.getTime())) return parsed;
-    }
-    return new Date();
-  })();
+  // Data do pagamento: a do comprovante (ou a informada, se ele não mostrar),
+  // nunca no futuro nem antes da emissão da NF/RPA.
+  let paidAt = new Date();
+  if (kind === "PAYMENT_PROOF") {
+    const nfExt = (sourceNf.extractedJson || {}) as { hiredAt?: string | null };
+    const paidDate = resolvePaymentDate({
+      extracted: proofExtracted.paymentDate,
+      typed: String(formData.get("paidAt") || ""),
+      nfDate: nfExt.hiredAt ?? null,
+    });
+    if ("error" in paidDate) return { error: paidDate.error };
+    paidAt = paidDate.date;
+  }
 
   await prisma.$transaction(async (tx) => {
     const proof = await tx.planningDocument.create({

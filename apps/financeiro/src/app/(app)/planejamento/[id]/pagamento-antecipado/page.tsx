@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageBackLink } from "@/components/ui";
 import { AdvancePaymentForm } from "@/components/planning/AdvancePaymentForm";
+import { MissingSheetNotice } from "@/components/planning/MissingSheetNotice";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
@@ -38,7 +39,16 @@ export default async function PagamentoAntecipadoPage({
       },
     },
   });
-  if (!project?.sheet) notFound();
+  if (!project) notFound();
+  if (!project.sheet) {
+    return (
+      <MissingSheetNotice
+        projectId={project.id}
+        externalCode={project.externalCode}
+        title="Pagamento sem NF"
+      />
+    );
+  }
 
   const valorCaptado =
     project.valorCaptado != null

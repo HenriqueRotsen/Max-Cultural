@@ -1,10 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  readReimbursementAnswer,
+  REIMBURSEMENT_REQUIRED_ERROR,
+} from "@/lib/planning/project-caps";
+import {
+  checkProjectCapsForPayment,
+  recheckCapsOnAttach,
+} from "@/lib/planning/project-caps-db";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
-import { normalizeCgccpf, parseBrMoney } from "@/lib/format";
+import { formatCgccpf, normalizeCgccpf, parseBrMoney } from "@/lib/format";
 import { canExceedRubric } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
 import {
@@ -151,6 +159,21 @@ export async function createPedido(
     bal.available -= amount;
   }
 
+  const isReimbursement = readReimbursementAnswer(formData);
+  if (isReimbursement === null) return { error: REIMBURSEMENT_REQUIRED_ERROR };
+  // Limites do próprio projeto: fornecedor e vínculo com o proponente.
+  const capError = await checkProjectCapsForPayment({
+    project,
+    projectTotal:
+      valorCaptado > 0 ? valorCaptado : Number(project.sheet.totalApproved),
+    amount: totalAmount,
+    cnpj,
+    supplierName,
+    hasBond,
+    isReimbursement,
+  });
+  if (capError) return { error: capError };
+
   const isCnpj = cnpj.length === 14;
   if (isCnpj && !cnaeCode) {
     const lookup = await lookupCnpj(cnpj);
@@ -281,6 +304,7 @@ export async function createPedido(
             amount: parcel.amount,
             status: "RESERVED",
             hasBond,
+            isReimbursement,
             expectedPayAt,
             createdById: session.id,
           },
@@ -346,6 +370,12 @@ export async function cancelPedido(
   if (pedido.commitments.some((c) => c.status === "PAID")) {
     return { error: "Não é possível cancelar: há parcela já paga" };
   }
+  if (pedido.sourceDocumentId) {
+    return {
+      error:
+        "Este pedido já tem NF/RPA vinculada. Exclua a NF primeiro (na página da parcela) e depois cancele o pedido.",
+    };
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.rubricCommitment.updateMany({
@@ -391,6 +421,7 @@ export async function attachNfToPedido(params: {
   taxesFromForm: Record<string, number | null>;
   fiscalNumber: string;
   hasBond: boolean;
+  isReimbursement: boolean;
 }): Promise<ActionState> {
   const {
     entitlements,
@@ -404,6 +435,7 @@ export async function attachNfToPedido(params: {
     taxesFromForm,
     fiscalNumber,
     hasBond,
+    isReimbursement,
   } = params;
 
   if (!cnpj || !supplierName || !(grossAmount > 0)) {
@@ -435,6 +467,24 @@ export async function attachNfToPedido(params: {
   if (pedido.commitments.length === 0) {
     return { error: "Pedido sem parcelas reservadas" };
   }
+  // A NF precisa ser do mesmo fornecedor do pedido.
+  if (normalizeCgccpf(pedido.supplier.cnpj) !== normalizeCgccpf(cnpj)) {
+    return {
+      error: `O CPF/CNPJ da NF (${formatCgccpf(cnpj)}) não é o do fornecedor do pedido (${pedido.supplier.name} · ${formatCgccpf(pedido.supplier.cnpj)}). Confira a nota.`,
+    };
+  }
+
+  // Vínculo ou reembolso mudou na NF? Confere os limites do projeto de novo.
+  const attachCapError = await recheckCapsOnAttach({
+    planningProjectId: pedido.planningProjectId,
+    existing: pedido.commitments,
+    hasBond,
+    isReimbursement,
+    amount: grossAmount,
+    cnpj,
+    supplierName,
+  });
+  if (attachCapError) return { error: attachCapError };
 
   const reservedTotal =
     Math.round(
@@ -523,6 +573,7 @@ export async function attachNfToPedido(params: {
           where: { id: c.id },
           data: {
             hasBond,
+            isReimbursement,
             allocationSharePct: sharePct,
           },
         });

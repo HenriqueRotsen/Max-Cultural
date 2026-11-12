@@ -826,7 +826,7 @@ export function buildPronacListWarnings(
   if (legal.length === 0 && rows.length > 0) {
     warnings.push({
       level: "info",
-      title: "Nenhum fornecedor acima do teto da IN do projeto (proxy)",
+      title: "Nenhum fornecedor acima do teto da IN do projeto (estimativa)",
       detail:
         "Os limites aplicados são os da IN vinculada a cada PRONAC (cobertura + tetos). " +
         legalBasisNote(fallbackRules),
@@ -895,7 +895,7 @@ export function buildPronacDetailWarnings(params: {
   if (legal.length === 0 && params.suppliers.length > 0) {
     warnings.push({
       level: "info",
-      title: `Conformidade proxy — teto ${rules.caps.supplierCapPct}%`,
+      title: `Conformidade estimada — teto ${rules.caps.supplierCapPct}%`,
       detail: legalBasisNote(rules),
     });
   }

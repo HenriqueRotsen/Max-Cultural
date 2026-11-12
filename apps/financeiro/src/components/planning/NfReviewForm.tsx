@@ -17,6 +17,7 @@ import {
   type RubricSelectOption,
 } from "@/components/planning/RubricSearchSelect";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import { useReimbursementPrompt } from "@/components/planning/ReimbursementPrompt";
 
 const initial: ActionState = {};
 
@@ -177,6 +178,7 @@ export function NfReviewForm({
     : visibleLines[0]?.id || "";
 
   const [cnpj, setCnpj] = useState(() => formatCgccpfInput(extracted.cnpj || ""));
+  const reimbursement = useReimbursementPrompt();
   const [cnaeCode, setCnaeCode] = useState(() =>
     formatCnaeInput(extracted.cnaeCode || ""),
   );
@@ -248,7 +250,8 @@ export function NfReviewForm({
         messages={alertMessages}
         onClose={() => setAlertOpen(false)}
       />
-      <form action={formAction} className="card space-y-4 p-5">
+      <form action={formAction} onSubmit={reimbursement.onSubmit} className="card space-y-4 p-5">
+      {reimbursement.field}
       <input type="hidden" name="allocationsJson" value={allocationsJson} />
       {attachCommitmentId ? (
         <input
@@ -663,11 +666,13 @@ export function NfReviewForm({
         label="Vínculo com o proponente"
         description="Este fornecedor tem vínculo com o proponente nesta IN (conta no teto do proponente / Observado)."
       />
+      {reimbursement.control}
 
       <button type="submit" className="btn" disabled={!canSubmit}>
         {pending ? "Reservando…" : `Confirmar ${kind} e reservar`}
       </button>
     </form>
+      {reimbursement.dialog}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
+import { CancelReservationButton } from "@/components/planning/CancelReservationButton";
 import { DeleteNfButton } from "@/components/planning/DeleteNfButton";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
@@ -37,6 +38,7 @@ export default async function CompromissoPage({
         },
       },
       documents: { orderBy: { createdAt: "desc" } },
+      pedido: { select: { id: true, sourceDocumentId: true } },
       allocations: {
         where: {
           document: { kind: { in: ["NF", "RPA"] }, status: "IMPORTED" },
@@ -48,7 +50,10 @@ export default async function CompromissoPage({
   });
   if (!commitment) notFound();
 
+  // Parcela de pedido: a NF é a do pedido (vale para todas as parcelas).
+  const isPedidoParcel = Boolean(commitment.pedido);
   const sourceDocumentId =
+    commitment.pedido?.sourceDocumentId ||
     commitment.allocations[0]?.documentId ||
     commitment.documents.find((d) => d.kind === "NF" || d.kind === "RPA")?.id ||
     null;
@@ -100,8 +105,15 @@ export default async function CompromissoPage({
       : null;
 
   const supplier = commitment.engagement.service.supplier;
-  const siblingSlices =
-    sourceNf?.allocations ?? paymentProof?.allocations ?? [];
+  // Parcela de pedido não divide comprovante com as outras: cada uma tem o seu.
+  const siblingSlices = isPedidoParcel
+    ? []
+    : (sourceNf?.allocations ?? paymentProof?.allocations ?? []);
+  const reservedWithoutNf =
+    commitment.status === "RESERVED" &&
+    !isPedidoParcel &&
+    !sourceNf &&
+    commitment.documents.length === 0;
   const multiRubric = siblingSlices.length > 1;
   const hasPaymentProof = commitment.documents.some(
     (d) => d.kind === "PAYMENT_PROOF",
@@ -127,7 +139,8 @@ export default async function CompromissoPage({
         },
       })) > 0
     : false;
-  const allowDeleteNf = (await canDeleteNf()) && Boolean(sourceNf) && !nfHasLinkedProof;
+  const canCancelReservation = await canDeleteNf();
+  const allowDeleteNf = canCancelReservation && Boolean(sourceNf) && !nfHasLinkedProof;
   const paidViaGroup =
     commitment.status === "PAID" &&
     !hasPaymentProof &&
@@ -242,6 +255,10 @@ export default async function CompromissoPage({
           {commitment.hasBond ? "Sim" : "Não"}
         </p>
         <p>
+          <span className="text-[var(--gray-500)]">Reembolso:</span>{" "}
+          {commitment.isReimbursement ? "Sim (não entra no vínculo)" : "Não"}
+        </p>
+        <p>
           <Link
             href={`/fornecedores/contratacoes`}
             className="text-[var(--gold)] hover:underline"
@@ -287,13 +304,25 @@ export default async function CompromissoPage({
             <p className="text-sm text-emerald-700">
               {sourceNf.kind} vinculada: {sourceNf.filename}
             </p>
-          ) : commitment.nfPending ? (
-            <Link
-              href={`/planejamento/compromissos/${commitment.id}/anexar-nf`}
-              className="btn w-full justify-center"
-            >
-              Anexar NF/RPA
-            </Link>
+          ) : commitment.nfPending || reservedWithoutNf ? (
+            <div className="space-y-2">
+              <Link
+                href={`/planejamento/compromissos/${commitment.id}/anexar-nf`}
+                className="btn w-full justify-center"
+              >
+                Anexar NF/RPA
+              </Link>
+              {reservedWithoutNf && canCancelReservation ? (
+                <CancelReservationButton
+                  commitmentId={commitment.id}
+                  redirectTo={`/planejamento/${commitment.planningProject.id}/reservas`}
+                />
+              ) : null}
+            </div>
+          ) : isPedidoParcel ? (
+            <p className="text-sm text-[var(--gray-500)]">
+              Parcela de pedido: anexe a NF/RPA na página do pedido.
+            </p>
           ) : (
             <p className="text-sm text-[var(--gray-500)]">
               Confirme a NF/RPA na página do projeto.
@@ -325,9 +354,11 @@ export default async function CompromissoPage({
               kind="PAYMENT_PROOF"
               label="PDF ou imagem do comprovante"
               hint={
-                multiRubric
-                  ? `Este arquivo será vinculado à ${sourceNf.kind} e rateado automaticamente nas ${siblingSlices.length} rubricas.`
-                  : `Vinculado à ${sourceNf.kind} ${sourceNf.filename}.`
+                isPedidoParcel
+                  ? `Comprovante desta parcela (${formatCurrency(Number(commitment.amount))}), vinculado à ${sourceNf.kind} ${sourceNf.filename}.`
+                  : multiRubric
+                    ? `Este arquivo será vinculado à ${sourceNf.kind} e rateado automaticamente nas ${siblingSlices.length} rubricas.`
+                    : `Vinculado à ${sourceNf.kind} ${sourceNf.filename}.`
               }
             />
           )}

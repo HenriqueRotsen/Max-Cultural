@@ -17,8 +17,9 @@ export type PlanningProjectCard = {
   situacao: string | null;
   lifecycleStatus: string;
   totalApproved: number;
-  /** Saldo do projeto = teto − pago. */
-  totalSaldo: number;
+  /** Livre para reservar = teto − (a pagar + pago). */
+  totalFree: number;
+  pending: { overdue: number; nfPending: number; inReview: number };
 };
 
 type SortKey = "name" | "code" | "approved" | "balance" | "imported";
@@ -40,7 +41,8 @@ function ProjectListCard({
   importSource,
   situacao,
   totalApproved,
-  totalSaldo,
+  totalFree,
+  pending,
   muted,
 }: {
   href: string;
@@ -52,9 +54,15 @@ function ProjectListCard({
   importSource: string | null;
   situacao: string | null;
   totalApproved: number;
-  totalSaldo: number;
+  totalFree: number;
+  pending: PlanningProjectCard["pending"];
   muted?: boolean;
 }) {
+  const chips = [
+    pending.overdue ? { text: `${pending.overdue} vencido(s)`, tone: "red" } : null,
+    pending.nfPending ? { text: `${pending.nfPending} sem NF`, tone: "amber" } : null,
+    pending.inReview ? { text: `${pending.inReview} NF em revisão`, tone: "amber" } : null,
+  ].filter(Boolean) as Array<{ text: string; tone: "red" | "amber" }>;
   const meta = [
     jurisdictionLabel(jurisdiction),
     accountName,
@@ -129,6 +137,22 @@ function ProjectListCard({
               </p>
             ) : null}
             <p className="mt-1 text-sm leading-relaxed text-[var(--gray-500)]">{meta}</p>
+            {chips.length > 0 ? (
+              <p className="mt-2 flex flex-wrap gap-1.5">
+                {chips.map((c) => (
+                  <span
+                    key={c.text}
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      c.tone === "red"
+                        ? "bg-red-50 text-red-800 ring-1 ring-red-200"
+                        : "bg-amber-50 text-amber-900 ring-1 ring-amber-200"
+                    }`}
+                  >
+                    {c.text}
+                  </span>
+                ))}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3 sm:pl-2">
@@ -153,14 +177,14 @@ function ProjectListCard({
               }`}
             >
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--gray-400)]">
-                Saldo
+                Livre
               </p>
               <p
                 className={`mt-0.5 text-sm font-semibold tabular-nums ${
                   muted ? "text-[var(--gray-500)]" : "text-[#5b52c9]"
                 }`}
               >
-                {formatCurrency(totalSaldo)}
+                {formatCurrency(totalFree)}
               </p>
             </div>
           </div>
@@ -195,7 +219,7 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
         case "approved":
           return b.totalApproved - a.totalApproved;
         case "balance":
-          return b.totalSaldo - a.totalSaldo;
+          return b.totalFree - a.totalFree;
         case "imported":
           return (b.importedAt || "").localeCompare(a.importedAt || "");
         case "name":
@@ -256,7 +280,7 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
             options={[
               { value: "name", label: "Nome" },
               { value: "code", label: "PRONAC" },
-              { value: "balance", label: "Saldo" },
+              { value: "balance", label: "Livre" },
               { value: "approved", label: "Aprovado" },
               { value: "imported", label: "Importação" },
             ]}
@@ -280,7 +304,8 @@ export function PlanningProjectList({ projects }: { projects: PlanningProjectCar
               importSource={p.importSource}
               situacao={p.situacao}
               totalApproved={p.totalApproved}
-              totalSaldo={p.totalSaldo}
+              totalFree={p.totalFree}
+              pending={p.pending}
               muted={false}
             />
           ))}

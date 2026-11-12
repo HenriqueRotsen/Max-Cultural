@@ -16,12 +16,15 @@ export function CloseProjectButton({
   projectId,
   externalCode,
   projectName,
-  summary,
+  blockers,
+  evaluationPending,
 }: {
   projectId: string;
   externalCode: string;
   projectName: string;
-  summary: { openReservations: number; nfPending: number; evaluationPending: number };
+  /** Pendências financeiras que impedem encerrar (mesma regra do servidor). */
+  blockers: string[];
+  evaluationPending: number;
 }) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [typed, setTyped] = useState("");
@@ -42,15 +45,7 @@ export function CloseProjectButton({
     setTyped("");
     setSecondsLeft(WAIT_SECONDS);
   };
-  const pendencias = [
-    summary.openReservations
-      ? `${summary.openReservations} reserva(s) ainda não paga(s)`
-      : null,
-    summary.nfPending ? `${summary.nfPending} pagamento(s) sem NF` : null,
-    summary.evaluationPending
-      ? `${summary.evaluationPending} fornecedor(es) sem avaliação`
-      : null,
-  ].filter(Boolean) as string[];
+  const blocked = blockers.length > 0;
   const ready = typed.trim() === externalCode && secondsLeft <= 0;
 
   return (
@@ -68,25 +63,35 @@ export function CloseProjectButton({
             Depois de encerrado, o projeto <strong>some do MAX Financeiro</strong> (listas, buscas e
             contas a pagar) e o sistema para de consultar o SALIC para ele.
           </p>
-          {pendencias.length > 0 ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <p className="font-semibold">Ainda em aberto:</p>
+          {blocked ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+              <p className="font-semibold">Ainda não dá para encerrar. Em aberto:</p>
               <ul className="mt-1 list-disc pl-5">
-                {pendencias.map((p) => (
+                {blockers.map((p) => (
                   <li key={p}>{p}</li>
                 ))}
               </ul>
+              <p className="mt-2">
+                Pague e envie o comprovante, anexe a NF, ou cancele o que não vai acontecer.
+              </p>
             </div>
           ) : (
-            <p className="text-sm text-emerald-700">Nada em aberto neste projeto.</p>
+            <p className="text-sm text-emerald-700">Nada financeiro em aberto neste projeto.</p>
           )}
+          {evaluationPending > 0 ? (
+            <p className="text-sm text-amber-800">
+              {evaluationPending} fornecedor(es) ainda sem avaliação (não impede encerrar).
+            </p>
+          ) : null}
           <div className="flex justify-end gap-2">
             <button type="button" className="btn btn-ghost" onClick={close}>
               Voltar
             </button>
-            <button type="button" className="btn" onClick={() => setStep(2)}>
-              Continuar
-            </button>
+            {blocked ? null : (
+              <button type="button" className="btn" onClick={() => setStep(2)}>
+                Continuar
+              </button>
+            )}
           </div>
         </div>
       </DialogShell>

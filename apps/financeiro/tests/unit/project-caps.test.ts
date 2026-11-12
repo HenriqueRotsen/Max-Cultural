@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkProjectCaps, parseProjectCaps, projectCapsOf } from "@/lib/planning/project-caps";
+import { checkProjectCaps, parseProjectCaps, projectCapsOf, readReimbursementAnswer } from "@/lib/planning/project-caps";
 import { canReserveAmount, computeProjectBalance } from "@/lib/planning/rubric-balance";
 
 const fd = (o: Record<string, string>) => {
@@ -33,6 +33,14 @@ describe("limites do projeto (no lugar da IN)", () => {
     const base = { caps, projectTotal: 100_000, supplierName: "Sócio", inBondGroup: true, supplierTotalBefore: 0 };
     expect(checkProjectCaps({ ...base, amount: 5_000, bondGroupTotalBefore: 10_000 })).toBeNull();
     expect(checkProjectCaps({ ...base, amount: 5_001, bondGroupTotalBefore: 10_000 })).toMatch(/vínculo.*15%/);
+  });
+
+  it("reembolso não entra na soma do vínculo", () => {
+    const base = { caps, projectTotal: 100_000, supplierName: "Proponente", inBondGroup: true, supplierTotalBefore: 0 };
+    expect(checkProjectCaps({ ...base, amount: 5_001, bondGroupTotalBefore: 10_000, isReimbursement: true })).toBeNull();
+    expect(readReimbursementAnswer(fd({ isReimbursement: "true" }))).toBe(true);
+    expect(readReimbursementAnswer(fd({ isReimbursement: "false" }))).toBe(false);
+    expect(readReimbursementAnswer(fd({}))).toBeNull();
   });
 
   it("excesso na rubrica segue o percentual do projeto", () => {
