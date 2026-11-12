@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { normalizeCgccpf } from "@/lib/format";
 import { paymentsByPeriod } from "@/lib/corporate/qsa-import";
+import { findProponentByDoc, unifyWatchedMapIntoAccount } from "@/lib/corporate/map-owner";
 
 /**
  * Dados da página "Mapa societário" de um observado:
@@ -14,15 +15,24 @@ export async function loadObservadoMap(watchedId: string, workspaceId: string) {
     where: { id: watchedId, workspaceId },
     include: {
       supplier: { select: { name: true, cgccpf: true } },
-      corporatePeriods: {
-        orderBy: { validFrom: "desc" },
-        include: { members: { orderBy: { name: "asc" } } },
-      },
     },
   });
   if (!watched) return null;
 
   const doc = normalizeCgccpf(watched.cgccpf || watched.supplier?.cgccpf || "");
+  // Um CNPJ, um mapa: se o observado também é proponente, vale o mapa do proponente.
+  const proponent = doc ? await findProponentByDoc(doc, workspaceId) : null;
+  const unify = proponent
+    ? await unifyWatchedMapIntoAccount(watched.id, proponent.id)
+    : { moved: 0, leftover: 0 };
+  const ownerWhere = proponent
+    ? { salicAccountId: proponent.id }
+    : { watchedSupplierId: watched.id };
+  const corporatePeriods = await prisma.corporatePeriod.findMany({
+    where: ownerWhere,
+    orderBy: { validFrom: "desc" },
+    include: { members: { orderBy: { name: "asc" } } },
+  });
   const name = watched.label || watched.supplier?.name || watched.nameQuery || doc;
   const isCompany = doc.length === 14;
   const inWorkspace = { project: { salicAccount: { workspaceId } } };
@@ -47,7 +57,7 @@ export async function loadObservadoMap(watchedId: string, workspaceId: string) {
   const pays = payments.map((p) => ({ ...p, amount: Number(p.amount) }));
   const total = Math.round(pays.reduce((s, p) => s + p.amount, 0) * 100) / 100;
 
-  const { byPeriod, outside } = paymentsByPeriod(watched.corporatePeriods, pays);
+  const { byPeriod, outside } = paymentsByPeriod(corporatePeriods, pays);
 
   const byProject = new Map<
     string,
@@ -74,7 +84,7 @@ export async function loadObservadoMap(watchedId: string, workspaceId: string) {
 
   // Pessoas a cruzar: os sócios da empresa, ou o próprio observado (pessoa).
   const people = new Map<string, string>();
-  for (const period of watched.corporatePeriods) {
+  for (const period of corporatePeriods) {
     for (const m of period.members) {
       const d = normalizeCgccpf(m.cgccpf);
       if (d.length === 11 || d.length === 14) people.set(d, m.name);
@@ -90,7 +100,6 @@ export async function loadObservadoMap(watchedId: string, workspaceId: string) {
             cgccpf: { in: docs },
             period: {
               OR: [{ salicAccount: { workspaceId } }, { watchedSupplier: { workspaceId } }],
-              NOT: { watchedSupplierId: watched.id },
             },
           },
           select: {
@@ -98,6 +107,8 @@ export async function loadObservadoMap(watchedId: string, workspaceId: string) {
             role: true,
             period: {
               select: {
+                salicAccountId: true,
+                watchedSupplierId: true,
                 validFrom: true,
                 validTo: true,
                 salicAccount: { select: { id: true, name: true, cgccpf: true } },
@@ -132,7 +143,12 @@ export async function loadObservadoMap(watchedId: string, workspaceId: string) {
       string,
       { key: string; name: string; cgccpf: string; href: string | null; kind: "proponente" | "observado"; from: Date; to: Date | null }
     >();
-    for (const m of memberships.filter((x) => normalizeCgccpf(x.cgccpf) === d)) {
+    // Fora o próprio mapa (filtrado aqui: NOT no banco descartaria os nulos).
+    const isOwn = (m: (typeof memberships)[number]) =>
+      proponent
+        ? m.period.salicAccountId === proponent.id
+        : m.period.watchedSupplierId === watched.id;
+    for (const m of memberships.filter((x) => normalizeCgccpf(x.cgccpf) === d && !isOwn(x))) {
       const acc = m.period.salicAccount;
       const w = m.period.watchedSupplier;
       const key = acc ? `a:${acc.id}` : `w:${w!.id}`;
@@ -168,12 +184,15 @@ export async function loadObservadoMap(watchedId: string, workspaceId: string) {
 
   return {
     watched,
+    proponent,
+    unify,
+    corporatePeriods,
     doc,
     name,
     isCompany,
     total,
     paymentCount: pays.length,
-    periods: watched.corporatePeriods.map((p) => ({
+    periods: corporatePeriods.map((p) => ({
       ...p,
       paid: byPeriod.get(p.id) ?? { count: 0, total: 0 },
     })),

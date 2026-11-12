@@ -776,6 +776,8 @@ type MapOwner = {
   foundedAt: Date | null;
   institutional: boolean;
   where: { salicAccountId: string } | { watchedSupplierId: string };
+  /** Mapa do proponente aberto pela página de um observado (mesmo CNPJ). */
+  watchedId?: string;
 };
 
 async function resolveMapOwner(formData: FormData, workspaceId: string): Promise<MapOwner> {
@@ -799,6 +801,25 @@ async function resolveMapOwner(formData: FormData, workspaceId: string): Promise
       include: { supplier: { select: { name: true } } },
     });
     if (!w) throw new Error("Observado não encontrado neste workspace");
+    // Observado que também é proponente: um CNPJ, um mapa (o do proponente).
+    const { findProponentByDoc, unifyWatchedMapIntoAccount } = await import(
+      "@/lib/corporate/map-owner"
+    );
+    const proponent = await findProponentByDoc(w.cgccpf || "", workspaceId);
+    if (proponent) {
+      await unifyWatchedMapIntoAccount(w.id, proponent.id);
+      const a = await assertAccountInWorkspace(proponent.id, workspaceId);
+      return {
+        kind: "account",
+        id: a.id,
+        name: a.name,
+        cgccpf: a.cgccpf,
+        foundedAt: a.foundedAt,
+        institutional: a.institutionalMap,
+        where: { salicAccountId: a.id },
+        watchedId: w.id,
+      };
+    }
     return {
       kind: "watched",
       id: w.id,
@@ -813,6 +834,7 @@ async function resolveMapOwner(formData: FormData, workspaceId: string): Promise
 }
 
 async function afterOwnerMapChange(owner: MapOwner) {
+  if (owner.watchedId) revalidatePath(`/observados/${owner.watchedId}/mapa`);
   if (owner.kind === "account") return afterCorporateMapChange(owner.id);
   revalidatePath(`/observados/${owner.id}/mapa`);
   revalidatePath("/observados");

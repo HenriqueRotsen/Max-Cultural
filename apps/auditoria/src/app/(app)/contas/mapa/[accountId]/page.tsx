@@ -5,7 +5,8 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui";
 import { ProponentCorporateMapEditor } from "@/components/ProponentCorporateMapEditor";
 import { corporateMapCopy } from "@/lib/corporate/copy";
-import { formatCgccpf } from "@/lib/format";
+import { formatCgccpf, normalizeCgccpf } from "@/lib/format";
+import { unifyWatchedMapIntoAccount } from "@/lib/corporate/map-owner";
 import { fetchCnpjCompany } from "@/lib/lookup/cnpj";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,19 @@ export default async function ProponentCorporateMapPage({
   if (!account) notFound();
 
   await maybePrefillFoundedAt(account);
+
+  // O mesmo CNPJ como observado: um mapa só (este). Se o observado tinha
+  // intervalos próprios e este mapa está vazio, eles passam para cá.
+  const accountDoc = normalizeCgccpf(account.cgccpf);
+  const asWatched = (
+    await prisma.watchedSupplier.findMany({
+      where: { workspaceId: ws },
+      select: { id: true, cgccpf: true, supplier: { select: { cgccpf: true } } },
+    })
+  ).find((w) => normalizeCgccpf(w.cgccpf || w.supplier?.cgccpf || "") === accountDoc);
+  const unify = asWatched
+    ? await unifyWatchedMapIntoAccount(asWatched.id, account.id)
+    : { moved: 0, leftover: 0 };
 
   const full = await prisma.salicAccount.findUniqueOrThrow({
     where: { id: account.id },
@@ -122,6 +136,22 @@ export default async function ProponentCorporateMapPage({
         title={`${copy.mapName} · ${full.name}`}
         description={`CNPJ/CPF ${formatCgccpf(full.cgccpf)}`}
       />
+
+      {asWatched ? (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--navy-soft)] px-4 py-3 text-sm text-[var(--navy)]">
+          Este CNPJ também é <strong>observado</strong>; o mapa societário é este mesmo.{" "}
+          <Link href={`/observados/${asWatched.id}/mapa`} className="font-semibold underline">
+            Ver o que recebeu como fornecedor
+          </Link>
+          .
+          {unify.moved > 0
+            ? ` ${unify.moved === 1 ? "O intervalo que estava" : `Os ${unify.moved} intervalos que estavam`} só no observado ${unify.moved === 1 ? "passou" : "passaram"} para este mapa.`
+            : ""}
+          {unify.leftover > 0
+            ? ` O observado tinha ${unify.leftover} intervalo(s) próprio(s) que não foram juntados, porque este mapa já tinha intervalos.`
+            : ""}
+        </div>
+      ) : null}
 
       {matchedSuppliers.length > 0 ? (
         <div className="rounded-xl border border-[#b7e0c4] bg-[#e8f6ee] px-4 py-3 text-sm text-[#176b3a]">

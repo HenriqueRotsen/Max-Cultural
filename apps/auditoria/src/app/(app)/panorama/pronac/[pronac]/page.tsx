@@ -33,6 +33,7 @@ import { prisma } from "@/lib/db";
 import { pronacYear } from "@/lib/compliance/choose-ruleset";
 import { mapWindowForProject, periodsInYears } from "@/lib/corporate/at-year";
 import { CorporateMapYearChip } from "@/components/CorporateMapYearChip";
+import { proponentByWatchedId } from "@/lib/corporate/map-owner";
 
 export const dynamic = "force-dynamic";
 
@@ -210,9 +211,24 @@ export default async function PronacDetailPage({
   const watchedCompanyIds = watchedInPronac
     .filter((w) => normalizeCgccpf(w.cgccpf || "").length === 14)
     .map((w) => w.id);
+  // Observado que também é proponente: um CNPJ, um mapa (o do proponente).
+  const proponentOfWatched = watchedCompanyIds.length
+    ? await proponentByWatchedId(workspaceId)
+    : new Map<string, { id: string; name: string; cgccpf: string; institutionalMap: boolean }>();
   const watchedMaps = watchedCompanyIds.length
     ? await prisma.corporatePeriod.findMany({
-        where: { watchedSupplierId: { in: watchedCompanyIds } },
+        where: {
+          OR: [
+            { watchedSupplierId: { in: watchedCompanyIds } },
+            {
+              salicAccountId: {
+                in: watchedCompanyIds
+                  .map((id) => proponentOfWatched.get(id)?.id)
+                  .filter((x): x is string => Boolean(x)),
+              },
+            },
+          ],
+        },
         include: { members: { orderBy: { name: "asc" } } },
       })
     : [];
@@ -234,10 +250,14 @@ export default async function PronacDetailPage({
               ownerName={w.name}
               label={mapWindow.label}
               basis={mapWindow.basis}
-              institutional={false}
+              institutional={proponentOfWatched.get(w.id)?.institutionalMap ?? false}
               periods={toChipPeriods(
                 periodsInYears(
-                  watchedMaps.filter((p) => p.watchedSupplierId === w.id),
+                  watchedMaps.filter((p) =>
+                    proponentOfWatched.has(w.id)
+                      ? p.salicAccountId === proponentOfWatched.get(w.id)!.id
+                      : p.watchedSupplierId === w.id,
+                  ),
                   mapWindow.fromYear,
                   mapWindow.toYear,
                 ),
