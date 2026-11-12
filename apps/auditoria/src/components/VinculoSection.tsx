@@ -17,6 +17,8 @@ export type VinculoRow = {
   /** Recebido neste PRONAC que não conta (alimentação/refeição ou desmarcado). */
   ignoredAmount: number;
   enabled: boolean;
+  /** Selo dos sócios da empresa observada nos anos do PRONAC (só CNPJ). */
+  corporateMap?: ReactNode;
 };
 
 function pct(part: number, total: number) {
@@ -87,7 +89,7 @@ export function VinculoSection({
   /** Tipos de relação que a IN conta como vínculo (rótulos já traduzidos). */
   bondRelations?: string[];
   artisticGroupException?: boolean;
-  /** Selo do mapa societário/organizacional do ano do PRONAC. */
+  /** Selo dos sócios do proponente nos anos do PRONAC (fica ao lado do nome). */
   corporateMap?: ReactNode;
   rows: VinculoRow[];
 }) {
@@ -206,7 +208,7 @@ export function VinculoSection({
           )}
         </div>
 
-        {rows.length > 0 || corporateMap ? (
+        {rows.length > 0 ? (
           <div className="rounded-xl border border-[var(--gold-border)] bg-[var(--gold-soft)] px-4 py-3 text-[0.95rem] text-[var(--navy)]">
             <p>
               <strong className="font-semibold">Lembrete da {rulesetSourceCode}:</strong>{" "}
@@ -231,14 +233,10 @@ export function VinculoSection({
                 Grupo artístico familiar ou coletivo previsto na IN não conta.
               </p>
             ) : null}
-            {corporateMap ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--gold-border)] pt-3 text-sm">
-                <span className="text-[var(--gray-600)]">
-                  Confira quem fazia parte do proponente nesse período:
-                </span>
-                {corporateMap}
-              </div>
-            ) : null}
+            <p className="mt-2 text-sm text-[var(--gray-600)]">
+              Passe o mouse no selo &quot;Sócios em…&quot; ao lado de cada nome para ver quem era
+              sócio nos anos deste PRONAC.
+            </p>
           </div>
         ) : null}
 
@@ -255,7 +253,10 @@ export function VinculoSection({
             <tbody>
               <tr>
                 <td>
-                  <span className="font-semibold text-[var(--navy)]">{accountName}</span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-[var(--navy)]">{accountName}</span>
+                    {corporateMap}
+                  </span>
                   <div className="text-sm text-[var(--gray-500)]">Proponente — sempre conta</div>
                 </td>
                 <td>
@@ -270,7 +271,10 @@ export function VinculoSection({
                 return (
                   <tr key={r.cgccpf} className={changed ? "bg-[var(--gold-soft)]" : undefined}>
                     <td>
-                      <span className="font-semibold text-[var(--navy)]">{r.name}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-[var(--navy)]">{r.name}</span>
+                        {r.corporateMap}
+                      </span>
                       <div className="text-sm text-[var(--gray-500)]">
                         Observado · {formatCgccpf(r.cgccpf)}
                       </div>

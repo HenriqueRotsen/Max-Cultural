@@ -121,6 +121,10 @@ export default async function ObservadosPage({
                           ) : null}
                         </p>
                       </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                      <Link href={`/observados/${w.id}/mapa`} className="btn btn-ghost">
+                        {digits && digits.length === 11 ? "Empresas e recebimentos" : "Mapa societário"}
+                      </Link>
                       <form action={removeWatchedSupplier.bind(null, w.id)}>
                         <ConfirmSubmitButton
                           className="btn btn-ghost"
@@ -129,6 +133,7 @@ export default async function ObservadosPage({
                           Remover
                         </ConfirmSubmitButton>
                       </form>
+                      </div>
                     </div>
                   </article>
                 );

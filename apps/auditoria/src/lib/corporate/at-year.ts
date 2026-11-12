@@ -48,13 +48,13 @@ export function mapWindowForProject(params: {
       fromYear,
       toYear,
       label: fromYear === toYear ? String(fromYear) : `${fromYear}–${toYear}`,
-      basis: "período dos pagamentos",
+      basis: "Anos em que este PRONAC teve pagamentos.",
     };
   }
   return {
     fromYear: params.pronacYear,
     toYear: params.pronacYear,
     label: String(params.pronacYear),
-    basis: "ano do PRONAC (ainda sem pagamentos)",
+    basis: "Ano do PRONAC (ainda não há pagamentos).",
   };
 }

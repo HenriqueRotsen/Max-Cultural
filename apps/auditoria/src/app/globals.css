@@ -245,6 +245,15 @@ textarea {
   font-weight: 700;
 }
 
+.map-year-note {
+  display: block;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--gold-soft);
+  color: var(--navy);
+}
+
 .map-year-period {
   display: block;
 }

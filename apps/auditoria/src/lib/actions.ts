@@ -764,6 +764,84 @@ async function afterCorporateMapChange(accountId: string) {
   revalidatePath("/auditoria");
 }
 
+/**
+ * Dono do mapa societário: um proponente (accountId) ou um observado
+ * (watchedId). As ações do mapa valem para os dois.
+ */
+type MapOwner = {
+  kind: "account" | "watched";
+  id: string;
+  name: string;
+  cgccpf: string;
+  foundedAt: Date | null;
+  institutional: boolean;
+  where: { salicAccountId: string } | { watchedSupplierId: string };
+};
+
+async function resolveMapOwner(formData: FormData, workspaceId: string): Promise<MapOwner> {
+  const accountId = String(formData.get("accountId") || "").trim();
+  const watchedId = String(formData.get("watchedId") || "").trim();
+  if (accountId) {
+    const a = await assertAccountInWorkspace(accountId, workspaceId);
+    return {
+      kind: "account",
+      id: a.id,
+      name: a.name,
+      cgccpf: a.cgccpf,
+      foundedAt: a.foundedAt,
+      institutional: a.institutionalMap,
+      where: { salicAccountId: a.id },
+    };
+  }
+  if (watchedId) {
+    const w = await prisma.watchedSupplier.findFirst({
+      where: { id: watchedId, workspaceId },
+      include: { supplier: { select: { name: true } } },
+    });
+    if (!w) throw new Error("Observado não encontrado neste workspace");
+    return {
+      kind: "watched",
+      id: w.id,
+      name: w.label || w.supplier?.name || w.nameQuery || "",
+      cgccpf: normalizeCgccpf(w.cgccpf || ""),
+      foundedAt: w.foundedAt,
+      institutional: false,
+      where: { watchedSupplierId: w.id },
+    };
+  }
+  throw new Error("Empresa do mapa não informada");
+}
+
+async function afterOwnerMapChange(owner: MapOwner) {
+  if (owner.kind === "account") return afterCorporateMapChange(owner.id);
+  revalidatePath(`/observados/${owner.id}/mapa`);
+  revalidatePath("/observados");
+}
+
+/** Pessoas com CPF que o sistema já conhece, para completar o CPF mascarado. */
+async function knownPeopleByName(workspaceId: string, names: string[]) {
+  if (names.length === 0) return [];
+  const [watched, suppliers, members] = await Promise.all([
+    prisma.watchedSupplier.findMany({
+      where: { workspaceId },
+      select: { label: true, nameQuery: true, cgccpf: true },
+    }),
+    prisma.supplier.findMany({
+      where: { OR: names.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })) },
+      select: { name: true, cgccpf: true },
+    }),
+    prisma.corporatePeriodMember.findMany({
+      where: { OR: names.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })) },
+      select: { name: true, cgccpf: true },
+    }),
+  ]);
+  return [
+    ...watched.map((w) => ({ name: w.label || w.nameQuery || "", cgccpf: w.cgccpf || "" })),
+    ...suppliers,
+    ...members,
+  ];
+}
+
 async function refreshAccountBriefs(accountId: string) {
   const projects = await prisma.project.findMany({
     where: { salicAccountId: accountId },
@@ -818,32 +896,32 @@ export async function setAccountInstitutionalMap(formData: FormData) {
 
 async function assertPeriodInWorkspace(periodId: string, workspaceId: string) {
   const period = await prisma.corporatePeriod.findFirst({
-    where: { id: periodId, salicAccount: { workspaceId } },
-    include: { salicAccount: true },
+    where: {
+      id: periodId,
+      OR: [{ salicAccount: { workspaceId } }, { watchedSupplier: { workspaceId } }],
+    },
   });
   if (!period) throw new Error("Intervalo não encontrado neste workspace");
   return period;
 }
 
-/** Importa QSA como um intervalo vigente (da abertura até hoje). */
+/**
+ * Importa os sócios da Receita. Os intervalos seguem as datas de entrada
+ * (quem saiu antes não aparece) e o CPF mascarado é completado quando bate
+ * com alguém que o sistema já conhece (mesmo nome e mesmos dígitos).
+ */
 export async function importAccountCorporateMap(formData: FormData) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { entitlements } = await getWorkspaceContext();
-  const accountId = String(formData.get("accountId") || "").trim();
   const replace = String(formData.get("replace") || "") === "1";
 
-  if (!accountId) return { ok: false as const, error: "Proponente obrigatório" };
-
   try {
-    const account = await assertAccountInWorkspace(
-      accountId,
-      entitlements.workspaceId,
-    );
-    const digits = account.cgccpf.replace(/\D/g, "");
+    const owner = await resolveMapOwner(formData, entitlements.workspaceId);
+    const digits = owner.cgccpf.replace(/\D/g, "");
     if (digits.length !== 14) {
       return {
         ok: false as const,
-        error: corporateMapCopy(account.institutionalMap).autoImportError,
+        error: corporateMapCopy(owner.institutional).autoImportError,
       };
     }
 
@@ -854,20 +932,25 @@ export async function importAccountCorporateMap(formData: FormData) {
     }
 
     if (company.foundedAt) {
-      await prisma.salicAccount.update({
-        where: { id: accountId },
-        data: {
-          foundedAt: company.foundedAt,
-          foundedAtPrecision: "DAY",
-          foundedAtSource: "brasilapi",
-          name: account.name || company.name,
-        },
-      });
+      if (owner.kind === "account") {
+        await prisma.salicAccount.update({
+          where: { id: owner.id },
+          data: {
+            foundedAt: company.foundedAt,
+            foundedAtPrecision: "DAY",
+            foundedAtSource: "brasilapi",
+            name: owner.name || company.name,
+          },
+        });
+      } else {
+        await prisma.watchedSupplier.update({
+          where: { id: owner.id },
+          data: { foundedAt: company.foundedAt },
+        });
+      }
     }
 
-    const existingCount = await prisma.corporatePeriod.count({
-      where: { salicAccountId: accountId },
-    });
+    const existingCount = await prisma.corporatePeriod.count({ where: owner.where });
     if (existingCount > 0 && !replace) {
       return {
         ok: true as const,
@@ -880,25 +963,36 @@ export async function importAccountCorporateMap(formData: FormData) {
     }
 
     if (replace) {
-      await prisma.corporatePeriod.deleteMany({ where: { salicAccountId: accountId } });
+      await prisma.corporatePeriod.deleteMany({ where: owner.where });
     }
 
-    const validFrom = company.foundedAt || account.foundedAt || new Date();
-    if (company.qsa.length) {
+    const { completeMaskedCpf, periodsFromQsa } = await import("@/lib/corporate/qsa-import");
+    const known = await knownPeopleByName(
+      entitlements.workspaceId,
+      company.qsa.filter((m) => m.maskedCpfMiddle).map((m) => m.name),
+    );
+    const qsa = company.qsa.map((m) => ({
+      ...m,
+      cgccpf: m.cgccpf || completeMaskedCpf(m, known),
+    }));
+    const foundedAt = company.foundedAt || owner.foundedAt || new Date();
+    for (const period of periodsFromQsa(qsa, foundedAt)) {
       await prisma.corporatePeriod.create({
         data: {
-          salicAccountId: accountId,
-          validFrom,
+          ...owner.where,
+          validFrom: period.validFrom,
           validFromPrecision: "DAY",
-          validTo: null,
+          validTo: period.validTo,
+          validToPrecision: "DAY",
           source: "brasilapi",
-          label: "Composição atual (Receita Federal)",
+          label: period.label,
           members: {
-            create: company.qsa.map((m) => ({
+            create: period.members.map((m) => ({
               name: m.name,
               cgccpf: m.cgccpf,
               personType: m.personType,
-              role: account.institutionalMap ? "ADMINISTRATOR" : m.role,
+              role: owner.institutional ? "ADMINISTRATOR" : m.role,
+              joinedAt: m.joinedAt ?? null,
               source: "brasilapi",
             })),
           },
@@ -906,7 +1000,7 @@ export async function importAccountCorporateMap(formData: FormData) {
       });
     }
 
-    await afterCorporateMapChange(accountId);
+    await afterOwnerMapChange(owner);
     return {
       ok: true as const,
       imported: company.qsa.length,
@@ -927,18 +1021,12 @@ export async function importAccountCorporateMap(formData: FormData) {
 export async function upsertCorporatePeriod(formData: FormData) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { entitlements } = await getWorkspaceContext();
-  const accountId = String(formData.get("accountId") || "").trim();
   const periodId = String(formData.get("periodId") || "").trim() || null;
   const label = String(formData.get("label") || "").trim() || null;
   const openEnded = String(formData.get("openEnded") || "") === "1";
 
-  if (!accountId) return { ok: false as const, error: "Proponente obrigatório" };
-
   try {
-    const account = await assertAccountInWorkspace(
-      accountId,
-      entitlements.workspaceId,
-    );
+    const owner = await resolveMapOwner(formData, entitlements.workspaceId);
     const { parsePrecisionForm, assertNotBeforeFounded } = await import(
       "@/lib/corporate/dates"
     );
@@ -951,7 +1039,7 @@ export async function upsertCorporatePeriod(formData: FormData) {
     if (!fromParsed) {
       return { ok: false as const, error: "Início do intervalo inválido" };
     }
-    const fromErr = assertNotBeforeFounded(fromParsed.date, account.foundedAt);
+    const fromErr = assertNotBeforeFounded(fromParsed.date, owner.foundedAt);
     if (fromErr) return { ok: false as const, error: fromErr };
 
     let validTo: Date | null = null;
@@ -990,11 +1078,11 @@ export async function upsertCorporatePeriod(formData: FormData) {
       await prisma.corporatePeriod.update({ where: { id: periodId }, data });
     } else {
       await prisma.corporatePeriod.create({
-        data: { salicAccountId: accountId, ...data },
+        data: { ...owner.where, ...data },
       });
     }
 
-    await afterCorporateMapChange(accountId);
+    await afterOwnerMapChange(owner);
     return { ok: true as const };
   } catch (e) {
     return {
@@ -1007,21 +1095,20 @@ export async function upsertCorporatePeriod(formData: FormData) {
 export async function deleteCorporatePeriod(formData: FormData) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { entitlements } = await getWorkspaceContext();
-  const accountId = String(formData.get("accountId") || "").trim();
   const periodId = String(formData.get("periodId") || "").trim();
-  if (!accountId || !periodId) {
+  if (!periodId) {
     return { ok: false as const, error: "Dados incompletos" };
   }
+  const owner = await resolveMapOwner(formData, entitlements.workspaceId);
   await assertPeriodInWorkspace(periodId, entitlements.workspaceId);
   await prisma.corporatePeriod.delete({ where: { id: periodId } });
-  await afterCorporateMapChange(accountId);
+  await afterOwnerMapChange(owner);
   return { ok: true as const };
 }
 
 export async function upsertCorporatePeriodMember(formData: FormData) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { entitlements } = await getWorkspaceContext();
-  const accountId = String(formData.get("accountId") || "").trim();
   const periodId = String(formData.get("periodId") || "").trim();
   const memberId = String(formData.get("memberId") || "").trim() || null;
   const name = String(formData.get("name") || "").trim();
@@ -1030,15 +1117,12 @@ export async function upsertCorporatePeriodMember(formData: FormData) {
     cgccpf.length === 14 ? "PJ" : "PF";
   const roleRaw = String(formData.get("role") || "PARTNER");
 
-  if (!accountId || !periodId || !name) {
+  if (!periodId || !name) {
     return { ok: false as const, error: "Intervalo e nome são obrigatórios" };
   }
 
   try {
-    const account = await assertAccountInWorkspace(
-      accountId,
-      entitlements.workspaceId,
-    );
+    const owner = await resolveMapOwner(formData, entitlements.workspaceId);
     await assertPeriodInWorkspace(periodId, entitlements.workspaceId);
     if (cgccpf && cgccpf.length !== 11 && cgccpf.length !== 14) {
       return {
@@ -1047,7 +1131,7 @@ export async function upsertCorporatePeriodMember(formData: FormData) {
       };
     }
 
-    const role = account.institutionalMap
+    const role = owner.institutional
       ? "ADMINISTRATOR"
       : roleRaw === "ADMINISTRATOR" || roleRaw === "BOTH"
         ? roleRaw
@@ -1063,7 +1147,7 @@ export async function upsertCorporatePeriodMember(formData: FormData) {
 
     if (memberId) {
       await prisma.corporatePeriodMember.update({
-        where: { id: memberId },
+        where: { id: memberId, periodId },
         data,
       });
     } else {
@@ -1072,7 +1156,7 @@ export async function upsertCorporatePeriodMember(formData: FormData) {
       });
     }
 
-    await afterCorporateMapChange(accountId);
+    await afterOwnerMapChange(owner);
     return { ok: true as const };
   } catch (e) {
     return {
@@ -1088,16 +1172,13 @@ export async function upsertCorporatePeriodMember(formData: FormData) {
 export async function deleteCorporatePeriodMember(formData: FormData) {
   const { getWorkspaceContext } = await import("@/lib/auth/session");
   const { entitlements } = await getWorkspaceContext();
-  const accountId = String(formData.get("accountId") || "").trim();
   const memberId = String(formData.get("memberId") || "").trim();
-  if (!accountId || !memberId) {
+  if (!memberId) {
     return { ok: false as const, error: "Dados incompletos" };
   }
+  const owner = await resolveMapOwner(formData, entitlements.workspaceId);
   const member = await prisma.corporatePeriodMember.findFirst({
-    where: {
-      id: memberId,
-      period: { salicAccount: { workspaceId: entitlements.workspaceId } },
-    },
+    where: { id: memberId, period: owner.where },
   });
   if (!member) {
     return {
@@ -1106,7 +1187,7 @@ export async function deleteCorporatePeriodMember(formData: FormData) {
     };
   }
   await prisma.corporatePeriodMember.delete({ where: { id: memberId } });
-  await afterCorporateMapChange(accountId);
+  await afterOwnerMapChange(owner);
   return { ok: true as const };
 }
 

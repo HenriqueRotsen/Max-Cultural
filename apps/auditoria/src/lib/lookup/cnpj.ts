@@ -8,6 +8,10 @@ export type CnpjQsaMember = {
   personType: "PF" | "PJ";
   qualification: string;
   role: "PARTNER" | "ADMINISTRATOR" | "BOTH";
+  /** Dígitos visíveis do CPF mascarado (posições 4 a 9), ex.: "540203". */
+  maskedCpfMiddle?: string;
+  /** Data de entrada na sociedade, quando a Receita informa. */
+  joinedAt?: Date | null;
 };
 
 export type CnpjCompanyResult = {
@@ -109,6 +113,7 @@ async function fetchCnpjBrasilApi(cnpj: string): Promise<CnpjCompanyResult | nul
       nome_socio?: string;
       cnpj_cpf_do_socio?: string;
       qualificacao_socio?: string;
+      data_entrada_sociedade?: string | null;
     }>;
   };
 
@@ -128,7 +133,7 @@ async function fetchCnpjBrasilApi(cnpj: string): Promise<CnpjCompanyResult | nul
     data.opcao_pelo_mei === "S";
 
   const qsa: CnpjQsaMember[] = (data.qsa || [])
-    .map((row) => {
+    .map((row): CnpjQsaMember | null => {
       const memberName = (row.nome_socio || "").trim();
       if (!memberName) return null;
       const qual = (row.qualificacao_socio || "").trim();
@@ -140,6 +145,8 @@ async function fetchCnpjBrasilApi(cnpj: string): Promise<CnpjCompanyResult | nul
         personType,
         qualification: qual,
         role: mapQualification(qual || "socio"),
+        maskedCpfMiddle: rawDoc.length === 6 ? rawDoc : undefined,
+        joinedAt: parseBrDate(row.data_entrada_sociedade),
       };
     })
     .filter((x): x is CnpjQsaMember => Boolean(x));

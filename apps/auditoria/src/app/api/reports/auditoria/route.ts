@@ -114,7 +114,7 @@ export async function GET(request: Request) {
         mapWindow.fromYear,
         mapWindow.toYear,
       ).reverse();
-      const mapIntro = `<p style="color:#6b7280;font-size:12px;margin:0 0 8px">Composição em ${escape(mapWindow.label)} (${escape(mapWindow.basis)}).</p>`;
+      const mapIntro = `<p style="color:#6b7280;font-size:12px;margin:0 0 8px">${copy.membersCap} em ${escape(mapWindow.label)}. ${escape(mapWindow.basis)} As datas são de entrada e saída de cada um, não de pagamento.</p>`;
 
       let corporateMapHtml = fullAccount?.corporatePeriods.length
         ? `${mapIntro}<p style="color:#6b7280;font-size:12px">Nenhum período do mapa cobre ${escape(mapWindow.label)}.</p>`
