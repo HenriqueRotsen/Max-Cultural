@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { uploadAdvancePayment } from "@/lib/planning/manual-commitment";
+import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
 import type { ActionState } from "@/lib/planning/action-state";
 import { formatCgccpfInput } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
@@ -150,6 +151,7 @@ export function AdvancePaymentForm({
             {state.error}
           </p>
         ) : null}
+        {state.pronacOverride ? <PronacOverrideField allowed /> : null}
 
         <input type="hidden" name="allocationsJson" value={allocationsJson} />
 

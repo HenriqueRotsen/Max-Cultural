@@ -41,3 +41,11 @@ export async function canReadequacao(): Promise<boolean> {
 export async function canDeleteNf(): Promise<boolean> {
   return canHubScreen("financeiro.planejamento.excluir_nf");
 }
+
+export async function canDeletePaidPayment(): Promise<boolean> {
+  return canHubScreen("financeiro.planejamento.excluir_pagamento");
+}
+
+export async function canOverridePronac(): Promise<boolean> {
+  return canHubScreen("financeiro.planejamento.liberar_pronac");
+}

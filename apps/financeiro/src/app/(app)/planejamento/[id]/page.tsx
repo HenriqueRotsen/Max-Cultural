@@ -17,6 +17,7 @@ import {
 import { EditRubricsPanel } from "@/components/planning/EditRubricsPanel";
 import { CloseProjectButton } from "@/components/planning/CloseProjectButton";
 import { closingBlockers } from "@/lib/planning/closing";
+import { countSalicPendencias } from "@/lib/planning/salic-pendencias";
 import { StateBudgetEditor } from "@/components/planning/StateBudgetEditor";
 import { ProjectCapsPanel } from "@/components/planning/ProjectCapsPanel";
 import { projectCapsOf } from "@/lib/planning/project-caps";
@@ -220,6 +221,7 @@ export default async function PlanningProjectPage({
         totalApproved={project.sheet ? money(project.sheet.totalApproved) : 0}
         rubricOverrunPct={money(project.rubricOverrunPct)}
         showSheetVersions={sheetVersionCount > 0}
+        pendenciasCount={await countSalicPendencias(project.id, entitlements.workspaceId)}
       />
 
       <ProjectCapsPanel

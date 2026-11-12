@@ -471,6 +471,8 @@ export async function syncPlanningSheetFromSalic(params: {
       externalCode: project.externalCode,
     });
     await syncSalicComprovadoFromSalicItems(params.planningProjectId, items);
+    const { recordSalicPayments } = await import("@/lib/planning/federal/salic-payment-records");
+    await recordSalicPayments(params.planningProjectId, items);
   } catch {
     // comprovado opcional: a planilha já foi atualizada
   }

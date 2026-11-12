@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { normalizeCgccpf, parseBrMoney } from "@/lib/format";
 import { canDeleteNf, canExceedRubric } from "@/lib/planning/acl";
+import { enforcePronacMatch } from "@/lib/planning/pronac-override";
 import { logPlanningAction } from "@/lib/activity-audit";
 import {
   canReserveAmount,
@@ -27,8 +28,10 @@ import {
   persistPlanningUpload,
   DuplicateDocumentError,
   duplicateFileMessage,
+  findFiscalDocumentDuplicate,
 } from "@/lib/nf/persist-upload";
-import { extractProofFromBuffer } from "@/lib/nf/extract";
+import { extractNfFromBuffer, extractProofFromBuffer } from "@/lib/nf/extract";
+import { normalizeFiscalNumber } from "@/lib/nf/fiscal-number";
 import {
   checkPaymentAmount,
   checkProjectCodeInDocument,
@@ -539,9 +542,15 @@ export async function uploadAdvancePayment(
     expectedCode: project.externalCode,
     extractedPronac: proofExtracted.pronac,
   });
+  // Trava do PRONAC: comprovante de outro projeto só entra com liberação.
+  const pronacGate = await enforcePronacMatch({ mismatch: projectCheck.warning, formData });
+  if (!pronacGate.ok) {
+    return { error: pronacGate.error, pronacOverride: pronacGate.pronacOverride };
+  }
   const proofNotes = [
     notes,
     projectCheck.warning,
+    pronacGate.overrideReason ? `Liberado: ${pronacGate.overrideReason}` : null,
     amountCheck.warning,
   ]
     .filter(Boolean)
@@ -714,6 +723,20 @@ export async function uploadAdvancePayment(
     throw err;
   }
 
+  if (pronacGate.overrideReason) {
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.pronac_override",
+      entityType: "RubricCommitment",
+      entityId: commitmentId,
+      meta: {
+        planningProjectId: project.id,
+        documentKind: "PAYMENT_PROOF",
+        reason: pronacGate.overrideReason,
+        warning: projectCheck.warning ?? null,
+      },
+    });
+  }
   revalidatePlanning(project.id);
   redirect(`/planejamento/compromissos/${commitmentId}`);
 }
@@ -1029,4 +1052,318 @@ export async function cancelReservationWithoutNf(
   revalidatePath(`/planejamento/compromissos/${commitment.id}`);
   revalidatePath("/planejamento/contas-a-pagar");
   return { ok: true, message: "Reserva cancelada." };
+}
+
+/**
+ * Pendência "pago no SALIC, sem lançamento no sistema": anexa a NF/RPA e o
+ * comprovante a um pagamento que já está no SALIC. Cria o lançamento já pago e
+ * ligado ao comprovante do SALIC (não envia de novo nem conta duas vezes).
+ * Confere: CPF/CNPJ da NF = fornecedor do SALIC, valor do comprovante = valor
+ * do SALIC, NF não menor que o pago, duplicidade de arquivo e de número.
+ */
+export async function registerSalicPayment(
+  recordId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const { entitlements } = await getWorkspaceContext();
+
+  const record = await prisma.salicPaymentRecord.findFirst({
+    where: {
+      id: recordId,
+      workspaceId: entitlements.workspaceId,
+      removedAt: null,
+      linkedProofId: null,
+    },
+    include: {
+      planningProject: {
+        select: {
+          id: true,
+          externalCode: true,
+          closedAt: true,
+          sheet: { select: { lines: { select: { id: true, itemName: true, categoryHint: true } } } },
+        },
+      },
+    },
+  });
+  if (!record) return { error: "Pendência não encontrada ou já resolvida." };
+  const project = record.planningProject;
+  if (project.closedAt) return { error: "Projeto encerrado." };
+
+  const budgetLineId =
+    record.budgetLineId || String(formData.get("budgetLineId") || "").trim();
+  const line = project.sheet?.lines.find((l) => l.id === budgetLineId);
+  if (!line) return { error: "Escolha a rubrica deste pagamento." };
+
+  const kind = String(formData.get("documentKind") || "NF") === "RPA" ? "RPA" : "NF";
+  const nfFile = formData.get("nfFile");
+  const proofFile = formData.get("proofFile");
+  if (!(nfFile instanceof File) || nfFile.size === 0) {
+    return { error: `Selecione o arquivo da ${kind}.` };
+  }
+  if (!(proofFile instanceof File) || proofFile.size === 0) {
+    return { error: "Selecione o comprovante de pagamento." };
+  }
+  const fiscalNumber = normalizeFiscalNumber(String(formData.get("fiscalNumber") || ""), kind);
+  if (!fiscalNumber) return { error: `Informe o número da ${kind}.` };
+
+  const amount = Number(record.amount);
+  const supplierDoc = record.supplierDoc;
+
+  // NF/RPA: fornecedor do SALIC e valor não menor que o pago.
+  const nfBuffer = Buffer.from(new Uint8Array(await nfFile.arrayBuffer()));
+  const nf = await extractNfFromBuffer({
+    buffer: nfBuffer,
+    filename: nfFile.name,
+    mimeType: nfFile.type || "application/octet-stream",
+  });
+  const nfDoc = normalizeCgccpf(nf.cnpj || "");
+  if (nfDoc && nfDoc !== supplierDoc) {
+    return {
+      error: `O CPF/CNPJ da ${kind} (${nfDoc}) não é o do fornecedor que recebeu no SALIC (${record.supplierName} · ${supplierDoc}).`,
+    };
+  }
+  const nfGross = nf.grossAmount ?? nf.totalPrice ?? null;
+  if (nfGross != null && nfGross > 0 && nfGross + 0.02 < amount) {
+    return {
+      error: `A ${kind} (R$ ${nfGross.toFixed(2)}) é menor que o valor pago no SALIC (R$ ${amount.toFixed(2)}).`,
+    };
+  }
+  const dupNf = await findFiscalDocumentDuplicate({
+    workspaceId: entitlements.workspaceId,
+    cnpj: supplierDoc,
+    nfNumber: fiscalNumber,
+    grossAmount: nfGross ?? amount,
+  });
+  if (dupNf) return { error: `Esta nota já foi lançada (${dupNf.filename}).` };
+
+  // Comprovante: precisa bater com o valor pago no SALIC.
+  const proofBuffer = Buffer.from(new Uint8Array(await proofFile.arrayBuffer()));
+  const proofExtracted = await extractProofFromBuffer({
+    buffer: proofBuffer,
+    filename: proofFile.name,
+    mimeType: proofFile.type || "application/octet-stream",
+  });
+  const amountCheck = checkPaymentAmount({
+    extractedAmount: proofExtracted.amount,
+    expectedAmount: amount,
+    expectedLabel: "pago no SALIC",
+  });
+  if (amountCheck.error) return { error: amountCheck.error };
+
+  const paymentDay = /^\d{4}-\d{2}-\d{2}/.test(record.paymentDate ?? "")
+    ? record.paymentDate!.slice(0, 10)
+    : /^\d{2}\/\d{2}\/\d{4}/.test(record.paymentDate ?? "")
+      ? record.paymentDate!.slice(6, 10) + "-" + record.paymentDate!.slice(3, 5) + "-" + record.paymentDate!.slice(0, 2)
+      : null;
+  const paidAt = paymentDay ? new Date(`${paymentDay}T12:00:00Z`) : new Date();
+  const hiredAt = nf.hiredAt ? new Date(`${String(nf.hiredAt).slice(0, 10)}T12:00:00Z`) : paidAt;
+
+  const nfName = buildPlanningDocumentFilename({
+    kind,
+    projectCode: project.externalCode,
+    supplierName: record.supplierName,
+    supplierDoc,
+    hiredAt: hiredAt.toISOString().slice(0, 10),
+    amount: nfGross ?? amount,
+    originalFilename: nfFile.name,
+    mimeType: nfFile.type || "application/octet-stream",
+  });
+  const proofName = buildPlanningDocumentFilename({
+    kind: "PAYMENT_PROOF",
+    projectCode: project.externalCode,
+    supplierName: record.supplierName,
+    supplierDoc,
+    hiredAt: paidAt.toISOString().slice(0, 10),
+    amount,
+    originalFilename: proofFile.name,
+    mimeType: proofFile.type || "application/octet-stream",
+  });
+
+  let nfStored;
+  let proofStored;
+  try {
+    nfStored = await persistPlanningUpload({
+      buffer: nfBuffer,
+      filename: nfName,
+      mimeType: nfFile.type || "application/octet-stream",
+      workspaceId: entitlements.workspaceId,
+      rejectDuplicate: { kinds: ["NF", "RPA"] },
+    });
+    proofStored = await persistPlanningUpload({
+      buffer: proofBuffer,
+      filename: proofName,
+      mimeType: proofFile.type || "application/octet-stream",
+      workspaceId: entitlements.workspaceId,
+      rejectDuplicate: { kinds: ["PAYMENT_PROOF"] },
+    });
+  } catch (e) {
+    if (e instanceof DuplicateDocumentError) {
+      return { error: await duplicateFileMessage(e.duplicate) };
+    }
+    throw e;
+  }
+
+  const commitmentId = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.salicPaymentRecord.updateMany({
+      where: { id: record.id, linkedProofId: null, removedAt: null },
+      data: { linkedProofId: "pending" },
+    });
+    if (claimed.count !== 1) throw new Error("Pendência já resolvida.");
+
+    const supplier = await upsertCatalogSupplier(tx, {
+      workspaceId: entitlements.workspaceId,
+      supplier: { supplierName: record.supplierName, cnpj: supplierDoc },
+    });
+    const service = await findOrCreateCatalogServiceForRubric(tx, {
+      supplierId: supplier.id,
+      rubricName: line.itemName,
+      categoryHint: line.categoryHint,
+    });
+    const engagement = await tx.catalogEngagement.create({
+      data: {
+        workspaceId: entitlements.workspaceId,
+        serviceId: service.id,
+        price: amount,
+        unitPrice: amount,
+        quantity: 1,
+        priceUnit: "closed",
+        hiredAt,
+        source: kind === "RPA" ? "PLANNING_RPA" : "PLANNING_NF",
+        planningProjectId: project.id,
+        budgetLineId: line.id,
+        notes: "Pagamento que já estava no SALIC (regularizado)",
+      },
+    });
+    const commitment = await tx.rubricCommitment.create({
+      data: {
+        budgetLineId: line.id,
+        planningProjectId: project.id,
+        workspaceId: entitlements.workspaceId,
+        engagementId: engagement.id,
+        amount,
+        allocationSharePct: 100,
+        status: "PAID",
+        expectedPayAt: paidAt,
+        paidAt,
+        createdById: session.id,
+      },
+    });
+    const nfRow = await tx.planningDocument.create({
+      data: {
+        kind,
+        status: "IMPORTED",
+        filename: nfName,
+        mimeType: nfFile.type || "application/octet-stream",
+        storagePath: nfStored.storagePath,
+        byteSize: nfStored.byteSize,
+        originalByteSize: nfStored.originalByteSize,
+        contentHash: nfStored.contentHash,
+        workspaceId: entitlements.workspaceId,
+        planningProjectId: project.id,
+        engagementId: engagement.id,
+        commitmentId: commitment.id,
+        personType: supplierDoc.length === 14 ? "PJ" : "PF",
+        grossAmount: nfGross ?? amount,
+        extractedJson: {
+          ...(nf as object),
+          fiscalNumber,
+          nfNumber: fiscalNumber,
+          invoiceNumber: fiscalNumber,
+          fiscalNumberSource: "manual",
+          cnpj: supplierDoc,
+        },
+      },
+    });
+    await tx.documentRubricAllocation.create({
+      data: {
+        documentId: nfRow.id,
+        budgetLineId: line.id,
+        commitmentId: commitment.id,
+        sharePct: 100,
+        amount,
+      },
+    });
+    const proofRow = await tx.planningDocument.create({
+      data: {
+        kind: "PAYMENT_PROOF",
+        status: "IMPORTED",
+        filename: proofName,
+        mimeType: proofFile.type || "application/octet-stream",
+        storagePath: proofStored.storagePath,
+        byteSize: proofStored.byteSize,
+        originalByteSize: proofStored.originalByteSize,
+        contentHash: proofStored.contentHash,
+        extractedJson: proofExtracted as object,
+        workspaceId: entitlements.workspaceId,
+        planningProjectId: project.id,
+        engagementId: engagement.id,
+        commitmentId: commitment.id,
+        sourceDocumentId: nfRow.id,
+        // Já está no SALIC: ligado ao comprovante de lá, sem reenviar.
+        salicComprovanteId: record.externalId,
+        salicPublishedAt: new Date(),
+      },
+    });
+    await tx.documentRubricAllocation.create({
+      data: {
+        documentId: proofRow.id,
+        budgetLineId: line.id,
+        commitmentId: commitment.id,
+        sharePct: 100,
+        amount,
+      },
+    });
+    await tx.salicPaymentRecord.update({
+      where: { id: record.id },
+      data: { linkedProofId: proofRow.id, budgetLineId: line.id },
+    });
+    return commitment.id;
+  });
+
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.salic_payment_registered",
+    entityType: "RubricCommitment",
+    entityId: commitmentId,
+    meta: {
+      planningProjectId: project.id,
+      salicComprovanteId: record.externalId,
+      amount,
+      supplier: record.supplierName,
+    },
+  });
+  revalidatePlanning(project.id);
+  revalidatePath(`/planejamento/${project.id}/pendencias`);
+  redirect(`/planejamento/compromissos/${commitmentId}`);
+}
+
+/**
+ * Pendência "excluído no SALIC": a pessoa decide manter o lançamento no
+ * sistema (ex.: vai lançar de novo no SALIC). Fica registrado com o motivo.
+ */
+export async function resolveSalicPendencia(recordId: string, reason: string): Promise<ActionState> {
+  const session = await requireUser();
+  const motivo = reason.trim();
+  if (motivo.length < 5) return { error: "Explique o motivo (fica registrado)." };
+  const { entitlements } = await getWorkspaceContext();
+  const record = await prisma.salicPaymentRecord.findFirst({
+    where: { id: recordId, workspaceId: entitlements.workspaceId, resolvedAt: null },
+  });
+  if (!record) return { error: "Pendência não encontrada ou já resolvida." };
+  await prisma.salicPaymentRecord.update({
+    where: { id: record.id },
+    data: { resolvedAt: new Date() },
+  });
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.salic_pendencia_resolved",
+    entityType: "SalicPaymentRecord",
+    entityId: record.id,
+    meta: { planningProjectId: record.planningProjectId, reason: motivo, externalId: record.externalId },
+  });
+  revalidatePath(`/planejamento/${record.planningProjectId}/pendencias`);
+  revalidatePlanning(record.planningProjectId);
+  return { ok: true, message: "Pendência marcada como resolvida." };
 }
