@@ -75,12 +75,24 @@ export function readBoletoLine(text: string): BoletoInfo | null {
   return { amount: cents > 0 ? cents / 100 : null, dueDate, line: digits };
 }
 
-/** CNPJs que aparecem no texto (só dígitos). */
+/** CNPJ com dígitos verificadores certos (evita pegar pedaço de linha digitável). */
+export function isValidCnpj(d: string): boolean {
+  if (!/^\d{14}$/.test(d) || /^(\d)\1+$/.test(d)) return false;
+  const calc = (len: number) => {
+    const weights = len === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = weights.reduce((acc, w, i) => acc + Number(d[i]) * w, 0);
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return calc(12) === Number(d[12]) && calc(13) === Number(d[13]);
+}
+
+/** CNPJs válidos que aparecem no texto (só dígitos). */
 export function cnpjsInText(text: string): string[] {
   const out = new Set<string>();
-  for (const m of text.matchAll(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g)) {
+  for (const m of text.matchAll(/(?<!\d)\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}(?!\d)/g)) {
     const d = m[0].replace(/\D/g, "");
-    if (d.length === 14) out.add(d);
+    if (isValidCnpj(d)) out.add(d);
   }
   return [...out];
 }

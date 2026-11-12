@@ -1542,7 +1542,7 @@ export async function uploadPaymentProof(
   const commitment = await prisma.rubricCommitment.findFirst({
     where: { id: commitmentId, workspaceId: entitlements.workspaceId },
     include: {
-      planningProject: { select: { externalCode: true } },
+      planningProject: { select: { externalCode: true, closedAt: true } },
       engagement: {
         select: {
           service: {
@@ -1607,6 +1607,12 @@ export async function uploadPaymentProof(
 
   if (kind === "PAYMENT_PROOF" && commitment.status === "PAID") {
     return { error: "Pagamento já registrado para este compromisso." };
+  }
+  if (commitment.status === "CANCELLED") {
+    return { error: "Esta reserva foi cancelada. Não dá para registrar pagamento nela." };
+  }
+  if (commitment.planningProject.closedAt) {
+    return { error: "O projeto está encerrado: não entram pagamentos novos." };
   }
 
   // NF/RPA de origem: via rateio desta reserva ou commitmentId legado da NF.
@@ -1766,6 +1772,16 @@ export async function uploadPaymentProof(
         typed: String(formData.get("paidAt") || ""),
       });
       if ("error" in paidDate) return { error: paidDate.error };
+      // Boleto pago depois do vencimento: o valor igual já barrou juros/multa;
+      // fica o aviso para conferir.
+      const boletoDue = supports
+        .map((d) => (d.extractedJson as { boletoDueDate?: string | null } | null)?.boletoDueDate)
+        .find(Boolean);
+      if (boletoDue && paidDate.date > new Date(`${boletoDue}T23:59:59Z`)) {
+        proofWarnings.push(
+          `Pago depois do vencimento do boleto (${boletoDue.split("-").reverse().join("/")}). Confira se não houve juros ou multa: eles não podem sair do projeto.`,
+        );
+      }
       // Só sai de "NF pendente" se algum documento foi anexado como substituto da NF.
       const nfStillPending = !supports.some(
         (d) => (d.extractedJson as { replacesNf?: boolean } | null)?.replacesNf === true,

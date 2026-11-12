@@ -306,12 +306,12 @@ export function ReservationsList({
         <div className="card px-5 py-12 text-center text-sm text-[var(--gray-500)]">
           Nenhuma reserva local ainda. Use{" "}
           <Link
-            href={`/planejamento/${planningProjectId}/nf/nova`}
+            href={`/planejamento/${planningProjectId}/reservas/nova`}
             className="text-[var(--gold)] hover:underline"
           >
-            Subir NF/RPA
+            Nova reserva
           </Link>{" "}
-          para criar reservas a partir de notas fiscais.
+          e escolha pelo documento que você tem (NF, RPA, comprovante, boleto ou contrato).
           {showSalicTools && !reconciling && salicItems.length === 0 ? (
             <>
               {" "}

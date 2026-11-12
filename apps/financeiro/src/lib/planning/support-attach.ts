@@ -97,6 +97,23 @@ export async function attachSupportDocumentCore(params: {
   const extracted = await extractProofFromBuffer({ buffer, filename: file.name, mimeType });
   const text = extracted.rawText || "";
   const boleto = type === "BOLETO" ? readBoletoLine(text) : null;
+  // Mesmo boleto (mesma linha digitável) não entra em dois lançamentos.
+  if (boleto?.line) {
+    const repeated = await prisma.planningDocument.findFirst({
+      where: {
+        workspaceId: entitlements.workspaceId,
+        kind: "SUPPORT",
+        supportType: "BOLETO",
+        extractedJson: { path: ["boletoLine"], equals: boleto.line },
+      },
+      select: { planningProject: { select: { externalCode: true } } },
+    });
+    if (repeated) {
+      return {
+        error: `Este boleto (mesma linha digitável) já está em outro lançamento${repeated.planningProject ? ` do projeto ${repeated.planningProject.externalCode}` : ""}. Um boleto se paga uma vez só.`,
+      };
+    }
+  }
 
   // Trava do PRONAC (igual à NF e ao comprovante).
   const projectCheck = checkProjectCodeInDocument({

@@ -6,6 +6,8 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCgccpf, formatCurrency, formatDate } from "@/lib/format";
 import { loadSalicPendencias } from "@/lib/planning/salic-pendencias";
+import { loadFinancialPendencias } from "@/lib/planning/financial-pendencias";
+import { List } from "@/components/planning/OtherPendencies";
 import { formatRubricShortLabel } from "@/lib/planning/rubric-label";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +25,18 @@ export default async function PendenciasPage({ params }: { params: Promise<{ id:
     },
   });
   if (!project) notFound();
-  const { semLancamento, excluidos } = await loadSalicPendencias(project.id, entitlements.workspaceId);
+  const [{ semLancamento, excluidos }, fin] = await Promise.all([
+    loadSalicPendencias(project.id, entitlements.workspaceId),
+    loadFinancialPendencias({ workspaceId: entitlements.workspaceId, planningProjectId: project.id }),
+  ]);
+  const vencidas = fin.aPagar.filter((i) => i.late);
+  const aVencer = fin.aPagar.filter((i) => !i.late);
+  const comprovacoes =
+    fin.pagosSemNf.length + fin.impostos.length + fin.enviarSalic.length +
+    semLancamento.length + excluidos.length;
+  const nothing =
+    fin.aPagar.length + fin.pagosSemNf.length + fin.impostos.length + fin.enviarSalic.length +
+      semLancamento.length + excluidos.length === 0;
   const lineLabel = (lineId: string | null, fallback: string | null) => {
     const line = project.sheet?.lines.find((l) => l.id === lineId);
     return line ? formatRubricShortLabel(line) : (fallback ?? "rubrica não identificada");
@@ -40,18 +53,43 @@ export default async function PendenciasPage({ params }: { params: Promise<{ id:
           </>
         }
         title="Pendências"
-        description="O que está diferente entre o SALIC e o sistema. A lista é atualizada na busca diária e no botão Conferir SALIC das Reservas."
+        description="O que falta pagar, regularizar ou enviar neste projeto, do mais urgente para o menos. É o Contas a pagar só deste projeto."
       />
 
-      {semLancamento.length === 0 && excluidos.length === 0 ? (
-        <div className="card p-5 text-sm text-emerald-700">Nenhuma pendência com o SALIC neste projeto.</div>
+      {nothing ? (
+        <div className="card p-5 text-sm text-emerald-700">Nenhuma pendência financeira neste projeto.</div>
       ) : null}
 
+      {vencidas.length + aVencer.length > 0 ? (
+        <h2 className="text-lg font-semibold text-[var(--navy)]">A pagar</h2>
+      ) : null}
+      <List
+        title="Vencidas"
+        hint="Reservas com a data prevista de pagamento já passada. Pague e envie o comprovante, ou ajuste a data."
+        items={vencidas}
+        limit={500}
+      />
+      <List
+        title="A vencer"
+        hint="Reservas ainda não pagas, pela data prevista."
+        items={aVencer}
+        limit={500}
+      />
+
+      {comprovacoes > 0 ? (
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--navy)]">Comprovações</h2>
+          <p className="text-sm text-[var(--gray-500)]">
+            O que falta para o que está no sistema bater com o SALIC: documentos de pagamentos feitos,
+            e diferenças entre o sistema e o SALIC nos dois sentidos.
+          </p>
+        </div>
+      ) : null}
       {semLancamento.length > 0 ? (
         <section className="card space-y-3 p-5">
           <div>
             <h2 className="font-semibold text-[var(--navy)]">
-              Pagos no SALIC sem lançamento no sistema{" "}
+              Pagos no SALIC sem lançamento aqui{" "}
               <span className="text-[var(--gray-400)]">· {semLancamento.length}</span>
             </h2>
             <p className="text-xs text-[var(--gray-500)]">
@@ -85,12 +123,13 @@ export default async function PendenciasPage({ params }: { params: Promise<{ id:
         <section className="card space-y-3 p-5">
           <div>
             <h2 className="font-semibold text-[var(--navy)]">
-              Excluídos no SALIC, ainda lançados no sistema{" "}
+              Excluídos no SALIC, ainda lançados aqui{" "}
               <span className="text-[var(--gray-400)]">· {excluidos.length}</span>
             </h2>
             <p className="text-xs text-[var(--gray-500)]">
-              O comprovante sumiu do SALIC. Se foi engano, envie de novo pelas Reservas. Se vai
-              continuar assim, marque como resolvida e diga o motivo.
+              O pagamento sumiu do SALIC, mas continua no sistema (e no saldo). Envie de novo, exclua
+              o pagamento aqui (no lançamento, &quot;Excluir pagamento&quot;) ou, se vai continuar assim, marque
+              como resolvida e diga o motivo.
             </p>
           </div>
           <ul className="divide-y divide-[var(--border)] text-sm">
@@ -120,6 +159,25 @@ export default async function PendenciasPage({ params }: { params: Promise<{ id:
           </ul>
         </section>
       ) : null}
+
+      <List
+        title="Pagos sem NF/RPA"
+        hint="Pagamentos feitos que esperam a nota (ou fatura, recibo ou apólice no lugar dela). A data é o lembrete combinado."
+        items={fin.pagosSemNf}
+        limit={500}
+      />
+      <List
+        title="Impostos retidos sem guia"
+        hint="NF/RPA com retenção e sem guia anexada. A data é o vencimento típico."
+        items={fin.impostos}
+        limit={500}
+      />
+      <List
+        title="Para enviar ao SALIC"
+        hint="Pagamentos com comprovante que ainda não foram ao SALIC, ou que precisam ser reenviados com um documento novo."
+        items={fin.enviarSalic}
+        limit={500}
+      />
     </div>
   );
 }

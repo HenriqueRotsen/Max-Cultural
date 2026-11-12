@@ -51,3 +51,11 @@ describe("ordem e tipo no SALIC", () => {
     expect(salicTipoForSupport([])).toBeNull();
   });
 });
+
+describe("cnpjsInText ignora números que não são CNPJ", () => {
+  it("pedaço da linha digitável não vira CNPJ", () => {
+    expect(
+      cnpjsInText("23790.12301 60000.000053 25000.456704 2 16660000080000 beneficiário 11.222.333/0001-81"),
+    ).toEqual(["11222333000181"]);
+  });
+});

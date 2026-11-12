@@ -367,26 +367,11 @@ export default async function PlanningReservasPage({
         description={project.name || project.externalCode}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/planejamento/${project.id}/pedidos`}
-              className="btn btn-ghost"
-            >
-              Pedidos / parcelamento
+            <Link href={`/planejamento/${project.id}/pendencias`} className="btn btn-ghost">
+              Pendências
             </Link>
-            <Link
-              href={`/planejamento/${project.id}/pedidos/novo`}
-              className="btn btn-ghost"
-            >
-              Novo pedido
-            </Link>
-            <Link
-              href={`/planejamento/${project.id}/pagamento-antecipado`}
-              className="btn btn-ghost"
-            >
-              Pagamento sem NF
-            </Link>
-            <Link href={`/planejamento/${project.id}/nf/nova`} className="btn">
-              Subir NF/RPA
+            <Link href={`/planejamento/${project.id}/reservas/nova`} className="btn">
+              Nova reserva
             </Link>
           </div>
         }
