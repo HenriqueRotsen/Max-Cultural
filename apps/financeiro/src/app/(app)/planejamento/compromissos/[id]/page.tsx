@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { CancelReservationButton } from "@/components/planning/CancelReservationButton";
 import { DeleteNfButton } from "@/components/planning/DeleteNfButton";
+import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton";
+import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
 import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
@@ -139,6 +141,32 @@ export default async function CompromissoPage({
         },
       })) > 0
     : false;
+  // Comprovante de pagamento deste lançamento (direto ou pelo rateio da NF).
+  const proofDoc =
+    commitment.status === "PAID"
+      ? await prisma.planningDocument.findFirst({
+          where: {
+            workspaceId: entitlements.workspaceId,
+            kind: "PAYMENT_PROOF",
+            OR: [
+              { commitmentId: commitment.id },
+              { allocations: { some: { commitmentId: commitment.id } } },
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, kind: true, filename: true, mimeType: true },
+        })
+      : null;
+
+  // Mesmos arquivos do botão "Docs" de Fornecedores: NF/RPA, comprovante e guias.
+  const allDocs = resolveEngagementDocuments({
+    documents: [
+      ...commitment.documents,
+      ...(sourceNf ? [sourceNf] : []),
+      ...(proofDoc ? [proofDoc] : []),
+    ],
+  });
+
   const canCancelReservation = await canDeleteNf();
   const allowDeleteNf = canCancelReservation && Boolean(sourceNf) && !nfHasLinkedProof;
   const paidViaGroup =
@@ -301,9 +329,12 @@ export default async function CompromissoPage({
         <div className="card space-y-3 p-5">
           <h2 className="font-semibold text-[var(--navy)]">Nota fiscal</h2>
           {sourceNf ? (
-            <p className="text-sm text-emerald-700">
-              {sourceNf.kind} vinculada: {sourceNf.filename}
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-emerald-700">
+                {sourceNf.kind} vinculada: {sourceNf.filename}
+              </p>
+              <EngagementDocsButton serviceName={supplier.name} documents={allDocs} />
+            </div>
           ) : commitment.nfPending || reservedWithoutNf ? (
             <div className="space-y-2">
               <Link
@@ -335,6 +366,7 @@ export default async function CompromissoPage({
             Comprovante de pagamento
           </h2>
           {commitment.status === "PAID" ? (
+            <div className="space-y-2">
             <p className="text-sm text-emerald-700">
               {paidViaGroup
                 ? "Pagamento registrado pelo comprovante da NF/RPA (rateio compartilhado)."
@@ -344,6 +376,8 @@ export default async function CompromissoPage({
                     : "Pagamento registrado."
                   : "Pagamento marcado como pago."}
             </p>
+            <EngagementDocsButton serviceName={supplier.name} documents={allDocs} />
+            </div>
           ) : !sourceNf ? (
             <p className="text-sm text-[var(--gray-500)]">
               Confirme a NF/RPA antes de enviar o comprovante.

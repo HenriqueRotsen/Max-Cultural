@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MobileBottomNav, MobileTableCards, useMobileMenu } from "@max/mobile-nav";
+import {
+  MobileBottomNav,
+  MobileTableCards,
+  SidebarCollapseButton,
+  useMobileMenu,
+  useSidebarCollapsed,
+} from "@max/mobile-nav";
 import { MaxFinanceiroLogo } from "@/components/MaxFinanceiroLogo";
 
 const HUB_URL = (process.env.NEXT_PUBLIC_CULTURAL_URL || "http://localhost:3000").replace(
@@ -107,6 +113,7 @@ export function AppSidebar({
             : { title: "Módulos", links: modules };
 
   const menu = useMobileMenu(pathname);
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const mobileItems = nav.links.map((link) => {
     const Icon = link.icon;
     const active = linkActive(pathname, link.href);
@@ -120,11 +127,17 @@ export function AppSidebar({
 
   return (
     <>
-    <aside className="shell-sidebar" data-mx-drawer data-open={menu.open ? "true" : undefined}>
-      <div className="flex items-center px-5 py-5">
-        <Link href="/painel" className="block">
+    <aside
+      className="shell-sidebar"
+      data-mx-drawer
+      data-open={menu.open ? "true" : undefined}
+      data-mx-collapsed={collapsed ? "" : undefined}
+    >
+      <div className="mx-sidebar-head flex items-center justify-between gap-2 px-5 py-5">
+        <Link href="/painel" className="mx-nav-label block">
           <MaxFinanceiroLogo />
         </Link>
+        <SidebarCollapseButton collapsed={collapsed} onToggle={toggleCollapsed} />
       </div>
 
       <nav className="flex flex-1 flex-col space-y-4 px-3 pb-4">
@@ -133,18 +146,18 @@ export function AppSidebar({
             href="/painel"
             className="mb-1 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)] hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
           >
-            ← Módulos
+            ←<span className="mx-nav-label"> Módulos</span>
           </Link>
         ) : null}
         <NavGroup title={nav.title} links={nav.links} pathname={pathname} />
         <div className="mt-auto space-y-4">
           <div className="border-t border-[var(--border)] pt-4">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+            <p className="mx-nav-label px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
               Hub
             </p>
             <a
               href={HUB_URL}
-              className="flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+              className="mx-brand-chip flex items-center overflow-hidden rounded-xl px-3 py-2.5 transition hover:opacity-95"
               style={{
                 /* Mix da logo Cultural: laranja + teal + roxo */
                 background:
@@ -162,15 +175,16 @@ export function AppSidebar({
           </div>
 
           <div className="border-t border-[var(--border)] pt-4">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+            <p className="mx-nav-label px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
               Conta
             </p>
             <a
               href="/sair"
+              title="Sair"
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[var(--gray-600)] transition hover:bg-[var(--gray-50)] hover:text-[var(--navy)]"
             >
               <LogoutIcon />
-              <span className="min-w-0">
+              <span className="mx-nav-label min-w-0">
                 <span className="block truncate">Sair</span>
                 {userEmail ? (
                   <span
@@ -207,7 +221,7 @@ function NavGroup({
 }) {
   return (
     <div>
-      <p className="px-3 pb-2 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+      <p className="mx-nav-label px-3 pb-2 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
         {title}
       </p>
       {links.map((link) => {
@@ -217,6 +231,7 @@ function NavGroup({
           <Link
             key={link.href}
             href={link.href}
+            title={link.label}
             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
               active
                 ? "bg-[var(--navy-soft)] text-[var(--navy)]"
@@ -224,7 +239,7 @@ function NavGroup({
             }`}
           >
             <Icon active={active} />
-            {link.label}
+            <span className="mx-nav-label">{link.label}</span>
           </Link>
         );
       })}

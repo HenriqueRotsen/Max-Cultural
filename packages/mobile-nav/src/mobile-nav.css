@@ -249,3 +249,90 @@
     transition: none;
   }
 }
+
+/* ——— Menu lateral recolhido (só ícones), no computador ——— */
+.mx-collapse-btn {
+  display: none;
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border, #e5e7eb);
+  background: white;
+  color: var(--gray-500, #6b7280);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.mx-collapse-btn:hover {
+  border-color: var(--navy, #1e1b4b);
+  color: var(--navy, #1e1b4b);
+}
+
+/* Ponto vermelho no ícone quando o menu está recolhido (ex.: alertas novos). */
+.mx-collapsed-dot {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .mx-collapse-btn {
+    display: inline-flex;
+  }
+
+  [data-mx-collapsed] .mx-collapsed-dot {
+    display: block;
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    height: 8px;
+    width: 8px;
+    border-radius: 9999px;
+    background: #dc2626;
+  }
+
+  [data-mx-drawer] {
+    transition: width 0.15s ease;
+  }
+
+  [data-mx-drawer][data-mx-collapsed] {
+    width: 68px !important;
+    overflow-x: hidden;
+  }
+
+  [data-mx-collapsed] .mx-nav-label {
+    display: none !important;
+  }
+
+  [data-mx-collapsed] .mx-sidebar-foot {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  [data-mx-collapsed] .mx-sidebar-head {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  [data-mx-collapsed] nav a,
+  [data-mx-collapsed] .mx-nav-icon-link {
+    justify-content: center;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  [data-mx-collapsed] .mx-brand-chip {
+    justify-content: center;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+
+  [data-mx-collapsed] .mx-brand-chip img {
+    width: 1.75rem;
+    max-width: 1.75rem;
+    object-fit: cover;
+    object-position: left;
+  }
+}

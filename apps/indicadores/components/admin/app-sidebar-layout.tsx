@@ -20,7 +20,13 @@ import {
   ListChecks,
   FileCheck2,
 } from "lucide-react";
-import { MobileBottomNav, MobileTableCards, useMobileMenu } from "@max/mobile-nav";
+import {
+  MobileBottomNav,
+  MobileTableCards,
+  SidebarCollapseButton,
+  useMobileMenu,
+  useSidebarCollapsed,
+} from "@max/mobile-nav";
 import { BrandLogo } from "@/components/brand-logo";
 import { PageBackLink } from "@/components/page-back-link";
 import { buttonVariants } from "@/components/ui/button";
@@ -208,9 +214,12 @@ function mobileNavItems(permissions: string[] | null, pathname: string) {
 function SidebarNav({
   permissions,
   onNavigate,
+  collapsed = false,
 }: {
   permissions: string[] | null;
   onNavigate?: () => void;
+  /** Menu recolhido: só ícones (nome aparece ao passar o mouse). */
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
   const groups = filterGroups(permissions);
@@ -219,9 +228,11 @@ function SidebarNav({
     <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
       {groups.map((group) => (
         <div key={group.id}>
-          <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
-            {group.label}
-          </p>
+          {collapsed ? null : (
+            <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--gray-400)]">
+              {group.label}
+            </p>
+          )}
           <ul className="space-y-0.5">
             {group.items.map((item) => {
               const active = item.match(pathname);
@@ -231,8 +242,10 @@ function SidebarNav({
                   <Link
                     href={item.href}
                     onClick={onNavigate}
+                    title={item.label}
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                      collapsed && "justify-center px-0",
                       active
                         ? "bg-[var(--navy-soft)] text-[var(--navy)]"
                         : "text-[var(--gray-600)] hover:bg-[var(--gray-50)] hover:text-[var(--navy)]",
@@ -244,7 +257,7 @@ function SidebarNav({
                         active ? "text-[var(--navy)]" : "text-[var(--gray-400)]",
                       )}
                     />
-                    {item.label}
+                    {collapsed ? null : item.label}
                   </Link>
                 </li>
               );
@@ -262,32 +275,55 @@ function SidebarPanel({
   homeHref = "/dashboard",
   onNavigate,
   className,
+  collapsed = false,
+  onToggleCollapse,
 }: {
   permissions: string[] | null;
   userEmail: string;
   homeHref?: string;
   onNavigate?: () => void;
   className?: string;
+  /** Só no computador: menu estreito com ícones. */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   return (
     <aside
       className={cn(
-        "flex h-full w-[240px] flex-col border-r border-[var(--border)] bg-white",
+        "flex h-full flex-col border-r border-[var(--border)] bg-white transition-[width] duration-150",
+        collapsed ? "w-[68px]" : "w-[240px]",
         className,
       )}
     >
-      <div className="flex items-center px-5 py-5">
-        <BrandLogo
-          href={homeHref}
-          className="min-w-0"
-        />
+      <div
+        className={cn(
+          "flex items-center gap-2 py-5",
+          collapsed ? "justify-center px-0" : "justify-between px-5",
+        )}
+      >
+        {collapsed ? null : (
+          <BrandLogo
+            href={homeHref}
+            className="min-w-0"
+          />
+        )}
+        {onToggleCollapse ? (
+          <SidebarCollapseButton
+            collapsed={collapsed}
+            onToggle={onToggleCollapse}
+            className="md:!inline-flex"
+          />
+        ) : null}
       </div>
 
-      <SidebarNav permissions={permissions} onNavigate={onNavigate} />
+      <SidebarNav permissions={permissions} onNavigate={onNavigate} collapsed={collapsed} />
       <div className="px-3 pb-3">
         <a
           href={HUB_URL}
-          className="flex items-center rounded-xl px-3 py-2.5 transition hover:opacity-95"
+          className={cn(
+            "flex items-center overflow-hidden rounded-xl py-2.5 transition hover:opacity-95",
+            collapsed ? "justify-center px-1" : "px-3",
+          )}
           style={{
             /* Mix da logo Cultural: laranja + teal + roxo */
             background:
@@ -301,30 +337,43 @@ function SidebarPanel({
             alt="MAX Cultural"
             width={1531}
             height={571}
-            className="h-7 w-auto max-w-[9rem] bg-transparent object-contain object-left"
+            className={cn(
+              "h-7 bg-transparent object-left",
+              collapsed ? "w-7 max-w-7 object-cover" : "w-auto max-w-[9rem] object-contain",
+            )}
           />
         </a>
       </div>
 
-      <div className="border-t border-[var(--border)] px-5 py-4 space-y-3">
-        {userEmail ? (
+      <div className={cn("border-t border-[var(--border)] py-4 space-y-3", collapsed ? "px-3" : "px-5")}>
+        {userEmail && !collapsed ? (
           <p className="truncate text-xs text-muted-foreground" title={userEmail}>
             {userEmail}
           </p>
         ) : null}
         <a
           href={ACCOUNT_URL}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-start gap-2")}
+          title="Minha conta"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "w-full gap-2",
+            collapsed ? "justify-center px-0" : "justify-start",
+          )}
         >
           <UserRound className="size-3.5" />
-          Minha conta
+          {collapsed ? null : "Minha conta"}
         </a>
         <a
           href="/sair"
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full justify-start gap-2")}
+          title="Sair"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "w-full gap-2",
+            collapsed ? "justify-center px-0" : "justify-start",
+          )}
         >
           <LogOut className="size-3.5" />
-          Sair
+          {collapsed ? null : "Sair"}
         </a>
       </div>
     </aside>
@@ -361,6 +410,7 @@ export function AppSidebarLayout({
 }: AppSidebarLayoutProps) {
   const pathname = usePathname();
   const menu = useMobileMenu(pathname);
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const mobileOpen = menu.open;
   const setMobileOpen = menu.setOpen;
   const autoBack = resolveBackFallback(pathname);
@@ -377,6 +427,8 @@ export function AppSidebarLayout({
           permissions={permissions}
           userEmail={userEmail}
           homeHref={homeHref}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapsed}
         />
       </div>
 
@@ -409,7 +461,12 @@ export function AppSidebarLayout({
         </div>
       ) : null}
 
-      <div className="pb-[calc(4.4rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-[240px]">
+      <div
+        className={cn(
+          "pb-[calc(4.4rem+env(safe-area-inset-bottom))] transition-[padding] duration-150 md:pb-0",
+          collapsed ? "md:pl-[68px]" : "md:pl-[240px]",
+        )}
+      >
         {actions ? (
           <div className="flex justify-end px-4 pt-4 sm:px-6 md:pt-6">
             <div className="flex shrink-0 items-center gap-2">{actions}</div>
