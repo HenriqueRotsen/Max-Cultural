@@ -69,6 +69,7 @@ function formatNow() {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "America/Sao_Paulo",
   }).formatToParts(new Date());
 
   const get = (type: Intl.DateTimeFormatPartTypes) =>
