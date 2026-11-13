@@ -1243,3 +1243,38 @@ export async function setAccountFoundedAt(formData: FormData) {
 
 
 
+
+/** Por clique: a consulta à Receita é lenta e tem limite de uso. */
+const MAX_MAP_IMPORTS = 10;
+
+/**
+ * Busca na Receita os sócios das empresas (observadas e proponentes) que ainda
+ * não têm mapa societário. Não mexe em quem já tem mapa.
+ */
+export async function importMissingCorporateMaps() {
+  const { getWorkspaceContext } = await import("@/lib/auth/session");
+  const { entitlements } = await getWorkspaceContext();
+  const { loadNetwork } = await import("@/lib/corporate/network-db");
+  const { withoutMap } = await loadNetwork(entitlements.workspaceId);
+  const batch = withoutMap.slice(0, MAX_MAP_IMPORTS);
+  let imported = 0;
+  const failed: string[] = [];
+  for (const c of batch) {
+    const fd = new FormData();
+    fd.set(c.kind === "watched" ? "watchedId" : "accountId", c.id);
+    const r = await importAccountCorporateMap(fd);
+    if (r.ok && !("skipped" in r && r.skipped)) imported += 1;
+    else if (!r.ok) failed.push(`${c.name}: ${r.error}`);
+  }
+  revalidatePath("/observados/rede");
+  revalidatePath("/observados");
+  revalidatePath("/contas/mapa");
+  const rest = withoutMap.length - batch.length;
+  return {
+    ok: true as const,
+    message:
+      `${imported} de ${batch.length} empresa(s) com sócios buscados na Receita.` +
+      (failed.length ? ` Sem resposta: ${failed.slice(0, 3).join(" · ")}.` : "") +
+      (rest > 0 ? ` Faltam ${rest}: clique de novo.` : ""),
+  };
+}

@@ -34,6 +34,7 @@ import { pronacYear } from "@/lib/compliance/choose-ruleset";
 import { mapWindowForProject, periodsInYears } from "@/lib/corporate/at-year";
 import { CorporateMapYearChip } from "@/components/CorporateMapYearChip";
 import { proponentByWatchedId } from "@/lib/corporate/map-owner";
+import { findBondHints } from "@/lib/corporate/bond-hints";
 
 export const dynamic = "force-dynamic";
 
@@ -232,6 +233,22 @@ export default async function PronacDetailPage({
         include: { members: { orderBy: { name: "asc" } } },
       })
     : [];
+  // Pistas de vínculo pelos mapas (anos do PRONAC): sugestão, não liga sozinho.
+  const proponentMembersInWindow = mapAccount
+    ? periodsInYears(mapAccount.corporatePeriods, mapWindow.fromYear, mapWindow.toYear).flatMap(
+        (p) => p.members,
+      )
+    : [];
+  const observadoPeriods = (watchedId: string) =>
+    periodsInYears(
+      watchedMaps.filter((p) =>
+        proponentOfWatched.has(watchedId)
+          ? p.salicAccountId === proponentOfWatched.get(watchedId)!.id
+          : p.watchedSupplierId === watchedId,
+      ),
+      mapWindow.fromYear,
+      mapWindow.toYear,
+    );
   const vinculoRows = watchedInPronac
     .map((w) => normalizeCgccpf(w.cgccpf || ""))
     .filter((dig, i, all) => dig.length >= 11 && dig !== accountDoc && all.indexOf(dig) === i)
@@ -243,6 +260,14 @@ export default async function PronacDetailPage({
         amount: bondAmountByDoc.get(dig) || 0,
         ignoredAmount: ignoredFor(dig),
         enabled: enabledSet.has(dig),
+        hints: findBondHints({
+          proponentDoc: accountDoc,
+          proponentName: detail.accounts[0]?.name || "o proponente",
+          proponentMembers: proponentMembersInWindow,
+          observado: { doc: dig, name: w.name },
+          observadoMembers:
+            dig.length === 14 ? observadoPeriods(w.id).flatMap((p) => p.members) : [],
+        }),
         corporateMap:
           dig.length === 14 ? (
             <CorporateMapYearChip
@@ -251,17 +276,7 @@ export default async function PronacDetailPage({
               label={mapWindow.label}
               basis={mapWindow.basis}
               institutional={proponentOfWatched.get(w.id)?.institutionalMap ?? false}
-              periods={toChipPeriods(
-                periodsInYears(
-                  watchedMaps.filter((p) =>
-                    proponentOfWatched.has(w.id)
-                      ? p.salicAccountId === proponentOfWatched.get(w.id)!.id
-                      : p.watchedSupplierId === w.id,
-                  ),
-                  mapWindow.fromYear,
-                  mapWindow.toYear,
-                ),
-              )}
+              periods={toChipPeriods(observadoPeriods(w.id))}
             />
           ) : null,
       };

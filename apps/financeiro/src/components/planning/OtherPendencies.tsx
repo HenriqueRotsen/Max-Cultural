@@ -1,24 +1,25 @@
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { ExtractedTaxes } from "@/lib/nf/extract";
-import { taxDueSummaryFromCompetence } from "@/lib/planning/tax-due-dates";
+import { loadFinancialPendencias, type PendenciaItem } from "@/lib/planning/financial-pendencias";
 
 const LIMIT = 8;
 
-type Item = {
-  key: string;
-  href: string;
-  title: string;
-  detail: string;
-  amount: number;
-  date: Date | null;
-  late: boolean;
-};
+type Item = PendenciaItem;
 
-function List({ title, hint, items }: { title: string; hint: string; items: Item[] }) {
+export function List({
+  title,
+  hint,
+  items,
+  limit = LIMIT,
+}: {
+  title: string;
+  hint: string;
+  items: Item[];
+  /** Quantos mostrar (o Contas a pagar mostra poucos; a aba do projeto, todos). */
+  limit?: number;
+}) {
   if (items.length === 0) return null;
-  const shown = items.slice(0, LIMIT);
+  const shown = items.slice(0, limit);
   return (
     <section className="card space-y-3 p-5">
       <div>
@@ -45,9 +46,9 @@ function List({ title, hint, items }: { title: string; hint: string; items: Item
           </li>
         ))}
       </ul>
-      {items.length > LIMIT ? (
+      {items.length > limit ? (
         <p className="text-xs text-[var(--gray-500)]">
-          E mais {items.length - LIMIT}. Veja em cada projeto.
+          E mais {items.length - limit}. Veja em cada projeto.
         </p>
       ) : null}
     </section>
@@ -56,97 +57,23 @@ function List({ title, hint, items }: { title: string; hint: string; items: Item
 
 /**
  * O que ainda falta além de pagar reservas: pagamentos feitos sem NF/RPA e
- * impostos retidos sem guia anexada. Só aparece quando há algo.
+ * impostos retidos sem guia anexada. Só aparece quando há algo. Mesma conta
+ * da aba Pendências de cada projeto.
  */
 export async function OtherPendencies({ workspaceId }: { workspaceId: string }) {
-  const now = new Date();
-
-  const [paidWithoutNf, docsWithTaxes] = await Promise.all([
-    prisma.rubricCommitment.findMany({
-      where: {
-        workspaceId,
-        status: "PAID",
-        nfPending: true,
-        planningProject: { closedAt: null },
-      },
-      include: {
-        planningProject: { select: { externalCode: true } },
-        engagement: { select: { service: { select: { supplier: { select: { name: true } } } } } },
-      },
-      orderBy: { paidAt: "asc" },
-    }),
-    prisma.planningDocument.findMany({
-      where: {
-        workspaceId,
-        kind: { in: ["NF", "RPA"] },
-        status: "IMPORTED",
-        taxTotal: { gt: 0 },
-        planningProject: { closedAt: null },
-        // Guia ligada à nota, ou anexada ao pagamento antes de a nota chegar.
-        derivedProofs: { none: { kind: "TAX_PROOF" } },
-        OR: [
-          { commitmentId: null },
-          { commitment: { documents: { none: { kind: "TAX_PROOF" } } } },
-        ],
-      },
-      select: {
-        id: true,
-        kind: true,
-        commitmentId: true,
-        taxTotal: true,
-        taxesJson: true,
-        extractedJson: true,
-        createdAt: true,
-        planningProject: { select: { externalCode: true } },
-        engagement: { select: { hiredAt: true } },
-      },
-    }),
-  ]);
-
-  const nfItems: Item[] = paidWithoutNf.map((c) => ({
-    key: c.id,
-    href: `/planejamento/compromissos/${c.id}/anexar-nf`,
-    title: c.engagement.service.supplier.name,
-    detail: `${c.planningProject.externalCode} · pago em ${c.paidAt ? formatDate(c.paidAt) : "—"}`,
-    amount: Number(c.amount),
-    date: c.nfReminderAt,
-    late: Boolean(c.nfReminderAt && c.nfReminderAt < now),
-  }));
-
-  const taxItems: Item[] = docsWithTaxes
-    .map((d) => {
-      const ext = (d.extractedJson || {}) as { supplierName?: string | null; hiredAt?: string | null };
-      const competence = ext.hiredAt
-        ? new Date(`${ext.hiredAt.slice(0, 10)}T12:00:00Z`)
-        : (d.engagement?.hiredAt ?? d.createdAt);
-      const due = taxDueSummaryFromCompetence(competence, d.taxesJson as ExtractedTaxes | null);
-      const dates = [due.issDue, due.federalDue].filter(Boolean) as Date[];
-      const first = dates.sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
-      return {
-        key: d.id,
-        href: d.commitmentId ? `/planejamento/compromissos/${d.commitmentId}` : "/planejamento",
-        title: ext.supplierName || `${d.kind}`,
-        detail: `${d.planningProject?.externalCode ?? ""} · ${d.kind} · guia(s) não anexada(s)`,
-        amount: Number(d.taxTotal),
-        date: first,
-        late: Boolean(first && first < now),
-      };
-    })
-    .sort((a, b) => (a.date?.getTime() ?? 0) - (b.date?.getTime() ?? 0));
-
-  if (nfItems.length === 0 && taxItems.length === 0) return null;
-
+  const { pagosSemNf, impostos } = await loadFinancialPendencias({ workspaceId });
+  if (pagosSemNf.length === 0 && impostos.length === 0) return null;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <List
         title="Pagos sem NF/RPA"
         hint="Pagamentos já feitos que ainda esperam a nota. A data é o lembrete combinado."
-        items={nfItems}
+        items={pagosSemNf}
       />
       <List
         title="Impostos retidos a recolher"
         hint="NF/RPA com retenção e sem guia anexada. A data é o vencimento típico."
-        items={taxItems}
+        items={impostos}
       />
     </div>
   );

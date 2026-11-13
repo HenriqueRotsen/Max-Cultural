@@ -31,7 +31,7 @@ describe("enforcePronacMatch", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.pronacOverride).toBe(false);
-      expect(r.error).toContain("Liberar documento de outro PRONAC");
+      expect(r.error).toContain("Liberar documento de outro projeto (PRONAC)");
     }
   });
 

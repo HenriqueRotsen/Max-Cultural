@@ -5,6 +5,7 @@ import { AdvancePaymentForm } from "@/components/planning/AdvancePaymentForm";
 import { MissingSheetNotice } from "@/components/planning/MissingSheetNotice";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { getNotificationPrefs } from "@/lib/planning/notification-prefs";
 import { defaultNfReminderDate } from "@/lib/planning/reminder-dates";
 import {
@@ -145,6 +146,7 @@ export default async function PagamentoAntecipadoPage({
         planningProjectId={id}
         lines={rubricOptions.filter((l) => l.available > 0 || l.isAdmin)}
         defaultNfReminderAt={defaultNfReminderAt}
+        salic={isFederalPlanning(project.jurisdiction)}
       />
     </div>
   );

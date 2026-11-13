@@ -1,5 +1,7 @@
 "use client";
 
+import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
+
 import { useActionState, useMemo, useState } from "react";
 import { createPedido } from "@/lib/planning/pedido";
 import type { ActionState } from "@/lib/planning/action-state";
@@ -41,9 +43,12 @@ function newParcel(
 export function PedidoForm({
   planningProjectId,
   lines,
+  contract = false,
 }: {
   planningProjectId: string;
   lines: RubricSelectOption[];
+  /** Reserva por contrato: pede o arquivo do contrato (obrigatório). */
+  contract?: boolean;
 }) {
   const action = createPedido.bind(null, planningProjectId);
   const [state, formAction, pending] = useActionState(action, initial);
@@ -128,10 +133,13 @@ export function PedidoForm({
       <input type="hidden" name="hasBond" value={hasBond ? "true" : "false"} />
 
       <div>
-        <h2 className="font-semibold text-[var(--navy)]">Novo pedido</h2>
+        <h2 className="font-semibold text-[var(--navy)]">
+          {contract ? "Contrato" : "Novo pedido"}
+        </h2>
         <p className="mt-1 text-sm text-[var(--gray-500)]">
-          Reserva o valor nas rubricas sem precisar da NF — inclusive em N×.
-          Cada parcela entra no contas a pagar com o vencimento previsto.
+          {contract
+            ? "Reserva o valor do contrato nas rubricas, em parcelas. Cada parcela entra no contas a pagar com o vencimento previsto e leva o contrato junto."
+            : "Reserva o valor nas rubricas sem precisar da NF, inclusive em N×. Cada parcela entra no contas a pagar com o vencimento previsto."}
         </p>
       </div>
 
@@ -139,6 +147,30 @@ export function PedidoForm({
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {state.error}
         </p>
+      ) : null}
+      {state.pronacOverride ? <PronacOverrideField allowed /> : null}
+
+      {contract ? (
+        <div className="space-y-2 rounded-xl border border-[var(--border)] p-4">
+          <input type="hidden" name="isContract" value="1" />
+          <label className="field">
+            <span>Contrato assinado (PDF)</span>
+            <input name="supportFile" type="file" accept=".pdf,image/*" required />
+            <span className="text-xs text-[var(--gray-500)]">
+              O CPF/CNPJ do fornecedor tem que aparecer no contrato.
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="replacesNf" className="mt-0.5" />
+            <span>
+              O contrato faz o papel da NF de cada parcela
+              <span className="block text-xs text-[var(--gray-500)]">
+                Marque só se não vai haver nota fiscal (ex.: locação de pessoa física com recibo no
+                contrato). Deixe desmarcado se cada parcela terá NF.
+              </span>
+            </span>
+          </label>
+        </div>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">

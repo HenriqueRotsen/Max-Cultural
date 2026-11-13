@@ -56,6 +56,7 @@ export default async function ObservadosPage({
         >
           Observados{watched.length > 0 ? ` (${watched.length})` : ""}
         </Link>
+        <Link href="/observados/rede">Rede</Link>
         <Link
           href="/observados?tab=adicionar"
           aria-current={tab === "adicionar" ? "page" : undefined}

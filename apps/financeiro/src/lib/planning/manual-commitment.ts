@@ -177,15 +177,17 @@ function parseExpectedPayAt(raw: string, fallback: Date): Date {
   );
 }
 
-/** Reserva manual de orçamento sem NF/RPA. */
-export async function createManualReservation(
-  planningProjectId: string,
-  _prev: ActionState,
+/**
+ * Núcleo da reserva sem NF/RPA (manual, boleto…): saldo da rubrica (conferido
+ * de novo dentro da transação), limites do projeto, reembolso e CNAE. Devolve
+ * o id do lançamento criado ou o erro. Quem chama já conferiu o usuário.
+ */
+async function createReservationCore(
+  session: { id: string },
+  loaded: Exclude<Awaited<ReturnType<typeof loadProjectForReservation>>, { error: string }>,
   formData: FormData,
-): Promise<ActionState> {
-  const session = await requireUser();
-  const loaded = await loadProjectForReservation(planningProjectId);
-  if ("error" in loaded) return { error: loaded.error };
+  opts: { expectedPayAt?: Date; engagementNote?: string } = {},
+): Promise<{ commitmentId: string } | { error: string }> {
   const {
     entitlements,
     project,
@@ -194,7 +196,6 @@ export async function createManualReservation(
     publishedPaidByLine,
     lockedLineIds,
   } = loaded;
-
   const budgetLineId = String(formData.get("budgetLineId") || "").trim();
   const amount =
     parseBrMoney(String(formData.get("amount") || "")) || 0;
@@ -255,10 +256,9 @@ export async function createManualReservation(
   }
 
   const hiredAt = new Date();
-  const expectedPayAt = parseExpectedPayAt(
-    expectedPayAtRaw,
-    fifthBusinessDayNextMonth(hiredAt),
-  );
+  const expectedPayAt =
+    opts.expectedPayAt ??
+    parseExpectedPayAt(expectedPayAtRaw, fifthBusinessDayNextMonth(hiredAt));
 
   let commitmentId: string;
   try {
@@ -314,7 +314,7 @@ export async function createManualReservation(
           source: "PLANNING_MANUAL",
           planningProjectId: project.id,
           budgetLineId,
-          notes: notes || "Reserva manual (sem NF)",
+          notes: notes || opts.engagementNote || "Reserva manual (sem NF)",
         },
       });
 
@@ -365,8 +365,22 @@ export async function createManualReservation(
     throw err;
   }
 
-  revalidatePlanning(project.id);
-  redirect(`/planejamento/compromissos/${commitmentId}`);
+  return { commitmentId };
+}
+
+/** Reserva manual de orçamento sem NF/RPA. */
+export async function createManualReservation(
+  planningProjectId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const loaded = await loadProjectForReservation(planningProjectId);
+  if ("error" in loaded) return { error: loaded.error };
+  const r = await createReservationCore(session, loaded, formData);
+  if ("error" in r) return { error: r.error };
+  revalidatePlanning(loaded.project.id);
+  redirect(`/planejamento/compromissos/${r.commitmentId}`);
 }
 
 /** Pagamento antecipado: PAID + aguardando NF. */
@@ -376,6 +390,12 @@ export async function uploadAdvancePayment(
   formData: FormData,
 ): Promise<ActionState> {
   const session = await requireUser();
+  // Documento de apoio opcional (boleto, orçamento…): tipo obrigatório se veio arquivo.
+  const supportFile = formData.get("supportFile");
+  const hasSupport = supportFile instanceof File && supportFile.size > 0;
+  if (hasSupport && !String(formData.get("supportType") || "")) {
+    return { error: "Escolha o tipo do documento de apoio (boleto, orçamento…)." };
+  }
   const loaded = await loadProjectForReservation(planningProjectId);
   if ("error" in loaded) return { error: loaded.error };
   const {
@@ -737,8 +757,20 @@ export async function uploadAdvancePayment(
       },
     });
   }
+  let docQs = "";
+  if (hasSupport) {
+    const { attachSupportDocumentCore } = await import("@/lib/planning/support-attach");
+    const attached = await attachSupportDocumentCore({
+      userId: session.id,
+      workspaceId: entitlements.workspaceId,
+      commitmentId,
+      formData,
+    });
+    // O pagamento já foi registrado; se o documento não entrou, a página avisa.
+    if (attached.error) docQs = `?docErro=${encodeURIComponent(attached.error.slice(0, 300))}`;
+  }
   revalidatePlanning(project.id);
-  redirect(`/planejamento/compromissos/${commitmentId}`);
+  redirect(`/planejamento/compromissos/${commitmentId}${docQs}`);
 }
 
 /** Cria reservas em lote a partir da planilha do produtor. */
@@ -1366,4 +1398,163 @@ export async function resolveSalicPendencia(recordId: string, reason: string): P
   revalidatePath(`/planejamento/${record.planningProjectId}/pendencias`);
   revalidatePlanning(record.planningProjectId);
   return { ok: true, message: "Pendência marcada como resolvida." };
+}
+
+export type BoletoReading = {
+  ok: boolean;
+  error?: string;
+  amount?: number | null;
+  dueDate?: string | null;
+  line?: string | null;
+  cnpjs?: string[];
+  supplierName?: string | null;
+};
+
+/** Lê o boleto antes de reservar: valor e vencimento (linha digitável) e CNPJs. */
+export async function readBoletoForReservation(formData: FormData): Promise<BoletoReading> {
+  await requireUser();
+  const file = formData.get("supportFile");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Selecione o PDF do boleto." };
+  const { readBoletoLine, cnpjsInText } = await import("@/lib/planning/support-docs");
+  const extracted = await extractProofFromBuffer({
+    buffer: Buffer.from(await file.arrayBuffer()),
+    filename: file.name,
+    mimeType: file.type || "application/octet-stream",
+  });
+  const text = extracted.rawText || "";
+  const typedLine = String(formData.get("boletoLine") || "");
+  const boleto = readBoletoLine(text) ?? (typedLine ? readBoletoLine(typedLine) : null);
+  if (!boleto) {
+    return {
+      ok: false,
+      error:
+        "Não consegui ler a linha digitável do boleto. Envie o PDF original do banco (não uma foto) ou digite a linha digitável.",
+    };
+  }
+  const cnpjs = cnpjsInText(text);
+  let supplierName: string | null = null;
+  if (cnpjs[0]) {
+    const found = await prisma.catalogSupplier.findFirst({
+      where: { cnpj: { in: cnpjs } },
+      select: { name: true },
+    });
+    supplierName = found?.name ?? null;
+  }
+  return { ok: true, amount: boleto.amount, dueDate: boleto.dueDate, line: boleto.line, cnpjs, supplierName };
+}
+
+/**
+ * Reserva por boleto. Travas, além das da reserva (saldo, limites, reembolso):
+ * - valor da reserva = valor do boleto (lido da linha digitável);
+ * - boleto vencido não entra (juros e multa não podem sair do projeto);
+ * - a mesma linha digitável não reserva duas vezes, em nenhum projeto;
+ * - o CNPJ do fornecedor tem que estar no boleto, salvo plataforma de cobrança
+ *   declarada (fica registrado);
+ * - boleto de outro PRONAC é barrado como a NF.
+ * O vencimento vira a data prevista de pagamento.
+ */
+export async function createBoletoReservation(
+  planningProjectId: string,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const reading = await readBoletoForReservation(formData);
+  if (!reading.ok) return { error: reading.error };
+  const loaded = await loadProjectForReservation(planningProjectId);
+  if ("error" in loaded) return { error: loaded.error };
+  const { entitlements, project } = loaded;
+
+  const cents = (n: number) => Math.round(n * 100);
+  const typedAmount = parseBrMoney(String(formData.get("amount") || "")) || 0;
+  if (!reading.amount) return { error: "O boleto não tem valor na linha digitável. Confira o documento." };
+  if (cents(typedAmount) !== cents(reading.amount)) {
+    return {
+      error: `O valor da reserva (R$ ${typedAmount.toFixed(2)}) tem que ser o do boleto (R$ ${reading.amount.toFixed(2)}).`,
+    };
+  }
+  if (!reading.dueDate) return { error: "O boleto não tem vencimento na linha digitável. Peça a segunda via." };
+  const due = new Date(`${reading.dueDate}T12:00:00Z`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (due < today) {
+    return {
+      error: `Boleto vencido em ${due.toLocaleDateString("pt-BR")}. Juros e multa não podem ser pagos com recurso do projeto: peça a segunda via com nova data.`,
+    };
+  }
+  const repeated = await prisma.planningDocument.findFirst({
+    where: {
+      workspaceId: entitlements.workspaceId,
+      kind: "SUPPORT",
+      supportType: "BOLETO",
+      extractedJson: { path: ["boletoLine"], equals: reading.line ?? "" },
+    },
+    select: { planningProject: { select: { externalCode: true } }, commitmentId: true },
+  });
+  if (repeated) {
+    return {
+      error: `Este boleto (mesma linha digitável) já está reservado${repeated.planningProject ? ` no projeto ${repeated.planningProject.externalCode}` : ""}. Um boleto se paga uma vez só.`,
+    };
+  }
+  const cnpj = normalizeCgccpf(String(formData.get("cnpj") || ""));
+  const viaPlatform = formData.get("viaPlatform") === "on";
+  if (cnpj.length === 14 && (reading.cnpjs?.length ?? 0) > 0 && !reading.cnpjs!.includes(cnpj)) {
+    if (!viaPlatform) {
+      return {
+        error:
+          "O CNPJ do fornecedor não aparece no boleto. Confira o beneficiário. Se o boleto é emitido por uma plataforma de cobrança em nome do fornecedor, marque essa opção (fica registrado).",
+      };
+    }
+  }
+
+  // Trava do PRONAC antes de reservar (o anexo confere de novo).
+  const fileForCheck = formData.get("supportFile") as File;
+  const checkText = (
+    await extractProofFromBuffer({
+      buffer: Buffer.from(await fileForCheck.arrayBuffer()),
+      filename: fileForCheck.name,
+      mimeType: fileForCheck.type || "application/octet-stream",
+    })
+  ).rawText;
+  const projectCheck = checkProjectCodeInDocument({
+    text: checkText || "",
+    expectedCode: project.externalCode,
+  });
+  const pronacGate = await enforcePronacMatch({ mismatch: projectCheck.warning, formData });
+  if (!pronacGate.ok) return { error: pronacGate.error, pronacOverride: pronacGate.pronacOverride };
+
+  const created = await createReservationCore(session, loaded, formData, {
+    expectedPayAt: due,
+    engagementNote: "Reserva por boleto",
+  });
+  if ("error" in created) return { error: created.error };
+
+  formData.set("supportType", "BOLETO");
+  const { attachSupportDocumentCore } = await import("@/lib/planning/support-attach");
+  const attached = await attachSupportDocumentCore({
+    userId: session.id,
+    workspaceId: entitlements.workspaceId,
+    commitmentId: created.commitmentId,
+    formData,
+  });
+  if (attached.error) {
+    // Sem o boleto a reserva não vale: desfaz.
+    const c = await prisma.rubricCommitment.findUnique({
+      where: { id: created.commitmentId },
+      select: { engagementId: true },
+    });
+    await prisma.rubricCommitment.delete({ where: { id: created.commitmentId } });
+    if (c) await prisma.catalogEngagement.delete({ where: { id: c.engagementId } }).catch(() => undefined);
+    return { error: attached.error, pronacOverride: attached.pronacOverride };
+  }
+  if (viaPlatform) {
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: "planning.boleto_via_platform",
+      entityType: "RubricCommitment",
+      entityId: created.commitmentId,
+      meta: { planningProjectId: project.id, supplierDoc: cnpj, boletoCnpjs: reading.cnpjs ?? [] },
+    });
+  }
+  revalidatePlanning(project.id);
+  redirect(`/planejamento/compromissos/${created.commitmentId}`);
 }

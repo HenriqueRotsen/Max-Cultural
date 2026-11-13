@@ -19,6 +19,8 @@ export type VinculoRow = {
   enabled: boolean;
   /** Selo dos sócios da empresa observada nos anos do PRONAC (só CNPJ). */
   corporateMap?: ReactNode;
+  /** Pistas de vínculo achadas nos mapas societários (só sugestão). */
+  hints?: Array<{ strength: "doc" | "name"; text: string }>;
 };
 
 function pct(part: number, total: number) {
@@ -240,6 +242,21 @@ export function VinculoSection({
           </div>
         ) : null}
 
+        {(() => {
+          const pending = rows.filter((r) => r.hints?.length && !isOn(r));
+          return pending.length ? (
+            <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[0.95rem] text-amber-900">
+              <strong className="font-semibold">
+                {pending.length === 1
+                  ? "1 observado está como “Não”"
+                  : `${pending.length} observados estão como “Não”`}
+              </strong>
+              , mas o mapa societário indica vínculo com o proponente nos anos deste PRONAC:{" "}
+              {pending.map((r) => r.name).join(", ")}. Confira abaixo.
+            </p>
+          ) : null;
+        })()}
+
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -278,6 +295,25 @@ export function VinculoSection({
                       <div className="text-sm text-[var(--gray-500)]">
                         Observado · {formatCgccpf(r.cgccpf)}
                       </div>
+                      {r.hints?.length ? (
+                        <ul
+                          className={`mt-1.5 space-y-0.5 rounded-lg border px-2 py-1 text-sm ${
+                            on
+                              ? "border-[var(--border)] text-[var(--gray-600)]"
+                              : "border-amber-300 bg-amber-50 text-amber-900"
+                          }`}
+                        >
+                          <li className="font-semibold">
+                            {on ? "O mapa societário confirma:" : "O mapa societário indica vínculo:"}
+                          </li>
+                          {r.hints.map((h) => (
+                            <li key={h.text}>
+                              {h.text}
+                              {h.strength === "name" ? " Confira." : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </td>
                     <td>
                       <CountedAmount amount={r.amount} ignoredAmount={r.ignoredAmount} muted={!on} />

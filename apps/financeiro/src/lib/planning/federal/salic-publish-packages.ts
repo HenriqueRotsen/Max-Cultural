@@ -12,6 +12,12 @@ export type SalicPublishDoc = {
   salicComprovanteId: string | null;
   salicPublishMode: string | null;
   salicRepublishPending: boolean;
+  /** Lançamento do documento (documentos de apoio ficam no lançamento). */
+  commitmentId?: string | null;
+  /** SUPPORT: BOLETO, FATURA, RECIBO, CONTRATO, APOLICE, ORCAMENTO. */
+  supportType?: string | null;
+  /** Comprovante: lançamentos do rateio. */
+  allocations?: Array<{ commitmentId: string }>;
 };
 
 export type SalicPublishPackageAction =
@@ -30,6 +36,8 @@ export type SalicPublishPackage = {
   /** id_comprovante_pagamento no SALIC a remover antes de republicar. */
   replaceSalicId: string | null;
   label: string;
+  /** Documentos de apoio do pagamento (contrato, apólice, boleto…), na ordem do PDF. */
+  supportIds: string[];
 };
 
 function isFiscal(kind: string) {
@@ -46,6 +54,25 @@ function fiscalForProof(
   return fiscal;
 }
 
+const SUPPORT_ORDER = ["CONTRATO", "APOLICE", "FATURA", "ORCAMENTO", "BOLETO", "RECIBO"];
+
+/** Documentos de apoio dos lançamentos deste comprovante (inclui o rateio). */
+function supportsForProof(proof: SalicPublishDoc, docs: SalicPublishDoc[]): SalicPublishDoc[] {
+  const group = new Set<string>(
+    [proof.commitmentId, ...(proof.allocations ?? []).map((a) => a.commitmentId)].filter(
+      (x): x is string => Boolean(x),
+    ),
+  );
+  if (group.size === 0) return [];
+  const rank = (t?: string | null) => {
+    const i = SUPPORT_ORDER.indexOf(t ?? "");
+    return i < 0 ? SUPPORT_ORDER.length : i;
+  };
+  return docs
+    .filter((d) => d.kind === "SUPPORT" && d.status === "IMPORTED" && d.commitmentId && group.has(d.commitmentId))
+    .sort((a, b) => rank(a.supportType) - rank(b.supportType));
+}
+
 /**
  * Monta a fila de envio ao SALIC.
  * Cada item = 1 comprovante (sozinho ou merged com NF/RPA).
@@ -59,10 +86,17 @@ export function buildSalicPublishPackages(docs: SalicPublishDoc[]): SalicPublish
     if (proof.kind !== "PAYMENT_PROOF" || proof.status !== "IMPORTED") continue;
 
     const fiscal = fiscalForProof(proof, byId);
+    const supports = supportsForProof(proof, docs);
+    const supportIds = supports.map((d) => d.id);
+    const supportNames = supports.map((d) => d.filename);
+    const hasExtra = Boolean(fiscal) || supports.length > 0;
     const alreadyPublished = Boolean(proof.salicComprovanteId);
     const wasProofOnly = proof.salicPublishMode === "PROOF_ONLY";
     const needsRepublish =
-      proof.salicRepublishPending || (alreadyPublished && wasProofOnly && fiscal);
+      proof.salicRepublishPending || (alreadyPublished && wasProofOnly && hasExtra);
+    const mergedLabel = [fiscal?.filename, ...supportNames, proof.filename]
+      .filter(Boolean)
+      .join(" + ");
 
     if (needsRepublish && proof.salicComprovanteId) {
       packages.push({
@@ -72,30 +106,38 @@ export function buildSalicPublishPackages(docs: SalicPublishDoc[]): SalicPublish
         fiscalFilename: fiscal?.filename ?? null,
         action: "REPUBLISH_MERGED",
         replaceSalicId: proof.salicComprovanteId,
+        supportIds,
         label: fiscal
-          ? `Republicar NF/RPA + comprovante (${proof.filename})`
-          : `Republicar comprovante (${proof.filename})`,
+          ? supports.length
+            ? `Republicar NF/RPA + documentos + comprovante (${proof.filename})`
+            : `Republicar NF/RPA + comprovante (${proof.filename})`
+          : supports.length
+            ? `Republicar documentos + comprovante (${proof.filename})`
+            : `Republicar comprovante (${proof.filename})`,
       });
       continue;
     }
 
-    if (alreadyPublished && proof.salicPublishMode === "MERGED" && fiscal) {
+    if (alreadyPublished && proof.salicPublishMode === "MERGED" && hasExtra) {
       continue;
     }
 
-    if (alreadyPublished && wasProofOnly && !fiscal) {
+    if (alreadyPublished && wasProofOnly && !hasExtra) {
       continue;
     }
 
-    if (fiscal) {
+    if (hasExtra) {
       packages.push({
         proofId: proof.id,
         proofFilename: proof.filename,
-        fiscalId: fiscal.id,
-        fiscalFilename: fiscal.filename,
+        fiscalId: fiscal?.id ?? null,
+        fiscalFilename: fiscal?.filename ?? null,
         action: "UPLOAD_MERGED",
         replaceSalicId: null,
-        label: `NF/RPA + comprovante (${fiscal.filename} + ${proof.filename})`,
+        supportIds,
+        label: fiscal && !supports.length
+          ? `NF/RPA + comprovante (${fiscal.filename} + ${proof.filename})`
+          : `${fiscal ? "NF/RPA + " : ""}documentos + comprovante (${mergedLabel})`,
       });
       continue;
     }
@@ -108,6 +150,7 @@ export function buildSalicPublishPackages(docs: SalicPublishDoc[]): SalicPublish
         fiscalFilename: null,
         action: "UPLOAD_PROOF_ONLY",
         replaceSalicId: null,
+        supportIds: [],
         label: `Comprovante (${proof.filename})`,
       });
     }
@@ -119,3 +162,20 @@ export function buildSalicPublishPackages(docs: SalicPublishDoc[]): SalicPublish
 export function salicPublishPackageCount(docs: SalicPublishDoc[]): number {
   return buildSalicPublishPackages(docs).length;
 }
+
+/** Campos que a fila de envio ao SALIC precisa (consulta do Prisma). */
+export const SALIC_DOC_SELECT = {
+  id: true,
+  kind: true,
+  status: true,
+  filename: true,
+  mimeType: true,
+  storagePath: true,
+  sourceDocumentId: true,
+  salicComprovanteId: true,
+  salicPublishMode: true,
+  salicRepublishPending: true,
+  commitmentId: true,
+  supportType: true,
+  allocations: { select: { commitmentId: true } },
+} as const;

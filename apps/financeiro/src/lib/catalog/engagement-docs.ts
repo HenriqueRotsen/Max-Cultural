@@ -5,6 +5,8 @@ export type EngagementDocItem = {
   kind: string;
   filename: string;
   mimeType: string;
+  /** SUPPORT: BOLETO, FATURA, RECIBO, CONTRATO, APOLICE, ORCAMENTO. */
+  supportType?: string | null;
 };
 
 type DocLike = {
@@ -12,6 +14,7 @@ type DocLike = {
   kind: string;
   filename: string;
   mimeType: string;
+  supportType?: string | null;
 };
 
 /**
@@ -34,7 +37,8 @@ export function resolveEngagementDocuments(input: {
       kind !== "NF" &&
       kind !== "RPA" &&
       kind !== "PAYMENT_PROOF" &&
-      kind !== "TAX_PROOF"
+      kind !== "TAX_PROOF" &&
+      kind !== "SUPPORT"
     ) {
       return;
     }
@@ -44,6 +48,7 @@ export function resolveEngagementDocuments(input: {
       kind: doc.kind,
       filename: doc.filename,
       mimeType: doc.mimeType,
+      supportType: doc.supportType ?? null,
     });
   };
 
@@ -53,6 +58,7 @@ export function resolveEngagementDocuments(input: {
 
   const rank = (kind: string) => {
     if (kind === "NF" || kind === "RPA") return 0;
+    if (kind === "SUPPORT") return 0.5;
     if (kind === "PAYMENT_PROOF") return 1;
     if (kind === "TAX_PROOF") return 2;
     return 9;

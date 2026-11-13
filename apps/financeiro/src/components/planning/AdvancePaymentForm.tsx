@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import { uploadAdvancePayment } from "@/lib/planning/manual-commitment";
 import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
+import { SUPPORT_LABEL, SUPPORT_TYPES } from "@/lib/planning/support-docs";
 import type { ActionState } from "@/lib/planning/action-state";
 import { formatCgccpfInput } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
@@ -32,10 +33,13 @@ export function AdvancePaymentForm({
   planningProjectId,
   lines,
   defaultNfReminderAt,
+  salic = true,
 }: {
   planningProjectId: string;
   lines: RubricSelectOption[];
   defaultNfReminderAt: string;
+  /** Projeto federal (Lei Rouanet): o documento vai no PDF do SALIC. */
+  salic?: boolean;
 }) {
   const action = uploadAdvancePayment.bind(null, planningProjectId);
   const [state, formAction, pending] = useActionState(action, initial);
@@ -239,6 +243,33 @@ export function AdvancePaymentForm({
               onChange={(e) => setProofName(e.target.files?.[0]?.name ?? "")}
             />
           </label>
+
+          <fieldset className="space-y-2 rounded-xl border border-[var(--border)] p-4">
+            <legend className="px-1 text-sm font-semibold text-[var(--navy)]">
+              Documento de apoio (opcional)
+            </legend>
+            <p className="text-xs text-[var(--gray-500)]">
+              Boleto, orçamento, contrato, fatura, recibo ou apólice que veio antes da NF.
+              {salic ? " Entra no PDF enviado ao SALIC." : ""} Dá para anexar depois, no lançamento.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="field">
+                <span>Tipo</span>
+                <select name="supportType" defaultValue="">
+                  <option value="">Nenhum</option>
+                  {SUPPORT_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {SUPPORT_LABEL[t]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Arquivo</span>
+                <input name="supportFile" type="file" accept=".pdf,image/*" />
+              </label>
+            </div>
+          </fieldset>
 
           <label className="field">
             <span>Observações</span>

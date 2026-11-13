@@ -10,17 +10,20 @@ const initial: ActionState = {};
 type DocKind = "NF" | "RPA";
 
 export function NfUploadForm({
+  initialKind,
   planningProjectId,
   attachCommitmentId,
   attachPedidoId,
 }: {
+  /** Vindo de "Nova reserva": já chega com NF ou RPA escolhido. */
+  initialKind?: DocKind | null;
   planningProjectId: string;
   attachCommitmentId?: string;
   attachPedidoId?: string;
 }) {
   const action = uploadNfForReview.bind(null, planningProjectId);
   const [state, formAction, pending] = useActionState(action, initial);
-  const [kind, setKind] = useState<DocKind | null>(null);
+  const [kind, setKind] = useState<DocKind | null>(initialKind ?? null);
   const [fileName, setFileName] = useState("");
 
   if (!kind) {

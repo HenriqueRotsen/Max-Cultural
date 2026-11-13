@@ -325,6 +325,8 @@ enum PlanningDocumentKind {
   RPA
   PAYMENT_PROOF
   TAX_PROOF
+  /** Documento de apoio (boleto, fatura, recibo, contrato, apólice, orçamento). */
+  SUPPORT
 }
 
 enum ReadequacaoDraftSource {
@@ -647,6 +649,8 @@ model PlanningDocument {
   salicMergedStoragePath String?
   /** Comprovante só no SALIC; NF chegou depois — republicar merged. */
   salicRepublishPending  Boolean                @default(false)
+  /** SUPPORT: BOLETO | FATURA | RECIBO | CONTRATO | APOLICE | ORCAMENTO. */
+  supportType            String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 

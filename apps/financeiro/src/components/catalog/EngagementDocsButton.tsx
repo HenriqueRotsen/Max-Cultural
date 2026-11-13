@@ -10,7 +10,17 @@ import {
 
 export type { EngagementDocItem };
 
-function kindLabel(kind: string) {
+const SUPPORT_LABELS: Record<string, string> = {
+  BOLETO: "Boleto",
+  FATURA: "Fatura",
+  RECIBO: "Recibo",
+  CONTRATO: "Contrato",
+  APOLICE: "Apólice de seguro",
+  ORCAMENTO: "Orçamento",
+};
+
+function kindLabel(kind: string, supportType?: string | null) {
+  if (kind === "SUPPORT") return SUPPORT_LABELS[supportType ?? ""] ?? "Documento";
   if (kind === "NF") return "Nota fiscal";
   if (kind === "RPA") return "RPA";
   if (kind === "PAYMENT_PROOF") return "Comprovante";
@@ -138,7 +148,7 @@ function DocumentPreview({ doc }: { doc: EngagementDocItem }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
         <p className="truncate text-sm font-medium text-[var(--navy)]">
-          {kindLabel(doc.kind)} · {doc.filename}
+          {kindLabel(doc.kind, doc.supportType)} · {doc.filename}
         </p>
         <div className="flex flex-wrap gap-2">
           <a
@@ -368,7 +378,7 @@ export function EngagementDocsButton({
                                 }`}
                               >
                                 <span className="block truncate">
-                                  {kindLabel(d.kind)}
+                                  {kindLabel(d.kind, d.supportType)}
                                 </span>
                                 <span className="block truncate opacity-70">
                                   {d.filename}

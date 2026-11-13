@@ -8,13 +8,14 @@ const menuItemClass =
 
 /**
  * Ações do projeto. Ficam à vista só as do dia a dia, com nome:
- * NF/RPA (principal), Pagamento sem NF e Reservas. O resto (pedidos, planilha
+ * Nova reserva (principal, escolhe o tipo), Reservas e Pendências. O resto (pedidos, planilha
  * do produtor, planilhas do SALIC, rubricas e readequação) vai para "Mais".
  */
 export function PlanningProjectToolbar({
   projectId,
   reservationsCount = 0,
   pendenciasCount = 0,
+  pendenciasLate = 0,
   showSheetVersions = false,
   moreSlot,
   menuOpen: controlledMenuOpen,
@@ -22,8 +23,10 @@ export function PlanningProjectToolbar({
 }: {
   projectId: string;
   reservationsCount?: number;
-  /** Pendências com o SALIC; o botão só aparece quando há alguma. */
+  /** Pendências financeiras e de comprovação do projeto (o botão fica sempre à vista). */
   pendenciasCount?: number;
+  /** Quantas estão atrasadas (o botão fica vermelho). */
+  pendenciasLate?: number;
   /** Mostra "Planilhas do SALIC" no menu (há versões guardadas). */
   showSheetVersions?: boolean;
   /** Ações avançadas (editar rubricas, readequação…), no fim do menu. */
@@ -47,26 +50,11 @@ export function PlanningProjectToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Link href={`/planejamento/${projectId}/nf/nova`} className="btn gap-2">
+      <Link href={`/planejamento/${projectId}/reservas/nova`} className="btn gap-2">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M14 2v6h6M12 18v-6M9 15h6"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
+          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
-        Subir NF / RPA
-      </Link>
-
-      <Link href={`/planejamento/${projectId}/pagamento-antecipado`} className="btn btn-ghost">
-        Pagamento sem NF
+        Nova reserva
       </Link>
 
       <Link href={`/planejamento/${projectId}/reservas`} className="btn btn-ghost gap-2">
@@ -78,17 +66,32 @@ export function PlanningProjectToolbar({
         ) : null}
       </Link>
 
-      {pendenciasCount > 0 ? (
-        <Link
-          href={`/planejamento/${projectId}/pendencias`}
-          className="btn btn-ghost gap-2 border-amber-300 bg-amber-50 text-amber-900"
-        >
-          Pendências
-          <span className="rounded-full bg-amber-600 px-1.5 text-[11px] font-bold leading-5 text-white">
+      <Link
+        href={`/planejamento/${projectId}/pendencias`}
+        className={`btn btn-ghost gap-2 ${
+          pendenciasLate > 0
+            ? "border-red-300 bg-red-50 text-red-800"
+            : pendenciasCount > 0
+              ? "border-amber-300 bg-amber-50 text-amber-900"
+              : ""
+        }`}
+        title={
+          pendenciasLate > 0
+            ? `${pendenciasLate} atrasada(s)`
+            : "O que falta pagar ou comprovar"
+        }
+      >
+        Pendências
+        {pendenciasCount > 0 ? (
+          <span
+            className={`rounded-full px-1.5 text-[11px] font-bold leading-5 text-white ${
+              pendenciasLate > 0 ? "bg-red-600" : "bg-amber-600"
+            }`}
+          >
             {pendenciasCount > 99 ? "99+" : pendenciasCount}
           </span>
-        </Link>
-      ) : null}
+        ) : null}
+      </Link>
 
       <div className="relative" ref={menuRef}>
         <button
@@ -116,7 +119,7 @@ export function PlanningProjectToolbar({
           >
             <div className="flex flex-col gap-1">
               <Link href={`/planejamento/${projectId}/pedidos`} className={menuItemClass}>
-                Pedidos / parcelamento
+                Contratos e parcelamentos
               </Link>
               <Link
                 href={`/planejamento/${projectId}/importar-produtor`}

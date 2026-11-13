@@ -5,6 +5,7 @@ import {
   type SalicPublishDoc,
   type SalicPublishMode,
   type SalicPublishPackage,
+  SALIC_DOC_SELECT,
 } from "@/lib/planning/federal/salic-publish-packages";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { ensureFiscalDocumentNumber } from "@/lib/nf/ensure-fiscal-number";
@@ -112,7 +113,11 @@ async function resolveSalicUploadFilename(
     }
   }
 
-  const fiscalDocNumber = resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind);
+  // Sem NF/RPA: o número vem do documento de apoio (apólice, contrato, fatura…).
+  const fiscalDocNumber = fiscal
+    ? resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind)
+    : ((await supportDocNumberForProof(proofId)) ??
+      resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind));
   const itemNumber = resolveSalicItemNumber(
     proof.allocations[0]?.budgetLine.sortOrder,
   );
@@ -122,6 +127,32 @@ async function resolveSalicUploadFilename(
     fiscalDocNumber,
     supplierName,
   });
+}
+
+/** Número do documento de apoio principal do pagamento (contrato, apólice, fatura…). */
+async function supportDocNumberForProof(proofId: string): Promise<string | null> {
+  const proof = await prisma.planningDocument.findUnique({
+    where: { id: proofId },
+    select: { commitmentId: true, allocations: { select: { commitmentId: true } } },
+  });
+  const group = [
+    ...new Set(
+      [proof?.commitmentId, ...(proof?.allocations ?? []).map((a) => a.commitmentId)].filter(
+        (x): x is string => Boolean(x),
+      ),
+    ),
+  ];
+  if (!group.length) return null;
+  const supports = await prisma.planningDocument.findMany({
+    where: { kind: "SUPPORT", status: "IMPORTED", commitmentId: { in: group } },
+    select: { supportType: true, extractedJson: true },
+  });
+  const { sortSupportDocs } = await import("@/lib/planning/support-docs");
+  return (
+    sortSupportDocs(supports)
+      .map((d) => (d.extractedJson as { documentNumber?: string | null } | null)?.documentNumber)
+      .find(Boolean) ?? null
+  );
 }
 
 function toMergeSource(row: {
@@ -141,11 +172,25 @@ export async function prepareSalicPackageFile(
   externalCode: string,
 ): Promise<{ storagePath: string; byteSize: number; mode: SalicPublishMode }> {
   const { proof, fiscal } = await loadDoc(pkg.proofId, pkg.fiscalId);
+  // Documentos de apoio, já na ordem do pacote (contrato, apólice, fatura…).
+  const supportRows = pkg.supportIds?.length
+    ? await prisma.planningDocument.findMany({
+        where: { id: { in: pkg.supportIds }, kind: "SUPPORT", status: "IMPORTED" },
+        select: { id: true, filename: true, mimeType: true, storagePath: true },
+      })
+    : [];
+  const supports = (pkg.supportIds ?? [])
+    .map((id) => supportRows.find((r) => r.id === id))
+    .filter((r): r is (typeof supportRows)[number] => Boolean(r));
 
-  if (fiscal) {
+  if (fiscal || supports.length) {
     const merged = await mergeDocumentsToPdf(
-      [toMergeSource(fiscal), toMergeSource(proof)],
-      `SALIC_${externalCode}_NF-COMPROVANTE`,
+      [
+        ...(fiscal ? [toMergeSource(fiscal)] : []),
+        ...supports.map(toMergeSource),
+        toMergeSource(proof),
+      ],
+      `SALIC_${externalCode}_${fiscal ? "NF" : "DOCS"}-COMPROVANTE`,
     );
     return { storagePath: merged.storagePath, byteSize: merged.byteSize, mode: "MERGED" };
   }
@@ -257,18 +302,7 @@ export async function markSalicRepublishAfterNfAttach(proofId: string): Promise<
 export type { SalicPublishDoc, SalicPublishPackage };
 export { buildSalicPublishPackages };
 
-const SALIC_DOC_SELECT = {
-  id: true,
-  kind: true,
-  status: true,
-  filename: true,
-  mimeType: true,
-  storagePath: true,
-  sourceDocumentId: true,
-  salicComprovanteId: true,
-  salicPublishMode: true,
-  salicRepublishPending: true,
-} as const;
+
 
 export async function loadSalicPublishDocs(planningProjectId: string) {
   return prisma.planningDocument.findMany({

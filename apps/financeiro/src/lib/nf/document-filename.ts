@@ -33,7 +33,9 @@ function extFromName(originalFilename: string, mimeType?: string | null): string
  * Ex.: NF_203216_66268938000103_HENRIQUE-ROTSEN_2026-07-07_R600-00.pdf
  */
 export function buildPlanningDocumentFilename(params: {
-  kind: "NF" | "RPA" | "PAYMENT_PROOF" | "TAX_PROOF";
+  kind: "NF" | "RPA" | "PAYMENT_PROOF" | "TAX_PROOF" | "SUPPORT";
+  /** SUPPORT: tipo do documento de apoio (BOLETO, APOLICE…), usado no nome. */
+  supportType?: string | null;
   projectCode: string;
   supplierName?: string | null;
   supplierDoc?: string | null;
@@ -43,7 +45,9 @@ export function buildPlanningDocumentFilename(params: {
   mimeType?: string | null;
 }): string {
   const kindLabel =
-    params.kind === "PAYMENT_PROOF"
+    params.kind === "SUPPORT"
+      ? params.supportType || "DOCUMENTO"
+      : params.kind === "PAYMENT_PROOF"
       ? "COMPROVANTE"
       : params.kind === "TAX_PROOF"
         ? "COMPROVANTE-FISCAL"
