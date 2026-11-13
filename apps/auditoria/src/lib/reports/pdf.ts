@@ -1,3 +1,6 @@
+/** Horário de Brasília (UTC−3): o servidor roda em UTC. */
+const REPORT_TIME_ZONE = "America/Sao_Paulo";
+
 
 function formatPdfTimestamp(date = new Date()) {
   const parts = new Intl.DateTimeFormat("pt-BR", {
@@ -7,6 +10,7 @@ function formatPdfTimestamp(date = new Date()) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: REPORT_TIME_ZONE,
   }).formatToParts(date);
 
   const get = (type: Intl.DateTimeFormatPartTypes) =>
@@ -25,6 +29,7 @@ export function reportFileStamp(date = new Date()) {
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
+    timeZone: REPORT_TIME_ZONE,
   }).formatToParts(date);
 
   const get = (type: Intl.DateTimeFormatPartTypes) =>
