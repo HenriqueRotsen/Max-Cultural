@@ -80,7 +80,7 @@ export function BudgetTree({
 }) {
   // Proporcional ao captado: nunca acima do aprovado (captação acima de 100% não aumenta a rubrica).
   const factor = Math.min(1, Math.max(0, pctCaptadoT ?? 1));
-  const pctLabel = `${(factor * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  const pctLabel = `${(factor * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
   const tree = groupLines(lines);
   const lockUi =
     Boolean(planningProjectId && sheetId) && (canToggleLocks || locks.length > 0);

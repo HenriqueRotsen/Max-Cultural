@@ -67,7 +67,7 @@ export function CaptacaoPanel({
         <span className="text-sm tabular-nums text-[var(--gray-500)]">
           Base {formatMoney(operableBase)} ·{" "}
           {(pctCaptadoT * 100).toLocaleString("pt-BR", {
-            maximumFractionDigits: 1,
+            maximumFractionDigits: 2,
           })}
           % do aprovado
         </span>
