@@ -80,6 +80,8 @@ export const HELP = {
     "Livre para reservar = teto − (a pagar + pago). É o que ainda pode virar NF, pedido ou pagamento neste projeto.",
   planningAprovado:
     "Orçamento aprovado (MinC) na planilha homologada do projeto.",
+  planningProporcional:
+    "Aprovado da rubrica × percentual do teto (o quanto do aprovado total já foi captado). É o valor de referência para trabalhar com o que foi captado. Nas rubricas comuns dá para passar dele (exceder a rubrica até o limite da IN). Nos custos vinculados (administração, divulgação, captação…) ele é o limite: não dá para passar.",
   planningCaptacao:
     "Captado, recebido e transferido vêm do SALIC. Rendimentos são manuais. Base de captação = captado + recebido + rendimentos − transferido. Esse valor é o teto operacional do projeto: não se gasta mais do que se tem, mesmo podendo redistribuir e exceder rubricas individuais (até 100% na IN vigente).",
   planningAdminProduto:

@@ -137,7 +137,7 @@ export default async function PlanningProjectPage({
       : [];
 
   const pctLabel = bal
-    ? `${(bal.pctCaptadoT * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
+    ? `${(bal.pctCaptadoT * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`
     : undefined;
   const openDraft = project.readequacaoDrafts[0] || null;
 
@@ -321,6 +321,7 @@ export default async function PlanningProjectPage({
               sheetId={project.sheet.id}
               canToggleLocks={allowEditRubricas && !closed}
               pctCaptadoTLabel={pctLabel}
+              pctCaptadoT={bal.pctCaptadoT}
             />
           </section>
 
