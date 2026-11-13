@@ -65,6 +65,7 @@ export function BudgetTree({
   planningProjectId,
   sheetId,
   canToggleLocks = false,
+  pctCaptadoT,
 }: {
   lines: Line[];
   balances: Map<string, LineBalance>;
@@ -74,7 +75,12 @@ export function BudgetTree({
   canToggleLocks?: boolean;
   /** @deprecated Teto do projeto fica no KPI; mantido por compatibilidade de props. */
   pctCaptadoTLabel?: string;
+  /** Percentual do teto (captado ÷ aprovado total), para a coluna proporcional. */
+  pctCaptadoT?: number;
 }) {
+  // Proporcional ao captado: nunca acima do aprovado (captação acima de 100% não aumenta a rubrica).
+  const factor = Math.min(1, Math.max(0, pctCaptadoT ?? 1));
+  const pctLabel = `${(factor * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
   const tree = groupLines(lines);
   const lockUi =
     Boolean(planningProjectId && sheetId) && (canToggleLocks || locks.length > 0);
@@ -284,6 +290,12 @@ export function BudgetTree({
                                   >
                                     Aprovado (MinC)
                                   </ThHelp>
+                                  <ThHelp
+                                    className="py-1 pr-2"
+                                    help={HELP.planningProporcional}
+                                  >
+                                    Proporcional ({pctLabel})
+                                  </ThHelp>
                                   <th className="py-1 pr-2">A pagar</th>
                                   <th className="py-1 pr-2">Pago</th>
                                   <ThHelp
@@ -327,16 +339,6 @@ export function BudgetTree({
                                           itemName={line.itemName}
                                           paid={b?.paid ?? 0}
                                         />
-                                        {b?.isAdmin && b.availableCap < b.approved - 0.005 ? (
-                                          <span className="block text-xs text-[var(--gray-500)]">
-                                            Custo vinculado: limite de{" "}
-                                            {formatCurrency(b.availableCap)} (
-                                            {((b.availableCap / b.approved) * 100).toLocaleString("pt-BR", {
-                                              maximumFractionDigits: 2,
-                                            })}
-                                            % captado)
-                                          </span>
-                                        ) : null}
                                         {itemLocked ? (
                                           <span className="ml-2 text-xs font-semibold text-blue-800">
                                             bloqueado
@@ -355,6 +357,23 @@ export function BudgetTree({
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(approved)}
+                                      </td>
+                                      <td
+                                        className={`py-1.5 pr-2 tabular-nums ${b?.isAdmin ? "font-semibold" : "text-[var(--gray-500)]"}`}
+                                        title={
+                                          b?.isAdmin
+                                            ? "Custo vinculado: só se pode usar até este valor."
+                                            : "Referência proporcional ao captado. Dá para passar dele (exceder a rubrica)."
+                                        }
+                                      >
+                                        {formatCurrency(
+                                          b?.isAdmin ? b.availableCap : Math.round(approved * factor * 100) / 100,
+                                        )}
+                                        {b?.isAdmin ? (
+                                          <span className="block text-[11px] font-normal text-[var(--gray-500)]">
+                                            limite
+                                          </span>
+                                        ) : null}
                                       </td>
                                       <td className="py-1.5 pr-2 tabular-nums">
                                         {formatCurrency(

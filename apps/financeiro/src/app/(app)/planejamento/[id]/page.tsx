@@ -321,6 +321,7 @@ export default async function PlanningProjectPage({
               sheetId={project.sheet.id}
               canToggleLocks={allowEditRubricas && !closed}
               pctCaptadoTLabel={pctLabel}
+              pctCaptadoT={bal.pctCaptadoT}
             />
           </section>
 
