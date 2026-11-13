@@ -2,7 +2,7 @@
 
 /**
  * Trava do PRONAC: o documento menciona outro projeto. Quem tem a permissão
- * "Liberar documento de outro PRONAC" escreve o motivo e segue (fica no log);
+ * "Liberar documento de outro projeto (PRONAC)" escreve o motivo e segue (fica no log);
  * quem não tem só vê o bloqueio.
  */
 export function PronacOverrideField({
@@ -25,7 +25,7 @@ export function PronacOverrideField({
             required
             minLength={5}
             className="w-full bg-white"
-            placeholder="Ex.: o PRONAC citado na nota é o do projeto anterior do mesmo proponente; o serviço é deste projeto."
+            placeholder="Ex.: o código citado na nota é o do projeto anterior do mesmo proponente; o serviço é deste projeto."
           />
           {mismatch ? null : (
             <span className="text-xs text-red-800">
@@ -36,7 +36,7 @@ export function PronacOverrideField({
       ) : (
         <p>
           Este arquivo não pode entrar neste projeto. Confira se é o documento certo ou peça a
-          quem tem a permissão &quot;Liberar documento de outro PRONAC&quot;.
+          quem tem a permissão &quot;Liberar documento de outro projeto (PRONAC)&quot;.
         </p>
       )}
     </div>

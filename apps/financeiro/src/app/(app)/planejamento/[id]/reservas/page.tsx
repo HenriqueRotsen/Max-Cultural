@@ -9,8 +9,10 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { canPublishToSalic } from "@/lib/planning/acl";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
+import { sortSupportDocs } from "@/lib/planning/support-docs";
 import {
   buildSalicPublishPackages,
+  SALIC_DOC_SELECT,
   type SalicPublishDoc,
 } from "@/lib/planning/federal/salic-publish-packages";
 import { buildSalicUploadFilenameForRow } from "@/lib/salic/salic-publish-metadata";
@@ -50,16 +52,8 @@ function salicStateForCommitment(
       ...emptyFiscal,
     };
   }
-  if (commitment.nfPending) {
-    return {
-      canUpload: false,
-      uploaded: false,
-      publishMode: null,
-      reason: "Anexe a NF/RPA antes de enviar ao SALIC.",
-      proofId: null,
-      ...emptyFiscal,
-    };
-  }
+  // NF pendente: pode ir só o comprovante (prazo do SALIC); quando a NF/RPA ou
+  // o documento que faz o papel dela chegar, o pacote completo é reenviado.
   if (!proof) {
     return {
       canUpload: false,
@@ -95,7 +89,11 @@ function salicStateForCommitment(
       canUpload: false,
       uploaded,
       publishMode: proof.salicPublishMode,
-      reason: uploaded ? "Já enviado ao SALIC." : null,
+      reason: uploaded
+        ? commitment.nfPending
+          ? "Enviado só o comprovante. Anexe a NF/RPA para completar no SALIC."
+          : "Já enviado ao SALIC."
+        : null,
       proofId: proof.id,
       ...fiscal,
     };
@@ -105,7 +103,13 @@ function salicStateForCommitment(
     canUpload: true,
     uploaded,
     publishMode: pendingMode,
-    reason: uploaded ? "Republicar versão atualizada (NF + comprovante)." : null,
+    reason: uploaded
+      ? "Republicar versão atualizada (NF + comprovante)."
+      : commitment.nfPending
+        ? pkg.supportIds.length > 0
+          ? "NF pendente: vão o comprovante e os documentos anexados. Quando a NF/RPA chegar, o sistema pede o reenvio completo."
+          : "NF pendente: vai só o comprovante. Quando a NF/RPA chegar, o sistema pede o reenvio completo."
+        : null,
     proofId: proof.id,
     ...fiscal,
   };
@@ -183,18 +187,7 @@ export default async function PlanningReservasPage({
   const salicDocRows: SalicPublishDoc[] = await prisma.planningDocument.findMany({
     where: { planningProjectId: id, status: "IMPORTED" },
     orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      kind: true,
-      status: true,
-      filename: true,
-      mimeType: true,
-      storagePath: true,
-      sourceDocumentId: true,
-      salicComprovanteId: true,
-      salicPublishMode: true,
-      salicRepublishPending: true,
-    },
+    select: SALIC_DOC_SELECT,
   });
   const packages = buildSalicPublishPackages(salicDocRows);
 
@@ -234,6 +227,19 @@ export default async function PlanningReservasPage({
     fiscalById.set(f.id, { ...fiscalById.get(f.id)!, ...f });
   }
 
+  // Sem NF/RPA, o nome do arquivo usa o número do documento de apoio (apólice, contrato…).
+  const supportRows = await prisma.planningDocument.findMany({
+    where: { planningProjectId: id, kind: "SUPPORT", status: "IMPORTED" },
+    select: { commitmentId: true, supportType: true, extractedJson: true },
+  });
+  const supportNumberByCommitment = new Map<string, string>();
+  for (const d of sortSupportDocs(supportRows)) {
+    const n = (d.extractedJson as { documentNumber?: string | null } | null)?.documentNumber;
+    if (d.commitmentId && n && !supportNumberByCommitment.has(d.commitmentId)) {
+      supportNumberByCommitment.set(d.commitmentId, n);
+    }
+  }
+
   function salicUploadFilename(
     proof: (typeof salicDocs)[number],
     supplierName: string,
@@ -244,10 +250,17 @@ export default async function PlanningReservasPage({
       : null;
     const fiscalKind =
       fiscal?.kind === "NF" || fiscal?.kind === "RPA" ? fiscal.kind : null;
+    const supportNumber = fiscal
+      ? null
+      : [proof.commitmentId, ...proof.allocations.map((a) => a.commitmentId)]
+          .map((cid) => (cid ? supportNumberByCommitment.get(cid) : undefined))
+          .find(Boolean);
     return buildSalicUploadFilenameForRow({
       sortOrder,
       supplierName,
-      fiscalExtracted: (fiscal?.extractedJson || null) as {
+      fiscalExtracted: (supportNumber
+        ? { nfNumber: supportNumber, invoiceNumber: supportNumber }
+        : fiscal?.extractedJson || null) as {
         nfNumber?: string | null;
         invoiceNumber?: string | null;
       },
@@ -354,26 +367,11 @@ export default async function PlanningReservasPage({
         description={project.name || project.externalCode}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/planejamento/${project.id}/pedidos`}
-              className="btn btn-ghost"
-            >
-              Pedidos / parcelamento
+            <Link href={`/planejamento/${project.id}/pendencias`} className="btn btn-ghost">
+              Pendências
             </Link>
-            <Link
-              href={`/planejamento/${project.id}/pedidos/novo`}
-              className="btn btn-ghost"
-            >
-              Novo pedido
-            </Link>
-            <Link
-              href={`/planejamento/${project.id}/pagamento-antecipado`}
-              className="btn btn-ghost"
-            >
-              Pagamento sem NF
-            </Link>
-            <Link href={`/planejamento/${project.id}/nf/nova`} className="btn">
-              Subir NF/RPA
+            <Link href={`/planejamento/${project.id}/reservas/nova`} className="btn">
+              Nova reserva
             </Link>
           </div>
         }

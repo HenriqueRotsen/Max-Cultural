@@ -31,6 +31,8 @@ export type BuildSalicPayloadInput = {
   planilhaAprovacaoId: string;
   fiscalKind: "NF" | "RPA" | null;
   mergedWithFiscal: boolean;
+  /** Sem NF/RPA: tipo vindo dos documentos de apoio (3 fatura, 4 recibo). */
+  supportTipo?: 3 | 4 | null;
   documentNumber: string;
   paymentDocumentNumber: string;
   amount: number;
@@ -89,7 +91,10 @@ export function buildSalicComprovantePayload(
       eInternacional: false,
     },
     idPlanilhaAprovacao: planilhaId,
-    tipo: mapSalicDocumentTipo(input.fiscalKind, input.mergedWithFiscal),
+    tipo:
+      !input.fiscalKind && !input.mergedWithFiscal && input.supportTipo
+        ? input.supportTipo
+        : mapSalicDocumentTipo(input.fiscalKind, input.mergedWithFiscal),
     numero: input.documentNumber.trim() || "S/N",
     serie: "",
     dataEmissao: formatSalicBrDate(input.issueDate),

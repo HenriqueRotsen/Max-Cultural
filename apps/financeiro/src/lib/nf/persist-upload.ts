@@ -13,6 +13,7 @@ export type PlanningDocumentKindFilter =
   | "NF"
   | "RPA"
   | "PAYMENT_PROOF"
+  | "SUPPORT"
   | "TAX_PROOF";
 
 export type DuplicateCheckScope = {
@@ -150,5 +151,12 @@ export async function duplicateFileMessage(dup: DuplicateDocumentInfo): Promise<
       })
     : null;
   const where = project ? ` no projeto ${project.externalCode}` : "";
-  return `Este arquivo já foi enviado${where} (${dup.kind} · ${dup.filename}). O mesmo documento não pode ser usado duas vezes.`;
+  const kindLabel: Record<string, string> = {
+    NF: "NF",
+    RPA: "RPA",
+    PAYMENT_PROOF: "comprovante",
+    TAX_PROOF: "guia de imposto",
+    SUPPORT: "documento",
+  };
+  return `Este arquivo já foi enviado${where} (${kindLabel[dup.kind] ?? "documento"} · ${dup.filename}). O mesmo documento não pode ser usado duas vezes.`;
 }

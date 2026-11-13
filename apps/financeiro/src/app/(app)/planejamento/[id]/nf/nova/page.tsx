@@ -17,10 +17,11 @@ export default async function NovaNfPage({
   searchParams: Promise<{
     attachCommitmentId?: string;
     attachPedidoId?: string;
+    tipo?: string;
   }>;
 }) {
   const { id } = await params;
-  const { attachCommitmentId, attachPedidoId } = await searchParams;
+  const { attachCommitmentId, attachPedidoId, tipo } = await searchParams;
   const { entitlements } = await getWorkspaceContext();
   const project = await prisma.planningProject.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
@@ -81,6 +82,7 @@ export default async function NovaNfPage({
         documents={pendingDocs}
       />
       <NfUploadForm
+        initialKind={tipo === "RPA" ? "RPA" : tipo === "NF" ? "NF" : null}
         planningProjectId={id}
         attachCommitmentId={attachCommitmentId}
         attachPedidoId={attachPedidoId}

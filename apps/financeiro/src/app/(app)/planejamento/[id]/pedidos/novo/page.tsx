@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui";
 import { PedidoForm } from "@/components/planning/PedidoForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import {
   computeProjectBalance,
   isAdminProduct,
@@ -15,10 +16,13 @@ export const dynamic = "force-dynamic";
 
 export default async function NovoPedidoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ contrato?: string }>;
 }) {
   const { id } = await params;
+  const contract = (await searchParams).contrato === "1";
   const { entitlements } = await getWorkspaceContext();
   const project = await prisma.planningProject.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
@@ -72,7 +76,7 @@ export default async function NovoPedidoPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        backHref={`/planejamento/${id}`}
+        backHref={contract ? `/planejamento/${id}/reservas/nova` : `/planejamento/${id}`}
         breadcrumb={
           <>
             <Link href="/planejamento">Planejamento</Link> /{" "}
@@ -80,10 +84,15 @@ export default async function NovoPedidoPage({
             Novo pedido
           </>
         }
-        title="Novo pedido / parcelamento"
-        description="Reserve o teto operacional sem NF — em 1× ou N× (ex.: 12 parcelas). Cada parcela aparece no contas a pagar."
+        title={contract ? "Reserva por contrato" : "Novo pedido / parcelamento"}
+        description={
+          contract
+            ? `Locação ou serviço em parcelas. O contrato é obrigatório e vai junto em cada parcela, no Docs${isFederalPlanning(project.jurisdiction) ? " e no PDF do SALIC" : ""}.`
+            : "Reserve o teto operacional sem NF, em 1× ou N× (ex.: 12 parcelas). Cada parcela aparece no contas a pagar."
+        }
       />
       <PedidoForm
+        contract={contract}
         planningProjectId={id}
         lines={rubricOptions.filter((l) => l.available > 0 || l.isAdmin)}
       />

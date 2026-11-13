@@ -365,7 +365,33 @@ async function loadProofPublishContext(
     expectedPayAt: proof.commitment?.expectedPayAt,
   });
   const issueDate = resolveIssueDate({ fiscalExtracted, paymentDate });
-  const docNumber = resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind);
+  // Sem NF/RPA: tipo e número vêm dos documentos de apoio (fatura, apólice…).
+  let supportTipo: 3 | 4 | null = null;
+  let supportNumber: string | null = null;
+  if (!fiscal) {
+    const groupIds = [
+      ...new Set(
+        [proof.commitmentId, ...proof.allocations.map((a) => a.commitmentId)].filter(
+          (x): x is string => Boolean(x),
+        ),
+      ),
+    ];
+    const supports = groupIds.length
+      ? await prisma.planningDocument.findMany({
+          where: { kind: "SUPPORT", status: "IMPORTED", commitmentId: { in: groupIds } },
+          select: { supportType: true, extractedJson: true },
+        })
+      : [];
+    const { salicTipoForSupport, sortSupportDocs } = await import("@/lib/planning/support-docs");
+    supportTipo = salicTipoForSupport(supports.map((d) => d.supportType));
+    supportNumber =
+      sortSupportDocs(supports)
+        .map((d) => (d.extractedJson as { documentNumber?: string | null } | null)?.documentNumber)
+        .find(Boolean) ?? null;
+  }
+  const docNumber = fiscal
+    ? resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind)
+    : supportNumber || resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind);
   const paymentDoc = resolvePaymentDocumentNumber({
     proofExtracted,
     fiscalExtracted,
@@ -398,6 +424,7 @@ async function loadProofPublishContext(
       planilhaAprovacaoId,
       fiscalKind,
       mergedWithFiscal: Boolean(fiscal),
+      supportTipo,
       documentNumber: docNumber,
       paymentDocumentNumber: paymentDoc,
       amount,

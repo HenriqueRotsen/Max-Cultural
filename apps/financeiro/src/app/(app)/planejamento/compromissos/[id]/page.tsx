@@ -7,6 +7,8 @@ import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton"
 import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
+import { SupportDocsCard } from "@/components/planning/SupportDocsCard";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -23,15 +25,20 @@ export const dynamic = "force-dynamic";
 
 export default async function CompromissoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ docErro?: string }>;
 }) {
   const { id } = await params;
+  const { docErro } = await searchParams;
   const { entitlements } = await getWorkspaceContext();
   const commitment = await prisma.rubricCommitment.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
     include: {
-      planningProject: { select: { id: true, externalCode: true, closedAt: true } },
+      planningProject: {
+        select: { id: true, externalCode: true, closedAt: true, jurisdiction: true },
+      },
       budgetLine: {
         select: { itemName: true, stageName: true, productName: true },
       },
@@ -112,11 +119,13 @@ export default async function CompromissoPage({
   const siblingSlices = isPedidoParcel
     ? []
     : (sourceNf?.allocations ?? paymentProof?.allocations ?? []);
+  // Documentos de apoio (boleto, contrato, apólice…) ficam no card próprio.
+  const supportDocs = commitment.documents.filter((d) => d.kind === "SUPPORT");
   const reservedWithoutNf =
     commitment.status === "RESERVED" &&
     !isPedidoParcel &&
     !sourceNf &&
-    commitment.documents.length === 0;
+    commitment.documents.every((d) => d.kind === "SUPPORT");
   const multiRubric = siblingSlices.length > 1;
   const hasPaymentProof = commitment.documents.some(
     (d) => d.kind === "PAYMENT_PROOF",
@@ -399,9 +408,17 @@ export default async function CompromissoPage({
               </div>
             ) : null}
             </div>
+          ) : !sourceNf && supportDocs.length > 0 && commitment.status === "RESERVED" ? (
+            <ProofUploadForm
+              commitmentId={commitment.id}
+              kind="PAYMENT_PROOF"
+              label="PDF ou imagem do comprovante"
+              hint={`Paga o lançamento de ${formatCurrency(Number(commitment.amount))} com os documentos anexados (${supportDocs.length}).`}
+            />
           ) : !sourceNf ? (
             <p className="text-sm text-[var(--gray-500)]">
-              Confirme a NF/RPA antes de enviar o comprovante.
+              Confirme a NF/RPA (ou anexe o boleto, contrato, apólice… em Outros documentos) antes de
+              enviar o comprovante.
             </p>
           ) : (
             <ProofUploadForm
@@ -463,18 +480,24 @@ export default async function CompromissoPage({
         </div>
       </div>
 
-      {commitment.documents.length > 0 ? (
-        <div className="card p-5">
-          <h2 className="mb-2 font-semibold text-[var(--navy)]">Arquivos</h2>
-          <ul className="space-y-1 text-sm text-[var(--gray-600)]">
-            {commitment.documents.map((d) => (
-              <li key={d.id}>
-                {d.kind} · {d.filename} · {(d.byteSize / 1024).toFixed(1)} KB
-              </li>
-            ))}
-          </ul>
-        </div>
+      {docErro ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          O pagamento foi registrado, mas o documento de apoio não entrou: {docErro} Anexe de novo
+          em Outros documentos.
+        </p>
       ) : null}
+      <SupportDocsCard
+        salic={isFederalPlanning(commitment.planningProject.jurisdiction)}
+        commitmentId={commitment.id}
+        canRemove={canCancelReservation}
+        locked={commitment.status === "CANCELLED" || Boolean(commitment.planningProject.closedAt)}
+        docs={supportDocs.map((d) => ({
+          id: d.id,
+          supportType: d.supportType,
+          filename: d.filename,
+          note: d.errorMessage,
+        }))}
+      />
     </div>
   );
 }

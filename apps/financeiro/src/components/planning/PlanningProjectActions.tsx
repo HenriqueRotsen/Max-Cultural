@@ -21,6 +21,7 @@ export function PlanningProjectActions({
   rubricOverrunPct = 100,
   showSheetVersions = false,
   pendenciasCount = 0,
+  pendenciasLate = 0,
 }: {
   projectId: string;
   reservationsCount: number;
@@ -34,6 +35,7 @@ export function PlanningProjectActions({
   rubricOverrunPct?: number;
   showSheetVersions?: boolean;
   pendenciasCount?: number;
+  pendenciasLate?: number;
 }) {
   const [editRubricsOpen, setEditRubricsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -47,6 +49,7 @@ export function PlanningProjectActions({
         reservationsCount={reservationsCount}
         showSheetVersions={showSheetVersions}
         pendenciasCount={pendenciasCount}
+        pendenciasLate={pendenciasLate}
         menuOpen={menuOpen}
         onMenuOpenChange={setMenuOpen}
         moreSlot={

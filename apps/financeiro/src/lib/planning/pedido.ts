@@ -114,6 +114,18 @@ export async function createPedido(
   });
   if (!project?.sheet) return { error: "Projeto sem planilha" };
 
+  // Reserva por contrato: o contrato é obrigatório e passa pelas travas antes
+  // de reservar (fornecedor no contrato, PRONAC).
+  const isContract = formData.get("isContract") === "1";
+  if (isContract) {
+    const contractError = await checkContractBeforeReserving({
+      formData,
+      supplierDoc: cnpj,
+      projectCode: project.externalCode,
+    });
+    if (contractError) return contractError;
+  }
+
   const valorCaptado =
     (project.valorCaptado != null
       ? Number(project.valorCaptado)
@@ -338,6 +350,28 @@ export async function createPedido(
       return { error: msg.slice("BALANCE:".length) };
     }
     throw err;
+  }
+
+  if (isContract) {
+    const attached = await attachContractToParcels({
+      userId: session.id,
+      workspaceId: entitlements.workspaceId,
+      pedidoId,
+      formData,
+    });
+    if (attached.error) {
+      // Sem o contrato a reserva por contrato não vale: desfaz o pedido.
+      const created = await prisma.rubricCommitment.findMany({
+        where: { pedidoId },
+        select: { id: true, engagementId: true },
+      });
+      await prisma.rubricCommitment.deleteMany({ where: { pedidoId } });
+      await prisma.catalogEngagement.deleteMany({
+        where: { id: { in: created.map((c) => c.engagementId) } },
+      });
+      await prisma.planningPedido.delete({ where: { id: pedidoId } }).catch(() => undefined);
+      return { error: attached.error, pronacOverride: attached.pronacOverride };
+    }
   }
 
   revalidatePedido(project.id, pedidoId);
@@ -665,4 +699,100 @@ export async function attachNfToPedido(params: {
 
   revalidatePedido(pedido.planningProjectId, pedido.id);
   redirect(`/planejamento/${pedido.planningProjectId}/pedidos/${pedido.id}`);
+}
+
+
+/**
+ * Trava do contrato antes de reservar: o arquivo vem, o CPF/CNPJ do
+ * fornecedor aparece nele (quando o texto é legível) e não é de outro PRONAC.
+ */
+async function checkContractBeforeReserving(params: {
+  formData: FormData;
+  supplierDoc: string;
+  projectCode: string;
+}): Promise<ActionState | null> {
+  const file = params.formData.get("supportFile");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Anexe o contrato (PDF). Na reserva por contrato ele é obrigatório." };
+  }
+  const { extractProofFromBuffer } = await import("@/lib/nf/extract");
+  const { checkProjectCodeInDocument } = await import("@/lib/nf/document-cross-check");
+  const { enforcePronacMatch } = await import("@/lib/planning/pronac-override");
+  const text =
+    (
+      await extractProofFromBuffer({
+        buffer: Buffer.from(await file.arrayBuffer()),
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+      })
+    ).rawText || "";
+  const digits = text.replace(/\D/g, "");
+  if (text.trim().length > 50 && params.supplierDoc && !digits.includes(params.supplierDoc)) {
+    return {
+      error: `O CPF/CNPJ do fornecedor (${formatCgccpf(params.supplierDoc)}) não aparece no contrato. Confira se é o contrato deste fornecedor.`,
+    };
+  }
+  const projectCheck = checkProjectCodeInDocument({ text, expectedCode: params.projectCode });
+  const gate = await enforcePronacMatch({ mismatch: projectCheck.warning, formData: params.formData });
+  if (!gate.ok) return { error: gate.error, pronacOverride: gate.pronacOverride };
+  return null;
+}
+
+/**
+ * O contrato vai em cada parcela (mesmo arquivo, uma linha por parcela), para
+ * entrar no PDF do SALIC de cada pagamento.
+ */
+async function attachContractToParcels(params: {
+  userId: string;
+  workspaceId: string;
+  pedidoId: string;
+  formData: FormData;
+}): Promise<ActionState> {
+  const parcels = await prisma.rubricCommitment.findMany({
+    where: { pedidoId: params.pedidoId },
+    orderBy: { installmentNumber: "asc" },
+    select: { id: true },
+  });
+  if (parcels.length === 0) return { error: "Pedido sem parcelas." };
+  params.formData.set("supportType", "CONTRATO");
+  const { attachSupportDocumentCore } = await import("@/lib/planning/support-attach");
+  const first = await attachSupportDocumentCore({
+    userId: params.userId,
+    workspaceId: params.workspaceId,
+    commitmentId: parcels[0]!.id,
+    formData: params.formData,
+  });
+  if (first.error) return first;
+  const doc = await prisma.planningDocument.findFirst({
+    where: { commitmentId: parcels[0]!.id, kind: "SUPPORT", supportType: "CONTRATO" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!doc) return { error: "Contrato não foi salvo." };
+  for (const p of parcels.slice(1)) {
+    const engagement = await prisma.rubricCommitment.findUnique({
+      where: { id: p.id },
+      select: { engagementId: true },
+    });
+    await prisma.planningDocument.create({
+      data: {
+        kind: "SUPPORT",
+        supportType: "CONTRATO",
+        status: "IMPORTED",
+        filename: doc.filename,
+        mimeType: doc.mimeType,
+        storagePath: doc.storagePath,
+        byteSize: doc.byteSize,
+        originalByteSize: doc.originalByteSize,
+        contentHash: doc.contentHash,
+        grossAmount: doc.grossAmount,
+        extractedJson: doc.extractedJson ?? undefined,
+        errorMessage: doc.errorMessage,
+        workspaceId: doc.workspaceId,
+        planningProjectId: doc.planningProjectId,
+        engagementId: engagement?.engagementId ?? null,
+        commitmentId: p.id,
+      },
+    });
+  }
+  return { ok: true };
 }
