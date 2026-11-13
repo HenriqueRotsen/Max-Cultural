@@ -6,6 +6,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCgccpf, formatCurrency, formatDate } from "@/lib/format";
 import { loadSalicPendencias } from "@/lib/planning/salic-pendencias";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { loadFinancialPendencias } from "@/lib/planning/financial-pendencias";
 import { List } from "@/components/planning/OtherPendencies";
 import { formatRubricShortLabel } from "@/lib/planning/rubric-label";
@@ -21,10 +22,13 @@ export default async function PendenciasPage({ params }: { params: Promise<{ id:
       id: true,
       externalCode: true,
       name: true,
+      jurisdiction: true,
       sheet: { select: { lines: { select: { id: true, sortOrder: true, itemName: true } } } },
     },
   });
   if (!project) notFound();
+  // Lei Rouanet tem SALIC; leis estaduais e municipais, não.
+  const salic = isFederalPlanning(project.jurisdiction);
   const [{ semLancamento, excluidos }, fin] = await Promise.all([
     loadSalicPendencias(project.id, entitlements.workspaceId),
     loadFinancialPendencias({ workspaceId: entitlements.workspaceId, planningProjectId: project.id }),
@@ -53,7 +57,7 @@ export default async function PendenciasPage({ params }: { params: Promise<{ id:
           </>
         }
         title="Pendências"
-        description="O que falta pagar, regularizar ou enviar neste projeto, do mais urgente para o menos. É o Contas a pagar só deste projeto."
+        description={`O que falta pagar${salic ? ", comprovar ou enviar ao SALIC" : " ou comprovar"} neste projeto, do mais urgente para o menos. É o Contas a pagar só deste projeto.`}
       />
 
       {nothing ? (
@@ -80,8 +84,9 @@ export default async function PendenciasPage({ params }: { params: Promise<{ id:
         <div>
           <h2 className="text-lg font-semibold text-[var(--navy)]">Comprovações</h2>
           <p className="text-sm text-[var(--gray-500)]">
-            O que falta para o que está no sistema bater com o SALIC: documentos de pagamentos feitos,
-            e diferenças entre o sistema e o SALIC nos dois sentidos.
+            {salic
+              ? "O que falta para o que está no sistema bater com o SALIC: documentos de pagamentos feitos, e diferenças entre o sistema e o SALIC nos dois sentidos."
+              : "Documentos que faltam nos pagamentos feitos (nota fiscal e guias de imposto)."}
           </p>
         </div>
       ) : null}

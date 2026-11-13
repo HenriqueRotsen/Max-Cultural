@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,8 @@ type ReservationType = {
   title: string;
   when: string;
   needs: string;
-  after: string;
+  /** O que fica pendente depois; `salic` só aparece em projeto federal. */
+  after: (salic: boolean) => string;
   href: (id: string) => string;
 };
 
@@ -26,7 +28,8 @@ const TYPES: ReservationType[] = [
     title: "Nota fiscal",
     when: "A nota chegou antes de pagar.",
     needs: "PDF ou XML da NF.",
-    after: "Depois: comprovante, guia dos impostos retidos e envio ao SALIC.",
+    after: (salic) =>
+      `Depois: comprovante e guia dos impostos retidos${salic ? ", e envio ao SALIC" : ""}.`,
     href: (id) => `/planejamento/${id}/nf/nova?tipo=NF`,
   },
   {
@@ -34,7 +37,7 @@ const TYPES: ReservationType[] = [
     title: "RPA",
     when: "Pagamento a pessoa física (recibo de autônomo).",
     needs: "PDF do RPA.",
-    after: "Depois: comprovante, guias de INSS/IRRF e envio ao SALIC.",
+    after: (salic) => `Depois: comprovante e guias de INSS/IRRF${salic ? ", e envio ao SALIC" : ""}.`,
     href: (id) => `/planejamento/${id}/nf/nova?tipo=RPA`,
   },
   {
@@ -42,7 +45,7 @@ const TYPES: ReservationType[] = [
     title: "Comprovante (já pago, sem NF)",
     when: "O pagamento já foi feito e a nota ainda não chegou.",
     needs: "Comprovante do pagamento, valor, fornecedor e rubrica.",
-    after: "Entra como pago, com NF pendente. Depois: NF/RPA (ou fatura, recibo ou apólice).",
+    after: () => "Entra como pago, com NF pendente. Depois: NF/RPA (ou fatura, recibo ou apólice).",
     href: (id) => `/planejamento/${id}/pagamento-antecipado`,
   },
   {
@@ -50,7 +53,8 @@ const TYPES: ReservationType[] = [
     title: "Boleto",
     when: "Chegou uma cobrança para pagar: passagem, seguro, serviço.",
     needs: "PDF do boleto. O sistema lê valor, vencimento e beneficiário.",
-    after: "Reserva até o vencimento. Depois: comprovante, NF ou apólice e envio ao SALIC.",
+    after: (salic) =>
+      `Reserva até o vencimento. Depois: comprovante e NF ou apólice${salic ? ", e envio ao SALIC" : ""}.`,
     href: (id) => `/planejamento/${id}/reservas/boleto`,
   },
   {
@@ -58,7 +62,8 @@ const TYPES: ReservationType[] = [
     title: "Contrato",
     when: "Locação ou serviço pago em parcelas.",
     needs: "Contrato assinado, valor total e as parcelas (data e rubrica de cada uma).",
-    after: "Uma reserva por parcela. Depois: comprovante e NF de cada parcela (ou o contrato no lugar da NF).",
+    after: () =>
+      "Uma reserva por parcela. Depois: comprovante e NF de cada parcela (ou o contrato no lugar da NF).",
     href: (id) => `/planejamento/${id}/pedidos/novo?contrato=1`,
   },
 ];
@@ -68,9 +73,10 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ id
   const { entitlements } = await getWorkspaceContext();
   const project = await prisma.planningProject.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
-    select: { id: true, externalCode: true },
+    select: { id: true, externalCode: true, jurisdiction: true },
   });
   if (!project) notFound();
+  const salic = isFederalPlanning(project.jurisdiction);
 
   return (
     <div className="space-y-6">
@@ -83,7 +89,7 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ id
           </>
         }
         title="Nova reserva"
-        description="Escolha pelo documento que você tem agora. Todos reservam o valor na rubrica e passam pelas mesmas travas: saldo da rubrica, limites do projeto, PRONAC e documento repetido."
+        description={`Escolha pelo documento que você tem agora. Todos reservam o valor na rubrica e passam pelas mesmas travas: saldo da rubrica, limites do projeto, ${salic ? "PRONAC" : "código do projeto"} e documento repetido.`}
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {TYPES.map((t) => (
@@ -97,7 +103,7 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ id
             <span className="text-sm text-[var(--gray-600)]">
               <strong className="font-semibold">Precisa:</strong> {t.needs}
             </span>
-            <span className="mt-auto pt-2 text-xs text-[var(--gray-500)]">{t.after}</span>
+            <span className="mt-auto pt-2 text-xs text-[var(--gray-500)]">{t.after(salic)}</span>
           </Link>
         ))}
       </div>

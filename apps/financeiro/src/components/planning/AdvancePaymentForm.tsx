@@ -33,10 +33,13 @@ export function AdvancePaymentForm({
   planningProjectId,
   lines,
   defaultNfReminderAt,
+  salic = true,
 }: {
   planningProjectId: string;
   lines: RubricSelectOption[];
   defaultNfReminderAt: string;
+  /** Projeto federal (Lei Rouanet): o documento vai no PDF do SALIC. */
+  salic?: boolean;
 }) {
   const action = uploadAdvancePayment.bind(null, planningProjectId);
   const [state, formAction, pending] = useActionState(action, initial);
@@ -246,8 +249,8 @@ export function AdvancePaymentForm({
               Documento de apoio (opcional)
             </legend>
             <p className="text-xs text-[var(--gray-500)]">
-              Boleto, orçamento, contrato, fatura, recibo ou apólice que veio antes da NF. Entra no PDF
-              enviado ao SALIC. Dá para anexar depois, no lançamento.
+              Boleto, orçamento, contrato, fatura, recibo ou apólice que veio antes da NF.
+              {salic ? " Entra no PDF enviado ao SALIC." : ""} Dá para anexar depois, no lançamento.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="field">

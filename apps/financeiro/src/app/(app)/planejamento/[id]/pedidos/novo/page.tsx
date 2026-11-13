@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui";
 import { PedidoForm } from "@/components/planning/PedidoForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import {
   computeProjectBalance,
   isAdminProduct,
@@ -86,7 +87,7 @@ export default async function NovoPedidoPage({
         title={contract ? "Reserva por contrato" : "Novo pedido / parcelamento"}
         description={
           contract
-            ? "Locação ou serviço em parcelas. O contrato é obrigatório e vai junto em cada parcela, no Docs e no PDF do SALIC."
+            ? `Locação ou serviço em parcelas. O contrato é obrigatório e vai junto em cada parcela, no Docs${isFederalPlanning(project.jurisdiction) ? " e no PDF do SALIC" : ""}.`
             : "Reserve o teto operacional sem NF, em 1× ou N× (ex.: 12 parcelas). Cada parcela aparece no contas a pagar."
         }
       />

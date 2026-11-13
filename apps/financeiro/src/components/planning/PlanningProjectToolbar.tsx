@@ -78,7 +78,7 @@ export function PlanningProjectToolbar({
         title={
           pendenciasLate > 0
             ? `${pendenciasLate} atrasada(s)`
-            : "O que falta pagar, comprovar ou enviar ao SALIC"
+            : "O que falta pagar ou comprovar"
         }
       >
         Pendências

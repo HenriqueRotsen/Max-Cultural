@@ -8,6 +8,7 @@ import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
 import { SupportDocsCard } from "@/components/planning/SupportDocsCard";
+import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -35,7 +36,9 @@ export default async function CompromissoPage({
   const commitment = await prisma.rubricCommitment.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
     include: {
-      planningProject: { select: { id: true, externalCode: true, closedAt: true } },
+      planningProject: {
+        select: { id: true, externalCode: true, closedAt: true, jurisdiction: true },
+      },
       budgetLine: {
         select: { itemName: true, stageName: true, productName: true },
       },
@@ -484,6 +487,7 @@ export default async function CompromissoPage({
         </p>
       ) : null}
       <SupportDocsCard
+        salic={isFederalPlanning(commitment.planningProject.jurisdiction)}
         commitmentId={commitment.id}
         canRemove={canCancelReservation}
         locked={commitment.status === "CANCELLED" || Boolean(commitment.planningProject.closedAt)}

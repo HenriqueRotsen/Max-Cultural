@@ -21,12 +21,15 @@ export function SupportDocsCard({
   docs,
   canRemove,
   locked,
+  salic = true,
 }: {
   commitmentId: string;
   docs: SupportDoc[];
   canRemove: boolean;
   /** Projeto encerrado ou lançamento cancelado. */
   locked: boolean;
+  /** Projeto federal (Lei Rouanet): os documentos vão no PDF do SALIC. */
+  salic?: boolean;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
@@ -47,8 +50,8 @@ export function SupportDocsCard({
       <div>
         <h2 className="font-semibold text-[var(--navy)]">Outros documentos</h2>
         <p className="text-xs text-[var(--gray-500)]">
-          Boleto, fatura, recibo, contrato, apólice ou orçamento. Podem chegar em etapas; todos
-          entram no PDF enviado ao SALIC.
+          Boleto, fatura, recibo, contrato, apólice ou orçamento. Podem chegar em etapas
+          {salic ? "; todos entram no PDF enviado ao SALIC." : "."}
         </p>
       </div>
 

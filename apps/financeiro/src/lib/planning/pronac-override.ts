@@ -4,7 +4,7 @@ export const PRONAC_OVERRIDE_FIELD = "pronacOverrideReason";
 
 /**
  * Trava do PRONAC: documento (NF/RPA ou comprovante) que menciona outro projeto
- * não entra. Quem tem a permissão "Liberar documento de outro PRONAC" pode
+ * não entra. Quem tem a permissão "Liberar documento de outro projeto (PRONAC)" pode
  * seguir escrevendo o motivo; quem chama grava o motivo no log.
  */
 export async function enforcePronacMatch(params: {
@@ -20,7 +20,7 @@ export async function enforcePronacMatch(params: {
     return {
       ok: false,
       pronacOverride: false,
-      error: `${params.mismatch} Só quem tem a permissão "Liberar documento de outro PRONAC" pode seguir com este arquivo.`,
+      error: `${params.mismatch} Só quem tem a permissão "Liberar documento de outro projeto (PRONAC)" pode seguir com este arquivo.`,
     };
   }
   const reason = String(params.formData.get(PRONAC_OVERRIDE_FIELD) || "").trim();

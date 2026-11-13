@@ -204,7 +204,7 @@ export const ACCESS_CATALOG = [
   },
   {
     id: "financeiro.planejamento.liberar_pronac",
-    label: "Liberar documento de outro PRONAC",
+    label: "Liberar documento de outro projeto (PRONAC)",
     description:
       "Segue com NF ou comprovante que menciona outro projeto. Exige motivo e fica no log.",
     kind: "capability",
