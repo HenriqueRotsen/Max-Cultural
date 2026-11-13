@@ -118,9 +118,6 @@ export function PlanningProjectToolbar({
             className="absolute left-0 z-20 mt-1.5 min-w-[15rem] rounded-xl border border-[var(--border)] bg-white p-2 shadow-lg sm:left-auto sm:right-0"
           >
             <div className="flex flex-col gap-1">
-              <Link href={`/planejamento/${projectId}/empregos`} className={menuItemClass}>
-                Empregos gerados
-              </Link>
               <Link href={`/planejamento/${projectId}/pedidos`} className={menuItemClass}>
                 Contratos e parcelamentos
               </Link>
