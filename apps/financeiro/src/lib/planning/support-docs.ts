@@ -23,6 +23,16 @@ export function replacesNf(type: string | null | undefined): boolean {
   return (NF_SUBSTITUTES as readonly string[]).includes(type ?? "");
 }
 
+/** Rótulo curto no nome do arquivo do SALIC. */
+export const SUPPORT_FILE_LABEL: Record<SupportType, string> = {
+  CONTRATO: "Contrato",
+  APOLICE: "Apolice",
+  FATURA: "Fatura",
+  ORCAMENTO: "Orcamento",
+  BOLETO: "Boleto",
+  RECIBO: "Recibo",
+};
+
 export function isSupportType(v: unknown): v is SupportType {
   return typeof v === "string" && (SUPPORT_TYPES as readonly string[]).includes(v);
 }

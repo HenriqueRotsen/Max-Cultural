@@ -6,6 +6,7 @@ import {
 } from "@/lib/nf/extract";
 import {
   buildSalicUploadFilename,
+  buildSalicUploadFilenameForRow,
   resolveFiscalDocumentNumber,
   resolvePaymentDate,
   resolvePaymentDocumentNumber,
@@ -15,11 +16,46 @@ describe("salic-publish-metadata", () => {
   it("monta nome do arquivo no padrão SALIC", () => {
     expect(
       buildSalicUploadFilename({
+        itemNumber: 139,
+        docLabel: "NF",
+        fiscalDocNumber: "29",
+        supplierName: "Rayane Silva",
+      }),
+    ).toBe("139- NF 29- Rayane Silva.pdf");
+  });
+
+  it("RPA com barra no número e fornecedor com acento", () => {
+    expect(
+      buildSalicUploadFilename({
         itemNumber: 42,
-        fiscalDocNumber: "3628",
+        docLabel: "RPA",
+        fiscalDocNumber: "26/2026",
         supplierName: "GMC Assessoria Contábil Ltda",
       }),
-    ).toBe("42 - 3628 - GMC-ASSESSORIA-CONTABIL-LTDA.pdf");
+    ).toBe("42- RPA 26-2026- GMC Assessoria Contabil Ltda.pdf");
+  });
+
+  it("lista de reservas: sem NF usa tipo e número do documento de apoio", () => {
+    expect(
+      buildSalicUploadFilenameForRow({
+        sortOrder: 1,
+        supplierName: "Grafica Teste",
+        fiscalKind: null,
+        docLabel: "Apolice",
+        docNumber: "1007500012345",
+      }),
+    ).toBe("2- Apolice 1007500012345- Grafica Teste.pdf");
+  });
+
+  it("sem número vira S-N", () => {
+    expect(
+      buildSalicUploadFilename({
+        itemNumber: 5,
+        docLabel: "Apolice",
+        fiscalDocNumber: "S/N",
+        supplierName: "Seguradora X",
+      }),
+    ).toBe("5- Apolice S-N- Seguradora X.pdf");
   });
 
   it("usa número da NF/RPA extraído", () => {

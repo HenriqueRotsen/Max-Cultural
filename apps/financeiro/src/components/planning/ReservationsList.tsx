@@ -182,6 +182,7 @@ export function ReservationsList({
                 fiscalNumber,
                 uploadFilename: buildSalicUploadFilename({
                   itemNumber,
+                  docLabel: item.fiscalKind ?? "NF",
                   fiscalDocNumber: fiscalNumber,
                   supplierName,
                 }),
