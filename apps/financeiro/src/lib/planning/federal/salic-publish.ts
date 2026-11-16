@@ -113,24 +113,27 @@ async function resolveSalicUploadFilename(
     }
   }
 
-  // Sem NF/RPA: o número vem do documento de apoio (apólice, contrato, fatura…).
+  // Sem NF/RPA: tipo e número vêm do documento de apoio (apólice, contrato, fatura…).
+  const support = fiscal ? null : await supportDocForProof(proofId);
   const fiscalDocNumber = fiscal
     ? resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind)
-    : ((await supportDocNumberForProof(proofId)) ??
-      resolveFiscalDocumentNumber(fiscalExtracted, fiscalKind));
+    : (support?.number ?? "S/N");
   const itemNumber = resolveSalicItemNumber(
     proof.allocations[0]?.budgetLine.sortOrder,
   );
 
   return buildSalicUploadFilename({
     itemNumber,
+    docLabel: fiscalKind ?? support?.label ?? "Comprovante",
     fiscalDocNumber,
     supplierName,
   });
 }
 
-/** Número do documento de apoio principal do pagamento (contrato, apólice, fatura…). */
-async function supportDocNumberForProof(proofId: string): Promise<string | null> {
+/** Documento de apoio principal do pagamento (contrato, apólice, fatura…): rótulo e número. */
+async function supportDocForProof(
+  proofId: string,
+): Promise<{ label: string; number: string | null } | null> {
   const proof = await prisma.planningDocument.findUnique({
     where: { id: proofId },
     select: { commitmentId: true, allocations: { select: { commitmentId: true } } },
@@ -147,12 +150,17 @@ async function supportDocNumberForProof(proofId: string): Promise<string | null>
     where: { kind: "SUPPORT", status: "IMPORTED", commitmentId: { in: group } },
     select: { supportType: true, extractedJson: true },
   });
-  const { sortSupportDocs } = await import("@/lib/planning/support-docs");
-  return (
-    sortSupportDocs(supports)
-      .map((d) => (d.extractedJson as { documentNumber?: string | null } | null)?.documentNumber)
-      .find(Boolean) ?? null
+  const { sortSupportDocs, SUPPORT_FILE_LABEL } = await import("@/lib/planning/support-docs");
+  const first = sortSupportDocs(supports)[0];
+  if (!first) return null;
+  const withNumber = sortSupportDocs(supports).find(
+    (d) => (d.extractedJson as { documentNumber?: string | null } | null)?.documentNumber,
   );
+  const main = withNumber ?? first;
+  return {
+    label: SUPPORT_FILE_LABEL[main.supportType as keyof typeof SUPPORT_FILE_LABEL] ?? "Documento",
+    number: (main.extractedJson as { documentNumber?: string | null } | null)?.documentNumber ?? null,
+  };
 }
 
 function toMergeSource(row: {

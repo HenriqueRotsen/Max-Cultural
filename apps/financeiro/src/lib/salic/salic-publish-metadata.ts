@@ -17,19 +17,32 @@ type ProofExtracted = {
   paymentDocumentNumber?: string | null;
 };
 
-function slugSupplier(value: string, max = 60): string {
+/** Nome do fornecedor como está no cadastro, sem acento nem caracteres que quebram o arquivo. */
+function cleanSupplier(value: string, max = 80): string {
   const s = value
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
-    .replace(/[^\w]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toUpperCase();
-  return (s || "FORNECEDOR").slice(0, max);
+    .replace(/[^\w .&-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (s || "Fornecedor").slice(0, max).trim();
 }
 
-/** Nome do arquivo enviado ao SALIC: `{item} - {nf} - {fornecedor}.pdf` */
+/** Número do documento sem barra (ex.: "26/2026" → "26-2026", "S/N" → "S-N"). */
+function cleanDocNumber(value: string): string {
+  const s = value.trim().replace(/[\\/]+/g, "-").replace(/[^\w.-]+/g, "");
+  return s || "S-N";
+}
+
+/**
+ * Nome do arquivo enviado ao SALIC: `{item}- {tipo} {número}- {fornecedor}.pdf`
+ * (ex.: "139- NF 29- Rayane Silva.pdf"). O item é o número do item na
+ * planilha; o tipo é NF, RPA ou o documento que faz o papel da nota.
+ */
 export function buildSalicUploadFilename(params: {
   itemNumber: number | null;
+  /** NF, RPA, Fatura, Apolice… (padrão: NF). */
+  docLabel?: string | null;
   fiscalDocNumber: string;
   supplierName: string;
 }): string {
@@ -37,9 +50,8 @@ export function buildSalicUploadFilename(params: {
     params.itemNumber != null && params.itemNumber > 0
       ? String(params.itemNumber)
       : "0";
-  const nfId = params.fiscalDocNumber.trim() || "S-N";
-  const supplier = slugSupplier(params.supplierName);
-  return `${item} - ${nfId} - ${supplier}.pdf`;
+  const label = cleanSupplier(params.docLabel || "NF", 20);
+  return `${item}- ${label} ${cleanDocNumber(params.fiscalDocNumber)}- ${cleanSupplier(params.supplierName)}.pdf`;
 }
 
 export function resolveFiscalDocumentNumber(
@@ -112,13 +124,17 @@ export function buildSalicUploadFilenameForRow(params: {
   supplierName: string;
   fiscalExtracted?: FiscalExtracted | null;
   fiscalKind?: "NF" | "RPA" | null;
+  /** Sem NF/RPA: rótulo do documento de apoio (Fatura, Apolice…). */
+  docLabel?: string | null;
+  /** Sem NF/RPA: número do documento de apoio. */
+  docNumber?: string | null;
 }): string {
   return buildSalicUploadFilename({
     itemNumber: resolveSalicItemNumber(params.sortOrder),
-    fiscalDocNumber: resolveFiscalDocumentNumber(
-      params.fiscalExtracted,
-      params.fiscalKind ?? null,
-    ),
+    docLabel: params.fiscalKind ?? params.docLabel ?? "Comprovante",
+    fiscalDocNumber: params.fiscalKind
+      ? resolveFiscalDocumentNumber(params.fiscalExtracted, params.fiscalKind)
+      : (params.docNumber ?? "S/N"),
     supplierName: params.supplierName,
   });
 }

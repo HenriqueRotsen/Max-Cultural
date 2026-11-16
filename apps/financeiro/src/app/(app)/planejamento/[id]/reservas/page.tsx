@@ -9,7 +9,7 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { canPublishToSalic } from "@/lib/planning/acl";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
-import { sortSupportDocs } from "@/lib/planning/support-docs";
+import { SUPPORT_FILE_LABEL, sortSupportDocs } from "@/lib/planning/support-docs";
 import {
   buildSalicPublishPackages,
   SALIC_DOC_SELECT,
@@ -233,8 +233,15 @@ export default async function PlanningReservasPage({
     select: { commitmentId: true, supportType: true, extractedJson: true },
   });
   const supportNumberByCommitment = new Map<string, string>();
+  const supportLabelByCommitment = new Map<string, string>();
   for (const d of sortSupportDocs(supportRows)) {
     const n = (d.extractedJson as { documentNumber?: string | null } | null)?.documentNumber;
+    if (d.commitmentId && !supportLabelByCommitment.has(d.commitmentId)) {
+      supportLabelByCommitment.set(
+        d.commitmentId,
+        SUPPORT_FILE_LABEL[d.supportType as keyof typeof SUPPORT_FILE_LABEL] ?? "Documento",
+      );
+    }
     if (d.commitmentId && n && !supportNumberByCommitment.has(d.commitmentId)) {
       supportNumberByCommitment.set(d.commitmentId, n);
     }
@@ -250,21 +257,23 @@ export default async function PlanningReservasPage({
       : null;
     const fiscalKind =
       fiscal?.kind === "NF" || fiscal?.kind === "RPA" ? fiscal.kind : null;
+    const groupIds = [proof.commitmentId, ...proof.allocations.map((a) => a.commitmentId)];
     const supportNumber = fiscal
       ? null
-      : [proof.commitmentId, ...proof.allocations.map((a) => a.commitmentId)]
-          .map((cid) => (cid ? supportNumberByCommitment.get(cid) : undefined))
-          .find(Boolean);
+      : groupIds.map((cid) => (cid ? supportNumberByCommitment.get(cid) : undefined)).find(Boolean);
+    const supportLabel = fiscal
+      ? null
+      : groupIds.map((cid) => (cid ? supportLabelByCommitment.get(cid) : undefined)).find(Boolean);
     return buildSalicUploadFilenameForRow({
       sortOrder,
       supplierName,
-      fiscalExtracted: (supportNumber
-        ? { nfNumber: supportNumber, invoiceNumber: supportNumber }
-        : fiscal?.extractedJson || null) as {
+      fiscalExtracted: (fiscal?.extractedJson || null) as {
         nfNumber?: string | null;
         invoiceNumber?: string | null;
       },
       fiscalKind,
+      docLabel: supportLabel ?? null,
+      docNumber: supportNumber ?? null,
     });
   }
 
