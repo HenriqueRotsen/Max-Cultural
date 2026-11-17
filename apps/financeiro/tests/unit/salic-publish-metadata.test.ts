@@ -6,6 +6,7 @@ import {
 } from "@/lib/nf/extract";
 import {
   buildSalicUploadFilename,
+  sanitizeSalicFilename,
   buildSalicUploadFilenameForRow,
   resolveFiscalDocumentNumber,
   resolvePaymentDate,
@@ -109,5 +110,20 @@ describe("extract payment/fiscal numbers", () => {
       "Comprovante de Transferência\nTED\nData da transação 20/07/2026\nNúmero do documento 9876543210";
     expect(pickPaymentDocumentNumber(text)).toBe("9876543210");
     expect(pickPaymentProofDate(text)).toBe("2026-07-20");
+  });
+});
+
+describe("sanitizeSalicFilename (nome editado na revisão)", () => {
+  it("põe .pdf e mantém o que a pessoa escreveu", () => {
+    expect(sanitizeSalicFilename("139- NF 29- Rayane Silva")).toBe("139- NF 29- Rayane Silva.pdf");
+    expect(sanitizeSalicFilename("139- NF 29- Rayane Silva.PDF")).toBe("139- NF 29- Rayane Silva.pdf");
+  });
+  it("tira caracteres que não podem ir em nome de arquivo", () => {
+    expect(sanitizeSalicFilename('139- NF 26/2026: "Rayane"')).toBe("139- NF 26 2026 Rayane.pdf");
+  });
+  it("vazio volta para o nome padrão", () => {
+    expect(sanitizeSalicFilename("   ")).toBeNull();
+    expect(sanitizeSalicFilename(".pdf")).toBeNull();
+    expect(sanitizeSalicFilename(undefined)).toBeNull();
   });
 });

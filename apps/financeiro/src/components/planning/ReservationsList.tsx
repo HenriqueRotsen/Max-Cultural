@@ -216,7 +216,10 @@ export function ReservationsList({
     setPreviewMode(null);
   }
 
-  function confirmUpload(justificativas: Record<string, string>) {
+  function confirmUpload(
+    justificativas: Record<string, string>,
+    filenames: Record<string, string>,
+  ) {
     setError(null);
     setMessage(null);
     start(async () => {
@@ -224,6 +227,7 @@ export function ReservationsList({
         previewMode === "all"
           ? await publishAllCommitmentsToSalic(planningProjectId, {
               justificativasByProofId: justificativas,
+              filenamesByProofId: filenames,
             })
           : previewItems[0]
             ? await publishCommitmentToSalic(
@@ -231,6 +235,7 @@ export function ReservationsList({
                 previewItems[0].commitmentId,
                 {
                   justificativa: justificativas[previewItems[0].proofId] ?? "",
+                  filename: filenames[previewItems[0].proofId],
                 },
               )
             : { error: "Nenhuma reserva selecionada." };
