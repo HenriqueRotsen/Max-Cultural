@@ -13,6 +13,8 @@ import { parsePriceUnit } from "@/lib/catalog/price-units";
 import { recomputeServiceStats, recomputeSupplierStats } from "@/lib/catalog/ratings";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { clientIp, writeAuditLog } from "@/lib/activity-audit";
+import { parseAgencyPct, saveAgencyPct } from "@/lib/catalog/supplier-agency";
 import { isValidCgccpf, cgccpfValidationError, normalizeCgccpf } from "@/lib/format";
 
 export type CatalogActionState = { error?: string; ok?: boolean };
@@ -55,6 +57,27 @@ export async function lookupCnaeDescriptionAction(raw: string): Promise<{
   return { description };
 }
 
+async function saveAgency(ws: string, cnpj: string, pct: number | null, supplierId: string) {
+  const { session } = await getWorkspaceContext();
+  const actorUserId = session?.profile.id ?? null;
+  await saveAgencyPct({
+    workspaceId: ws,
+    cnpj,
+    pct,
+    actorUserId,
+    writeLog: async (meta) =>
+      writeAuditLog({
+        actorUserId,
+        action: "fornecedor.agencia",
+        screen: "financeiro.fornecedores",
+        entityType: "CatalogSupplier",
+        entityId: supplierId,
+        meta,
+        ip: await clientIp(),
+      }),
+  });
+}
+
 export async function upsertCatalogSupplier(
   _prev: CatalogActionState,
   formData: FormData,
@@ -65,6 +88,13 @@ export async function upsertCatalogSupplier(
   const name = String(formData.get("name") || "").trim();
   const docError = cgccpfValidationError(cnpj);
   if (docError) return { error: docError };
+  // Agência: só um percentual do que for pago conta nos limites do projeto.
+  const agencyPct =
+    formData.get("isAgency") === "on" ? parseAgencyPct(formData.get("agencyPct")) : null;
+  if (formData.get("isAgency") === "on" && agencyPct == null) {
+    return { error: "Informe o percentual da agência que conta nos limites." };
+  }
+  if (agencyPct && typeof agencyPct === "object") return agencyPct;
   if (!isValidCgccpf(cnpj)) return { error: "CNPJ ou CPF inválido." };
   if (name.length < 2) return { error: "Informe a razão social." };
 
@@ -140,6 +170,7 @@ export async function upsertCatalogSupplier(
     });
     if (!current) return { error: "Fornecedor não encontrado." };
     await prisma.catalogSupplier.update({ where: { id }, data });
+    await saveAgency(ws, cnpj, agencyPct, id);
     refreshCatalog();
     redirect(`/fornecedores/empresas/${id}`);
   }
@@ -147,6 +178,7 @@ export async function upsertCatalogSupplier(
   const created = await prisma.catalogSupplier.create({
     data: { ...data, workspaceId: ws },
   });
+  await saveAgency(ws, cnpj, agencyPct, created.id);
   refreshCatalog();
   redirect(`/fornecedores/empresas/${created.id}`);
 }

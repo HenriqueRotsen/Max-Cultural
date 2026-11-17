@@ -35,6 +35,9 @@ type SupplierRow = {
   total: number;
   percent: number;
   count: number;
+  /** Agência: só este valor (pago × %) conta no limite. */
+  capTotal?: number | null;
+  agencyPct?: number | null;
 };
 
 type PaymentRow = {
@@ -235,8 +238,19 @@ export function PronacDetailTables({
                         {isProponent ? " · Proponente" : isBond ? " · Com vínculo" : ""}
                       </div>
                     </td>
-                    <td className="font-semibold text-[var(--navy)]">{formatCurrency(s.total)}</td>
-                    <td>{formatPercent(s.total, projectTotal)}</td>
+                    <td>
+                      <span className="font-semibold text-[var(--navy)]">{formatCurrency(s.total)}</span>
+                      {s.agencyPct != null ? (
+                        <div
+                          className="text-xs text-amber-800"
+                          title="Fornecedor agência: só este percentual do valor pago conta nos limites."
+                        >
+                          Agência · conta {formatCurrency(s.capTotal ?? s.total)} (
+                          {s.agencyPct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>{formatPercent(s.capTotal ?? s.total, projectTotal)}</td>
                     <td>
                       <LimitBadge
                         percent={s.percent}

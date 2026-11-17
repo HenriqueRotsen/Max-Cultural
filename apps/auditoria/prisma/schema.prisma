@@ -122,6 +122,7 @@ model Workspace {
   watchedSuppliers WatchedSupplier[]
   observadoBonds   ObservadoBond[]
   projectBonds     ProjectObservadoBond[]
+  supplierAgencies SupplierAgency[]
 
   @@index([plan])
   @@schema("financeiro")
@@ -647,3 +648,23 @@ model NotificationSettings {
   @@schema("financeiro")
 }
 
+/**
+ * Fornecedor que é agência (intermediária): só `pct`% do que foi pago a ele
+ * conta nos limites de fornecedor e de vínculo. Vale por CNPJ (só dígitos) no
+ * espaço de trabalho, igual no Financeiro e na Auditoria.
+ */
+model SupplierAgency {
+  id          String   @id @default(cuid())
+  workspaceId String
+  cnpj        String
+  pct         Decimal  @db.Decimal(5, 2)
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, cnpj])
+  @@map("supplier_agencies")
+  @@schema("financeiro")
+}

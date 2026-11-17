@@ -13,6 +13,7 @@ import { CatalogFavoriteButton } from "@/components/catalog/CatalogFavoriteButto
 import { CatalogPriceDollars } from "@/components/catalog/CatalogPriceDollars";
 import { CatalogSupplierInsights } from "@/components/catalog/CatalogSupplierInsights";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { fmtAgencyPct, getAgencyPct } from "@/lib/catalog/supplier-agency";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ export default async function CatalogSupplierDetailPage({
   if (!supplier) notFound();
 
   const insights = await getSupplierInsights(ws, supplier.id);
+  const agencyPct = await getAgencyPct(ws, supplier.cnpj);
 
   const favorited =
     (await prisma.catalogFavorite.findUnique({
@@ -108,6 +110,14 @@ export default async function CatalogSupplierDetailPage({
 
       <div className="flex items-center gap-3">
         <CatalogStars value={supplier.avgRating} count={supplier.ratingCount} />
+        {agencyPct != null ? (
+          <span
+            className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
+            title="Só este percentual do que é pago conta nos limites de fornecedor e de vínculo."
+          >
+            Agência · {fmtAgencyPct(agencyPct)} conta nos limites
+          </span>
+        ) : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
