@@ -132,6 +132,22 @@ export function paymentCountsForBond(p: {
   return !isExcludedFromBondItem(p.itemName);
 }
 
+/**
+ * Fornecedor agência: só um percentual do que foi pago conta nos limites.
+ * `capTotal` é esse valor (pago × %); sem ele, conta o total pago.
+ */
+export type AgencyFields = { capTotal?: number | null; agencyPct?: number | null };
+
+export function countedTotal(s: { total: number } & AgencyFields): number {
+  return s.capTotal ?? s.total;
+}
+
+function agencyNote(name: string, agencyPct?: number | null, paid?: number) {
+  if (agencyPct == null) return "";
+  const pct = agencyPct.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  return ` ${name} é agência: conta ${pct}% do valor pago${paid != null ? ` (${formatCurrency(paid)} pagos)` : ""}.`;
+}
+
 /** Agrega pagamentos que contam para o vínculo com o proponente. */
 export function aggregateBondEligibleSuppliers(
   payments: Array<{
@@ -198,7 +214,7 @@ export function computeProponentGroupShare(params: {
   projectTotal: number;
   accountCgccpf?: string | null;
   personType?: PersonTypeInput | null;
-  suppliers: Array<{ name: string; cgccpf: string; total: number }>;
+  suppliers: Array<{ name: string; cgccpf: string; total: number } & AgencyFields>;
   relatedParties?: RelatedPartyInput[];
   rules?: ActiveRules;
 }): ProponentGroupShare | null {
@@ -218,12 +234,13 @@ export function computeProponentGroupShare(params: {
       !!params.accountCgccpf && isSameCgccpf(s.cgccpf, params.accountCgccpf);
     const isRelated = relatedSet.has(dig);
     if (!isProponent && !isRelated) continue;
-    if (s.total <= 0) continue;
+    const counted = countedTotal(s);
+    if (counted <= 0) continue;
     members.push({
-      name: s.name,
+      name: s.agencyPct != null ? `${s.name} (agência)` : s.name,
       cgccpf: dig,
-      amount: s.total,
-      percent: sharePercent(s.total, projectTotal),
+      amount: counted,
+      percent: sharePercent(counted, projectTotal),
       role: isProponent ? "proponent" : "related",
     });
   }
@@ -261,9 +278,13 @@ export function evaluateSupplierLimit(params: {
   isProponent?: boolean;
   personType?: PersonTypeInput | null;
   rules?: ActiveRules;
+  /** Agência: `amount` já é só o que conta; `paidAmount` é o total pago. */
+  agencyPct?: number | null;
+  paidAmount?: number;
 }): ComplianceAlert | null {
   const rules = params.rules || DEFAULT_RULES;
   const { projectTotal, amount } = params;
+  const note = agencyNote(params.supplierName, params.agencyPct, params.paidAmount);
   if (projectTotal <= 0 || amount <= 0) return null;
 
   const percent = sharePercent(amount, projectTotal);
@@ -284,7 +305,7 @@ export function evaluateSupplierLimit(params: {
       level: "critical",
       code: isProponent ? "PROPONENT_OVER_CAP" : "SUPPLIER_OVER_CAP",
       title: `Acima do limite legal (${limitPct}%) — ${params.supplierName}`,
-      detail: `No PRONAC ${params.pronac}, ${params.supplierName} recebeu ${pctLabel(percent)} do valor captado do projeto (${formatCurrency(amount)} de ${formatCurrency(projectTotal)}). Pela regra ${rules.sourceCode} (${article}), o mesmo ${subject} não deve passar de ${limitPct}% do valor captado. Há exceções previstas em ${rules.caps.articles.supplierExceptions}.`,
+      detail: `No PRONAC ${params.pronac}, ${params.supplierName} recebeu ${pctLabel(percent)} do valor captado do projeto (${formatCurrency(amount)} de ${formatCurrency(projectTotal)}). Pela regra ${rules.sourceCode} (${article}), o mesmo ${subject} não deve passar de ${limitPct}% do valor captado. Há exceções previstas em ${rules.caps.articles.supplierExceptions}.${note}`,
       pronac: params.pronac,
       supplierName: params.supplierName,
       percent,
@@ -299,7 +320,7 @@ export function evaluateSupplierLimit(params: {
       level: "attention",
       code: isProponent ? "PROPONENT_NEAR_CAP" : "SUPPLIER_NEAR_CAP",
       title: `Próximo do limite de ${limitPct}% — ${params.supplierName}`,
-      detail: `No PRONAC ${params.pronac}: ${pctLabel(percent)} (${formatCurrency(amount)}). Ainda faltam cerca de ${pctLabel(Math.max(0, limitPct - percent))} para o limite de ${limitPct}%.`,
+      detail: `No PRONAC ${params.pronac}: ${pctLabel(percent)} (${formatCurrency(amount)}). Ainda faltam cerca de ${pctLabel(Math.max(0, limitPct - percent))} para o limite de ${limitPct}%.${note}`,
       pronac: params.pronac,
       supplierName: params.supplierName,
       percent,
@@ -318,7 +339,7 @@ export function evaluateProponentGroupCap(params: {
   projectTotal: number;
   accountCgccpf?: string | null;
   personType?: PersonTypeInput | null;
-  suppliers: Array<{ name: string; cgccpf: string; total: number }>;
+  suppliers: Array<{ name: string; cgccpf: string; total: number } & AgencyFields>;
   relatedParties?: RelatedPartyInput[];
   rules?: ActiveRules;
 }): ComplianceAlert | null {
@@ -386,7 +407,7 @@ export function evaluatePronacSupplierCompliance(params: {
     name: string;
     cgccpf: string;
     total: number;
-  }>;
+  } & AgencyFields>;
   /**
    * Totais para a soma do vínculo (só pagamentos que contam; ver `paymentCountsForBond`).
    * Se omitido, usa `suppliers`.
@@ -395,7 +416,7 @@ export function evaluatePronacSupplierCompliance(params: {
     name: string;
     cgccpf: string;
     total: number;
-  }>;
+  } & AgencyFields>;
 }): ComplianceAlert[] {
   const rules = params.rules || DEFAULT_RULES;
   // IN sem limites percentuais: não há teto a avaliar.
@@ -435,7 +456,9 @@ export function evaluatePronacSupplierCompliance(params: {
       projectTotal: params.projectTotal,
       supplierName: s.name,
       supplierCgccpf: s.cgccpf,
-      amount: s.total,
+      amount: countedTotal(s),
+      agencyPct: s.agencyPct,
+      paidAmount: s.total,
       accountCgccpf: params.accountCgccpf,
       isProponent,
       personType: params.personType,
@@ -465,7 +488,7 @@ export function complianceBadgeLabel(
 export type ComplianceTone = "critical" | "attention" | "ok";
 
 export function worstComplianceTone(
-  suppliers: Array<{ total: number; cgccpf?: string }>,
+  suppliers: Array<{ total: number; cgccpf?: string } & AgencyFields>,
   projectTotal: number,
   accountCgccpf?: string | null,
   options?: {
@@ -473,7 +496,7 @@ export function worstComplianceTone(
     relatedParties?: RelatedPartyInput[];
     rules?: ActiveRules;
     /** Totais da soma do vínculo (só pagamentos que contam); se omitido, usa `suppliers`. */
-    bondSuppliers?: Array<{ total: number; cgccpf?: string }>;
+    bondSuppliers?: Array<{ total: number; cgccpf?: string } & AgencyFields>;
   },
 ): ComplianceTone {
   const rules = options?.rules || DEFAULT_RULES;
@@ -495,8 +518,9 @@ export function worstComplianceTone(
 
   // Qualquer fornecedor (com ou sem vínculo): perto = amarelo, acima = vermelho.
   for (const s of suppliers) {
-    if (projectTotal <= 0 || s.total <= 0) continue;
-    const percent = sharePercent(s.total, projectTotal);
+    const counted = countedTotal(s);
+    if (projectTotal <= 0 || counted <= 0) continue;
+    const percent = sharePercent(counted, projectTotal);
     const isProponent =
       !!accountCgccpf && !!s.cgccpf && isSameCgccpf(s.cgccpf, accountCgccpf);
     const limit = isProponent
@@ -513,12 +537,12 @@ export function worstComplianceTone(
   if (relatedSet.size > 0) {
     let groupTotal = 0;
     for (const s of bondList) {
-      if (projectTotal <= 0 || s.total <= 0 || !s.cgccpf) continue;
+      if (projectTotal <= 0 || countedTotal(s) <= 0 || !s.cgccpf) continue;
       const dig = normalizeCgccpf(s.cgccpf);
       const isProponent =
         !!accountCgccpf && isSameCgccpf(s.cgccpf, accountCgccpf);
       const isRelated = relatedSet.has(dig);
-      if (isProponent || isRelated) groupTotal += s.total;
+      if (isProponent || isRelated) groupTotal += countedTotal(s);
     }
     if (groupTotal > 0) {
       const gPct = sharePercent(groupTotal, projectTotal);

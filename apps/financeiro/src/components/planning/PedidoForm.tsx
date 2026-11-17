@@ -370,7 +370,7 @@ export function PedidoForm({
         className="btn"
         disabled={pending || totalMismatch || !totalAmount}
       >
-        {pending ? "Criando…" : "Criar pedido e reservar"}
+        {pending ? "Criando…" : contract ? "Reservar pelo contrato" : "Criar pedido e reservar"}
       </button>
     </form>
     {reimbursement.dialog}

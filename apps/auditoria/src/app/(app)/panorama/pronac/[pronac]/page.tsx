@@ -198,11 +198,12 @@ export default async function PronacDetailPage({
   const limitPct = proponentLimitPct(projectRules, personType);
   const accountDoc = accountCgccpf ? normalizeCgccpf(accountCgccpf) : "";
   const bondAmountByDoc = new Map(
-    detail.bondSuppliers.map((s) => [normalizeCgccpf(s.cgccpf), s.total]),
+    // Agência: só o percentual dela conta (capTotal).
+    detail.bondSuppliers.map((s) => [normalizeCgccpf(s.cgccpf), s.capTotal]),
   );
   // Recebido neste PRONAC que não conta para o vínculo (alimentação/refeição ou desligado).
   const paidAmountByDoc = new Map(
-    detail.allSuppliers.map((s) => [normalizeCgccpf(s.cgccpf), s.total]),
+    detail.allSuppliers.map((s) => [normalizeCgccpf(s.cgccpf), s.capTotal]),
   );
   const ignoredFor = (dig: string) =>
     Math.max(0, (paidAmountByDoc.get(dig) || 0) - (bondAmountByDoc.get(dig) || 0));

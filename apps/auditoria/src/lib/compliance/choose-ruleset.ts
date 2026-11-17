@@ -69,16 +69,22 @@ async function loadProjectContext(projectId: string) {
     cur.total += Number(p.amount);
     bySupplier.set(key, cur);
   }
-  const suppliers = Array.from(bySupplier.values()).map((s) => ({
+  // Agência: só o percentual dela conta nos limites.
+  const { loadAgencyMaps, agencyPctOf, withAgency } = await import("@/lib/supplier-agency");
+  const ws = project.salicAccount.workspaceId;
+  const agencies = await loadAgencyMaps([ws]);
+  const suppliers = withAgency(Array.from(bySupplier.values()), agencies, ws).map((s) => ({
     ...s,
-    percent: projectTotal > 0 ? (s.total / projectTotal) * 100 : 0,
+    percent: projectTotal > 0 ? (s.capTotal / projectTotal) * 100 : 0,
   }));
 
   const bondByCnpj = new Map<string, number>();
   for (const p of project.payments) {
     if (!paymentCountsForBond(p)) continue;
     const key = p.supplier.cgccpf.replace(/\D/g, "");
-    bondByCnpj.set(key, (bondByCnpj.get(key) || 0) + Number(p.amount));
+    const pct = agencyPctOf(agencies, ws, key);
+    const counted = pct == null ? Number(p.amount) : (Number(p.amount) * pct) / 100;
+    bondByCnpj.set(key, (bondByCnpj.get(key) || 0) + counted);
   }
 
   const { loadEnabledBondDocs } = await import("@/lib/compliance/bonds");

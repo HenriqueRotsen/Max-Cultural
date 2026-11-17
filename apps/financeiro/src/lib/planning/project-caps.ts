@@ -73,19 +73,25 @@ export function checkProjectCaps(params: {
   supplierName: string;
   /** Reembolso de despesa: não entra na soma do vínculo (como na Auditoria). */
   isReimbursement?: boolean;
+  /** Fornecedor agência: `amount` e as somas já vêm só com o percentual dele. */
+  agencyPct?: number | null;
 }): string | null {
   const { caps, projectTotal, amount } = params;
   if (!(projectTotal > 0) || !(amount > 0)) return null;
   const supplierAfter = params.supplierTotalBefore + amount;
   const supplierLimit = (projectTotal * caps.supplierCapPct) / 100;
+  const agencyNote =
+    params.agencyPct != null
+      ? ` ${params.supplierName} é agência: conta ${fmt(params.agencyPct)}% do valor pago.`
+      : "";
   if (!params.inBondGroup && supplierAfter > supplierLimit + 0.005) {
-    return `${params.supplierName} passaria de ${fmt(caps.supplierCapPct)}% do valor captado (${brl(supplierAfter)} de ${brl(projectTotal)}; limite ${brl(supplierLimit)}).`;
+    return `${params.supplierName} passaria de ${fmt(caps.supplierCapPct)}% do valor captado (${brl(supplierAfter)} de ${brl(projectTotal)}; limite ${brl(supplierLimit)}).${agencyNote}`;
   }
   if (params.inBondGroup && !params.isReimbursement) {
     const bondAfter = params.bondGroupTotalBefore + amount;
     const bondLimit = (projectTotal * caps.bondCapPct) / 100;
     if (bondAfter > bondLimit + 0.005) {
-      return `Pagamentos ao proponente e a quem tem vínculo com ele passariam de ${fmt(caps.bondCapPct)}% do valor captado (${brl(bondAfter)} de ${brl(projectTotal)}; limite ${brl(bondLimit)}).`;
+      return `Pagamentos ao proponente e a quem tem vínculo com ele passariam de ${fmt(caps.bondCapPct)}% do valor captado (${brl(bondAfter)} de ${brl(projectTotal)}; limite ${brl(bondLimit)}).${agencyNote}`;
     }
   }
   return null;

@@ -5,6 +5,8 @@ import { getWorkspaceContext } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { SupplierPaymentsTable } from "@/components/SupplierPaymentsTable";
+import { SupplierAgencyControl } from "@/components/SupplierAgencyControl";
+import { agencyPctOf, loadAgencyMaps } from "@/lib/supplier-agency";
 import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,12 @@ export default async function SupplierDetailPage({
     workspaceId: entitlements.workspaceId,
     hiddenProjectIds: await hiddenProjectIds(),
   });
+
+  const agencyPct = agencyPctOf(
+    await loadAgencyMaps([entitlements.workspaceId]),
+    entitlements.workspaceId,
+    detail.supplier.cgccpf,
+  );
 
   const reportQs = new URLSearchParams();
   if (accountId) reportQs.set("accountId", accountId);
@@ -78,6 +86,8 @@ export default async function SupplierDetailPage({
           </>
         }
       />
+
+      <SupplierAgencyControl cgccpf={detail.supplier.cgccpf} agencyPct={agencyPct} />
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="card p-5">

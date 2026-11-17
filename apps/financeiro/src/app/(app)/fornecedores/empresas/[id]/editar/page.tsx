@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { PageBackLink, PageHeader } from "@/components/ui";
 import { CatalogSupplierForm } from "@/components/catalog/CatalogSupplierForm";
+import { getAgencyPct } from "@/lib/catalog/supplier-agency";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function EditCatalogSupplierPage({
     where: { id, workspaceId: entitlements.workspaceId },
   });
   if (!supplier) notFound();
+  const agencyPct = await getAgencyPct(entitlements.workspaceId, supplier.cnpj);
 
   return (
     <div className="space-y-6">
@@ -26,7 +28,7 @@ export default async function EditCatalogSupplierPage({
         title={supplier.name}
         description="Atualize os dados cadastrais. O CNPJ continua único no workspace."
       />
-      <CatalogSupplierForm supplier={supplier} />
+      <CatalogSupplierForm supplier={supplier} agencyPct={agencyPct} />
     </div>
   );
 }

@@ -1278,3 +1278,66 @@ export async function importMissingCorporateMaps() {
       (rest > 0 ? ` Faltam ${rest}: clique de novo.` : ""),
   };
 }
+
+/**
+ * Marca (ou desmarca) o fornecedor como agência no espaço: só `pct`% do que
+ * foi pago a ele conta nos limites. Vale também no MAX Financeiro.
+ */
+export async function setSupplierAgency(input: { cgccpf: string; pct: string | null }) {
+  const { getWorkspaceContext } = await import("@/lib/auth/session");
+  const { session, entitlements } = await getWorkspaceContext();
+  const ws = entitlements.workspaceId;
+  const cnpj = normalizeCgccpf(String(input.cgccpf || ""));
+  if (!cnpj) return { ok: false as const, error: "CNPJ/CPF obrigatório" };
+
+  let pct: number | null = null;
+  const raw = String(input.pct ?? "").trim();
+  if (raw) {
+    const n = Number(raw.replace(/%/g, "").replace(/,/g, "."));
+    if (!Number.isFinite(n) || n <= 0 || n >= 100) {
+      return {
+        ok: false as const,
+        error: "O percentual da agência precisa ser maior que 0% e menor que 100%.",
+      };
+    }
+    pct = Math.round(n * 100) / 100;
+  }
+
+  const before = await prisma.supplierAgency.findUnique({
+    where: { workspaceId_cnpj: { workspaceId: ws, cnpj } },
+    select: { pct: true },
+  });
+  const antes = before ? Number(before.pct) : null;
+  if (antes === pct) return { ok: true as const };
+
+  if (pct == null) {
+    await prisma.supplierAgency.deleteMany({ where: { workspaceId: ws, cnpj } });
+  } else {
+    await prisma.supplierAgency.upsert({
+      where: { workspaceId_cnpj: { workspaceId: ws, cnpj } },
+      create: { workspaceId: ws, cnpj, pct, updatedById: session?.profile.id ?? null },
+      update: { pct, updatedById: session?.profile.id ?? null },
+    });
+  }
+
+  const { postHubAudit } = await import("@/lib/hub-audit");
+  await postHubAudit({
+    action: "auditoria.fornecedor.agencia",
+    screen: "auditoria.fornecedores",
+    entityType: "SupplierAgency",
+    entityId: cnpj,
+    meta: { cnpj, antes, depois: pct },
+  }).catch(() => false);
+
+  // Os avisos de limite dos PRONACs com pagamento a ele mudam.
+  const projects = await prisma.project.findMany({
+    where: {
+      salicAccount: { workspaceId: ws },
+      payments: { some: { supplier: { cgccpf: { in: [cnpj, formatCgccpf(cnpj)] } } } },
+    },
+    select: { id: true, pronac: true },
+  });
+  for (const p of projects) await refreshProjectAfterBondChange(p);
+  revalidatePath("/panorama", "layout");
+  return { ok: true as const };
+}

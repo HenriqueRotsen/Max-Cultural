@@ -175,6 +175,9 @@ type ReportSupplier = {
   total: number;
   percent?: number;
   count?: number;
+  /** Agência: só este valor (pago × %) conta no limite. */
+  capTotal?: number | null;
+  agencyPct?: number | null;
 };
 
 type ReportWatched = {
@@ -217,6 +220,8 @@ function bondAndWatchedHtml(params: {
       name: s.name,
       cgccpf: s.cgccpf,
       total: s.total,
+      capTotal: s.capTotal,
+      agencyPct: s.agencyPct,
     })),
     relatedParties: params.relatedParties,
     rules,
@@ -933,6 +938,8 @@ export async function renderPronacOverviewHtml(params: {
       total: number;
       count: number;
       percentOfProject: number;
+      capTotal?: number | null;
+      agencyPct?: number | null;
     }>;
     allBySupplier?: Array<{
       name: string;
@@ -940,6 +947,8 @@ export async function renderPronacOverviewHtml(params: {
       total: number;
       count: number;
       percentOfProject: number;
+      capTotal?: number | null;
+      agencyPct?: number | null;
     }>;
     bondBySupplier?: Array<{
       name: string;
@@ -947,6 +956,8 @@ export async function renderPronacOverviewHtml(params: {
       total: number;
       count: number;
       percentOfProject: number;
+      capTotal?: number | null;
+      agencyPct?: number | null;
     }>;
   }>;
 }) {
@@ -1041,6 +1052,8 @@ export async function renderPronacOverviewHtml(params: {
           name: s.name,
           cgccpf: s.cgccpf,
           total: s.total,
+          capTotal: s.capTotal,
+          agencyPct: s.agencyPct,
         })),
         relatedParties: r.relatedParties,
         rules: rowRules,
