@@ -15,7 +15,10 @@ const initial: CatalogActionState = {};
 
 export function CatalogSupplierForm({
   supplier,
+  agencyPct = null,
 }: {
+  /** Percentual que conta nos limites, quando o fornecedor é agência. */
+  agencyPct?: number | null;
   supplier?: {
     id: string;
     cnpj: string;
@@ -42,6 +45,7 @@ export function CatalogSupplierForm({
   };
 }) {
   const [state, action, pending] = useActionState(upsertCatalogSupplier, initial);
+  const [isAgency, setIsAgency] = useState(agencyPct != null);
   const [cnpj, setCnpj] = useState(supplier?.cnpj ?? "");
   const [name, setName] = useState(supplier?.name ?? "");
   const [tradeName, setTradeName] = useState(supplier?.tradeName ?? "");
@@ -228,6 +232,41 @@ export function CatalogSupplierForm({
             />
           </div>
         </div>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-[var(--border)] p-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-[var(--navy)]">
+          <input
+            type="checkbox"
+            name="isAgency"
+            checked={isAgency}
+            onChange={(e) => setIsAgency(e.target.checked)}
+          />
+          É agência (intermediária)
+        </label>
+        <p className="text-xs text-[var(--gray-500)]">
+          Marque quando o fornecedor repassa a maior parte do valor a terceiros. Só o percentual
+          abaixo do que for pago a ele conta nos limites de fornecedor e de vínculo, no Financeiro
+          e na Auditoria.
+        </p>
+        {isAgency ? (
+          <div className="field max-w-[14rem]">
+            <label htmlFor="agencyPct">Percentual que conta nos limites</label>
+            <span className="flex items-center gap-1">
+              <input
+                id="agencyPct"
+                name="agencyPct"
+                inputMode="decimal"
+                required
+                placeholder="10"
+                defaultValue={
+                  agencyPct != null ? String(agencyPct).replace(".", ",") : ""
+                }
+              />
+              <span className="text-sm text-[var(--gray-500)]">%</span>
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div className="field">

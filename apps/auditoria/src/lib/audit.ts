@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { loadAgencyMaps, withAgency } from "@/lib/supplier-agency";
 import { normalizeCgccpf } from "@/lib/crypto";
 import { formatCurrency } from "@/lib/format";
 import { toActiveRules } from "@/lib/compliance/rules";
@@ -532,7 +533,9 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
       payments: { some: {} },
     },
     include: {
-      salicAccount: { select: { id: true, name: true, cgccpf: true, personType: true } },
+      salicAccount: {
+        select: { id: true, name: true, cgccpf: true, personType: true, workspaceId: true },
+      },
       complianceRuleset: true,
       payments: {
         where: {
@@ -551,8 +554,11 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
     orderBy: { pronac: "asc" },
   });
 
+  const agencies = await loadAgencyMaps(projects.map((p) => p.salicAccount.workspaceId));
+
   return projects
     .map((project) => {
+      const ws = project.salicAccount.workspaceId;
       const paidTotal = project.payments.reduce((sum, p) => sum + Number(p.amount), 0);
       const { projectTotal, baseSource } = resolveProjectBase({
         valorCaptado:
@@ -573,6 +579,9 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
         cgccpf: string;
         total: number;
         count: number;
+        capTotal: number;
+        agencyPct: number | null;
+        /** % do captado que conta no limite (agência: só o percentual dela). */
         percentOfProject: number;
         percentOfWatched: number;
       }> {
@@ -594,10 +603,10 @@ export async function getPronacPanorama(filters: PanoramaFilters = {}) {
           agg.count += 1;
           bySupplierMap.set(p.supplierId, agg);
         }
-        return Array.from(bySupplierMap.values())
+        return withAgency(Array.from(bySupplierMap.values()), agencies, ws)
           .map((s) => ({
             ...s,
-            percentOfProject: sharePercent(s.total, projectTotal),
+            percentOfProject: sharePercent(s.capTotal, projectTotal),
             percentOfWatched: sharePercent(s.total, total),
           }))
           .sort((a, b) => b.total - a.total);
@@ -663,7 +672,9 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
       ...(filters.hiddenProjectIds?.length ? { id: { notIn: filters.hiddenProjectIds } } : {}),
     },
     include: {
-      salicAccount: { select: { id: true, name: true, cgccpf: true, personType: true } },
+      salicAccount: {
+        select: { id: true, name: true, cgccpf: true, personType: true, workspaceId: true },
+      },
       complianceRuleset: true,
       payments: {
         where: {
@@ -782,30 +793,33 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
     bondBySupplier.set(p.supplierId, agg);
   }
 
-  const suppliers = Array.from(bySupplier.values())
+  const agencies = await loadAgencyMaps(projects.map((p) => p.salicAccount.workspaceId));
+  const agencyWs = primaryProject?.salicAccount.workspaceId ?? null;
+
+  const suppliers = withAgency(Array.from(bySupplier.values()), agencies, agencyWs)
     .map((s) => ({
       ...s,
-      /** % sobre o valor captado do PRONAC */
-      percent: sharePercent(s.total, projectTotal),
+      /** % sobre o valor captado do PRONAC (agência: só o que conta no limite) */
+      percent: sharePercent(s.capTotal, projectTotal),
       /** % entre os fornecedores exibidos (quando filtro de observados) */
       percentOfFiltered: sharePercent(s.total, total),
     }))
     .sort((a, b) => b.total - a.total);
 
   const allSuppliers = applyWatched
-    ? Array.from(allBySupplier.values())
+    ? withAgency(Array.from(allBySupplier.values()), agencies, agencyWs)
         .map((s) => ({
           ...s,
-          percent: sharePercent(s.total, projectTotal),
+          percent: sharePercent(s.capTotal, projectTotal),
           percentOfFiltered: sharePercent(s.total, projectTotal),
         }))
         .sort((a, b) => b.total - a.total)
     : suppliers;
 
-  const bondSuppliers = Array.from(bondBySupplier.values())
+  const bondSuppliers = withAgency(Array.from(bondBySupplier.values()), agencies, agencyWs)
     .map((s) => ({
       ...s,
-      percent: sharePercent(s.total, projectTotal),
+      percent: sharePercent(s.capTotal, projectTotal),
       percentOfFiltered: sharePercent(s.total, projectTotal),
     }))
     .sort((a, b) => b.total - a.total);

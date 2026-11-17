@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { normalizeCgccpf } from "@/lib/format";
 import { checkProjectCaps, projectCapsOf } from "@/lib/planning/project-caps";
+import { agencyFactor, loadAgencyMap } from "@/lib/catalog/supplier-agency";
 
 /**
  * Trava dos limites do projeto (fornecedor e vínculo com o proponente) para um
@@ -33,9 +34,13 @@ export async function checkProjectCapsForPayment(params: {
 }): Promise<string | null> {
   const { project, cnpj } = params;
   const supplierDoc = normalizeCgccpf(cnpj);
-  const accountDoc = normalizeCgccpf(
-    (await prisma.salicAccount.findUnique({ where: { id: project.accountId } }))?.cgccpf || "",
-  );
+  const account = await prisma.salicAccount.findUnique({
+    where: { id: project.accountId },
+    select: { cgccpf: true, workspaceId: true },
+  });
+  const accountDoc = normalizeCgccpf(account?.cgccpf || "");
+  // Agência: só o percentual dela entra nas somas (fornecedor e vínculo).
+  const agencies = account ? await loadAgencyMap(account.workspaceId) : new Map<string, number>();
   const engagements = await prisma.catalogEngagement.findMany({
     where: {
       planningProjectId: project.id,
@@ -56,25 +61,28 @@ export async function checkProjectCapsForPayment(params: {
   let bondGroupTotalBefore = 0;
   for (const e of engagements) {
     const doc = normalizeCgccpf(e.service.supplier.cnpj);
-    if (doc === supplierDoc) supplierTotalBefore += Number(e.price);
+    const counted = Number(e.price) * agencyFactor(agencies, doc);
+    if (doc === supplierDoc) supplierTotalBefore += counted;
     // Reembolso não entra na soma do vínculo (mesma regra da Auditoria).
     if (e.commitment?.isReimbursement) continue;
     if ((accountDoc && doc === accountDoc) || e.commitment?.hasBond) {
-      bondGroupTotalBefore += Number(e.price);
+      bondGroupTotalBefore += counted;
     }
   }
 
   for (const p of params.pendingInBatch ?? []) {
     const doc = normalizeCgccpf(p.cnpj);
-    if (doc === supplierDoc) supplierTotalBefore += p.amount;
+    const counted = p.amount * agencyFactor(agencies, doc);
+    if (doc === supplierDoc) supplierTotalBefore += counted;
     if (p.isReimbursement) continue;
-    if ((accountDoc && doc === accountDoc) || p.hasBond) bondGroupTotalBefore += p.amount;
+    if ((accountDoc && doc === accountDoc) || p.hasBond) bondGroupTotalBefore += counted;
   }
 
   return checkProjectCaps({
     caps: projectCapsOf(project),
     projectTotal: params.projectTotal,
-    amount: params.amount,
+    amount: params.amount * agencyFactor(agencies, supplierDoc),
+    agencyPct: agencies.get(supplierDoc) ?? null,
     supplierTotalBefore,
     inBondGroup: isProponent || params.hasBond,
     bondGroupTotalBefore,

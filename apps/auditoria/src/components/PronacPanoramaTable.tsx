@@ -35,6 +35,8 @@ type SupplierAgg = {
   total: number;
   count: number;
   percentOfProject: number;
+  capTotal?: number | null;
+  agencyPct?: number | null;
 };
 
 export type PronacTableRow = {
