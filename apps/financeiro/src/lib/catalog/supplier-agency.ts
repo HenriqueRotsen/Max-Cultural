@@ -38,7 +38,7 @@ export async function getAgencyPct(workspaceId: string, cnpj: string): Promise<n
 export function parseAgencyPct(raw: unknown): number | null | { error: string } {
   const s = String(raw ?? "").trim();
   if (!s) return null;
-  const n = Number(s.replace("%", "").replace(",", "."));
+  const n = Number(s.replace(/%/g, "").replace(/,/g, "."));
   if (!Number.isFinite(n) || n <= 0 || n >= 100) {
     return { error: "O percentual da agência precisa ser maior que 0% e menor que 100%." };
   }

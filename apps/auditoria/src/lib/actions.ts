@@ -1293,7 +1293,7 @@ export async function setSupplierAgency(input: { cgccpf: string; pct: string | n
   let pct: number | null = null;
   const raw = String(input.pct ?? "").trim();
   if (raw) {
-    const n = Number(raw.replace("%", "").replace(",", "."));
+    const n = Number(raw.replace(/%/g, "").replace(/,/g, "."));
     if (!Number.isFinite(n) || n <= 0 || n >= 100) {
       return {
         ok: false as const,
