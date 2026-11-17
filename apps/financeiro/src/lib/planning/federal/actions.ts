@@ -481,7 +481,7 @@ async function findProofForCommitment(
 export async function publishCommitmentToSalic(
   planningProjectId: string,
   commitmentId: string,
-  options?: { justificativa?: string },
+  options?: { justificativa?: string; filename?: string },
 ): Promise<ActionState> {
   await requireUser();
   if (!(await canPublishToSalic())) {
@@ -522,6 +522,7 @@ export async function publishCommitmentToSalic(
     justificativasByProofId: options?.justificativa
       ? { [proof.id]: options.justificativa }
       : undefined,
+    filenamesByProofId: options?.filename ? { [proof.id]: options.filename } : undefined,
   });
 
   if (result.published === 0) {
@@ -542,7 +543,10 @@ export async function publishCommitmentToSalic(
 /** Envia ao SALIC todos os pacotes prontos do projeto. */
 export async function publishAllCommitmentsToSalic(
   planningProjectId: string,
-  options?: { justificativasByProofId?: Record<string, string> },
+  options?: {
+    justificativasByProofId?: Record<string, string>;
+    filenamesByProofId?: Record<string, string>;
+  },
 ): Promise<ActionState> {
   const session = await requireUser();
   if (!(await canPublishToSalic())) {
@@ -583,6 +587,7 @@ export async function publishAllCommitmentsToSalic(
     planningProjectId: project.id,
     externalCode: project.externalCode,
     justificativasByProofId: options?.justificativasByProofId,
+    filenamesByProofId: options?.filenamesByProofId,
   });
 
   if (result.published === 0) {

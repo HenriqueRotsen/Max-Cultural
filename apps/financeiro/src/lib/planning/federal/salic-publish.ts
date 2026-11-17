@@ -228,6 +228,8 @@ export async function executeSalicPublishPackage(params: {
   externalCode: string;
   pkg: SalicPublishPackage;
   justificativa?: string;
+  /** Nome editado na revisão do envio (já vem conferido). */
+  filename?: string | null;
 }): Promise<void> {
   const { planningProjectId, externalCode, pkg, justificativa } = params;
 
@@ -262,7 +264,10 @@ export async function executeSalicPublishPackage(params: {
     commitment?.commitment?.engagement.service.supplier.name ??
     commitment?.engagement?.service.supplier.name ??
     "Fornecedor";
-  const uploadName = await resolveSalicUploadFilename(pkg.proofId, supplierName);
+  const { sanitizeSalicFilename } = await import("@/lib/salic/salic-publish-metadata");
+  const uploadName =
+    sanitizeSalicFilename(params.filename) ??
+    (await resolveSalicUploadFilename(pkg.proofId, supplierName));
 
   const uploaded = await uploadSalicComprovante({
     planningProjectId,
@@ -325,6 +330,8 @@ export async function publishSalicPackages(params: {
   externalCode: string;
   proofIds?: string[];
   justificativasByProofId?: Record<string, string>;
+  /** Nomes de arquivo editados na revisão, por comprovante. */
+  filenamesByProofId?: Record<string, string>;
 }): Promise<{ published: number; errors: string[] }> {
   const docs = await loadSalicPublishDocs(params.planningProjectId);
   let packages = buildSalicPublishPackages(docs);
@@ -343,6 +350,7 @@ export async function publishSalicPackages(params: {
         externalCode: params.externalCode,
         pkg,
         justificativa: params.justificativasByProofId?.[pkg.proofId],
+        filename: params.filenamesByProofId?.[pkg.proofId] ?? null,
       });
       published += 1;
     } catch (e) {
