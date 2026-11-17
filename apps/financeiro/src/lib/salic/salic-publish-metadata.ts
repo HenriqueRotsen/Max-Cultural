@@ -138,3 +138,20 @@ export function buildSalicUploadFilenameForRow(params: {
     supplierName: params.supplierName,
   });
 }
+
+/**
+ * Nome digitado pela pessoa para o arquivo no SALIC: tira o que não pode ir em
+ * nome de arquivo (barras, dois-pontos, aspas…), limita o tamanho e garante o
+ * ".pdf". Vazio (ou só caracteres inválidos) devolve null: vale o nome padrão.
+ */
+export function sanitizeSalicFilename(raw: string | null | undefined): string | null {
+  const base = String(raw ?? "")
+    .replace(/\.pdf\s*$/i, "")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 150)
+    .trim();
+  if (!base.replace(/[.\- ]/g, "")) return null;
+  return `${base}.pdf`;
+}

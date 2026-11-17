@@ -89,7 +89,8 @@ export function SalicUploadPreviewModal({
   items: SalicUploadPreviewItem[];
   pending?: boolean;
   onCancel: () => void;
-  onConfirm: (justificativas: Record<string, string>) => void;
+  /** `filenames`: só os nomes que a pessoa editou (por comprovante). */
+  onConfirm: (justificativas: Record<string, string>, filenames: Record<string, string>) => void;
   onFiscalNumberUpdated?: (
     proofId: string,
     fiscalNumber: string,
@@ -99,6 +100,8 @@ export function SalicUploadPreviewModal({
 }) {
   const [index, setIndex] = useState(0);
   const [justificativas, setJustificativas] = useState<Record<string, string>>({});
+  // Nome do arquivo editado (sem ".pdf"); sem edição, vale o padrão.
+  const [filenames, setFilenames] = useState<Record<string, string>>({});
   const carousel = items.length > 1;
   const current = items[index] ?? null;
 
@@ -106,6 +109,7 @@ export function SalicUploadPreviewModal({
     if (open) {
       setIndex(0);
       setJustificativas({});
+      setFilenames({});
     }
   }, [open, items]);
 
@@ -128,9 +132,11 @@ export function SalicUploadPreviewModal({
       ? "PDF unificado (NF + comprovante)"
       : "Somente comprovante";
 
-  const filenameLabel = current.uploadFilename
-    ? `Arquivo no SALIC: ${current.uploadFilename}`
-    : null;
+  const stripPdf = (n: string | null) => (n ?? "").replace(/\.pdf$/i, "");
+  const defaultName = stripPdf(current.uploadFilename);
+  const editedName = filenames[current.proofId];
+  const nameValue = editedName ?? defaultName;
+  const nameEdited = editedName !== undefined && editedName !== defaultName;
 
   return createPortal(
     <div
@@ -189,11 +195,6 @@ export function SalicUploadPreviewModal({
                 <p className="text-xs text-[var(--gray-400)]">
                   {formatCurrency(current.amount)} · {modeLabel}
                 </p>
-                {filenameLabel ? (
-                  <p className="break-all font-mono text-xs text-[var(--navy)]">
-                    {filenameLabel}
-                  </p>
-                ) : null}
               </div>
 
               {carousel ? (
@@ -221,6 +222,43 @@ export function SalicUploadPreviewModal({
                   </button>
                 </div>
               ) : null}
+
+              <label className="field">
+                <span>Nome do arquivo no SALIC</span>
+                <span className="flex items-center gap-1">
+                  <input
+                    className="w-full font-mono text-xs"
+                    value={nameValue}
+                    disabled={pending}
+                    maxLength={150}
+                    onChange={(e) =>
+                      setFilenames((prev) => ({ ...prev, [current.proofId]: e.target.value }))
+                    }
+                  />
+                  <span className="text-xs text-[var(--gray-500)]">.pdf</span>
+                </span>
+                <span className="text-xs text-[var(--gray-500)]">
+                  Padrão: item- tipo número- fornecedor.
+                  {nameEdited ? (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="font-semibold text-[var(--navy)] hover:underline"
+                        onClick={() =>
+                          setFilenames((prev) => {
+                            const next = { ...prev };
+                            delete next[current.proofId];
+                            return next;
+                          })
+                        }
+                      >
+                        Voltar ao padrão
+                      </button>
+                    </>
+                  ) : null}
+                </span>
+              </label>
 
               {current.fiscalDocumentId && current.fiscalKind ? (
                 <EditFiscalNumberForm
@@ -274,7 +312,17 @@ export function SalicUploadPreviewModal({
             type="button"
             className="btn"
             disabled={pending}
-            onClick={() => onConfirm(justificativas)}
+            onClick={() => {
+              // Só os nomes que mudaram de verdade; o servidor confere e põe ".pdf".
+              const changed: Record<string, string> = {};
+              for (const it of items) {
+                const v = filenames[it.proofId];
+                if (v !== undefined && v.trim() && v.trim() !== stripPdf(it.uploadFilename)) {
+                  changed[it.proofId] = v.trim();
+                }
+              }
+              onConfirm(justificativas, changed);
+            }}
           >
             {pending
               ? "Enviando…"
