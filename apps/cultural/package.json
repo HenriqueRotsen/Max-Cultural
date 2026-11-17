@@ -21,7 +21,7 @@
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@vercel/analytics": "^2.0.1",
-    "@vercel/speed-insights": "^2.0.0",
+    "@vercel/speed-insights": "^2.1.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.8",
     "next": "16.4.6",
