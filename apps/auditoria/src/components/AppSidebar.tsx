@@ -24,6 +24,7 @@ const auditoriaLinks = [
   { href: "/panorama", label: "Panorama geral", icon: ChartIcon, group: "Analisar" },
   { href: "/fornecedores-pagos", label: "Fornecedores pagos", icon: PackageIcon, group: "Analisar" },
   { href: "/observados", label: "Observados", icon: UsersIcon, group: "Cadastros" },
+  { href: "/agencias", label: "Agências", icon: PercentIcon, group: "Cadastros" },
   { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon, group: "Cadastros" },
   { href: "/ins", label: "INs", icon: RulesIcon, group: "Cadastros" },
   { href: "/auditoria", label: "Relatório de Auditoria", icon: AuditIcon, group: "Ferramentas" },
@@ -312,6 +313,16 @@ function PackageIcon({ active }: { active?: boolean }) {
       <path d="M4 8 12 4l8 4-8 4-8-4Z" stroke={stroke(active)} strokeWidth="1.7" strokeLinejoin="round" />
       <path d="M4 8v8l8 4 8-4V8" stroke={stroke(active)} strokeWidth="1.7" strokeLinejoin="round" />
       <path d="M12 12v8" stroke={stroke(active, true)} strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+function PercentIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M18 6 6 18" stroke={stroke(active)} strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="7.5" cy="7.5" r="2.5" stroke={stroke(active, true)} strokeWidth="1.7" />
+      <circle cx="16.5" cy="16.5" r="2.5" stroke={stroke(active, true)} strokeWidth="1.7" />
     </svg>
   );
 }
