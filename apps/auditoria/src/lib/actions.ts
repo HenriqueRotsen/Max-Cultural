@@ -1339,5 +1339,6 @@ export async function setSupplierAgency(input: { cgccpf: string; pct: string | n
   });
   for (const p of projects) await refreshProjectAfterBondChange(p);
   revalidatePath("/panorama", "layout");
+  revalidatePath("/agencias");
   return { ok: true as const };
 }
