@@ -13,10 +13,10 @@ import { pronacYear } from "@/lib/compliance/choose-ruleset";
 import { prisma } from "@/lib/db";
 import { formatCgccpf } from "@/lib/format";
 import {
-  renderAuditoriaReportHtml,
+  renderAuditoriaReportParts,
   type AuditoriaPronacBlock,
 } from "@/lib/reports/html";
-import { htmlToPdf, reportFileStamp } from "@/lib/reports/pdf";
+import { htmlPartsToPdf, reportFileStamp } from "@/lib/reports/pdf";
 import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
 export const runtime = "nodejs";
@@ -205,6 +205,8 @@ export async function GET(request: Request) {
           amount: Number(p.amount),
         })),
         corporateMapHtml,
+        situacao: detail.situacao,
+        situacaoAt: detail.lastSyncedAt ? detail.lastSyncedAt.toISOString() : null,
         alertsSummary,
         alertLevels: alerts.map((a) => a.level),
         alertTitles: alerts.filter((a) => a.level !== "info").map((a) => a.title),
@@ -219,8 +221,8 @@ export async function GET(request: Request) {
       );
     }
 
-    const html = await renderAuditoriaReportHtml({ blocks });
-    const pdf = await htmlToPdf(html);
+    const parts = await renderAuditoriaReportParts({ blocks });
+    const pdf = await htmlPartsToPdf(parts);
     const filename = `max-auditoria-auditoria-${reportFileStamp()}.pdf`;
 
     return new NextResponse(new Uint8Array(pdf), {
@@ -231,7 +233,11 @@ export async function GET(request: Request) {
       },
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Falha ao gerar relatório";
+    console.error("[relatorio auditoria]", e);
+    const raw = e instanceof Error ? e.message : "";
+    const message = /has been closed|Target closed|crashed/i.test(raw)
+      ? "O relatório ficou grande demais para gerar de uma vez. Tente com menos PRONACs."
+      : raw || "Falha ao gerar relatório";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
