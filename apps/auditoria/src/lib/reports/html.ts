@@ -1896,9 +1896,9 @@ export type AuditoriaPronacBlock = {
 };
 
 /** Linhas de pagamentos por parte do PDF dividido (memória do Chromium). */
-export const REPORT_PAYMENTS_PER_PART = 1200;
+export const REPORT_PAYMENTS_PER_PART = 400;
 /** Acima disto (soma dos pagamentos), o PDF é gerado em partes. */
-export const REPORT_SPLIT_THRESHOLD = 1500;
+export const REPORT_SPLIT_THRESHOLD = 600;
 
 function situacaoHtml(b: AuditoriaPronacBlock) {
   const sit = situacaoLabel(b.situacao);
