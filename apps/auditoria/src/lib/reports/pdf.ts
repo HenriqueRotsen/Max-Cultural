@@ -117,7 +117,7 @@ async function withTimeout<T>(p: Promise<T>, ms: number, onTimeout: () => Promis
 
 /**
  * PDF de várias partes HTML (relatório grande): cada parte vira um PDF numa
- * aba nova, que é fechada em seguida, e no fim tudo é unido, com o rodapé
+ * mesma aba (o conteúdo é trocado a cada parte), e no fim tudo é unido, com o rodapé
  * "Gerado em · Página X / Y" carimbado na numeração final. Assim a memória do
  * Chromium fica do tamanho de uma parte, não do relatório inteiro.
  */
@@ -127,23 +127,27 @@ export async function htmlPartsToPdf(parts: string[]): Promise<Buffer> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
 
   let browser = await launchChromium();
+  // Uma aba só para todas as partes: na Vercel o Chromium roda em processo
+  // único e fechar a aba derruba o navegador inteiro.
+  let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
   const renderPart = async (html: string) => {
-    const page = await browser.newPage();
-    try {
-      await page.setContent(html, { waitUntil: "load", timeout: 90_000 });
+    if (!page) {
+      page = await browser.newPage();
       await page.emulateMedia({ media: "print" });
-      await page.evaluate(async () => {
-        if (document.fonts?.ready) await document.fonts.ready;
-      });
-      return await page.pdf({
-        format: "A4",
-        printBackground: true,
-        preferCSSPageSize: true,
-        margin: { top: "0", right: "0", bottom: "12mm", left: "0" },
-      });
-    } finally {
-      await page.close().catch(() => {});
     }
+    await page.setContent(html, { waitUntil: "load", timeout: 90_000 });
+    await page.evaluate(async () => {
+      if (document.fonts?.ready) await document.fonts.ready;
+    });
+    const bytes = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: "0", right: "0", bottom: "12mm", left: "0" },
+    });
+    // Solta o conteúdo da parte antes da próxima.
+    await page.setContent("<html><body></body></html>").catch(() => {});
+    return bytes;
   };
 
   const generatedAt = formatPdfTimestamp();
@@ -164,6 +168,7 @@ export async function htmlPartsToPdf(parts: string[]): Promise<Buffer> {
           `[relatorio] parte ${i + 1}/${parts.length}: navegador fechou; tentando de novo (${await browserEnvDiagnostics()})`,
         );
         await browser.close().catch(() => {});
+        page = null;
         if (Date.now() - started > TOTAL_BUDGET_MS) throw new ReportTooSlowError();
         browser = await launchChromium();
         bytes = await render(html);
