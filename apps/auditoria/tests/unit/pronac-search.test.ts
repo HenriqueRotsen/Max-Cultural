@@ -32,7 +32,8 @@ describe("relatório Situação no SALIC", () => {
       query: "24",
     });
     expect(html).toContain("Situação dos projetos");
-    expect(html).toContain("Busca: “24”");
+    expect(html).toContain("Projetos da busca “24”");
+    expect(html).not.toContain("Proponente: todos");
     expect(html).toContain("Captação autorizada");
     expect(html).toContain("Sem situação");
     expect(html).toContain("19/11/2026 · 08:05");

@@ -236,8 +236,8 @@ export async function GET(request: Request) {
     console.error("[relatorio auditoria]", e, await (await import("@/lib/browser")).browserEnvDiagnostics());
     const raw = e instanceof Error ? e.message : "";
     const message = /has been closed|Target closed|crashed/i.test(raw)
-      ? "O relatório ficou grande demais para gerar de uma vez. Tente com menos PRONACs."
-      : raw || "Falha ao gerar relatório";
+      ? "Não foi possível gerar o relatório agora. Tente de novo em alguns minutos."
+      : raw || "Não foi possível gerar o relatório.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
