@@ -5,8 +5,12 @@ import { PageHeader, StatCard } from "@/components/ui";
 import { formatCgccpf, formatCurrency, normalizeCgccpf } from "@/lib/format";
 import { excludeProjects, hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 import { findSponsorConflicts, summarizeSponsors } from "@/lib/sponsors";
+import { loadSponsorSyncStates, needsSponsorRefresh } from "@/lib/salic/sponsors-sync";
+import { SponsorSyncButton } from "@/components/SponsorSyncButton";
 
 export const dynamic = "force-dynamic";
+/** O botão "Buscar agora" roda aqui (até ~4 min). */
+export const maxDuration = 300;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -20,12 +24,13 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 120) : "";
   const { entitlements } = await getWorkspaceContext();
+  const hidden = await hiddenProjectIds();
   const projectScope = {
     salicAccount: { workspaceId: entitlements.workspaceId },
-    ...excludeProjects(await hiddenProjectIds()),
+    ...excludeProjects(hidden),
   };
 
-  const [rows, syncedCount, projectCount] = await Promise.all([
+  const [rows, syncStates] = await Promise.all([
     prisma.projectSponsorship.findMany({
       where: { project: projectScope },
       select: {
@@ -36,9 +41,14 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
         project: { select: { id: true, pronac: true, name: true } },
       },
     }),
-    prisma.project.count({ where: { ...projectScope, sponsorsSyncedAt: { not: null } } }),
-    prisma.project.count({ where: projectScope }),
+    loadSponsorSyncStates(entitlements.workspaceId).then((all) => {
+      const h = new Set(hidden);
+      return all.filter((s) => !h.has(s.id));
+    }),
   ]);
+  const pendingCount = syncStates.filter((s) => needsSponsorRefresh(s)).length;
+  const neverCount = syncStates.filter((s) => !s.sponsorsSyncedAt).length;
+  const captadoTotal = syncStates.reduce((n, s) => n + (s.valorCaptado ?? 0), 0);
 
   // Patrocinador que recebeu pagamento do mesmo projeto.
   const projectIds = [...new Set(rows.map((r) => r.project.id))];
@@ -125,12 +135,26 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
         />
       </section>
 
-      {syncedCount < projectCount ? (
-        <p className="text-sm text-[var(--gray-600)]">
-          {syncedCount} de {projectCount} projetos já tiveram os patrocinadores buscados no SALIC. Os demais
-          chegam nas próximas atualizações diárias.
-        </p>
-      ) : null}
+      <section className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <div className="min-w-0 text-sm text-[var(--gray-600)]">
+          <p>
+            Captado nos projetos: <strong className="text-[var(--navy)]">{formatCurrency(captadoTotal)}</strong>
+            {" · "}com patrocinador identificado:{" "}
+            <strong className="text-[var(--navy)]">{formatCurrency(grandTotal)}</strong>
+          </p>
+          <p className="mt-0.5">
+            {pendingCount === 0
+              ? "Tudo em dia. A rotina diária busca só o que mudar."
+              : [
+                  neverCount > 0 ? `${neverCount} projeto(s) ainda sem busca` : null,
+                  pendingCount > neverCount ? `${pendingCount - neverCount} com dinheiro novo para conferir` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" e ") + "."}
+          </p>
+        </div>
+        {pendingCount > 0 ? <SponsorSyncButton pending={pendingCount} /> : null}
+      </section>
 
       <section className="card overflow-hidden">
         <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">

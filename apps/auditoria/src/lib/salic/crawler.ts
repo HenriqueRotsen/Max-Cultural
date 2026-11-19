@@ -11,9 +11,9 @@ import {
   reconcileProjectPayments,
   reconcileAccountProjects,
   refreshProjectFinancials,
-  refreshProjectSponsors,
 } from "@/lib/salic/persist";
 import type { SalicProduto } from "@/lib/salic/api";
+import { refreshProjectSponsorsIfNeeded } from "@/lib/salic/sponsors-sync";
 import { sanitizeSalicText } from "@/lib/salic/text";
 import { classifyLifecycleFromSituacao } from "@/lib/salic/lifecycle";
 import { recordSituacaoChange } from "@/lib/alerts/diligencia";
@@ -461,7 +461,7 @@ export async function syncAccountViaCrawler(params: {
         }
       }
       if (!publicApiDown) {
-        const n = await refreshProjectSponsors({
+        const n = await refreshProjectSponsorsIfNeeded({
           projectId: project.id,
           pronac: String(listed.Pronac),
           apiOptions: { timeoutMs: 15_000, maxAttempts: 1 },
