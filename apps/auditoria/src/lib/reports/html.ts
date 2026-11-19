@@ -21,6 +21,7 @@ import {
   type RelationKind,
 } from "@/lib/compliance/defaults";
 import { corporateMapCopy, corporateRoleLabel } from "@/lib/corporate/copy";
+import { situacaoLabel, type SituacaoTone } from "@/lib/salic/situacao-label";
 
 const NAVY = "#192d5c";
 const GOLD = "#5b52c9";
@@ -61,7 +62,7 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-function formatNow() {
+function formatNow(date = new Date()) {
   const parts = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -70,7 +71,7 @@ function formatNow() {
     minute: "2-digit",
     hour12: false,
     timeZone: "America/Sao_Paulo",
-  }).formatToParts(new Date());
+  }).formatToParts(date);
 
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value || "";
@@ -395,6 +396,9 @@ function shellHtml(params: {
   rules?: ActiveRules;
   /** Sobrescreve o chip de limite (ex.: panorama multi-IN). */
   rulesChipLabel?: string;
+  /** Partes de um PDF dividido: sem cabeçalho (continuação) e/ou sem rodapé final. */
+  omitHeader?: boolean;
+  omitFooter?: boolean;
 }) {
   const generatedAt = formatNow();
   const filterBits = [
@@ -661,6 +665,8 @@ function shellHtml(params: {
     .status.ok { background: #ecfbf1; color: #146c3a; }
     .status.attention { background: #fff7e8; color: #8a4b12; }
     .status.critical { background: #fef1ef; color: #a12a1c; }
+    .status.info { background: #eef4ff; color: #1d4e9e; }
+    .status.muted { background: #f3f4f6; color: #4b5563; }
     .annex { page-break-before: always; break-before: page; }
     .kpis {
       display: grid;
@@ -713,7 +719,7 @@ function shellHtml(params: {
 </head>
 <body>
   <div class="page">
-    <header class="header">
+    ${params.omitHeader ? "" : `<header class="header">
       <div>
         <img class="logo" src="${params.logoDataUri}" alt="MAX Auditoria" />
         <p class="eyebrow" style="margin-top:14px">Relatório de auditoria</p>
@@ -735,14 +741,14 @@ function shellHtml(params: {
         `Limite legal ${(params.rules || DEFAULT_RULES).caps.supplierCapPct}% · ${(params.rules || DEFAULT_RULES).sourceCode}`
       }</span>
       <span class="chip">Gerado em ${escapeHtml(generatedAt)}</span>
-    </div>
+    </div>`}
 
     ${params.body}
 
-    <footer class="footer">
+    ${params.omitFooter ? "" : `<footer class="footer">
       <span>Documento gerado automaticamente pelo MAX Auditoria a partir dos dados do SALIC.</span>
       <span>Gerado em ${escapeHtml(generatedAt)}</span>
-    </footer>
+    </footer>`}
   </div>
 </body>
 </html>`;
@@ -1880,6 +1886,9 @@ export type AuditoriaPronacBlock = {
     amount: number;
   }>;
   corporateMapHtml: string;
+  /** Situação do projeto no SALIC na última atualização (ex.: "E24 - Apresentou prestação de contas"). */
+  situacao?: string | null;
+  situacaoAt?: string | null;
   alertsSummary: string;
   /** Níveis dos avisos (critical / attention / info) — dão a cor do resumo. */
   alertLevels?: string[];
@@ -1887,10 +1896,46 @@ export type AuditoriaPronacBlock = {
   institutionalMap?: boolean;
 };
 
+/** Linhas de pagamentos por parte do PDF dividido (memória do Chromium). */
+export const REPORT_PAYMENTS_PER_PART = 1200;
+/** Acima disto (soma dos pagamentos), o PDF é gerado em partes. */
+export const REPORT_SPLIT_THRESHOLD = 1500;
+
+function situacaoHtml(b: AuditoriaPronacBlock) {
+  const sit = situacaoLabel(b.situacao);
+  if (!sit) return `<span style="color:${GRAY_500}">Sem situação</span>`;
+  const tone: SituacaoTone = sit.tone;
+  return `<span class="status ${tone}">${escapeHtml(sit.label)}</span>
+    <div style="color:${GRAY_500};font-size:10.5px;margin-top:3px">${escapeHtml(
+      [sit.code, sit.detail].filter(Boolean).join(" - "),
+    )}</div>`;
+}
+
+function situacaoAtText(b: AuditoriaPronacBlock) {
+  if (!b.situacaoAt) return "";
+  const d = new Date(b.situacaoAt);
+  return Number.isNaN(d.getTime()) ? "" : `Situação no SALIC em ${formatNow(d)}.`;
+}
+
 /** Relatório multi-PRONAC de auditoria (PDF grande, seções por projeto). */
-export async function renderAuditoriaReportHtml(params: {
+export async function renderAuditoriaReportHtml(params: { blocks: AuditoriaPronacBlock[] }) {
+  const [html] = await renderAuditoriaReportParts({ ...params, split: false });
+  return html!;
+}
+
+/**
+ * Mesmo relatório, em documentos HTML separados quando `split`: capa/resumo,
+ * cada PRONAC e o anexo de pagamentos em fatias. O PDF de cada parte é gerado
+ * à parte e depois unido — um relatório grande inteiro estoura a memória do
+ * Chromium na Vercel ("Target page, context or browser has been closed").
+ */
+export async function renderAuditoriaReportParts(params: {
   blocks: AuditoriaPronacBlock[];
-}) {
+  split?: boolean;
+}): Promise<string[]> {
+  const split =
+    params.split ??
+    params.blocks.reduce((n, b) => n + b.payments.length, 0) > REPORT_SPLIT_THRESHOLD;
   const logoDataUri = await loadLogoDataUri();
   const toneOf = (b: AuditoriaPronacBlock) => verdictTone(b.alertLevels || []);
   const counts = { critical: 0, attention: 0, ok: 0 };
@@ -1910,17 +1955,17 @@ export async function renderAuditoriaReportHtml(params: {
       return `
         <tr>
           <td><span class="status ${tone}">${VERDICT_TITLE[tone]}</span></td>
-          <td><a href="#pronac-${i}"><strong>${escapeHtml(b.pronac)}</strong></a>
+          <td>${split ? `<strong>${escapeHtml(b.pronac)}</strong>` : `<a href="#pronac-${i}"><strong>${escapeHtml(b.pronac)}</strong></a>`}
             <div style="color:${GRAY_500};font-size:11px">${escapeHtml(b.name)}</div>
           </td>
+          <td>${situacaoHtml(b)}</td>
           <td>${escapeHtml(b.accountName)}</td>
           <td>${titles.length ? titles.map((t) => escapeHtml(t)).join("<br/>") : `<span style="color:${GRAY_500}">Sem avisos</span>`}</td>
         </tr>`;
     })
     .join("");
 
-  const sections = params.blocks
-    .map((b, i) => {
+  const sectionParts = params.blocks.map((b, i) => {
       const bondBlock = bondAndWatchedHtml({
         projectTotal: b.projectTotal,
         paidTotal: b.paidTotal,
@@ -1953,8 +1998,7 @@ export async function renderAuditoriaReportHtml(params: {
         })
         .join("");
 
-      const paymentRows = b.payments
-        .map(
+      const paymentRowList = b.payments.map(
           (p) => `
           <tr>
             <td>${p.paymentDate ? escapeHtml(p.paymentDate.slice(0, 10)) : "—"}</td>
@@ -1967,10 +2011,25 @@ export async function renderAuditoriaReportHtml(params: {
             <td>${escapeHtml(p.documentNumber || "—")}</td>
             <td class="num">${formatCurrency(p.amount)}</td>
           </tr>`,
-        )
-        .join("");
+        );
+      const annexTable = (rows: string[], part?: string) => `
+        <div class="annex">
+        ${sectionTitle("A", `Anexo do PRONAC ${b.pronac}: pagamentos${part ? ` (${part})` : ""}`, "Cada comprovante lançado no SALIC, para conferência. Os marcados não contam para o vínculo com o proponente.")}
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Fornecedor</th>
+              <th>Item</th>
+              <th>Documento</th>
+              <th class="num">Valor</th>
+            </tr>
+          </thead>
+          <tbody>${rows.join("") || `<tr><td colspan="5">Sem pagamentos</td></tr>`}</tbody>
+        </table>
+        </div>`;
 
-      return `
+      const main = `
       <section id="pronac-${i}" class="keep" style="page-break-before: always; margin-top: 8px;">
         <div class="panel" style="border-color:${NAVY};background:${NAVY_SOFT};margin-bottom:16px">
           <h1 style="margin:0;font-size:18px;color:${NAVY}">PRONAC ${escapeHtml(b.pronac)}</h1>
@@ -1983,6 +2042,12 @@ export async function renderAuditoriaReportHtml(params: {
         ${verdictHtml(toneOf(b), (b.alertTitles || []).slice(0, 4))}
 
         ${sectionTitle(1, "Situação", "Números principais do projeto no SALIC.")}
+        <div class="panel keep" style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-start">
+          <div style="font-size:11px;color:${GRAY_500};font-weight:600;min-width:90px">Situação no SALIC</div>
+          <div>${situacaoHtml(b)}
+            ${situacaoAtText(b) ? `<div style="color:${GRAY_500};font-size:10.5px;margin-top:3px">${escapeHtml(situacaoAtText(b))}</div>` : ""}
+          </div>
+        </div>
         <div class="kpis">
           <div class="kpi"><div class="label">Captado</div><div class="value">${formatCurrency(b.projectTotal)}</div></div>
           <div class="kpi"><div class="label">Comprovado</div><div class="value">${formatCurrency(b.paidTotal)}</div></div>
@@ -2011,43 +2076,47 @@ export async function renderAuditoriaReportHtml(params: {
           <tbody>${supplierRows || `<tr><td colspan="5">Sem fornecedores</td></tr>`}</tbody>
         </table>
 
-        <div class="annex">
-        ${sectionTitle("A", `Anexo do PRONAC ${b.pronac}: pagamentos`, "Cada comprovante lançado no SALIC, para conferência. Os marcados não contam para o vínculo com o proponente.")}
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Fornecedor</th>
-              <th>Item</th>
-              <th>Documento</th>
-              <th class="num">Valor</th>
-            </tr>
-          </thead>
-          <tbody>${paymentRows || `<tr><td colspan="5">Sem pagamentos</td></tr>`}</tbody>
-        </table>
-        </div>
+        __ANNEX__
       </section>`;
-    })
-    .join("\n");
+
+      if (!split) {
+        return { main: main.replace("__ANNEX__", () => annexTable(paymentRowList)), annex: [] as string[] };
+      }
+      // Partes: o anexo vai em fatias, cada uma no seu documento.
+      const chunks: string[][] = [];
+      for (let k = 0; k < paymentRowList.length; k += REPORT_PAYMENTS_PER_PART) {
+        chunks.push(paymentRowList.slice(k, k + REPORT_PAYMENTS_PER_PART));
+      }
+      if (chunks.length <= 1) {
+        return { main: main.replace("__ANNEX__", () => annexTable(paymentRowList)), annex: [] as string[] };
+      }
+      return {
+        main: main.replace("__ANNEX__", () => ""),
+        annex: chunks.map((rows, k) => annexTable(rows, `parte ${k + 1} de ${chunks.length}`)),
+      };
+    });
 
   const body = `
     ${verdictHtml(coverTone, coverLines, "Resumo da auditoria")}
-    ${sectionTitle(null, "Situação de cada PRONAC", "Os que passaram de algum limite vêm primeiro na leitura: clique no número para ir direto ao projeto.")}
+    ${sectionTitle(null, "Situação de cada PRONAC", split
+      ? "Os que passaram de algum limite vêm primeiro na leitura. \"No SALIC\" é a situação do projeto na última atualização."
+      : "Os que passaram de algum limite vêm primeiro na leitura: clique no número para ir direto ao projeto. \"No SALIC\" é a situação do projeto na última atualização.")}
     <table>
       <thead>
         <tr>
           <th>Situação</th>
           <th>PRONAC</th>
+          <th>No SALIC</th>
           <th>Proponente</th>
           <th>Principais avisos</th>
         </tr>
       </thead>
       <tbody>${summaryRows}</tbody>
     </table>
-    ${sections}
   `;
 
-  return shellHtml({
+  const shell = (inner: string, opts: { omitHeader?: boolean; omitFooter?: boolean } = {}) =>
+    shellHtml({
     title: "Relatório de Auditoria",
     subtitle: `${params.blocks.length} PRONAC(s) · situação, mapa do proponente, limite do vínculo com proponente, fornecedores e pagamentos`,
     logoDataUri,
@@ -2057,9 +2126,18 @@ export async function renderAuditoriaReportHtml(params: {
       watchedOnly: false,
       watchedCount: 0,
     },
-    body,
+    body: inner,
     rulesChipLabel: "Relatório de auditoria multi-PRONAC",
+    ...opts,
   });
+
+  if (!split) {
+    return [shell(body + sectionParts.map((p) => p.main).join("\n"))];
+  }
+  const docs = [body, ...sectionParts.flatMap((p) => [p.main, ...p.annex])];
+  return docs.map((inner, k) =>
+    shell(inner, { omitHeader: k > 0, omitFooter: k < docs.length - 1 }),
+  );
 }
 
 
