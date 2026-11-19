@@ -5,13 +5,37 @@ const TMP_PREFIX = "max-chromium-";
 /** Pasta temporária mais velha que isso é sobra de execução que caiu. */
 const STALE_MS = 15 * 60_000;
 
+/** Navegadores abertos por este processo agora (a instância atende vários pedidos). */
+let openBrowsers = 0;
+
+/**
+ * Sem nenhum navegador nosso aberto, qualquer Chromium vivo é sobra de um que
+ * caiu: ele continua segurando os arquivos apagados de /tmp e o espaço não
+ * volta. Encerra esses processos.
+ */
+async function killOrphanChromium(executablePath: string) {
+  const fs = await import("node:fs/promises");
+  const pids = await fs.readdir("/proc").catch(() => [] as string[]);
+  let killed = 0;
+  for (const pid of pids) {
+    if (!/^\d+$/.test(pid) || Number(pid) === process.pid) continue;
+    const cmd = await fs.readFile(`/proc/${pid}/cmdline`, "utf8").catch(() => "");
+    if (!cmd.startsWith(executablePath)) continue;
+    try {
+      process.kill(Number(pid), "SIGKILL");
+      killed++;
+    } catch {}
+  }
+  if (killed) console.error(`[navegador] ${killed} Chromium sobrando encerrado(s)`);
+}
+
 /**
  * Na Vercel a mesma instância atende vários pedidos e o /tmp é pequeno.
  * Se um Chromium cai no meio, a memória compartilhada e o perfil dele ficam
  * em /tmp, e daí em diante nenhum navegador novo consegue renderizar.
  * Apaga essas sobras antes de abrir outro.
  */
-async function cleanStaleTmp(tmp: string) {
+async function cleanStaleTmp(tmp: string, force: boolean) {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
   const now = Date.now();
@@ -29,7 +53,7 @@ async function cleanStaleTmp(tmp: string) {
       .map(async (n) => {
         const full = path.join(tmp, n);
         const st = await fs.stat(full).catch(() => null);
-        if (st && now - st.mtimeMs > STALE_MS) {
+        if (st && (force || now - st.mtimeMs > STALE_MS)) {
           await fs.rm(full, { recursive: true, force: true }).catch(() => {});
         }
       }),
@@ -46,7 +70,17 @@ export async function browserEnvDiagnostics(): Promise<string> {
     const s = fs.statfsSync(os.tmpdir());
     disk = `${mb(s.bavail * s.bsize)} livres de ${mb(s.blocks * s.bsize)}`;
   } catch {}
-  return `rss=${mb(process.memoryUsage().rss)} memLivre=${mb(os.freemem())}/${mb(os.totalmem())} tmp=${disk}`;
+  let top = "";
+  try {
+    const { execSync } = await import("node:child_process");
+    top = execSync(`du -sm ${os.tmpdir()}/* ${os.tmpdir()}/.[!.]* 2>/dev/null | sort -rn | head -6`, {
+      timeout: 5000,
+    })
+      .toString()
+      .trim()
+      .replace(/\s*\n\s*/g, ", ");
+  } catch {}
+  return `rss=${mb(process.memoryUsage().rss)} memLivre=${mb(os.freemem())}/${mb(os.totalmem())} tmp=${disk} navegadores=${openBrowsers} maiores=[${top}]`;
 }
 
 /**
@@ -65,15 +99,19 @@ export async function launchChromium(): Promise<Browser> {
       import("node:path"),
     ]);
     const tmp = os.tmpdir();
-    await cleanStaleTmp(tmp);
+    const executablePath = await serverless.executablePath();
+    if (openBrowsers === 0) await killOrphanChromium(executablePath);
+    await cleanStaleTmp(tmp, openBrowsers === 0);
     const ownTmp = await fs.mkdtemp(path.join(tmp, TMP_PREFIX));
     const browser = await chromium.launch({
-      executablePath: await serverless.executablePath(),
+      executablePath,
       args: serverless.args,
       headless: true,
       env: { ...process.env, TMPDIR: ownTmp, TMP: ownTmp, TEMP: ownTmp },
     });
+    openBrowsers++;
     browser.once("disconnected", () => {
+      openBrowsers = Math.max(0, openBrowsers - 1);
       void fs.rm(ownTmp, { recursive: true, force: true }).catch(() => {});
     });
     return browser;

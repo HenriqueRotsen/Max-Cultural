@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useReportDownload } from "./useReportDownload";
 
 /**
  * "Gerar relatório PDF" da aba Por PRONAC: pergunta o tipo antes de gerar.
@@ -10,6 +11,7 @@ import { createPortal } from "react-dom";
  */
 export function ReportChooserButton({ limitsHref }: { limitsHref: string }) {
   const [open, setOpen] = useState(false);
+  const { download, pending, dialog } = useReportDownload();
   // A busca da tabela é gravada no endereço sem recarregar: lê na hora do clique.
   const [params, setParams] = useState({ q: "", accountId: "" });
   const { q, accountId } = params;
@@ -32,24 +34,26 @@ export function ReportChooserButton({ limitsHref }: { limitsHref: string }) {
   }, [open]);
 
   const option = (href: string, title: string, text: string, extra?: string) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      onClick={() => setOpen(false)}
-      className="block rounded-xl border border-[var(--border)] p-4 transition hover:border-[var(--navy)] hover:bg-[var(--navy-soft)]"
+    <button
+      type="button"
+      onClick={() => {
+        setOpen(false);
+        void download(href);
+      }}
+      className="block w-full text-left rounded-xl border border-[var(--border)] p-4 transition hover:border-[var(--navy)] hover:bg-[var(--navy-soft)]"
     >
       <span className="block font-semibold text-[var(--navy)]">{title}</span>
       <span className="mt-1 block text-sm text-[var(--gray-600)]">{text}</span>
       {extra ? <span className="mt-1 block text-xs text-[var(--gray-500)]">{extra}</span> : null}
-    </a>
+    </button>
   );
 
   return (
     <>
-      <button type="button" className="btn btn-gold" onClick={openChooser}>
-        Gerar relatório PDF
+      <button type="button" className="btn btn-gold" onClick={openChooser} disabled={pending}>
+        {pending ? "Gerando PDF…" : "Gerar relatório PDF"}
       </button>
+      {dialog}
       {open && typeof document !== "undefined"
         ? createPortal(
             <div

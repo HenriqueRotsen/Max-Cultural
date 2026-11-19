@@ -1,14 +1,21 @@
 "use client";
 
+import { useReportDownload } from "./useReportDownload";
+
 type Props = {
   href: string;
   label?: string;
+  className?: string;
 };
 
-export function ReportDownloadButton({ href, label = "Gerar relatório PDF" }: Props) {
+export function ReportDownloadButton({ href, label = "Gerar relatório PDF", className = "btn btn-gold" }: Props) {
+  const { download, pending, dialog } = useReportDownload();
   return (
-    <a className="btn btn-gold" href={href} target="_blank" rel="noreferrer">
-      {label}
-    </a>
+    <>
+      <button type="button" className={className} disabled={pending} onClick={() => download(href)}>
+        {pending ? "Gerando PDF…" : label}
+      </button>
+      {dialog}
+    </>
   );
 }

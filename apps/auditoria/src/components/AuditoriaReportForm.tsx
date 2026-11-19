@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { SearchSelect } from "@max/ui";
+import { useReportDownload } from "./useReportDownload";
 
 /** Minúsculas e sem acento, para a busca casar "praca" com "Praça". */
 function norm(s: string) {
@@ -24,7 +25,7 @@ export function AuditoriaReportForm({
   const [selected, setSelected] = useState<string[]>([]);
   const [accountFilter, setAccountFilter] = useState("");
   const [query, setQuery] = useState("");
-  const [pending, startTransition] = useTransition();
+  const { download, pending, dialog } = useReportDownload();
 
   const accounts = useMemo(() => {
     const map = new Map<string, string>();
@@ -64,9 +65,7 @@ export function AuditoriaReportForm({
     if (!selected.length) return;
     const qs = new URLSearchParams();
     qs.set("pronacs", selected.join(","));
-    startTransition(() => {
-      window.location.href = `/api/reports/auditoria?${qs.toString()}`;
-    });
+    void download(`/api/reports/auditoria?${qs.toString()}`);
   }
 
   return (
@@ -105,8 +104,9 @@ export function AuditoriaReportForm({
           disabled={!selected.length || pending}
           onClick={generate}
         >
-          {pending ? "Gerando…" : `Gerar PDF (${selected.length})`}
+          {pending ? "Gerando PDF…" : `Gerar PDF (${selected.length})`}
         </button>
+        {dialog}
       </div>
 
       {query || accountFilter ? (
@@ -156,6 +156,12 @@ export function AuditoriaReportForm({
           </tbody>
         </table>
       </div>
+      {pending ? (
+        <p className="text-sm text-[var(--gray-600)]" aria-live="polite">
+          Gerando o PDF de {selected.length} PRONAC(s). Com muitos projetos pode levar alguns minutos; o
+          arquivo baixa sozinho quando ficar pronto.
+        </p>
+      ) : null}
       <p className="text-xs text-[var(--gray-500)]">
         O PDF inclui situação, mapa do proponente, observados (tem/não tem
         vínculo), agregados e linhas de pagamento de cada PRONAC selecionado.

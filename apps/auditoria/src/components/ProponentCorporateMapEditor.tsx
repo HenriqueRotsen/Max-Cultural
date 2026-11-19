@@ -1,5 +1,6 @@
 "use client";
 
+import { ReportDownloadButton } from "./ReportDownloadButton";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { SearchSelect } from "@max/ui";
@@ -745,12 +746,11 @@ export function ProponentCorporateMapEditor({
 
       {ownerField === "accountId" ? (
         <div className="flex flex-wrap gap-2">
-          <a
+          <ReportDownloadButton
             className="btn"
             href={`/api/reports/account/${accountId}/mapa-societario`}
-          >
-            {copy.pdfBtn}
-          </a>
+            label={copy.pdfBtn}
+          />
         </div>
       ) : null}
     </div>
