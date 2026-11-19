@@ -57,7 +57,7 @@ describe("data do aporte", () => {
 describe("captações na API pública", () => {
   it("lê os patrocinadores do detalhe do projeto", async () => {
     const { vi } = await import("vitest");
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL) =>
       new Response(
         JSON.stringify({
           _embedded: {
