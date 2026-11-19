@@ -80,3 +80,33 @@ describe("captações na API pública", () => {
     }
   });
 });
+
+describe("quando buscar de novo os patrocinadores", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600_000);
+  it("busca projeto nunca buscado", async () => {
+    const { needsSponsorRefresh } = await import("@/lib/salic/sponsors-sync");
+    expect(needsSponsorRefresh({ sponsorsSyncedAt: null, valorCaptado: 0, sponsorTotal: 0 }, now)).toBe(true);
+  });
+  it("pula projeto em dia (soma fecha com o captado)", async () => {
+    const { needsSponsorRefresh } = await import("@/lib/salic/sponsors-sync");
+    expect(
+      needsSponsorRefresh({ sponsorsSyncedAt: hoursAgo(48), valorCaptado: 1000, sponsorTotal: 1000 }, now),
+    ).toBe(false);
+  });
+  it("busca de novo quando entrou dinheiro novo, no máximo uma vez por dia", async () => {
+    const { needsSponsorRefresh } = await import("@/lib/salic/sponsors-sync");
+    expect(
+      needsSponsorRefresh({ sponsorsSyncedAt: hoursAgo(24), valorCaptado: 5000, sponsorTotal: 1000 }, now),
+    ).toBe(true);
+    expect(
+      needsSponsorRefresh({ sponsorsSyncedAt: hoursAgo(2), valorCaptado: 5000, sponsorTotal: 1000 }, now),
+    ).toBe(false);
+  });
+  it("revisa a cada 30 dias mesmo em dia", async () => {
+    const { needsSponsorRefresh } = await import("@/lib/salic/sponsors-sync");
+    expect(
+      needsSponsorRefresh({ sponsorsSyncedAt: hoursAgo(31 * 24), valorCaptado: 1000, sponsorTotal: 1000 }, now),
+    ).toBe(true);
+  });
+});

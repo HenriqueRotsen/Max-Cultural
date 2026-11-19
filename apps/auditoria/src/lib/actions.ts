@@ -1368,3 +1368,13 @@ export async function refreshSponsorsAction(projectId: string) {
   revalidatePath("/patrocinadores");
   return { ok: true as const, count: n };
 }
+
+/** "Buscar os que faltam": patrocinadores de todos os projetos que precisam, agora. */
+export async function syncPendingSponsorsAction() {
+  const { getWorkspaceContext } = await import("@/lib/auth/session");
+  const { entitlements } = await getWorkspaceContext();
+  const { syncPendingSponsors } = await import("@/lib/salic/sponsors-sync");
+  const r = await syncPendingSponsors({ workspaceId: entitlements.workspaceId, budgetMs: 240_000 });
+  revalidatePath("/patrocinadores");
+  return r;
+}
