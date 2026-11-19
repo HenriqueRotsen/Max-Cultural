@@ -233,7 +233,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (e) {
-    console.error("[relatorio auditoria]", e);
+    console.error("[relatorio auditoria]", e, await (await import("@/lib/browser")).browserEnvDiagnostics());
     const raw = e instanceof Error ? e.message : "";
     const message = /has been closed|Target closed|crashed/i.test(raw)
       ? "O relatório ficou grande demais para gerar de uma vez. Tente com menos PRONACs."
