@@ -17,7 +17,7 @@ import { CollapsibleAlertsPanel } from "@/components/CollapsibleAlertsPanel";
 import { FieldHelp } from "@/components/FieldHelp";
 import { PageHeader } from "@/components/ui";
 import { PronacPanoramaTable } from "@/components/PronacPanoramaTable";
-import { ReportDownloadButton } from "@/components/ReportDownloadButton";
+import { ReportChooserButton } from "@/components/ReportChooserButton";
 import { HELP } from "@/lib/help";
 import { hiddenProjectIds } from "@/lib/compliance/over-limit-visibility";
 
@@ -120,7 +120,7 @@ export default async function PronacPanoramaPage({
         title="Por PRONAC"
         description="Veja se cada projeto respeita os limites da IN. Os que precisam de atenção aparecem primeiro; clique em um projeto para abrir a análise completa."
         actions={
-          <ReportDownloadButton href={`/api/reports/pronac?${reportQs.toString()}`} />
+          <ReportChooserButton limitsHref={`/api/reports/pronac?${reportQs.toString()}`} />
         }
       />
 
