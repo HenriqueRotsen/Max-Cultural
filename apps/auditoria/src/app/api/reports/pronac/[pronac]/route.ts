@@ -1,4 +1,5 @@
 import { getWorkspaceContext } from "@/lib/auth/session";
+import { sponsorConflictText } from "@/lib/sponsors";
 import { NextResponse } from "next/server";
 import {
   getPronacDetail,
@@ -95,6 +96,15 @@ export async function GET(
       watchedOnly: detail.watchedOnly,
       suppliers: detail.suppliers,
       allSuppliers: detail.allSuppliers,
+      sponsors: detail.sponsors.map((x) => ({
+        name: x.name,
+        cgccpf: x.cgccpf,
+        total: x.total,
+        count: x.count,
+        lastAt: x.lastAt ? x.lastAt.toISOString() : null,
+      })),
+      sponsorsSynced: Boolean(detail.sponsorsSyncedAt),
+      sponsorWarnings: detail.sponsorConflicts.map((c) => sponsorConflictText(c)),
       bondSuppliers: detail.bondSuppliers,
       payments: detail.payments.map((p) => ({
         paymentDate: p.paymentDate,

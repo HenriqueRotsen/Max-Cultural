@@ -246,6 +246,37 @@ export async function getProjetoByPronac(
   return page._embedded?.projetos?.[0] ?? null;
 }
 
+/** Um aporte de captação (patrocínio ou doação) no detalhe público do projeto. */
+export type SalicCaptacao = {
+  PRONAC?: string;
+  valor?: number | string;
+  data_recibo?: string;
+  nome_projeto?: string;
+  cgccpf?: string;
+  nome_doador?: string;
+};
+
+/**
+ * Captações (quem patrocinou ou doou) de um PRONAC na API pública.
+ * `null` quando a API não respondeu; lista vazia quando o projeto não captou.
+ */
+export async function listCaptacoesByPronac(
+  pronac: string,
+  options?: { timeoutMs?: number; maxAttempts?: number },
+): Promise<SalicCaptacao[] | null> {
+  try {
+    const detail = await salicFetch<{ _embedded?: { captacoes?: SalicCaptacao[] } }>(
+      `/projetos/${encodeURIComponent(pronac.trim())}`,
+      {},
+      1,
+      options,
+    );
+    return detail._embedded?.captacoes ?? [];
+  } catch {
+    return null;
+  }
+}
+
 export function parseSalicMoney(value?: number | string | null): number | null {
   if (value === undefined || value === null || value === "") return null;
   const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
