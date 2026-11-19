@@ -399,9 +399,11 @@ function shellHtml(params: {
   /** Partes de um PDF dividido: sem cabeçalho (continuação) e/ou sem rodapé final. */
   omitHeader?: boolean;
   omitFooter?: boolean;
+  /** Troca as etiquetas de filtro padrão (proponente, PRONAC, fornecedores). */
+  filterChips?: string[];
 }) {
   const generatedAt = formatNow();
-  const filterBits = [
+  const filterBits = params.filterChips ? params.filterChips.map((x) => escapeHtml(x)) : [
     params.filters.accountName ? `Proponente: ${params.filters.accountName}` : "Proponente: todos",
     params.filters.pronac ? `PRONAC: ${params.filters.pronac}` : null,
     params.filters.from ? `De: ${params.filters.from}` : null,
@@ -2140,4 +2142,94 @@ export async function renderAuditoriaReportParts(params: {
   );
 }
 
+export type SituacaoReportRow = {
+  pronac: string;
+  name: string | null;
+  accountName: string;
+  situacao: string | null;
+  lastSyncedAt: string | null;
+};
 
+/** Relatório "Situação no SALIC": cada projeto e a situação dele na última atualização. */
+export async function renderSituacaoReportHtml(params: {
+  rows: SituacaoReportRow[];
+  query?: string | null;
+  accountName?: string | null;
+}) {
+  const logoDataUri = await loadLogoDataUri();
+  const labeled = params.rows.map((r) => ({ ...r, sit: situacaoLabel(r.situacao) }));
+
+  // Quantos em cada situação, na ordem em que aparecem mais.
+  const byLabel = new Map<string, { tone: SituacaoTone; n: number }>();
+  for (const r of labeled) {
+    const key = r.sit?.label ?? "Sem situação";
+    const cur = byLabel.get(key) ?? { tone: r.sit?.tone ?? "muted", n: 0 };
+    cur.n += 1;
+    byLabel.set(key, cur);
+  }
+  const summary = [...byLabel.entries()]
+    .sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0], "pt-BR"))
+    .map(
+      ([label, v]) =>
+        `<span class="status ${v.tone}" style="margin:0 6px 6px 0">${escapeHtml(label)} · ${v.n}</span>`,
+    )
+    .join("");
+
+  const fmtSync = (iso: string | null) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "—" : formatNow(d);
+  };
+
+  const rows = labeled
+    .map(
+      (r) => `
+        <tr>
+          <td><strong>${escapeHtml(r.pronac)}</strong></td>
+          <td>${escapeHtml(r.name || "Sem nome")}</td>
+          <td>${escapeHtml(r.accountName)}</td>
+          <td>${
+            r.sit
+              ? `<span class="status ${r.sit.tone}">${escapeHtml(r.sit.label)}</span>
+                 <div style="color:${GRAY_500};font-size:10.5px;margin-top:3px">${escapeHtml(
+                   [r.sit.code, r.sit.detail].filter(Boolean).join(" - "),
+                 )}</div>`
+              : `<span style="color:${GRAY_500}">Sem situação</span>`
+          }</td>
+          <td style="white-space:nowrap;color:${GRAY_500};font-size:11px">${escapeHtml(fmtSync(r.lastSyncedAt))}</td>
+        </tr>`,
+    )
+    .join("");
+
+  const chips = [
+    params.accountName ? `Proponente: ${params.accountName}` : "Proponente: todos",
+    params.query ? `Busca: “${params.query}”` : "Busca: todos os projetos",
+  ];
+
+  const body = `
+    ${sectionTitle(null, "Projetos e situação no SALIC", "Situação de cada projeto na última atualização do SALIC (feita todo dia). A última coluna mostra quando cada um foi atualizado.")}
+    <div style="margin:4px 0 12px">${summary || ""}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>PRONAC</th>
+          <th>Projeto</th>
+          <th>Proponente</th>
+          <th>Situação no SALIC</th>
+          <th>Atualizado em</th>
+        </tr>
+      </thead>
+      <tbody>${rows || `<tr><td colspan="5">Nenhum projeto encontrado com esse filtro.</td></tr>`}</tbody>
+    </table>
+  `;
+
+  return shellHtml({
+    title: "Situação dos projetos",
+    subtitle: `${params.rows.length} projeto(s) · situação de cada um no SALIC`,
+    logoDataUri,
+    filters: { accountName: null, pronac: null, watchedOnly: false, watchedCount: 0 },
+    filterChips: chips,
+    body,
+    rulesChipLabel: "Situação no SALIC",
+  });
+}

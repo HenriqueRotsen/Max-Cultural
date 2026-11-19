@@ -19,10 +19,7 @@ import { TablePagination, usePagedSlice } from "@/components/InfiniteScroll";
 import { HELP } from "@/lib/help";
 import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 
-/** Minúsculas e sem acento, para a busca casar "praca" com "Praça". */
-function norm(s: string) {
-  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-}
+import { matchesPronacSearch, pronacSearchHay } from "@/lib/pronac-search";
 
 function pctLabel(value: number) {
   return `${value.toFixed(2).replace(".", ",")}%`;
@@ -109,7 +106,15 @@ export function PronacPanoramaTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [loading, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
+  // A busca fica no endereço (?q=) para o botão de relatório usar o mesmo filtro.
+  const [query, setQueryState] = useState(() => searchParams.get("q") || "");
+  function setQuery(value: string) {
+    setQueryState(value);
+    const url = new URL(window.location.href);
+    if (value.trim()) url.searchParams.set("q", value);
+    else url.searchParams.delete("q");
+    window.history.replaceState(window.history.state, "", url);
+  }
   const [status, setStatus] = useState<StatusFilter>("todos");
 
   function setParam(updates: Record<string, string | null>) {
@@ -148,9 +153,7 @@ export function PronacPanoramaTable({
           limitPct: proponentLimitPct(rowRules, row.personType),
           noLimits: Boolean(rowRules.caps.noPercentLimits),
           salic: situacaoLabel(row.situacao),
-          hay: norm(
-            `${row.pronac} ${row.name || ""} ${row.accountName} ${situacaoLabel(row.situacao)?.label || ""} ${row.situacao || ""}`,
-          ),
+          hay: pronacSearchHay(row),
         };
       }),
     [rows, rules],
@@ -163,10 +166,9 @@ export function PronacPanoramaTable({
   }, [enriched]);
 
   const visible = useMemo(() => {
-    const terms = norm(query).split(/\s+/).filter(Boolean);
     return enriched
       .filter((e) => status === "todos" || e.tone === status)
-      .filter((e) => terms.every((t) => e.hay.includes(t)))
+      .filter((e) => matchesPronacSearch(e.hay, query))
       .sort(
         (a, b) =>
           TONE_RANK[a.tone] - TONE_RANK[b.tone] || a.row.pronac.localeCompare(b.row.pronac),
