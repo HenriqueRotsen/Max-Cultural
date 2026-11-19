@@ -7,6 +7,7 @@ import {
 import { loadComplianceBundle, metaForProject } from "@/lib/compliance/context";
 import { rulesForProject } from "@/lib/compliance/rules";
 import { evaluatePronacSupplierCompliance } from "@/lib/compliance/rouanet";
+import { sponsorConflictAlerts, sponsorConflictText } from "@/lib/sponsors";
 import { corporateMapCopy, corporateRoleLabel } from "@/lib/corporate/copy";
 import { mapWindowForProject, periodsInYears } from "@/lib/corporate/at-year";
 import { pronacYear } from "@/lib/compliance/choose-ruleset";
@@ -64,7 +65,8 @@ export async function GET(request: Request) {
       const bundle = await loadComplianceBundle([account.id], { workspaceId });
       const meta = metaForProject(bundle, account.id, detail.projectId);
 
-      const alerts = evaluatePronacSupplierCompliance({
+      const alerts = [
+        ...evaluatePronacSupplierCompliance({
         pronac: detail.pronac,
         projectName: detail.name,
         projectTotal: detail.projectTotal,
@@ -74,7 +76,9 @@ export async function GET(request: Request) {
         rules,
         suppliers: detail.allSuppliers,
         bondSuppliers: detail.bondSuppliers,
-      });
+      }),
+        ...sponsorConflictAlerts(detail.sponsorConflicts, detail.pronac),
+      ];
       const critical = alerts.filter((a) => a.level === "critical").length;
       const attention = alerts.filter((a) => a.level === "attention").length;
       const alertsSummary =
@@ -205,6 +209,15 @@ export async function GET(request: Request) {
           amount: Number(p.amount),
         })),
         corporateMapHtml,
+        sponsors: detail.sponsors.map((x) => ({
+          name: x.name,
+          cgccpf: x.cgccpf,
+          total: x.total,
+          count: x.count,
+          lastAt: x.lastAt ? x.lastAt.toISOString() : null,
+        })),
+        sponsorsSynced: Boolean(detail.sponsorsSyncedAt),
+        sponsorWarnings: detail.sponsorConflicts.map((c) => sponsorConflictText(c)),
         situacao: detail.situacao,
         situacaoAt: detail.lastSyncedAt ? detail.lastSyncedAt.toISOString() : null,
         alertsSummary,

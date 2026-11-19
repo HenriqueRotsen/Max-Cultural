@@ -25,7 +25,9 @@ import { VinculoSection } from "@/components/VinculoSection";
 import { ProjectCompliancePanel } from "@/components/ProjectCompliancePanel";
 import { ReportDownloadButton } from "@/components/ReportDownloadButton";
 import { HELP } from "@/lib/help";
-import { normalizeCgccpf } from "@/lib/format";
+import { formatCgccpf, formatDate, normalizeCgccpf } from "@/lib/format";
+import { sponsorConflictAlerts } from "@/lib/sponsors";
+import { SponsorRefreshButton } from "@/components/SponsorRefreshButton";
 import { RELATION_LABELS } from "@/lib/compliance/defaults";
 import { SITUACAO_BADGE, situacaoLabel } from "@/lib/salic/situacao-label";
 import { hiddenProjectIds, notFoundIfHiddenPronac } from "@/lib/compliance/over-limit-visibility";
@@ -41,10 +43,10 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ pronac: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-type DetailTab = "analise" | "avisos" | "in";
+type DetailTab = "analise" | "patrocinadores" | "avisos" | "in";
 
 function parseTab(value: string | undefined): DetailTab {
-  if (value === "avisos" || value === "in") return value;
+  if (value === "avisos" || value === "in" || value === "patrocinadores") return value;
   return "analise";
 }
 
@@ -177,7 +179,8 @@ export default async function PronacDetailPage({
     return dig.length >= 11 && pronacDocs.has(dig);
   });
 
-  const complianceAlerts = evaluatePronacSupplierCompliance({
+  const complianceAlerts = [
+    ...evaluatePronacSupplierCompliance({
     pronac: detail.pronac,
     projectName: detail.name,
     projectTotal: detail.projectTotal,
@@ -187,7 +190,9 @@ export default async function PronacDetailPage({
     rules: projectRules,
     suppliers: detail.allSuppliers,
     bondSuppliers: detail.bondSuppliers,
-  });
+    }),
+    ...sponsorConflictAlerts(detail.sponsorConflicts, detail.pronac),
+  ];
 
   const brief = (detail.compliance?.auditBrief || null) as AuditBrief | null;
   const criticalCount = complianceAlerts.filter((a) => a.level === "critical").length;
@@ -381,6 +386,13 @@ export default async function PronacDetailPage({
         <Link href={hrefForTab("analise")} aria-current={tab === "analise" ? "page" : undefined}>
           Análise
         </Link>
+        <Link
+          href={hrefForTab("patrocinadores")}
+          aria-current={tab === "patrocinadores" ? "page" : undefined}
+        >
+          Patrocinadores
+          {detail.sponsors.length > 0 ? ` (${detail.sponsors.length})` : ""}
+        </Link>
         <Link href={hrefForTab("avisos")} aria-current={tab === "avisos" ? "page" : undefined}>
           Avisos
           {complianceAlerts.length > 0 ? ` (${complianceAlerts.length})` : ""}
@@ -500,6 +512,67 @@ export default async function PronacDetailPage({
             }))}
           />
         </>
+      )}
+
+      {tab === "patrocinadores" && (
+        <Section
+          title="Patrocinadores"
+          description={
+            detail.sponsors.length === 0
+              ? detail.sponsorsSyncedAt
+                ? "O SALIC não mostra patrocinadores para este projeto."
+                : "Os patrocinadores ainda não foram buscados no SALIC. Eles chegam na próxima atualização diária, ou busque agora."
+              : `Quem aportou recurso na conta de captação, segundo o SALIC${
+                  detail.sponsorsSyncedAt
+                    ? ` (atualizado em ${formatDate(detail.sponsorsSyncedAt)})`
+                    : ""
+                }.`
+          }
+          actions={detail.projectId ? <SponsorRefreshButton projectId={detail.projectId} /> : null}
+        >
+          {detail.sponsorConflicts.length > 0 ? (
+            <ComplianceAlerts
+              compact
+              alerts={sponsorConflictAlerts(detail.sponsorConflicts, detail.pronac)}
+              rules={projectRules}
+            />
+          ) : null}
+          {detail.sponsors.length > 0 ? (
+            <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)]">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Patrocinador</th>
+                    <th>CNPJ/CPF</th>
+                    <th className="num">Aportou</th>
+                    <th className="num">Aportes</th>
+                    <th>Último aporte</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.sponsors.map((s) => (
+                    <tr key={s.cgccpf || s.name}>
+                      <td className="font-medium text-[var(--navy)]">{s.name}</td>
+                      <td className="whitespace-nowrap text-sm text-[var(--gray-600)]">{formatCgccpf(s.cgccpf)}</td>
+                      <td className="num">{formatCurrency(s.total)}</td>
+                      <td className="num">{s.count}</td>
+                      <td className="text-sm text-[var(--gray-600)]">{s.lastAt ? formatDate(s.lastAt) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2} className="font-semibold">
+                      Total aportado
+                    </td>
+                    <td className="num font-semibold">{formatCurrency(detail.sponsorTotal)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : null}
+        </Section>
       )}
 
       {tab === "avisos" && (

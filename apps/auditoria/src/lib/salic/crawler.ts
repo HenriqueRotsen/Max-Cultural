@@ -11,6 +11,7 @@ import {
   reconcileProjectPayments,
   reconcileAccountProjects,
   refreshProjectFinancials,
+  refreshProjectSponsors,
 } from "@/lib/salic/persist";
 import type { SalicProduto } from "@/lib/salic/api";
 import { sanitizeSalicText } from "@/lib/salic/text";
@@ -457,6 +458,17 @@ export async function syncAccountViaCrawler(params: {
         if (fin.valorCaptado == null && fin.valorAprovado == null) {
           publicApiDown = true;
           await push("API pública do SALIC sem resposta — valores captados ficam para a próxima atualização");
+        }
+      }
+      if (!publicApiDown) {
+        const n = await refreshProjectSponsors({
+          projectId: project.id,
+          pronac: String(listed.Pronac),
+          apiOptions: { timeoutMs: 15_000, maxAttempts: 1 },
+        }).catch(() => null);
+        if (n == null) {
+          publicApiDown = true;
+          await push("API pública do SALIC sem resposta — patrocinadores ficam para a próxima atualização");
         }
       }
 

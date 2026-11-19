@@ -1330,6 +1330,9 @@ export async function renderPronacDetailHtml(params: {
     documentNumber: string | null;
     source: string;
   }>;
+  sponsors?: AuditoriaPronacBlock["sponsors"];
+  sponsorsSynced?: boolean;
+  sponsorWarnings?: string[];
 }) {
   const rules = params.rules || DEFAULT_RULES;
   const logoDataUri = await loadLogoDataUri();
@@ -1423,6 +1426,7 @@ export async function renderPronacDetailHtml(params: {
 
     ${sectionTitle(1, "Avisos", `Pontos que passaram ou estão perto dos limites da ${rules.sourceCode}. Vermelho é o que passou do limite; amarelo, o que está perto.`)}
     ${warningsHtml(warnings)}
+    ${params.sponsors ? sponsorsHtml(params) : ""}
 
     ${sectionTitle(2, "Limite do Vínculo com Proponente", rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${rules.sourceCode} não define limite percentual; a soma é só para consulta.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Pela ${rules.sourceCode}, pode chegar a no máximo ${limitPct}% do valor captado. Só entram os pagamentos que contam para o vínculo (alimentação e refeição começam fora).`)}
     ${bondBlock}
@@ -1885,6 +1889,12 @@ export type AuditoriaPronacBlock = {
     amount: number;
   }>;
   corporateMapHtml: string;
+  /** Quem patrocinou/doou (captação no SALIC), somado por patrocinador. */
+  sponsors?: Array<{ name: string; cgccpf: string; total: number; count: number; lastAt: string | null }>;
+  /** Já buscou os patrocinadores no SALIC (lista vazia = não captou). */
+  sponsorsSynced?: boolean;
+  /** Patrocinador que também recebeu pagamento do projeto. */
+  sponsorWarnings?: string[];
   /** Situação do projeto no SALIC na última atualização (ex.: "E24 - Apresentou prestação de contas"). */
   situacao?: string | null;
   situacaoAt?: string | null;
@@ -1908,6 +1918,40 @@ function situacaoHtml(b: AuditoriaPronacBlock) {
     <div style="color:${GRAY_500};font-size:10.5px;margin-top:3px">${escapeHtml(
       [sit.code, sit.detail].filter(Boolean).join(" - "),
     )}</div>`;
+}
+
+function sponsorsHtml(b: Pick<AuditoriaPronacBlock, "sponsors" | "sponsorsSynced" | "sponsorWarnings">) {
+  const list = b.sponsors || [];
+  const warn = (b.sponsorWarnings || [])
+    .map(
+      (w) =>
+        `<div class="panel keep" style="border-color:${GOLD};background:${GOLD_SOFT};margin:6px 0;font-size:11.5px;color:${NAVY}"><strong>Atenção:</strong> ${escapeHtml(w)} O dinheiro incentivado não pode voltar para quem patrocinou.</div>`,
+    )
+    .join("");
+  if (!list.length) {
+    return `<h3>Patrocinadores</h3><p class="section-intro">${
+      b.sponsorsSynced ? "O SALIC não mostra patrocinadores para este projeto." : "Patrocinadores ainda não buscados no SALIC."
+    }</p>${warn}`;
+  }
+  const total = list.reduce((n, x) => n + x.total, 0);
+  const rows = list
+    .map(
+      (x) => `<tr>
+        <td>${escapeHtml(x.name)}</td>
+        <td style="white-space:nowrap">${escapeHtml(formatCgccpf(x.cgccpf))}</td>
+        <td class="num">${formatCurrency(x.total)}</td>
+        <td class="num">${x.count}</td>
+        <td style="white-space:nowrap">${x.lastAt ? escapeHtml(new Date(x.lastAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })) : "—"}</td>
+      </tr>`,
+    )
+    .join("");
+  return `<h3>Patrocinadores</h3>
+    <p class="section-intro">Quem aportou recurso na conta de captação, segundo o SALIC.</p>
+    ${warn}
+    <table class="keep">
+      <thead><tr><th>Patrocinador</th><th>CNPJ/CPF</th><th class="num">Aportou</th><th class="num">Aportes</th><th>Último aporte</th></tr></thead>
+      <tbody>${rows}<tr><td colspan="2"><strong>Total aportado</strong></td><td class="num"><strong>${formatCurrency(total)}</strong></td><td colspan="2"></td></tr></tbody>
+    </table>`;
 }
 
 function situacaoAtText(b: AuditoriaPronacBlock) {
@@ -2054,6 +2098,7 @@ export async function renderAuditoriaReportParts(params: {
           <div class="kpi"><div class="label">Pagamentos</div><div class="value">${b.payments.length}</div></div>
         </div>
         <p class="section-intro">${escapeHtml(b.alertsSummary)}</p>
+        ${sponsorsHtml(b)}
 
         ${sectionTitle(2, "Limite do Vínculo com Proponente", b.rules.caps.noPercentLimits ? `Soma do que o proponente e quem tem vínculo com ele receberam. A ${b.rules.sourceCode} não define limite percentual.` : `Soma do que o proponente e quem tem vínculo com ele receberam. Limite da ${b.rules.sourceCode}: ${b.personType === "PF" || b.personType === "MEI" ? b.rules.caps.proponentMeiCapPct : b.rules.caps.proponentCapPct}% do valor captado.`)}
         <h3>${escapeHtml(corporateMapCopy(Boolean(b.institutionalMap)).reportSection.replace(/^\d+\.\s*/, ""))}</h3>

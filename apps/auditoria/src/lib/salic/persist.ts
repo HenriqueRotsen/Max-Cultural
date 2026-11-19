@@ -61,6 +61,46 @@ export async function refreshProjectFinancials(params: {
   return { valorCaptado, valorAprovado };
 }
 
+/** Data sem hora do SALIC ("2023-06-30 00:00:00") ao meio-dia UTC: não muda de dia no fuso de Brasília. */
+export function salicDayAtNoon(value?: string | null): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || "").trim());
+  if (!m) return parseSalicDate(value);
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
+}
+
+/**
+ * Patrocinadores do projeto (captações da API pública). Troca a lista inteira
+ * quando a API responde; se ela não responder, mantém a lista anterior.
+ * Devolve quantos aportes gravou, ou null se a API não respondeu.
+ */
+export async function refreshProjectSponsors(params: {
+  projectId: string;
+  pronac: string;
+  apiOptions?: { timeoutMs?: number; maxAttempts?: number };
+}): Promise<number | null> {
+  const { listCaptacoesByPronac } = await import("@/lib/salic/api");
+  const captacoes = await listCaptacoesByPronac(params.pronac, params.apiOptions);
+  if (captacoes == null) return null;
+  const rows = captacoes
+    .map((c) => ({
+      projectId: params.projectId,
+      cgccpf: normalizeCgccpf(c.cgccpf || ""),
+      name: (salicTextOrNull(c.nome_doador) || "Patrocinador sem nome").trim(),
+      amount: parseSalicMoney(c.valor) ?? 0,
+      receivedAt: salicDayAtNoon(c.data_recibo),
+    }))
+    .filter((r) => r.amount > 0);
+  await prisma.$transaction([
+    prisma.projectSponsorship.deleteMany({ where: { projectId: params.projectId } }),
+    ...(rows.length ? [prisma.projectSponsorship.createMany({ data: rows })] : []),
+    prisma.project.update({
+      where: { id: params.projectId },
+      data: { sponsorsSyncedAt: new Date() },
+    }),
+  ]);
+  return rows.length;
+}
+
 async function upsertSupplier(input: {
   cgccpf?: string | null;
   name?: string | null;
@@ -350,6 +390,7 @@ export async function syncProjectViaApi(params: {
   if (params.valorCaptado == null) {
     await refreshProjectFinancials({ projectId: project.id, pronac });
   }
+  await refreshProjectSponsors({ projectId: project.id, pronac }).catch(() => null);
 
   if (!project.complianceRulesetId) {
     const { scheduleProjectRulesetChoice } = await import("@/lib/compliance/choose-ruleset");
@@ -491,6 +532,7 @@ export async function syncAccountViaApi(params: {
       if (item.valorCaptado == null) {
         await refreshProjectFinancials({ projectId: project.id, pronac: item.pronac });
       }
+      await refreshProjectSponsors({ projectId: project.id, pronac: item.pronac }).catch(() => null);
 
       if (!project.complianceRulesetId) {
         const { scheduleProjectRulesetChoice } = await import("@/lib/compliance/choose-ruleset");
