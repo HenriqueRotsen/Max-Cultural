@@ -88,7 +88,32 @@ async function htmlToPdfOnce(html: string): Promise<Buffer> {
 }
 
 const isClosedError = (e: unknown) =>
-  /has been closed|Target closed|crashed/i.test(e instanceof Error ? e.message : String(e));
+  /has been closed|Target closed|crashed|parte travou/i.test(e instanceof Error ? e.message : String(e));
+
+/** Uma parte que passa disso travou: o navegador é fechado e ela é tentada de novo. */
+const PART_TIMEOUT_MS = 75_000;
+/** A rota tem 300 s; para antes e devolve uma mensagem em vez de estourar o tempo. */
+const TOTAL_BUDGET_MS = 260_000;
+
+export class ReportTooSlowError extends Error {
+  constructor() {
+    super("O relatório demorou demais para ficar pronto. Tente com menos PRONACs de cada vez.");
+  }
+}
+
+async function withTimeout<T>(p: Promise<T>, ms: number, onTimeout: () => Promise<void>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const t = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      void onTimeout().finally(() => reject(new Error("parte travou")));
+    }, ms);
+  });
+  try {
+    return await Promise.race([p, t]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * PDF de várias partes HTML (relatório grande): cada parte vira um PDF numa
@@ -123,11 +148,15 @@ export async function htmlPartsToPdf(parts: string[]): Promise<Buffer> {
 
   const generatedAt = formatPdfTimestamp();
   const out = await PDFDocument.create();
+  const started = Date.now();
+  const render = (html: string) =>
+    withTimeout(renderPart(html), PART_TIMEOUT_MS, () => browser.close().catch(() => {}));
   try {
     for (const [i, html] of parts.entries()) {
+      if (Date.now() - started > TOTAL_BUDGET_MS) throw new ReportTooSlowError();
       let bytes: Uint8Array;
       try {
-        bytes = await renderPart(html);
+        bytes = await render(html);
       } catch (e) {
         if (!isClosedError(e)) throw e;
         // Navegador caiu: abre outro e tenta esta parte de novo, uma vez.
@@ -135,8 +164,9 @@ export async function htmlPartsToPdf(parts: string[]): Promise<Buffer> {
           `[relatorio] parte ${i + 1}/${parts.length}: navegador fechou; tentando de novo (${await browserEnvDiagnostics()})`,
         );
         await browser.close().catch(() => {});
+        if (Date.now() - started > TOTAL_BUDGET_MS) throw new ReportTooSlowError();
         browser = await launchChromium();
-        bytes = await renderPart(html);
+        bytes = await render(html);
       }
       const doc = await PDFDocument.load(bytes);
       const pages = await out.copyPages(doc, doc.getPageIndices());

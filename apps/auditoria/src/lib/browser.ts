@@ -53,11 +53,23 @@ async function cleanStaleTmp(tmp: string, force: boolean) {
       .map(async (n) => {
         const full = path.join(tmp, n);
         const st = await fs.stat(full).catch(() => null);
-        if (st && (force || now - st.mtimeMs > STALE_MS)) {
+        // Despejo de memória (core.*) de Chromium que caiu nunca serve: sai sempre.
+        if (st && (force || n.startsWith("core.") || now - st.mtimeMs > STALE_MS)) {
           await fs.rm(full, { recursive: true, force: true }).catch(() => {});
         }
       }),
   );
+}
+
+/** /dev/shm existe e tem pelo menos 512 MB livres? */
+async function devShmRoomy(): Promise<boolean> {
+  const fs = await import("node:fs");
+  try {
+    const s = fs.statfsSync("/dev/shm");
+    return s.bavail * s.bsize >= 512 * 1024 * 1024;
+  } catch {
+    return false;
+  }
 }
 
 /** Memória e espaço em /tmp, para o log quando o navegador cai. */
@@ -70,6 +82,11 @@ export async function browserEnvDiagnostics(): Promise<string> {
     const s = fs.statfsSync(os.tmpdir());
     disk = `${mb(s.bavail * s.bsize)} livres de ${mb(s.blocks * s.bsize)}`;
   } catch {}
+  let shm = "sem /dev/shm";
+  try {
+    const s = fs.statfsSync("/dev/shm");
+    shm = `${mb(s.bavail * s.bsize)} livres`;
+  } catch {}
   let top = "";
   try {
     const { execSync } = await import("node:child_process");
@@ -80,7 +97,7 @@ export async function browserEnvDiagnostics(): Promise<string> {
       .trim()
       .replace(/\s*\n\s*/g, ", ");
   } catch {}
-  return `rss=${mb(process.memoryUsage().rss)} memLivre=${mb(os.freemem())}/${mb(os.totalmem())} tmp=${disk} navegadores=${openBrowsers} maiores=[${top}]`;
+  return `rss=${mb(process.memoryUsage().rss)} memLivre=${mb(os.freemem())}/${mb(os.totalmem())} tmp=${disk} shm=${shm} navegadores=${openBrowsers} maiores=[${top}]`;
 }
 
 /**
@@ -99,8 +116,14 @@ export async function launchChromium(): Promise<Browser> {
       import("node:path"),
     ]);
     const tmp = os.tmpdir();
-    const executablePath = await serverless.executablePath();
-    if (openBrowsers === 0) await killOrphanChromium(executablePath);
+    const chromiumBin = await serverless.executablePath();
+    // Sem despejo de memória: cada queda do Chromium gravava ~70 MB em /tmp.
+    const wrapper = path.join(tmp, "chromium-sem-core.sh");
+    const executablePath = await fs
+      .writeFile(wrapper, `#!/bin/sh\nulimit -c 0\nexec "${chromiumBin}" "$@"\n`, { mode: 0o755 })
+      .then(() => wrapper)
+      .catch(() => chromiumBin);
+    if (openBrowsers === 0) await killOrphanChromium(chromiumBin);
     await cleanStaleTmp(tmp, openBrowsers === 0);
     const ownTmp = await fs.mkdtemp(path.join(tmp, TMP_PREFIX));
     const browser = await chromium.launch({
@@ -108,6 +131,9 @@ export async function launchChromium(): Promise<Browser> {
       args: serverless.args,
       headless: true,
       env: { ...process.env, TMPDIR: ownTmp, TMP: ownTmp, TEMP: ownTmp },
+      // O Playwright manda a memória compartilhada para /tmp (só 525 MB na
+      // Vercel, 200 MB já do Chromium). Se houver /dev/shm com folga, usa ele.
+      ignoreDefaultArgs: (await devShmRoomy()) ? ["--disable-dev-shm-usage"] : undefined,
     });
     openBrowsers++;
     browser.once("disconnected", () => {
