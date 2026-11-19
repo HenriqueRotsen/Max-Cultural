@@ -403,17 +403,21 @@ function shellHtml(params: {
   filterChips?: string[];
 }) {
   const generatedAt = formatNow();
-  const filterBits = params.filterChips ? params.filterChips.map((x) => escapeHtml(x)) : [
-    params.filters.accountName ? `Proponente: ${params.filters.accountName}` : "Proponente: todos",
-    params.filters.pronac ? `PRONAC: ${params.filters.pronac}` : null,
-    params.filters.from ? `De: ${params.filters.from}` : null,
-    params.filters.to ? `Até: ${params.filters.to}` : null,
-    params.filters.watchedOnly
-      ? `Fornecedores: observados (${params.filters.watchedCount})`
-      : "Fornecedores: todos",
-  ]
+  // Uma frase só com os filtros que de fato restringem o relatório.
+  const f = params.filters;
+  const period =
+    f.from && f.to ? `de ${f.from} até ${f.to}` : f.from ? `a partir de ${f.from}` : f.to ? `até ${f.to}` : null;
+  const scopeBits = (
+    params.filterChips ?? [
+      f.accountName ? `Proponente ${f.accountName}` : null,
+      f.pronac ? `PRONAC ${f.pronac}` : null,
+      period ? `Pagamentos ${period}` : null,
+      f.watchedOnly ? `Só fornecedores observados (${f.watchedCount})` : null,
+    ]
+  )
     .filter(Boolean)
     .map((x) => escapeHtml(String(x)));
+  const scopeLine = scopeBits.length ? `<p class="scope">${scopeBits.join(" · ")}.</p>` : "";
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -476,6 +480,7 @@ function shellHtml(params: {
       color: var(--navy);
       font-variant-numeric: tabular-nums;
     }
+    .scope { margin: 14px 0 20px; font-size: 12px; color: #4b5563; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 22px; }
     .chip {
       background: var(--navy-soft);
@@ -735,15 +740,7 @@ function shellHtml(params: {
       </div>
     </header>
 
-    <div class="chips">
-      ${filterBits.map((b) => `<span class="chip">${b}</span>`).join("")}
-      ${params.filters.watchedOnly ? `<span class="chip gold">Modo observação</span>` : ""}
-      <span class="chip">${
-        params.rulesChipLabel ||
-        `Limite legal ${(params.rules || DEFAULT_RULES).caps.supplierCapPct}% · ${(params.rules || DEFAULT_RULES).sourceCode}`
-      }</span>
-      <span class="chip">Gerado em ${escapeHtml(generatedAt)}</span>
-    </div>`}
+    ${scopeLine}`}
 
     ${params.body}
 
@@ -2202,9 +2199,9 @@ export async function renderSituacaoReportHtml(params: {
     .join("");
 
   const chips = [
-    params.accountName ? `Proponente: ${params.accountName}` : "Proponente: todos",
-    params.query ? `Busca: “${params.query}”` : "Busca: todos os projetos",
-  ];
+    params.accountName ? `Proponente ${params.accountName}` : null,
+    params.query ? `Projetos da busca “${params.query}”` : null,
+  ].filter((x): x is string => Boolean(x));
 
   const body = `
     ${sectionTitle(null, "Projetos e situação no SALIC", "Situação de cada projeto na última atualização do SALIC (feita todo dia). A última coluna mostra quando cada um foi atualizado.")}

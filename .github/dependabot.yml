@@ -28,6 +28,11 @@ updates:
       default-days: 7
       # Security advisories do GitHub ainda abrem PR imediato fora do cooldown.
     ignore:
+      # Playwright fica na versão que funciona com o Chromium da Vercel
+      # (@sparticuz/chromium). Subir só junto com ele, testando o PDF em produção.
+      - dependency-name: playwright
+      - dependency-name: playwright-core
+      - dependency-name: "@playwright/test"
       # Majors quebram tooling/CI; subir só com PR manual e plano de upgrade.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
