@@ -390,7 +390,9 @@ export async function syncProjectViaApi(params: {
   if (params.valorCaptado == null) {
     await refreshProjectFinancials({ projectId: project.id, pronac });
   }
-  await refreshProjectSponsors({ projectId: project.id, pronac }).catch(() => null);
+  await import("@/lib/salic/sponsors-sync")
+    .then((m) => m.refreshProjectSponsorsIfNeeded({ projectId: project.id, pronac }))
+    .catch(() => null);
 
   if (!project.complianceRulesetId) {
     const { scheduleProjectRulesetChoice } = await import("@/lib/compliance/choose-ruleset");
@@ -532,7 +534,9 @@ export async function syncAccountViaApi(params: {
       if (item.valorCaptado == null) {
         await refreshProjectFinancials({ projectId: project.id, pronac: item.pronac });
       }
-      await refreshProjectSponsors({ projectId: project.id, pronac: item.pronac }).catch(() => null);
+      await import("@/lib/salic/sponsors-sync")
+        .then((m) => m.refreshProjectSponsorsIfNeeded({ projectId: project.id, pronac: item.pronac }))
+        .catch(() => null);
 
       if (!project.complianceRulesetId) {
         const { scheduleProjectRulesetChoice } = await import("@/lib/compliance/choose-ruleset");
