@@ -1342,3 +1342,29 @@ export async function setSupplierAgency(input: { cgccpf: string; pct: string | n
   revalidatePath("/agencias");
   return { ok: true as const };
 }
+
+/** Busca de novo, na API pública do SALIC, quem patrocinou este projeto. */
+export async function refreshSponsorsAction(projectId: string) {
+  const { getWorkspaceContext } = await import("@/lib/auth/session");
+  const { entitlements } = await getWorkspaceContext();
+  const project = await prisma.project.findFirst({
+    where: { id: String(projectId || ""), salicAccount: { workspaceId: entitlements.workspaceId } },
+    select: { id: true, pronac: true },
+  });
+  if (!project) return { ok: false as const, error: "Projeto não encontrado." };
+  const { refreshProjectSponsors } = await import("@/lib/salic/persist");
+  const n = await refreshProjectSponsors({
+    projectId: project.id,
+    pronac: project.pronac,
+    apiOptions: { timeoutMs: 20_000, maxAttempts: 2 },
+  }).catch(() => null);
+  if (n == null) {
+    return {
+      ok: false as const,
+      error: "O SALIC não respondeu agora. Tente de novo em alguns minutos.",
+    };
+  }
+  revalidatePath(`/panorama/pronac/${project.pronac}`);
+  revalidatePath("/patrocinadores");
+  return { ok: true as const, count: n };
+}

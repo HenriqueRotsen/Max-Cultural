@@ -1,3 +1,4 @@
+import { findSponsorConflicts, summarizeSponsors } from "@/lib/sponsors";
 import { prisma } from "@/lib/db";
 import { loadAgencyMaps, withAgency } from "@/lib/supplier-agency";
 import { normalizeCgccpf } from "@/lib/crypto";
@@ -676,6 +677,7 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
         select: { id: true, name: true, cgccpf: true, personType: true, workspaceId: true },
       },
       complianceRuleset: true,
+      sponsorships: { orderBy: { receivedAt: "asc" } },
       payments: {
         where: {
           ...(filters.from || filters.to
@@ -824,6 +826,16 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
     }))
     .sort((a, b) => b.total - a.total);
 
+  const sponsors = summarizeSponsors(
+    (primaryProject?.sponsorships || []).map((r) => ({
+      cgccpf: r.cgccpf,
+      name: r.name,
+      amount: Number(r.amount),
+      receivedAt: r.receivedAt,
+    })),
+  );
+  const sponsorConflicts = findSponsorConflicts(sponsors, allSuppliers);
+
   return {
     pronac,
     name: projects.find((p) => p.name)?.name || null,
@@ -864,5 +876,11 @@ export async function getPronacDetail(pronac: string, filters: PanoramaFilters =
     /** Totais da soma do vínculo: só pagamentos que contam (`paymentCountsForBond`). */
     bondSuppliers,
     payments,
+    /** Quem patrocinou/doou (API pública do SALIC), somado por patrocinador. */
+    sponsors,
+    sponsorTotal: sponsors.reduce((n, s) => n + s.total, 0),
+    sponsorsSyncedAt: primaryProject?.sponsorsSyncedAt ?? null,
+    /** Patrocinador que também recebeu pagamento do projeto. */
+    sponsorConflicts,
   };
 }

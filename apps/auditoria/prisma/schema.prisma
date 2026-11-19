@@ -245,6 +245,8 @@ model Project {
   /** Valor aprovado no SALIC (referência) */
   valorAprovado  Decimal?  @db.Decimal(14, 2)
   lastSyncedAt   DateTime?
+  /** Última vez que a lista de patrocinadores veio da API pública do SALIC */
+  sponsorsSyncedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -263,6 +265,7 @@ model Project {
   salicAccount   SalicAccount @relation(fields: [salicAccountId], references: [id], onDelete: Cascade)
   payments       Payment[]
   observadoBonds ProjectObservadoBond[]
+  sponsorships   ProjectSponsorship[]
 
   auditAlerts AuditAlert[]
   @@unique([salicAccountId, pronac])
@@ -667,4 +670,21 @@ model SupplierAgency {
   @@unique([workspaceId, cnpj])
   @@map("supplier_agencies")
   @@schema("financeiro")
+}
+
+/** Patrocinador/doador de um projeto (captação na API pública do SALIC). Um registro por aporte. */
+model ProjectSponsorship {
+  id         String    @id @default(cuid())
+  projectId  String
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /** CPF/CNPJ só com dígitos */
+  cgccpf     String
+  name       String
+  amount     Decimal   @db.Decimal(14, 2)
+  receivedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([projectId])
+  @@index([cgccpf])
+  @@schema("auditoria")
 }
