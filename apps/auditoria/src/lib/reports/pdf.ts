@@ -39,6 +39,17 @@ export function reportFileStamp(date = new Date()) {
 }
 
 export async function htmlToPdf(html: string): Promise<Buffer> {
+  try {
+    return await htmlToPdfOnce(html);
+  } catch (e) {
+    if (!isClosedError(e)) throw e;
+    const { browserEnvDiagnostics } = await import("@/lib/browser");
+    console.error(`[relatorio] navegador fechou; tentando de novo (${await browserEnvDiagnostics()})`);
+    return htmlToPdfOnce(html);
+  }
+}
+
+async function htmlToPdfOnce(html: string): Promise<Buffer> {
   const { launchChromium } = await import("@/lib/browser");
   const browser = await launchChromium();
   try {
@@ -87,7 +98,7 @@ const isClosedError = (e: unknown) =>
  */
 export async function htmlPartsToPdf(parts: string[]): Promise<Buffer> {
   if (parts.length === 1) return htmlToPdf(parts[0]!);
-  const { launchChromium } = await import("@/lib/browser");
+  const { launchChromium, browserEnvDiagnostics } = await import("@/lib/browser");
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
 
   let browser = await launchChromium();
@@ -120,7 +131,9 @@ export async function htmlPartsToPdf(parts: string[]): Promise<Buffer> {
       } catch (e) {
         if (!isClosedError(e)) throw e;
         // Navegador caiu: abre outro e tenta esta parte de novo, uma vez.
-        console.error(`[relatorio] parte ${i + 1}/${parts.length}: navegador fechou; tentando de novo`);
+        console.error(
+          `[relatorio] parte ${i + 1}/${parts.length}: navegador fechou; tentando de novo (${await browserEnvDiagnostics()})`,
+        );
         await browser.close().catch(() => {});
         browser = await launchChromium();
         bytes = await renderPart(html);
