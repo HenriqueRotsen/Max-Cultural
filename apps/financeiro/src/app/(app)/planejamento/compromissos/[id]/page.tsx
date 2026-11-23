@@ -7,6 +7,8 @@ import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton"
 import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
+import { CreditUseForm } from "@/components/planning/CreditForms";
+import { loadFiscalCreditStatus, loadUsableCredits } from "@/lib/planning/credits-db";
 import { SupportDocsCard } from "@/components/planning/SupportDocsCard";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
@@ -176,6 +178,20 @@ export default async function CompromissoPage({
       ...(proofDoc ? [proofDoc] : []),
     ],
   });
+
+  // Créditos do fornecedor (pagamento sem nota) que podem pagar esta nota.
+  const creditStatus =
+    sourceNf && !isPedidoParcel && commitment.status === "RESERVED"
+      ? await loadFiscalCreditStatus(commitment.id, entitlements.workspaceId)
+      : null;
+  const usableCredits =
+    creditStatus && creditStatus.remaining > 0.005 && !commitment.planningProject.closedAt
+      ? await loadUsableCredits({
+          planningProjectId: commitment.planningProject.id,
+          workspaceId: entitlements.workspaceId,
+          supplierDoc: commitment.engagement.service.supplier.cnpj,
+        })
+      : [];
 
   const canCancelReservation = await canDeleteNf();
   const allowDeletePaid =
@@ -421,6 +437,28 @@ export default async function CompromissoPage({
               enviar o comprovante.
             </p>
           ) : (
+            <div className="space-y-4">
+            {creditStatus && creditStatus.paidWithCredits > 0 ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {formatCurrency(creditStatus.paidWithCredits)} desta nota já foram pagos com crédito. Falta{" "}
+                {formatCurrency(creditStatus.remaining)}.
+              </p>
+            ) : null}
+            {usableCredits.length > 0 && creditStatus ? (
+              <div className="space-y-2 rounded-lg border border-[var(--border)] p-3">
+                <p className="text-sm font-semibold text-[var(--navy)]">Pagar com crédito</p>
+                <CreditUseForm
+                  commitmentId={commitment.id}
+                  nfLeft={creditStatus.remaining}
+                  credits={usableCredits.map((c) => ({
+                    id: c.id,
+                    label: `Pago em ${c.paidAt.toLocaleDateString("pt-BR", { timeZone: "UTC" })} (${formatCurrency(c.amount)})`,
+                    remaining: c.remaining,
+                  }))}
+                />
+                <p className="text-xs text-[var(--gray-500)]">Ou envie um comprovante próprio abaixo.</p>
+              </div>
+            ) : null}
             <ProofUploadForm
               commitmentId={commitment.id}
               kind="PAYMENT_PROOF"
@@ -433,6 +471,7 @@ export default async function CompromissoPage({
                     : `Vinculado à ${sourceNf.kind} ${sourceNf.filename}.`
               }
             />
+            </div>
           )}
         </div>
 
