@@ -49,6 +49,15 @@ const TYPES: ReservationType[] = [
     href: (id) => `/planejamento/${id}/pagamento-antecipado`,
   },
   {
+    key: "CREDITO",
+    title: "Crédito (um pagamento, várias notas)",
+    when: "Pagou antes e a nota, ou as notas, vêm depois: hotel, gráfica.",
+    needs: "Comprovante e fornecedor. Sem rubrica.",
+    after: (salic) =>
+      `Fica em Créditos. Quando cada nota chegar, na reserva dela use "Pagar com crédito"${salic ? "; cada uso vai ao SALIC" : ""}.`,
+    href: (id) => `/planejamento/${id}/creditos`,
+  },
+  {
     key: "BOLETO",
     title: "Boleto",
     when: "Chegou uma cobrança para pagar: passagem, seguro, serviço.",

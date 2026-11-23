@@ -74,6 +74,20 @@ export async function persistPlanningUpload(params: {
     if (dup) {
       throw new DuplicateDocumentError(dup);
     }
+    // Comprovante guardado como crédito (pagamento sem nota) também conta.
+    if (!scope.kinds?.length || scope.kinds.includes("PAYMENT_PROOF")) {
+      const credit = await prisma.paymentCredit.findFirst({
+        where: {
+          workspaceId: params.workspaceId,
+          contentHash,
+          ...(scope.planningProjectId ? { planningProjectId: scope.planningProjectId } : {}),
+        },
+        select: { id: true, filename: true, planningProjectId: true },
+      });
+      if (credit) {
+        throw new DuplicateDocumentError({ ...credit, kind: "CREDIT", status: "IMPORTED" });
+      }
+    }
   }
 
   const stored = await storeCompressedDocument({
@@ -157,6 +171,7 @@ export async function duplicateFileMessage(dup: DuplicateDocumentInfo): Promise<
     PAYMENT_PROOF: "comprovante",
     TAX_PROOF: "guia de imposto",
     SUPPORT: "documento",
+    CREDIT: "crédito",
   };
   return `Este arquivo já foi enviado${where} (${kindLabel[dup.kind] ?? "documento"} · ${dup.filename}). O mesmo documento não pode ser usado duas vezes.`;
 }

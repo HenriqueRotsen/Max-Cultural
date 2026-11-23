@@ -1890,9 +1890,17 @@ export async function uploadPaymentProof(
     return { error: "NF/RPA sem rateio de rubricas" };
   }
 
+  // Parte da nota já paga com créditos: o comprovante comum paga só o resto.
+  const { creditPaidForFiscal } = await import("@/lib/planning/credits-db");
+  const paidWithCredits =
+    kind === "PAYMENT_PROOF" && !pedidoNf ? await creditPaidForFiscal(sourceNf.id) : 0;
   const expectedPaymentAmount =
-    siblingAllocs.reduce((s, a) => s + Number(a.amount), 0) ||
-    Number(sourceNf.grossAmount ?? commitment.amount);
+    Math.round(
+      ((siblingAllocs.reduce((s, a) => s + Number(a.amount), 0) ||
+        Number(sourceNf.grossAmount ?? commitment.amount)) -
+        paidWithCredits) *
+        100,
+    ) / 100;
 
   if (kind === "PAYMENT_PROOF") {
     const amountReview = reviewPaymentAmount({
@@ -1951,7 +1959,9 @@ export async function uploadPaymentProof(
         extractedJson: { ...proofExtracted, ...reviewJson() } as object,
         ...(paymentReview && paymentReview.fineAmount > 0
           ? { grossAmount: paymentReview.paidAmount }
-          : {}),
+          : paidWithCredits > 0
+            ? { grossAmount: expectedPaymentAmount }
+            : {}),
         workspaceId: entitlements.workspaceId,
         planningProjectId: commitment.planningProjectId,
         engagementId: commitment.engagementId,
@@ -1960,8 +1970,17 @@ export async function uploadPaymentProof(
       },
     });
 
-    // Espelha o rateio da NF/RPA no comprovante (mesmas rubricas/%).
-    for (const slice of siblingAllocs) {
+    // Espelha o rateio da NF/RPA no comprovante (mesmas rubricas/%). Com parte
+    // paga por crédito, divide só o resto, na mesma proporção.
+    const { scaleAllocationsToAmount } = await import("@/lib/planning/credits");
+    const proofSlices =
+      paidWithCredits > 0
+        ? scaleAllocationsToAmount(
+            siblingAllocs.map((a) => ({ ...a, amount: Number(a.amount) })),
+            expectedPaymentAmount,
+          )
+        : siblingAllocs;
+    for (const slice of proofSlices) {
       await tx.documentRubricAllocation.create({
         data: {
           documentId: proof.id,

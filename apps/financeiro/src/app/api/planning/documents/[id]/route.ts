@@ -33,8 +33,14 @@ function resolveMimeType(doc: {
 async function loadDocument(id: string) {
   await requireUser();
   const { entitlements } = await getWorkspaceContext();
-  return prisma.planningDocument.findFirst({
+  const doc = await prisma.planningDocument.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
+  });
+  if (doc) return doc;
+  // Comprovante guardado como crédito (pagamento sem nota).
+  return prisma.paymentCredit.findFirst({
+    where: { id, workspaceId: entitlements.workspaceId },
+    select: { filename: true, mimeType: true, storagePath: true },
   });
 }
 
