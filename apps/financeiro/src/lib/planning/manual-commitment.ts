@@ -37,6 +37,11 @@ import {
   checkProjectCodeInDocument,
 } from "@/lib/nf/document-cross-check";
 import { normalizeCnaeCode } from "@/lib/catalog/cnae";
+import {
+  allocationAmounts,
+  parseAllocationsJson,
+  type AllocationInput,
+} from "@/lib/planning/allocation-amounts";
 import { lookupCnpj } from "@/lib/catalog/brasil-api";
 import type { ActionState } from "@/lib/planning/action-state";
 import {
@@ -422,22 +427,9 @@ export async function uploadAdvancePayment(
   const file = formData.get("proofFile");
   const nfReminderRaw = String(formData.get("nfReminderAt") || "");
 
-  const sharesRaw = String(formData.get("allocationsJson") || "[]");
-  let allocations: Array<{ budgetLineId: string; sharePct: number }> = [];
-  try {
-    allocations = JSON.parse(sharesRaw) as Array<{
-      budgetLineId: string;
-      sharePct: number;
-    }>;
-  } catch {
-    return { error: "Rateio inválido" };
-  }
-  allocations = allocations
-    .map((a) => ({
-      budgetLineId: String(a.budgetLineId || ""),
-      sharePct: Math.round(Number(a.sharePct) * 10000) / 10000,
-    }))
-    .filter((a) => a.budgetLineId && a.sharePct > 0);
+  const parsedAllocs = parseAllocationsJson(String(formData.get("allocationsJson") || "[]"));
+  if (!parsedAllocs) return { error: "Rateio inválido" };
+  let allocations: AllocationInput[] = parsedAllocs;
 
   if (!(grossAmount > 0)) {
     return { error: "Informe o valor total do pagamento" };
@@ -452,12 +444,9 @@ export async function uploadAdvancePayment(
   if (uniqueLines.size !== allocations.length) {
     return { error: "Não é permitido ratear duas vezes na mesma rubrica" };
   }
-  const shareSum = allocations.reduce((s, a) => s + a.sharePct, 0);
-  if (Math.abs(shareSum - 100) > 0.05) {
-    return {
-      error: `A soma dos percentuais deve ser 100% (atual: ${shareSum.toFixed(2)}%)`,
-    };
-  }
+  const computedAllocs = allocationAmounts(allocations, grossAmount);
+  if (!computedAllocs.ok) return { error: computedAllocs.error };
+  allocations = computedAllocs.slices;
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Selecione o comprovante de pagamento" };
   }
@@ -472,7 +461,7 @@ export async function uploadAdvancePayment(
   for (const alloc of allocations) {
     const line = project.sheet!.lines.find((l) => l.id === alloc.budgetLineId);
     if (!line) return { error: "Rubrica do rateio não encontrada" };
-    const amount = Math.round(grossAmount * (alloc.sharePct / 100) * 100) / 100;
+    const amount = alloc.amount ?? Math.round(grossAmount * (alloc.sharePct / 100) * 100) / 100;
     const check = canReserveAmount({
       lineId: alloc.budgetLineId,
       amount,

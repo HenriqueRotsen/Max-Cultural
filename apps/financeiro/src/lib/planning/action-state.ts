@@ -10,4 +10,6 @@ export type ActionState = {
    * (o formulário mostra o campo do motivo); false quando não tem.
    */
   pronacOverride?: boolean;
+  /** Valor do comprovante precisa de revisão (não lido, diferente ou pago a mais). */
+  amountReview?: import("@/lib/nf/document-cross-check").PaymentAmountReview;
 };

@@ -81,12 +81,16 @@ function parseBrMoney(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function pickPronac(text: string): string | null {
-  const m =
-    text.match(/PRONAC[:\s]*([0-9]{4,8})/i) ||
-    text.match(/Pronac[:\s]*([0-9]{4,8})/) ||
-    text.match(/\b([0-9]{6,7})\b/);
-  return m?.[1] || null;
+/**
+ * PRONAC citado no documento, também com separador ("25-7797", "25 7797",
+ * "25.7797"). Só vale o que vem depois da palavra PRONAC: antes, qualquer
+ * sequência de 6–7 dígitos virava PRONAC e travava como "outro projeto".
+ */
+export function pickPronac(text: string): string | null {
+  const m = text.match(/PRONAC[\s:#.]*(?:n[º°o]?\.?\s*)?(\d{2}[\s.\-/]?\d{4,6})\b/i);
+  if (!m?.[1]) return null;
+  const digits = m[1].replace(/\D/g, "");
+  return digits.length >= 6 && digits.length <= 8 ? digits : null;
 }
 
 function pickMoney(text: string): number | null {
