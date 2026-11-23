@@ -4,6 +4,15 @@ import { useActionState, useEffect, useMemo, useState, useSyncExternalStore } fr
 import { createPortal } from "react-dom";
 import { confirmNfReservation, type ActionState } from "@/lib/planning/actions";
 import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
+import {
+  AllocationAmountInput,
+  AllocationSum,
+  allocationsClose,
+  allocationsJsonFromRows,
+  rowAmount,
+  withPct,
+  type AllocRow as SharedAllocRow,
+} from "@/components/planning/RubricAllocationFields";
 import type { ExtractedFiscalDoc } from "@/lib/nf/extract";
 import {
   fiscalNumberSalicLabel,
@@ -24,7 +33,7 @@ const initial: ActionState = {};
 
 type LineOpt = RubricSelectOption;
 
-type AllocRow = { budgetLineId: string; sharePct: string };
+type AllocRow = SharedAllocRow;
 
 function parsePct(raw: string) {
   return Number(String(raw).replace(",", ".")) || 0;
@@ -237,20 +246,13 @@ export function NfReviewForm({
 
   const freeLinesLeft = visibleLines.some((l) => !usedLineIds.has(l.id));
 
-  const allocationsJson = JSON.stringify(
-    allocs
-      .filter((a) => a.budgetLineId)
-      .map((a) => ({
-        budgetLineId: a.budgetLineId,
-        sharePct: parsePct(a.sharePct),
-      })),
-  );
+  const allocationsJson = allocationsJsonFromRows(allocs, gross);
 
   const canSubmit =
     !pending &&
     visibleLines.length > 0 &&
     gross > 0 &&
-    Math.abs(shareSum - 100) <= 0.05 &&
+    allocationsClose(allocs, gross) &&
     !hasDuplicateLines &&
     allocs.every((a) => a.budgetLineId) &&
     (!pronacMismatch || allowPronacOverride);
@@ -427,16 +429,7 @@ export function NfReviewForm({
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gray-400)]">
             Rateio por rubrica
           </p>
-          <p
-            className={`text-sm tabular-nums ${
-              Math.abs(shareSum - 100) < 0.05
-                ? "text-emerald-700"
-                : "text-amber-800"
-            }`}
-          >
-            Soma {shareSum.toFixed(2)}%
-            {gross > 0 ? ` · ${formatCurrency(gross)}` : ""}
-          </p>
+          <AllocationSum allocs={allocs} gross={gross} />
         </div>
         {hasDuplicateLines ? (
           <p className="mb-2 text-sm text-red-700">
@@ -485,11 +478,7 @@ export function NfReviewForm({
         <div className="space-y-3">
           {allocs.map((row, idx) => {
             const line = visibleLines.find((l) => l.id === row.budgetLineId);
-            const pct = parsePct(row.sharePct);
-            const allocated =
-              gross > 0 && pct > 0
-                ? Math.round(((gross * pct) / 100) * 100) / 100
-                : 0;
+            const allocated = rowAmount(row, gross);
             const saldoAfter =
               line != null ? Math.round((line.available - allocated) * 100) / 100 : null;
             const overDisponivel =
@@ -503,7 +492,7 @@ export function NfReviewForm({
                 key={idx}
                 className="space-y-2 rounded-lg border border-[var(--border)] p-3"
               >
-                <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_5.5rem_auto]">
+                <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_5.5rem_auto]">
                   <div className="field min-w-0">
                     <span>Rubrica</span>
                     <RubricSearchSelect
@@ -516,15 +505,30 @@ export function NfReviewForm({
                       }}
                     />
                   </div>
+                  <AllocationAmountInput
+                    row={row}
+                    gross={gross}
+                    onChange={(r) => {
+                      const next = [...allocs];
+                      next[idx] = r;
+                      setAllocs(next);
+                    }}
+                  />
                   <label className="field">
                     <span>%</span>
                     <input
                       className="!h-11 w-full"
                       inputMode="decimal"
-                      value={row.sharePct}
+                      value={
+                        row.amount != null
+                          ? parsePct(row.sharePct)
+                            ? parsePct(row.sharePct).toFixed(2)
+                            : ""
+                          : row.sharePct
+                      }
                       onChange={(e) => {
                         const next = [...allocs];
-                        next[idx] = { ...row, sharePct: e.target.value };
+                        next[idx] = withPct(row, e.target.value);
                         setAllocs(next);
                       }}
                     />
@@ -541,15 +545,7 @@ export function NfReviewForm({
                   </button>
                 </div>
 
-                <div className="grid gap-2 text-sm sm:grid-cols-3">
-                  <div className="rounded-md bg-[var(--gray-50)] px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-[var(--gray-400)]">
-                      Valor alocado
-                    </p>
-                    <p className="mt-0.5 font-semibold tabular-nums text-[var(--navy)]">
-                      {formatCurrency(allocated)}
-                    </p>
-                  </div>
+                <div className="grid gap-2 text-sm sm:grid-cols-2">
                   <div className="rounded-md bg-[var(--gray-50)] px-3 py-2">
                     <p className="text-[11px] uppercase tracking-wide text-[var(--gray-400)]">
                       Disponível atual

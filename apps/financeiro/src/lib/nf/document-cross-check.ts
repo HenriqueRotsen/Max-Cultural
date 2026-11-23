@@ -32,7 +32,8 @@ function escapeRegex(value: string): string {
 export function findProjectCodesInText(text: string): string[] {
   const found = new Set<string>();
 
-  for (const m of text.matchAll(/PRONAC[:\s#]*([0-9A-Za-z.\-/]{3,20})/gi)) {
+  // Aceita separador entre os grupos de dígitos: "25 7797" (o espaço cortava em "25").
+  for (const m of text.matchAll(/PRONAC[:\s#nº°o.]*(\d{2}[\s.\-/]\d{4,6}\b|[0-9A-Za-z.\-/]{3,20})/gi)) {
     const raw = String(m[1] || "").trim();
     const digits = normalizeProjectCode(raw);
     if (digits.length >= 4) found.add(digits);
@@ -145,6 +146,85 @@ export function checkPaymentAmount(params: {
   }
 
   return {};
+}
+
+export type PaymentAmountReview = {
+  /** Valor esperado (NF/RPA, parcela ou lançamento). */
+  expected: number;
+  /** O que o sistema leu no comprovante (null = não leu). */
+  extracted: number | null;
+  /** O valor pago passou do esperado: pode ser multa ou juros. */
+  overpaid: boolean;
+};
+
+/**
+ * Conferência do valor do comprovante sem travar por erro de leitura: a pessoa
+ * revisa o valor pago quando o sistema não leu ou leu diferente. Continua
+ * barrando valor que não bate com a nota (NF de R$ 1.500 e comprovante de
+ * R$ 200). Pago a mais só passa marcado como multa/juros — a diferença não sai
+ * do projeto e entra no relatório de inconsistências.
+ */
+export function reviewPaymentAmount(params: {
+  extractedAmount: number | null | undefined;
+  expectedAmount: number;
+  /** Valor pago digitado na revisão (substitui o lido). */
+  typedAmount?: number | null;
+  /** A pessoa marcou que a diferença a mais é multa/juros. */
+  hasFine?: boolean;
+  tolerance?: number;
+  expectedLabel?: string;
+}):
+  | { ok: true; paidAmount: number; fineAmount: number; corrected: boolean }
+  | { ok: false; error: string; review: PaymentAmountReview } {
+  const tolerance = params.tolerance ?? 0.02;
+  const label = params.expectedLabel ?? "da NF";
+  const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const expected = params.expectedAmount;
+  const extracted =
+    params.extractedAmount != null && params.extractedAmount > 0 ? params.extractedAmount : null;
+  const typed = params.typedAmount != null && params.typedAmount > 0 ? params.typedAmount : null;
+  const paid = typed ?? extracted;
+  const corrected = typed != null && (extracted == null || !amountsClose(typed, extracted, tolerance));
+
+  if (!(expected > 0)) {
+    return { ok: true, paidAmount: paid ?? 0, fineAmount: 0, corrected };
+  }
+  const review = (overpaid: boolean): PaymentAmountReview => ({ expected, extracted, overpaid });
+
+  if (paid == null) {
+    return {
+      ok: false,
+      error: `O sistema não conseguiu ler o valor do comprovante. Informe abaixo o valor pago (o valor ${label} é ${brl(expected)}).`,
+      review: review(false),
+    };
+  }
+  if (amountsClose(paid, expected, tolerance)) {
+    return { ok: true, paidAmount: paid, fineAmount: 0, corrected };
+  }
+  if (paid > expected) {
+    const diff = Math.round((paid - expected) * 100) / 100;
+    if (params.hasFine) {
+      return { ok: true, paidAmount: paid, fineAmount: diff, corrected };
+    }
+    return {
+      ok: false,
+      error: `O comprovante (${brl(paid)}) é ${brl(diff)} maior que o valor ${label} (${brl(expected)}). Se o sistema leu errado, corrija o valor abaixo. Se foi multa ou juros por atraso, marque a opção.`,
+      review: review(true),
+    };
+  }
+  return {
+    ok: false,
+    error: `O comprovante (${brl(paid)}) é menor que o valor ${label} (${brl(expected)}). Se o sistema leu errado, corrija o valor pago abaixo: ele precisa bater com o valor ${label}.`,
+    review: review(false),
+  };
+}
+
+/** Lê o valor digitado ("1.549,95", "1549.95") do formulário. */
+export function parseTypedAmount(raw: FormDataEntryValue | null): number | null {
+  const s = String(raw ?? "").trim().replace(/[^\d.,]/g, "");
+  if (!s) return null;
+  const n = Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
 }
 
 export function checkTaxProofAgainstNf(params: {

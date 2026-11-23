@@ -127,6 +127,9 @@ export function PlanningProjectToolbar({
               >
                 Importar planilha do produtor
               </Link>
+              <Link href={`/planejamento/${projectId}/inconsistencias`} className={menuItemClass}>
+                Inconsistências (multas e devoluções)
+              </Link>
               {showSheetVersions ? (
                 <Link href={`/planejamento/${projectId}/planilhas`} className={menuItemClass}>
                   Planilhas do SALIC
