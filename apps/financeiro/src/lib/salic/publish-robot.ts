@@ -1,3 +1,4 @@
+import { isSupabaseStoragePath } from "@/lib/storage/object-store";
 import type { Page } from "playwright-core";
 import path from "path";
 import { prisma } from "@/lib/db";
@@ -247,6 +248,16 @@ type ProofPublishContext = {
   filename: string;
 };
 
+/**
+ * Endereço do PDF que vai ao SALIC. Arquivo na nuvem (`sb://bucket/chave`) fica
+ * como está — quem lê baixa do Storage; `path.join` estragava em `sb:/` e virava
+ * um arquivo inexistente no servidor (ENOENT). Caminho local relativo vira absoluto.
+ */
+export function resolveProofFilePath(storagePath: string): string {
+  if (isSupabaseStoragePath(storagePath) || path.isAbsolute(storagePath)) return storagePath;
+  return path.join(process.cwd(), storagePath);
+}
+
 async function loadProofPublishContext(
   planningProjectId: string,
   proofId: string,
@@ -413,9 +424,7 @@ async function loadProofPublishContext(
   return {
     accountId: project.accountId,
     proofId,
-    filePath: path.isAbsolute(mergedStoragePath)
-      ? mergedStoragePath
-      : path.join(process.cwd(), mergedStoragePath),
+    filePath: resolveProofFilePath(mergedStoragePath),
     filename,
     payloadInput: {
       supplierCnpjCpf: supplier.cnpj,
@@ -430,9 +439,24 @@ async function loadProofPublishContext(
       amount,
       issueDate,
       paymentDate,
-      justificativa: justificativa?.trim() || "",
+      justificativa: withFineJustification(justificativa, proof.extractedJson),
     },
   };
+}
+
+/**
+ * Comprovante pago com multa/juros: vai ao SALIC no valor do comprovante, com a
+ * justificativa da diferença (devolvida pelo proponente) antes da escrita pela pessoa.
+ */
+export function withFineJustification(justificativa: string | undefined, extractedJson: unknown): string {
+  const typed = justificativa?.trim() || "";
+  const fine = Number(
+    (extractedJson as { paymentReview?: { fineAmount?: number } } | null)?.paymentReview?.fineAmount ?? 0,
+  );
+  if (!(fine > 0)) return typed;
+  const brl = fine.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const note = `Pagamento com multa/juros por atraso de ${brl}, não custeados pelo projeto: valor devolvido pelo proponente.`;
+  return typed.includes(note) ? typed : [note, typed].filter(Boolean).join(" ");
 }
 
 export async function runSalicPublishForProof(params: {

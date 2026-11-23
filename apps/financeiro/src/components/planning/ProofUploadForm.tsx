@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { uploadPaymentProof, type ActionState } from "@/lib/planning/actions";
 import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
+import { PaymentAmountReviewField } from "@/components/planning/PaymentAmountReviewField";
 
 const initial: ActionState = {};
 
@@ -37,6 +38,12 @@ export function ProofUploadForm({
         <p className="text-sm text-red-700">{state.error}</p>
       ) : null}
       {state.pronacOverride ? <PronacOverrideField allowed /> : null}
+      {state.amountReview && kind === "PAYMENT_PROOF" ? (
+        <PaymentAmountReviewField
+          key={`${state.amountReview.expected}-${state.amountReview.extracted}`}
+          review={state.amountReview}
+        />
+      ) : null}
       {state.ok ? (
         <p
           className={`text-sm ${

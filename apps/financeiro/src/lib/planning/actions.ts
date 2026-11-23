@@ -22,7 +22,13 @@ import { sendNotificationEmail } from "@/lib/planning/notify-email";
 import { extractNfFromBuffer, extractProofFromBuffer, scaleTaxes, taxTotalOf } from "@/lib/nf/extract";
 import type { ExtractedTaxes } from "@/lib/nf/extract";
 import {
-  checkPaymentAmount,
+  allocationAmounts,
+  parseAllocationsJson,
+  type AllocationInput,
+} from "@/lib/planning/allocation-amounts";
+import {
+  parseTypedAmount,
+  reviewPaymentAmount,
   checkProjectCodeInDocument,
   checkTaxProofAgainstNf,
   mergeWarnings,
@@ -971,19 +977,9 @@ export async function confirmNfReservation(
   };
   const taxTotal = taxTotalOf(taxesFromForm);
 
-  const sharesRaw = String(formData.get("allocationsJson") || "[]");
-  let allocations: Array<{ budgetLineId: string; sharePct: number }> = [];
-  try {
-    allocations = JSON.parse(sharesRaw) as Array<{ budgetLineId: string; sharePct: number }>;
-  } catch {
-    return { error: "Rateio inválido" };
-  }
-  allocations = allocations
-    .map((a) => ({
-      budgetLineId: String(a.budgetLineId || ""),
-      sharePct: Math.round(Number(a.sharePct) * 10000) / 10000,
-    }))
-    .filter((a) => a.budgetLineId && a.sharePct > 0);
+  const parsedAllocs = parseAllocationsJson(String(formData.get("allocationsJson") || "[]"));
+  if (!parsedAllocs) return { error: "Rateio inválido" };
+  let allocations: AllocationInput[] = parsedAllocs;
 
   const doc = await prisma.planningDocument.findFirst({
     where: {
@@ -1114,10 +1110,9 @@ export async function confirmNfReservation(
   if (uniqueLines.size !== allocations.length) {
     return { error: "Não é permitido ratear duas vezes na mesma rubrica" };
   }
-  const shareSum = allocations.reduce((s, a) => s + a.sharePct, 0);
-  if (Math.abs(shareSum - 100) > 0.05) {
-    return { error: `A soma dos percentuais deve ser 100% (atual: ${shareSum.toFixed(2)}%)` };
-  }
+  const computedAllocs = allocationAmounts(allocations, grossAmount);
+  if (!computedAllocs.ok) return { error: computedAllocs.error };
+  allocations = computedAllocs.slices;
 
   const isCnpj = cnpj.length === 14;
   if (isCnpj && !cnaeCode) {
@@ -1194,7 +1189,7 @@ export async function confirmNfReservation(
   for (const alloc of allocations) {
     const line = project.sheet.lines.find((l) => l.id === alloc.budgetLineId);
     if (!line) return { error: "Rubrica do rateio não encontrada" };
-    const amount = Math.round(grossAmount * (alloc.sharePct / 100) * 100) / 100;
+    const amount = alloc.amount ?? Math.round(grossAmount * (alloc.sharePct / 100) * 100) / 100;
     const check = canReserveAmount({
       lineId: alloc.budgetLineId,
       amount,
@@ -1683,6 +1678,34 @@ export async function uploadPaymentProof(
   if (!pronacGate.ok) {
     return { error: pronacGate.error, pronacOverride: pronacGate.pronacOverride };
   }
+  // Revisão do valor pago (correção da leitura e/ou multa): vai no comprovante e no log.
+  let paymentReview: { paidAmount: number; fineAmount: number; corrected: boolean } | null = null;
+  const reviewJson = () =>
+    paymentReview && (paymentReview.corrected || paymentReview.fineAmount > 0)
+      ? {
+          paymentReview: {
+            extractedAmount: proofExtracted.amount ?? null,
+            paidAmount: paymentReview.paidAmount,
+            fineAmount: paymentReview.fineAmount,
+            corrected: paymentReview.corrected,
+          },
+        }
+      : {};
+  const logPaymentReview = async () => {
+    if (!paymentReview || !(paymentReview.corrected || paymentReview.fineAmount > 0)) return;
+    await logPlanningAction({
+      actorUserId: session.id,
+      action: paymentReview.fineAmount > 0 ? "planning.payment_fine" : "planning.proof_amount_corrected",
+      entityType: "RubricCommitment",
+      entityId: commitment.id,
+      meta: {
+        planningProjectId: commitment.planningProjectId,
+        extractedAmount: proofExtracted.amount ?? null,
+        paidAmount: paymentReview.paidAmount,
+        fineAmount: paymentReview.fineAmount,
+      },
+    });
+  };
   const logPronacOverride = async (documentId?: string) => {
     if (!pronacGate.overrideReason) return;
     await logPlanningAction({
@@ -1760,13 +1783,15 @@ export async function uploadPaymentProof(
       select: { extractedJson: true },
     });
     if (supports.length > 0) {
-      const amountCheck = checkPaymentAmount({
+      const amountReview = reviewPaymentAmount({
         extractedAmount: proofExtracted.amount,
         expectedAmount: Number(commitment.amount),
+        typedAmount: parseTypedAmount(formData.get("typedAmount")),
+        hasFine: formData.get("hasFine") === "on",
         expectedLabel: "do lançamento",
       });
-      if (amountCheck.error) return { error: amountCheck.error };
-      if (amountCheck.warning) proofWarnings.push(amountCheck.warning);
+      if (!amountReview.ok) return { error: amountReview.error, amountReview: amountReview.review };
+      paymentReview = amountReview;
       const paidDate = resolvePaymentDate({
         extracted: proofExtracted.paymentDate,
         typed: String(formData.get("paidAt") || ""),
@@ -1797,8 +1822,9 @@ export async function uploadPaymentProof(
             byteSize: stored.byteSize,
             originalByteSize: stored.originalByteSize,
             contentHash: stored.contentHash,
-            extractedJson: proofExtracted as object,
-            grossAmount: commitment.amount,
+            extractedJson: { ...proofExtracted, ...reviewJson() } as object,
+            grossAmount:
+              paymentReview && paymentReview.fineAmount > 0 ? paymentReview.paidAmount : commitment.amount,
             workspaceId: entitlements.workspaceId,
             planningProjectId: commitment.planningProjectId,
             engagementId: commitment.engagementId,
@@ -1828,6 +1854,7 @@ export async function uploadPaymentProof(
         });
       });
       await logPronacOverride();
+      await logPaymentReview();
       revalidatePlanning(commitment.planningProjectId);
       revalidatePath(`/planejamento/compromissos/${commitmentId}`);
       const baseMsg = nfStillPending
@@ -1868,13 +1895,15 @@ export async function uploadPaymentProof(
     Number(sourceNf.grossAmount ?? commitment.amount);
 
   if (kind === "PAYMENT_PROOF") {
-    const amountCheck = checkPaymentAmount({
+    const amountReview = reviewPaymentAmount({
       extractedAmount: proofExtracted.amount,
       expectedAmount: expectedPaymentAmount,
+      typedAmount: parseTypedAmount(formData.get("typedAmount")),
+      hasFine: formData.get("hasFine") === "on",
       expectedLabel: pedidoNf ? "da parcela" : undefined,
     });
-    if (amountCheck.error) return { error: amountCheck.error };
-    if (amountCheck.warning) proofWarnings.push(amountCheck.warning);
+    if (!amountReview.ok) return { error: amountReview.error, amountReview: amountReview.review };
+    paymentReview = amountReview;
   }
 
   if (kind === "TAX_PROOF") {
@@ -1919,7 +1948,10 @@ export async function uploadPaymentProof(
         byteSize: stored.byteSize,
         originalByteSize: stored.originalByteSize,
         contentHash: stored.contentHash,
-        extractedJson: proofExtracted as object,
+        extractedJson: { ...proofExtracted, ...reviewJson() } as object,
+        ...(paymentReview && paymentReview.fineAmount > 0
+          ? { grossAmount: paymentReview.paidAmount }
+          : {}),
         workspaceId: entitlements.workspaceId,
         planningProjectId: commitment.planningProjectId,
         engagementId: commitment.engagementId,
@@ -1981,6 +2013,7 @@ export async function uploadPaymentProof(
   });
 
   await logPronacOverride();
+  await logPaymentReview();
   revalidatePlanning(commitment.planningProjectId);
   revalidatePath(`/planejamento/compromissos/${commitmentId}`);
   const baseMsg =

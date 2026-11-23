@@ -9,6 +9,7 @@ import { formatCgccpfInput } from "@/lib/format";
 import { MoneyInput } from "@/components/MoneyInput";
 import {
   RubricAllocationFields,
+  allocationsClose,
   allocationsJsonFromRows,
   type AllocRow,
 } from "@/components/planning/RubricAllocationFields";
@@ -55,17 +56,9 @@ export function AdvancePaymentForm({
 
   const gross = amount ?? 0;
   const allocationsJson = useMemo(
-    () => allocationsJsonFromRows(allocs),
-    [allocs],
+    () => allocationsJsonFromRows(allocs, gross),
+    [allocs, gross],
   );
-  const shareSum = useMemo(() => {
-    try {
-      const parsed = JSON.parse(allocationsJson) as Array<{ sharePct: number }>;
-      return parsed.reduce((s, a) => s + a.sharePct, 0);
-    } catch {
-      return 0;
-    }
-  }, [allocationsJson]);
   const hasDuplicateLines = useMemo(() => {
     const ids = allocs.map((a) => a.budgetLineId).filter(Boolean);
     return ids.length !== new Set(ids).size;
@@ -74,7 +67,7 @@ export function AdvancePaymentForm({
     !pending &&
     gross > 0 &&
     lines.length > 0 &&
-    Math.abs(shareSum - 100) <= 0.05 &&
+    allocationsClose(allocs, gross) &&
     !hasDuplicateLines &&
     allocs.every((a) => a.budgetLineId);
 
