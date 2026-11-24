@@ -8,6 +8,7 @@
  */
 
 import { diasEntre } from "@/lib/acompanhamento/regras";
+import { FAIXA_12_18, FAIXA_19_24, FAIXA_60_MAIS, FAIXA_MENOS_12 } from "@/lib/faixa-etaria";
 
 export type EquipePrestacao = "PRODUCAO" | "COMUNICACAO" | "GESTAO";
 export type TipoCampoPrestacao =
@@ -258,9 +259,9 @@ export function gruposDoPerfil(p: PerfilResumo): string[] {
   const soma = (r: Record<string, number>, chaves: string[]) => chaves.reduce((acc, k) => acc + (r[k] ?? 0), 0);
   const parte = (n: number) => n / p.total;
   const g: string[] = [];
-  if (parte(soma(p.idade, ["Até 14", "15–17"])) >= 0.3) g.push("Crianças e adolescentes");
-  if (parte(soma(p.idade, ["18–29"])) >= 0.3) g.push("Jovens");
-  if (parte(soma(p.idade, ["60+"])) >= 0.2) g.push("Pessoas idosas");
+  if (parte(soma(p.idade, [FAIXA_MENOS_12, FAIXA_12_18])) >= 0.3) g.push("Crianças e adolescentes");
+  if (parte(soma(p.idade, [FAIXA_19_24])) >= 0.3) g.push("Jovens");
+  if (parte(soma(p.idade, [FAIXA_60_MAIS])) >= 0.2) g.push("Pessoas idosas");
   if (parte(soma(p.genero, ["Feminino"])) >= 0.5) g.push("Mulheres");
   if (parte(soma(p.etnia, ["Preta", "Parda"])) >= 0.5) g.push("Pessoas negras");
   if ((p.etnia["Indígena"] ?? 0) > 0) g.push("Povos indígenas");

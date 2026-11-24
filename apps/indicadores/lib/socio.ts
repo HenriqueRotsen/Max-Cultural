@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type { SocioBreakdown } from "@/lib/socio-cohort";
+import { faixaEtaria, ordemFaixaEtaria } from "@/lib/faixa-etaria";
 
 export {
   SOCIO_COHORT_PARAM,
@@ -12,16 +13,6 @@ export {
   type SocioBucket,
   type SocioCohort,
 } from "@/lib/socio-cohort";
-
-function ageBand(age: number): string {
-  if (!Number.isFinite(age) || age <= 0) return "Não informado";
-  if (age < 15) return "Até 14";
-  if (age < 18) return "15–17";
-  if (age < 30) return "18–29";
-  if (age < 45) return "30–44";
-  if (age < 60) return "45–59";
-  return "60+";
-}
 
 function toBuckets(
   counts: Map<string, number>,
@@ -100,7 +91,7 @@ export async function aggregateSocio(
 
   const idade = new Map<string, number>();
   for (const g of byIdade) {
-    const band = ageBand(g.idadeAtual ?? 0);
+    const band = faixaEtaria(g.idadeAtual);
     idade.set(band, (idade.get(band) ?? 0) + g._count._all);
   }
 
@@ -115,7 +106,9 @@ export async function aggregateSocio(
     genero: toBuckets(genero, total),
     etnia: toBuckets(etnia, total),
     escolaridade: toBuckets(escolaridade, total),
-    idade: toBuckets(idade, total),
+    idade: toBuckets(idade, total).sort(
+      (a, b) => ordemFaixaEtaria(a.label) - ordemFaixaEtaria(b.label),
+    ),
     deficienca: toBuckets(deficienca, total),
   };
 }
