@@ -273,9 +273,29 @@ export async function listCaptacoesByPronac(
     );
     return detail._embedded?.captacoes ?? [];
   } catch (error) {
+    // Alguns PRONACs dão "503 internal error" sempre no detalhe, com a API no ar.
+    // Plano B: incentivadores do PRONAC (total por patrocinador, sem data).
+    const fallback = await listCaptacoesFromIncentivadores(pronac).catch(() => null);
+    if (fallback) return fallback;
     options?.onError?.(error);
     return null;
   }
+}
+
+type SalicIncentivador = { nome?: string; cgccpf?: string; total_doado?: number | string };
+
+/**
+ * Patrocinadores de um PRONAC pelo endpoint de incentivadores: um item por
+ * patrocinador com o total que ele aportou neste PRONAC (sem data do recibo).
+ */
+export async function listCaptacoesFromIncentivadores(pronac: string): Promise<SalicCaptacao[]> {
+  const out: SalicCaptacao[] = [];
+  for await (const i of paginateEmbedded<SalicIncentivador>("/incentivadores", "incentivadores", {
+    PRONAC: pronac.trim(),
+  })) {
+    out.push({ PRONAC: pronac.trim(), valor: i.total_doado ?? 0, cgccpf: i.cgccpf, nome_doador: i.nome });
+  }
+  return out;
 }
 
 export function parseSalicMoney(value?: number | string | null): number | null {

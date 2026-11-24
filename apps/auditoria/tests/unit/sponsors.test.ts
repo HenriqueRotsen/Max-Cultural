@@ -122,3 +122,27 @@ describe("falha de um PRONAC não trava a fila", () => {
     expect(isProjectLevelError("")).toBe(false);
   });
 });
+
+describe("PRONAC com erro no detalhe", () => {
+  it("usa os incentivadores do PRONAC quando o detalhe dá 503", async () => {
+    const { vi } = await import("vitest");
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).includes("/incentivadores")
+        ? json({
+            total: 1,
+            _embedded: { incentivadores: [{ nome: "Banco X", cgccpf: "33131541000108", total_doado: 150000 }] },
+          })
+        : json({ message: "internal error", message_code: 13 }, 503),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { listCaptacoesByPronac } = await import("@/lib/salic/api");
+      const list = await listCaptacoesByPronac("153774", { maxAttempts: 1 });
+      expect(list).toEqual([{ PRONAC: "153774", valor: 150000, cgccpf: "33131541000108", nome_doador: "Banco X" }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
