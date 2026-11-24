@@ -103,7 +103,7 @@ describe("campos inteligentes", () => {
         total: 10,
         genero: { Feminino: 6, Masculino: 4 },
         etnia: { Preta: 3, Parda: 3, Branca: 4 },
-        idade: { "15–17": 4, "18–29": 3, "30–44": 3 },
+        idade: { "12 a 18 anos": 4, "19 a 24 anos": 3, "25 a 39 anos": 3 },
         pcd: 1,
       }),
     ).toEqual(["Crianças e adolescentes", "Jovens", "Mulheres", "Pessoas negras", "Pessoas com deficiência"]);
