@@ -4,25 +4,20 @@ import { PageHeader } from "@/components/ui";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCgccpf, formatCurrency, formatDate } from "@/lib/format";
-import { loadProjectCredits } from "@/lib/planning/credits-db";
-import {
-  CreditCreateForm,
-  CreditDeleteButton,
-  CreditUseUndoButton,
-} from "@/components/planning/CreditForms";
+import { loadProjectCredits } from "@/lib/planning/credits-view";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Créditos do projeto: pagamentos feitos sem nota, ainda sem rubrica. Cada
- * nota do fornecedor usa uma parte, na reserva dela ("Pagar com crédito").
+ * Créditos do projeto: pagamentos feitos sem nota (Nova reserva → Comprovante).
+ * Cada nota anexada usa uma parte; o que sobra espera as próximas notas.
  */
 export default async function CreditosPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { entitlements } = await getWorkspaceContext();
   const project = await prisma.planningProject.findFirst({
     where: { id, workspaceId: entitlements.workspaceId },
-    select: { id: true, externalCode: true, closedAt: true },
+    select: { id: true, externalCode: true },
   });
   if (!project) notFound();
   const credits = await loadProjectCredits(project.id, entitlements.workspaceId);
@@ -39,74 +34,68 @@ export default async function CreditosPage({ params }: { params: Promise<{ id: s
           </>
         }
         title="Créditos"
-        description="Pagamento feito antes das notas (ex.: uma TED para o hotel que cobre várias notas). O crédito não entra em rubrica nem no SALIC; cada nota do fornecedor usa uma parte, na reserva dela."
+        description="Pagamentos feitos antes da nota. Cada nota anexada usa uma parte e vira um lançamento no SALIC com o mesmo comprovante; o que sobra espera as próximas notas."
       />
-
-      {!project.closedAt ? (
-        <section className="card space-y-4 p-5">
-          <h2 className="text-lg font-semibold text-[var(--navy)]">Novo crédito</h2>
-          <CreditCreateForm planningProjectId={project.id} />
-        </section>
-      ) : null}
 
       <section className="card overflow-hidden">
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--border)] px-5 py-4">
-          <h2 className="text-lg font-semibold text-[var(--navy)]">Créditos do projeto</h2>
+          <h2 className="text-lg font-semibold text-[var(--navy)]">Pagamentos sem nota</h2>
           {credits.length > 0 ? (
             <p className="text-sm text-[var(--gray-600)]">
-              Disponível: <strong className="text-[var(--navy)]">{formatCurrency(totalLeft)}</strong>
+              Aguardando nota: <strong className="text-[var(--navy)]">{formatCurrency(totalLeft)}</strong>
             </p>
           ) : null}
         </div>
         {credits.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-[var(--gray-500)]">
-            Nenhum crédito. Registre aqui um pagamento que ainda não tem nota.
+            Nenhum pagamento sem nota. Para registrar um, use Nova reserva → Comprovante (já pago, sem NF).
           </p>
         ) : (
           <ul className="divide-y divide-[var(--border)]">
             {credits.map((c) => (
-              <li key={c.id} className="space-y-2 px-5 py-4">
+              <li key={c.proofId} className="space-y-2 px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-[var(--navy)]">{c.supplierName}</p>
                     <p className="text-xs text-[var(--gray-500)]">
-                      {formatCgccpf(c.supplierDoc)} · pago em {formatDate(c.paidAt)} ·{" "}
-                      <a href={`/api/planning/documents/${c.id}`} target="_blank" className="hover:underline">
+                      {c.supplierDoc ? `${formatCgccpf(c.supplierDoc)} · ` : ""}
+                      {c.paidAt ? `pago em ${formatDate(c.paidAt)} · ` : ""}
+                      <a href={`/api/planning/documents/${c.proofId}`} target="_blank" className="hover:underline">
                         comprovante
                       </a>
-                      {c.notes ? ` · ${c.notes}` : ""}
                     </p>
+                    {c.rubricas.length > 0 ? (
+                      <p className="mt-1 text-xs text-[var(--gray-600)]">
+                        {c.rubricas.map((r) => `${r.name}: ${formatCurrency(r.amount)}`).join(" · ")}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="text-right text-sm">
+                  <div className="space-y-1 text-right text-sm">
                     <p>
-                      Pago <strong>{formatCurrency(c.amount)}</strong>
+                      Pago <strong>{formatCurrency(c.total)}</strong>
                     </p>
-                    <p className={c.remaining > 0.005 ? "text-emerald-700" : "text-[var(--gray-500)]"}>
-                      {c.remaining > 0.005 ? `Disponível ${formatCurrency(c.remaining)}` : "Usado por inteiro"}
+                    <p className={c.remaining > 0 ? "text-amber-700" : "text-emerald-700"}>
+                      {c.remaining > 0 ? `Sem nota: ${formatCurrency(c.remaining)}` : "Notas completas"}
                     </p>
-                    {c.uses.length === 0 && !project.closedAt ? <CreditDeleteButton creditId={c.id} /> : null}
+                    {c.remaining > 0 && c.attachCommitmentId ? (
+                      <Link href={`/planejamento/compromissos/${c.attachCommitmentId}/anexar-nf`} className="btn">
+                        Anexar nota
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
                 {c.uses.length > 0 ? (
                   <ul className="space-y-1 rounded-lg bg-[var(--gray-50)] px-3 py-2 text-sm">
                     {c.uses.map((u) => (
-                      <li key={u.id} className="flex flex-wrap items-center justify-between gap-2">
-                        <span>
-                          {u.commitmentId ? (
-                            <Link href={`/planejamento/compromissos/${u.commitmentId}`} className="hover:underline">
-                              {u.nfLabel}
-                            </Link>
-                          ) : (
-                            u.nfLabel
-                          )}
-                          {u.inSalic ? <span className="ml-2 text-xs text-emerald-700">no SALIC</span> : null}
-                        </span>
-                        <span className="flex items-center gap-3">
-                          <strong className="tabular-nums">{formatCurrency(u.amount)}</strong>
-                          {!u.inSalic && !project.closedAt ? (
-                            <CreditUseUndoButton useId={u.id} amount={u.amount} />
-                          ) : null}
-                        </span>
+                      <li key={u.proofId} className="flex flex-wrap items-center justify-between gap-2">
+                        {u.commitmentId ? (
+                          <Link href={`/planejamento/compromissos/${u.commitmentId}`} className="hover:underline">
+                            {u.nfLabel}
+                          </Link>
+                        ) : (
+                          <span>{u.nfLabel}</span>
+                        )}
+                        <strong className="tabular-nums">{formatCurrency(u.amount)}</strong>
                       </li>
                     ))}
                   </ul>

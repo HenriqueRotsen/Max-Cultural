@@ -222,7 +222,6 @@ model CatalogSupplier {
   updatedAt      DateTime @updatedAt
 
   workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  paymentCredits  PaymentCredit[]
   services    CatalogService[]
   favorites   CatalogFavorite[]
   pedidos     PlanningPedido[]
@@ -441,7 +440,6 @@ model PlanningProject {
   account         SalicAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   ruleset         ComplianceRuleset? @relation(fields: [rulesetVersion], references: [version], onDelete: Restrict)
   sheet           ProjectBudgetSheet?
-  paymentCredits  PaymentCredit[]
   commitments     RubricCommitment[]
   engagements     CatalogEngagement[]
   documents       PlanningDocument[]
@@ -684,7 +682,6 @@ model PlanningDocument {
   derivedProofs   PlanningDocument[] @relation("DocumentProofSource")
   allocations     DocumentRubricAllocation[]
   pedidoLinked    PlanningPedido?
-  creditUse       PaymentCreditUse?
 
   @@index([workspaceId, kind])
   @@index([commitmentId])
@@ -712,57 +709,6 @@ model DocumentRubricAllocation {
   @@unique([documentId, budgetLineId])
   @@index([commitmentId])
   @@map("document_rubric_allocations")
-}
-
-/**
- * Crédito: pagamento feito sem nota fiscal, ainda sem rubrica. Fica guardado
- * no projeto e vai sendo usado pelas notas do mesmo fornecedor (cada uso vira
- * um comprovante próprio, com o mesmo arquivo, e um lançamento no SALIC).
- */
-model PaymentCredit {
-  id                String    @id @default(cuid())
-  workspaceId       String
-  planningProjectId String
-  supplierId        String
-  amount            Decimal   @db.Decimal(14, 2)
-  paidAt            DateTime
-  /** Arquivo do comprovante (o mesmo vai em cada uso). */
-  filename          String
-  mimeType          String
-  storagePath       String
-  byteSize          Int       @default(0)
-  originalByteSize  Int?
-  contentHash       String?
-  extractedJson     Json?
-  notes             String?
-  createdById       String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  planningProject PlanningProject    @relation(fields: [planningProjectId], references: [id], onDelete: Cascade)
-  supplier        CatalogSupplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  uses            PaymentCreditUse[]
-
-  @@index([planningProjectId])
-  @@index([supplierId])
-  @@index([workspaceId, contentHash])
-  @@map("payment_credits")
-}
-
-/** Uso de um crédito por uma nota: o comprovante criado para esse uso. */
-model PaymentCreditUse {
-  id              String   @id @default(cuid())
-  creditId        String
-  proofDocumentId String   @unique
-  amount          Decimal  @db.Decimal(14, 2)
-  createdById     String?
-  createdAt       DateTime @default(now())
-
-  credit PaymentCredit    @relation(fields: [creditId], references: [id], onDelete: Cascade)
-  proof  PlanningDocument @relation(fields: [proofDocumentId], references: [id], onDelete: Cascade)
-
-  @@index([creditId])
-  @@map("payment_credit_uses")
 }
 
 /** Rascunho temporário (24h) de readequação de planilha. */

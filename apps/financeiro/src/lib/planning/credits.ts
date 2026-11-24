@@ -59,3 +59,60 @@ export function scaleAllocationsToAmount<T extends { amount: number }>(
     return { ...a, amount };
   });
 }
+
+/** Parte do comprovante sem nota que ainda não tem nota (o crédito). */
+export type CreditSlice = {
+  /** Rateio do comprovante (DocumentRubricAllocation). */
+  allocationId: string;
+  budgetLineId: string;
+  commitmentId: string;
+  amount: number;
+};
+
+/**
+ * Divide o valor da nota entre as rubricas do crédito: pelo rateio informado
+ * na nota (só rubricas do pagamento) ou, sem rateio, na proporção do que sobra
+ * em cada rubrica. Nenhuma rubrica pode usar mais do que tem de crédito.
+ */
+export function splitNfOverCredit(params: {
+  slices: CreditSlice[];
+  nfAmount: number;
+  formAllocations: Array<{ budgetLineId: string; sharePct: number }>;
+}): { ok: true; parts: Array<CreditSlice & { use: number }> } | { ok: false; error: string } {
+  const { slices, nfAmount, formAllocations } = params;
+  const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  let wanted: Array<{ budgetLineId: string; amount: number }>;
+  if (formAllocations.length > 0) {
+    const lines = new Set(slices.map((s) => s.budgetLineId));
+    if (formAllocations.some((a) => !lines.has(a.budgetLineId))) {
+      return { ok: false, error: "A nota só pode usar as rubricas do pagamento." };
+    }
+    const sum = formAllocations.reduce((s, a) => s + a.sharePct, 0);
+    if (Math.abs(sum - 100) > 0.05) {
+      return { ok: false, error: `A soma dos percentuais deve ser 100% (atual: ${sum.toFixed(2)}%)` };
+    }
+    wanted = scaleAllocationsToAmount(
+      formAllocations.map((a) => ({ budgetLineId: a.budgetLineId, amount: a.sharePct })),
+      nfAmount,
+    );
+  } else {
+    wanted = scaleAllocationsToAmount(
+      slices.map((s) => ({ budgetLineId: s.budgetLineId, amount: s.amount })),
+      nfAmount,
+    );
+  }
+  const parts: Array<CreditSlice & { use: number }> = [];
+  for (const w of wanted) {
+    if (!(w.amount > 0)) continue;
+    const slice = slices.find((s) => s.budgetLineId === w.budgetLineId)!;
+    if (w.amount > slice.amount + 0.005) {
+      return {
+        ok: false,
+        error: `Nesta rubrica o crédito só tem ${brl(slice.amount)}, e a nota pede ${brl(w.amount)}.`,
+      };
+    }
+    parts.push({ ...slice, use: w.amount });
+  }
+  return { ok: true, parts };
+}
+

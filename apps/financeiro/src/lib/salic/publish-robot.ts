@@ -258,6 +258,25 @@ export function resolveProofFilePath(storagePath: string): string {
   return path.join(process.cwd(), storagePath);
 }
 
+/** Imposto já lançado por guia nestes lançamentos (vai ao SALIC à parte). */
+export async function launchedTaxFor(commitmentIds: string[]): Promise<number> {
+  if (commitmentIds.length === 0) return 0;
+  const rows = await prisma.documentRubricAllocation.findMany({
+    where: {
+      commitmentId: { in: [...new Set(commitmentIds)] },
+      document: {
+        kind: "TAX_PROOF",
+        status: "IMPORTED",
+        extractedJson: { path: ["taxDocType"], equals: "COMPROVANTE" },
+      },
+    },
+    select: { amount: true, document: { select: { extractedJson: true } } },
+  });
+  return rows
+    .filter((r) => (r.document.extractedJson as { taxSlot?: string } | null)?.taxSlot)
+    .reduce((s, r) => s + Number(r.amount), 0);
+}
+
 async function loadProofPublishContext(
   planningProjectId: string,
   proofId: string,
@@ -317,6 +336,49 @@ async function loadProofPublishContext(
     throw new Error(
       "Comprovante sem rubrica vinculada (planilhaAprovacaoId). Confirme o rateio antes do envio ao SALIC.",
     );
+  }
+
+  // Guia de imposto: lançamento próprio (tipo Guia de recolhimento), no valor
+  // desta rubrica, com quem recebe o imposto (prefeitura ou Receita) como fornecedor.
+  if (proof.kind === "TAX_PROOF") {
+    const t = (proof.extractedJson ?? {}) as {
+      payeeCnpj?: string | null;
+      payeeName?: string | null;
+      guideNumber?: string | null;
+      paymentDate?: string | null;
+      paymentDocumentNumber?: string | null;
+    };
+    if (!t.payeeCnpj) throw new Error("Guia sem o CNPJ de quem recebe o imposto. Lance a guia de novo.");
+    const taxAmount = proof.grossAmount != null ? Number(proof.grossAmount) : 0;
+    if (!(taxAmount > 0)) throw new Error("Valor da guia inválido para envio ao SALIC.");
+    const paidOn = resolvePaymentDate({
+      proofExtracted: { paymentDate: t.paymentDate ?? null },
+      paidAt: proof.commitment?.paidAt,
+      expectedPayAt: proof.commitment?.expectedPayAt,
+    });
+    return {
+      accountId: project.accountId,
+      proofId,
+      filePath: resolveProofFilePath(mergedStoragePath),
+      filename,
+      payloadInput: {
+        supplierCnpjCpf: t.payeeCnpj,
+        supplierName: t.payeeName || "Órgão arrecadador",
+        idAgente: 0,
+        planilhaAprovacaoId,
+        fiscalKind: null,
+        mergedWithFiscal: false,
+        taxGuide: true,
+        documentNumber: t.guideNumber || "S/N",
+        paymentDocumentNumber: resolvePaymentDocumentNumber({
+          proofExtracted: { paymentDocumentNumber: t.paymentDocumentNumber ?? null },
+        }),
+        amount: taxAmount,
+        issueDate: paidOn,
+        paymentDate: paidOn,
+        justificativa: justificativa?.trim() || "",
+      },
+    };
   }
 
   const supplier =
@@ -408,7 +470,7 @@ async function loadProofPublishContext(
     fiscalExtracted,
   });
 
-  const amount =
+  const grossSent =
     proof.grossAmount != null
       ? Number(proof.grossAmount)
       : proof.commitment
@@ -416,6 +478,26 @@ async function loadProofPublishContext(
         : fiscal?.grossAmount != null
           ? Number(fiscal.grossAmount)
           : 0;
+
+  // Imposto retido já lançado por guia vai em lançamento próprio: a NF vai
+  // pelo líquido (o que saiu para o fornecedor).
+  const taxCommitments =
+    proof.grossAmount != null
+      ? [
+          proof.commitmentId,
+          // Todas as rubricas do comprovante (a consulta acima traz só a maior).
+          ...(
+            await prisma.documentRubricAllocation.findMany({
+              where: { documentId: proof.id },
+              select: { commitmentId: true },
+            })
+          ).map((x) => x.commitmentId),
+        ]
+      : [proof.commitmentId];
+  const launchedTax = await launchedTaxFor(
+    taxCommitments.filter((x): x is string => Boolean(x)),
+  );
+  const amount = Math.round((grossSent - launchedTax) * 100) / 100;
 
   if (!(amount > 0)) {
     throw new Error("Valor do comprovante inválido para envio ao SALIC.");

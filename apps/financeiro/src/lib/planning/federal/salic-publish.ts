@@ -77,6 +77,24 @@ async function resolveSalicUploadFilename(
   proofId: string,
   supplierName: string,
 ): Promise<string> {
+  const head = await prisma.planningDocument.findUniqueOrThrow({
+    where: { id: proofId },
+    select: {
+      kind: true,
+      extractedJson: true,
+      allocations: { select: { budgetLine: { select: { sortOrder: true } } }, take: 1 },
+    },
+  });
+  if (head.kind === "TAX_PROOF") {
+    // Guia de imposto: quem recebe é a prefeitura ou a Receita.
+    const t = (head.extractedJson ?? {}) as { guideNumber?: string | null; payeeName?: string | null };
+    return buildSalicUploadFilename({
+      itemNumber: resolveSalicItemNumber(head.allocations[0]?.budgetLine.sortOrder),
+      docLabel: "Guia",
+      fiscalDocNumber: t.guideNumber || "S/N",
+      supplierName: t.payeeName || supplierName,
+    });
+  }
   const proof = await prisma.planningDocument.findUniqueOrThrow({
     where: { id: proofId },
     select: {
@@ -183,7 +201,7 @@ export async function prepareSalicPackageFile(
   // Documentos de apoio, já na ordem do pacote (contrato, apólice, fatura…).
   const supportRows = pkg.supportIds?.length
     ? await prisma.planningDocument.findMany({
-        where: { id: { in: pkg.supportIds }, kind: "SUPPORT", status: "IMPORTED" },
+        where: { id: { in: pkg.supportIds }, kind: { in: ["SUPPORT", "TAX_PROOF"] }, status: "IMPORTED" },
         select: { id: true, filename: true, mimeType: true, storagePath: true },
       })
     : [];
@@ -198,7 +216,7 @@ export async function prepareSalicPackageFile(
         ...supports.map(toMergeSource),
         toMergeSource(proof),
       ],
-      `SALIC_${externalCode}_${fiscal ? "NF" : "DOCS"}-COMPROVANTE`,
+      `SALIC_${externalCode}_${pkg.isTax ? "GUIA" : fiscal ? "NF" : "DOCS"}-COMPROVANTE`,
     );
     return { storagePath: merged.storagePath, byteSize: merged.byteSize, mode: "MERGED" };
   }
@@ -301,9 +319,9 @@ export async function markSalicRepublishAfterNfAttach(proofId: string): Promise<
       salicPublishMode: true,
     },
   });
-  if (!proof?.salicComprovanteId || proof.salicPublishMode !== "PROOF_ONLY") {
-    return false;
-  }
+  // Com a NF o PDF muda, qualquer que tenha sido o envio (só comprovante ou
+  // comprovante com outros documentos).
+  if (!proof?.salicComprovanteId) return false;
 
   await prisma.planningDocument.update({
     where: { id: proofId },
@@ -414,4 +432,27 @@ export async function getSalicPackagePreviewBytes(
   const filename = await resolveSalicUploadFilename(proofId, supplierName);
 
   return { body, filename, mode: prepared.mode, label: pkg.label };
+}
+
+/**
+ * O que falta mandar ao SALIC deste pagamento (e do rateio dele): comprovante
+ * a atualizar (o PDF mudou) e guias de imposto ainda não lançadas.
+ */
+export async function pendingSalicPackagesForCommitment(
+  planningProjectId: string,
+  commitmentId: string,
+): Promise<SalicPublishPackage[]> {
+  const { paymentGroupIds } = await import("@/lib/planning/support-attach");
+  const group = new Set(await paymentGroupIds(commitmentId));
+  group.add(commitmentId);
+  const docs = await loadSalicPublishDocs(planningProjectId);
+  const byId = new Map(docs.map((d) => [d.id, d]));
+  return buildSalicPublishPackages(docs).filter((p) => {
+    const d = byId.get(p.proofId);
+    if (!d) return false;
+    return (
+      (d.commitmentId != null && group.has(d.commitmentId)) ||
+      (d.allocations ?? []).some((a) => group.has(a.commitmentId))
+    );
+  });
 }

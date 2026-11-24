@@ -33,6 +33,8 @@ export type BuildSalicPayloadInput = {
   mergedWithFiscal: boolean;
   /** Sem NF/RPA: tipo vindo dos documentos de apoio (3 fatura, 4 recibo). */
   supportTipo?: 3 | 4 | null;
+  /** Guia de imposto: lançamento próprio, tipo 2 (Guia de recolhimento). */
+  taxGuide?: boolean;
   documentNumber: string;
   paymentDocumentNumber: string;
   amount: number;
@@ -44,7 +46,10 @@ export type BuildSalicPayloadInput = {
   existingComprovanteId?: string | number;
 };
 
-/** 3=NF, 4=Recibo, 5=RPA */
+/** Tipo de documento "Guia de recolhimento" na comprovação do SALIC. */
+export const SALIC_TIPO_GUIA_RECOLHIMENTO = 2;
+
+/** 3=NF, 4=Recibo, 5=RPA (2=Guia de recolhimento, ver taxGuide) */
 export function mapSalicDocumentTipo(
   fiscalKind: "NF" | "RPA" | null,
   mergedWithFiscal: boolean,
@@ -91,8 +96,9 @@ export function buildSalicComprovantePayload(
       eInternacional: false,
     },
     idPlanilhaAprovacao: planilhaId,
-    tipo:
-      !input.fiscalKind && !input.mergedWithFiscal && input.supportTipo
+    tipo: input.taxGuide
+      ? SALIC_TIPO_GUIA_RECOLHIMENTO
+      : !input.fiscalKind && !input.mergedWithFiscal && input.supportTipo
         ? input.supportTipo
         : mapSalicDocumentTipo(input.fiscalKind, input.mergedWithFiscal),
     numero: input.documentNumber.trim() || "S/N",

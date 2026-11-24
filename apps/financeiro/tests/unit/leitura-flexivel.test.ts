@@ -56,3 +56,22 @@ describe("justificativa da multa no SALIC", () => {
     expect(withFineJustification("ok", {})).toBe("ok");
   });
 });
+
+describe("comprovante com imposto retido", () => {
+  it("aceita o líquido (bruto − retido) e continua aceitando o bruto", () => {
+    const net = reviewPaymentAmount({ extractedAmount: 1140, expectedAmount: 1200, retainedTax: 60 });
+    expect(net.ok).toBe(true);
+    const gross = reviewPaymentAmount({ extractedAmount: 1200, expectedAmount: 1200, retainedTax: 60 });
+    expect(gross.ok).toBe(true);
+  });
+
+  it("valor fora do bruto e do líquido continua barrado, citando os dois", () => {
+    const r = reviewPaymentAmount({ extractedAmount: 1000, expectedAmount: 1200, retainedTax: 60 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/sem os impostos retidos/);
+  });
+
+  it("sem imposto retido, o líquido não vale", () => {
+    expect(reviewPaymentAmount({ extractedAmount: 1140, expectedAmount: 1200 }).ok).toBe(false);
+  });
+});

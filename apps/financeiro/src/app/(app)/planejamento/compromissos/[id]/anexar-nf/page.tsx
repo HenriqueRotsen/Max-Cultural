@@ -5,6 +5,7 @@ import { NfUploadForm } from "@/components/planning/NfUploadForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/format";
+import { creditLeftForCommitment } from "@/lib/planning/credits-view";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,9 @@ export default async function AnexarNfPage({
     !commitment.pedidoId &&
     (await prisma.documentRubricAllocation.count({ where: { commitmentId } })) === 0;
   if (!paidWithoutNf && !reservedWithoutNf) notFound();
+  const creditLeft = paidWithoutNf
+    ? ((await creditLeftForCommitment(commitmentId, entitlements.workspaceId)) ?? Number(commitment.amount))
+    : null;
 
   return (
     <div className="space-y-6">
@@ -55,7 +59,11 @@ export default async function AnexarNfPage({
           </>
         }
         title={paidWithoutNf ? "Anexar NF/RPA ao pagamento" : "Anexar NF/RPA à reserva"}
-        description={`${commitment.engagement.service.supplier.name} · ${formatCurrency(Number(commitment.amount))} · ${paidWithoutNf ? "pagamento já registrado" : "reservado, ainda sem nota"}`}
+        description={
+          paidWithoutNf
+            ? `${commitment.engagement.service.supplier.name} · crédito sem nota: ${formatCurrency(creditLeft ?? 0)}. A nota pode ser menor: o resto continua como crédito para as próximas.`
+            : `${commitment.engagement.service.supplier.name} · ${formatCurrency(Number(commitment.amount))} · reservado, ainda sem nota`
+        }
       />
       <NfUploadForm
         planningProjectId={commitment.planningProject.id}

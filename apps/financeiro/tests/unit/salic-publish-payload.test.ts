@@ -59,4 +59,23 @@ describe("salic-publish-payload", () => {
       }),
     ).toThrow(/idPlanilhaAprovacao/);
   });
+
+  it("guia de imposto vai como Guia de recolhimento (tipo 2)", () => {
+    const payload = buildSalicComprovantePayload({
+      supplierCnpjCpf: "00394460005887",
+      supplierName: "Receita Federal do Brasil",
+      idAgente: 1,
+      planilhaAprovacaoId: "987654",
+      fiscalKind: null,
+      mergedWithFiscal: false,
+      taxGuide: true,
+      documentNumber: "S/N",
+      paymentDocumentNumber: "0",
+      amount: 60,
+      issueDate: new Date("2025-06-20T12:00:00Z"),
+      paymentDate: new Date("2025-06-20T12:00:00Z"),
+    });
+    expect(payload.tipo).toBe(2);
+    expect(payload.valor).toBe(60);
+  });
 });

@@ -171,6 +171,11 @@ export function reviewPaymentAmount(params: {
   typedAmount?: number | null;
   /** A pessoa marcou que a diferença a mais é multa/juros. */
   hasFine?: boolean;
+  /**
+   * Impostos retidos na nota: o fornecedor recebe o líquido (bruto − retido),
+   * e o imposto vai por guia. Comprovante no líquido também confere.
+   */
+  retainedTax?: number;
   tolerance?: number;
   expectedLabel?: string;
 }):
@@ -201,6 +206,11 @@ export function reviewPaymentAmount(params: {
   if (amountsClose(paid, expected, tolerance)) {
     return { ok: true, paidAmount: paid, fineAmount: 0, corrected };
   }
+  const retained = params.retainedTax && params.retainedTax > 0 ? params.retainedTax : 0;
+  const net = Math.round((expected - retained) * 100) / 100;
+  if (retained > 0 && amountsClose(paid, net, tolerance)) {
+    return { ok: true, paidAmount: paid, fineAmount: 0, corrected };
+  }
   if (paid > expected) {
     const diff = Math.round((paid - expected) * 100) / 100;
     if (params.hasFine) {
@@ -214,7 +224,9 @@ export function reviewPaymentAmount(params: {
   }
   return {
     ok: false,
-    error: `O comprovante (${brl(paid)}) é menor que o valor ${label} (${brl(expected)}). Se o sistema leu errado, corrija o valor pago abaixo: ele precisa bater com o valor ${label}.`,
+    error: retained > 0
+      ? `O comprovante (${brl(paid)}) é menor que o valor ${label} (${brl(expected)}, ou ${brl(net)} sem os impostos retidos). Se o sistema leu errado, corrija o valor pago abaixo.`
+      : `O comprovante (${brl(paid)}) é menor que o valor ${label} (${brl(expected)}). Se o sistema leu errado, corrija o valor pago abaixo: ele precisa bater com o valor ${label}.`,
     review: review(false),
   };
 }

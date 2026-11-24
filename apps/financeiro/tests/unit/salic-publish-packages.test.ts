@@ -128,3 +128,44 @@ describe("buildSalicPublishPackages com documentos de apoio", () => {
     expect(pkg?.supportIds).toEqual(["a"]);
   });
 });
+
+describe("guia de imposto no SALIC", () => {
+  const tax = (id: string, type: string, slot: string, extra: Partial<ReturnType<typeof doc>> = {}) => ({
+    ...doc({ id, kind: "TAX_PROOF", filename: `${type}.pdf`, sourceDocumentId: "nf1", ...extra }),
+    extractedJson: { taxDocType: type, taxSlot: slot, taxKind: "iss" },
+  });
+
+  it("cada rubrica da guia é um lançamento próprio: guia + nota do imposto + comprovante", () => {
+    const packages = buildSalicPublishPackages([
+      doc({ id: "nf1", kind: "NF" }),
+      tax("g1", "GUIA", "s1"),
+      tax("n1", "NF_IMPOSTO", "s1"),
+      tax("c1", "COMPROVANTE", "s1"),
+      tax("g2", "GUIA", "s2"),
+      tax("c2", "COMPROVANTE", "s2"),
+    ]);
+    const taxes = packages.filter((p) => p.isTax);
+    expect(taxes).toHaveLength(2);
+    expect(taxes[0]).toMatchObject({ proofId: "c1", fiscalId: "g1", supportIds: ["n1"], action: "UPLOAD_MERGED" });
+    expect(taxes[1]).toMatchObject({ proofId: "c2", fiscalId: "g2", supportIds: [] });
+    expect(taxes[0]?.label).toMatch(/Guia ISS/);
+  });
+
+  it("guia já enviada só volta se marcada para atualizar", () => {
+    const sent = buildSalicPublishPackages([
+      tax("g1", "GUIA", "s1"),
+      tax("c1", "COMPROVANTE", "s1", { salicComprovanteId: "77" }),
+    ]);
+    expect(sent.filter((p) => p.isTax)).toHaveLength(0);
+    const again = buildSalicPublishPackages([
+      tax("g1", "GUIA", "s1"),
+      tax("c1", "COMPROVANTE", "s1", { salicComprovanteId: "77", salicRepublishPending: true }),
+    ]);
+    expect(again[0]).toMatchObject({ action: "REPUBLISH_MERGED", replaceSalicId: "77", isTax: true });
+  });
+
+  it("guia do formato antigo (sem parte por rubrica) não vai ao SALIC", () => {
+    const old = { ...doc({ id: "c0", kind: "TAX_PROOF" }), extractedJson: { taxDocType: "COMPROVANTE" } };
+    expect(buildSalicPublishPackages([old])).toHaveLength(0);
+  });
+});
