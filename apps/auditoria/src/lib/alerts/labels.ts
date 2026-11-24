@@ -12,6 +12,7 @@ export const ALERT_STATUS_BADGE: Record<string, string> = {
 
 export const ALERT_TYPE_LABEL: Record<string, string> = {
   DILIGENCIA: "Diligência",
+  SITUACAO: "Mudança de situação",
 };
 
 export function formatDateTime(d: Date | null | undefined) {

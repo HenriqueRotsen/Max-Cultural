@@ -79,8 +79,8 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
     items: [
       {
         key: "salicDiligencia",
-        label: "Diligência no SALIC",
-        description: "Um PRONAC do workspace entrou em diligência.",
+        label: "Situação no SALIC",
+        description: "Um PRONAC mudou de situação no SALIC (inclui entrar em diligência).",
       },
       {
         key: "evaluationPending",

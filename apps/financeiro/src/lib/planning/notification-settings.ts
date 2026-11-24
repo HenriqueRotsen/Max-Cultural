@@ -56,7 +56,7 @@ export const NOTIFICATION_TYPE_META: Record<
     prefKey: "taxDueFederal",
   },
   SALIC_DILIGENCIA: {
-    label: "Diligência no SALIC",
+    label: "Situação no SALIC",
     prefKey: "salicDiligencia",
   },
   READEQUADA_APPLIED: {
