@@ -440,10 +440,10 @@ export async function syncAccountViaCrawler(params: {
           previousSituacao: previous?.situacao,
           nextSituacao: listed.Situacao,
         });
-        if (alertId) await push(`PRONAC ${listed.Pronac}: alerta de diligência criado`);
+        if (alertId) await push(`PRONAC ${listed.Pronac}: aviso de situação criado`);
       } catch (err) {
         await push(
-          `PRONAC ${listed.Pronac}: alerta de diligência falhou (${err instanceof Error ? err.message : String(err)})`,
+          `PRONAC ${listed.Pronac}: aviso de situação falhou (${err instanceof Error ? err.message : String(err)})`,
         );
       }
 
