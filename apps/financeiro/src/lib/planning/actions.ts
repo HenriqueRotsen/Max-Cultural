@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
-import { formatCgccpf, normalizeCgccpf, parseBrMoney } from "@/lib/format";
+import { formatCgccpf, formatCurrency, normalizeCgccpf, parseBrMoney } from "@/lib/format";
 import { canDeleteNf, canEditRubricas, canExceedRubric, canReadequacao } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
 import { enforcePronacMatch, pronacMismatchOf } from "@/lib/planning/pronac-override";
@@ -688,6 +688,46 @@ async function attachNfToPendingCommitment(params: {
   const proofSlices = (proof?.allocations ?? []).filter(
     (a) => a.commitment.nfPending && a.commitment.status === "PAID",
   );
+
+  // Pagamento sem nota = crédito: a nota pode usar só parte dele. O que sobra
+  // continua no pagamento para as próximas notas.
+  if (proof && proofSlices.length > 0) {
+    const creditLeft =
+      Math.round(proofSlices.reduce((s, a) => s + Number(a.amount), 0) * 100) / 100;
+    if (grossAmount > creditLeft + 0.02) {
+      return {
+        error: `A nota (${formatCurrency(grossAmount)}) é maior que o crédito que sobra deste pagamento (${formatCurrency(creditLeft)}).`,
+      };
+    }
+    if (grossAmount < creditLeft - 0.02) {
+      const { attachNfToCreditPartially } = await import("@/lib/planning/credit-attach");
+      const partial = await attachNfToCreditPartially({
+        userId: session.id,
+        workspaceId: entitlements.workspaceId,
+        planningProjectId: commitment.planningProjectId,
+        documentId,
+        docExtractedJson: doc.extractedJson,
+        proofId: proof.id,
+        slices: proofSlices.map((a) => ({
+          allocationId: a.id,
+          budgetLineId: a.budgetLineId,
+          commitmentId: a.commitmentId,
+          amount: Number(a.amount),
+        })),
+        formAllocations,
+        hasBond,
+        isReimbursement,
+        supplierName,
+        cnpj,
+        grossAmount,
+        taxesFromForm,
+        fiscalNumber,
+      });
+      if (partial.error) return { error: partial.error };
+      revalidatePlanning(commitment.planningProjectId);
+      redirect(`/planejamento/compromissos/${partial.useCommitmentId}`);
+    }
+  }
 
   type AttachSlice = {
     budgetLineId: string;
@@ -1890,17 +1930,9 @@ export async function uploadPaymentProof(
     return { error: "NF/RPA sem rateio de rubricas" };
   }
 
-  // Parte da nota já paga com créditos: o comprovante comum paga só o resto.
-  const { creditPaidForFiscal } = await import("@/lib/planning/credits-db");
-  const paidWithCredits =
-    kind === "PAYMENT_PROOF" && !pedidoNf ? await creditPaidForFiscal(sourceNf.id) : 0;
   const expectedPaymentAmount =
-    Math.round(
-      ((siblingAllocs.reduce((s, a) => s + Number(a.amount), 0) ||
-        Number(sourceNf.grossAmount ?? commitment.amount)) -
-        paidWithCredits) *
-        100,
-    ) / 100;
+    siblingAllocs.reduce((s, a) => s + Number(a.amount), 0) ||
+    Number(sourceNf.grossAmount ?? commitment.amount);
 
   if (kind === "PAYMENT_PROOF") {
     const amountReview = reviewPaymentAmount({
@@ -1959,9 +1991,7 @@ export async function uploadPaymentProof(
         extractedJson: { ...proofExtracted, ...reviewJson() } as object,
         ...(paymentReview && paymentReview.fineAmount > 0
           ? { grossAmount: paymentReview.paidAmount }
-          : paidWithCredits > 0
-            ? { grossAmount: expectedPaymentAmount }
-            : {}),
+          : {}),
         workspaceId: entitlements.workspaceId,
         planningProjectId: commitment.planningProjectId,
         engagementId: commitment.engagementId,
@@ -1970,17 +2000,8 @@ export async function uploadPaymentProof(
       },
     });
 
-    // Espelha o rateio da NF/RPA no comprovante (mesmas rubricas/%). Com parte
-    // paga por crédito, divide só o resto, na mesma proporção.
-    const { scaleAllocationsToAmount } = await import("@/lib/planning/credits");
-    const proofSlices =
-      paidWithCredits > 0
-        ? scaleAllocationsToAmount(
-            siblingAllocs.map((a) => ({ ...a, amount: Number(a.amount) })),
-            expectedPaymentAmount,
-          )
-        : siblingAllocs;
-    for (const slice of proofSlices) {
+    // Espelha o rateio da NF/RPA no comprovante (mesmas rubricas/%).
+    for (const slice of siblingAllocs) {
       await tx.documentRubricAllocation.create({
         data: {
           documentId: proof.id,

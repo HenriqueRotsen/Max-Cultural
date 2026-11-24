@@ -48,3 +48,38 @@ describe("créditos (pagamento sem nota)", () => {
     expect(odd[2]!.amount).toBe(33.34);
   });
 });
+
+describe("nota usando parte do pagamento sem nota", () => {
+  const slices = [
+    { allocationId: "a1", budgetLineId: "hosp", commitmentId: "c1", amount: 1200 },
+    { allocationId: "a2", budgetLineId: "alim", commitmentId: "c2", amount: 600 },
+  ];
+  it("sem rateio, divide na proporção do que sobra em cada rubrica", async () => {
+    const { splitNfOverCredit } = await import("@/lib/planning/credits");
+    const r = splitNfOverCredit({ slices, nfAmount: 900, formAllocations: [] });
+    expect(r.ok && r.parts.map((p) => [p.budgetLineId, p.use])).toEqual([
+      ["hosp", 600],
+      ["alim", 300],
+    ]);
+  });
+  it("com rateio da nota, usa só as rubricas escolhidas", async () => {
+    const { splitNfOverCredit } = await import("@/lib/planning/credits");
+    const r = splitNfOverCredit({ slices, nfAmount: 1200, formAllocations: [{ budgetLineId: "hosp", sharePct: 100 }] });
+    expect(r.ok && r.parts.map((p) => [p.budgetLineId, p.use])).toEqual([["hosp", 1200]]);
+  });
+  it("barra rubrica fora do pagamento e rubrica sem crédito suficiente", async () => {
+    const { splitNfOverCredit } = await import("@/lib/planning/credits");
+    const fora = splitNfOverCredit({ slices, nfAmount: 100, formAllocations: [{ budgetLineId: "x", sharePct: 100 }] });
+    expect(!fora.ok && fora.error).toContain("rubricas do pagamento");
+    const muito = splitNfOverCredit({ slices, nfAmount: 700, formAllocations: [{ budgetLineId: "alim", sharePct: 100 }] });
+    expect(!muito.ok && muito.error).toContain("só tem");
+  });
+});
+
+describe("imposto de um pagamento", () => {
+  it("lista só os impostos retidos com valor", async () => {
+    const { retainedTaxes } = await import("@/lib/planning/tax-docs");
+    expect(retainedTaxes({ iss: 50, inss: 0, irrf: 15.3, pis: null }).map((t) => t.label)).toEqual(["ISS", "IRRF"]);
+    expect(retainedTaxes(null)).toEqual([]);
+  });
+});

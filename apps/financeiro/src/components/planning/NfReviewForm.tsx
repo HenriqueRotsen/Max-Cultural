@@ -281,16 +281,19 @@ export function NfReviewForm({
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           {attachPedidoId
             ? "Vinculando NF ao pedido"
-            : "Vinculando NF ao pagamento antecipado"}
+            : "Vinculando NF ao pagamento sem nota"}
           {attachAmount != null
-            ? ` de ${formatCurrency(attachAmount)}`
+            ? attachPedidoId
+              ? ` de ${formatCurrency(attachAmount)}`
+              : ` (crédito: ${formatCurrency(attachAmount)})`
             : ""}
           .
           {attachPedidoId
             ? " O valor deve coincidir com o total das parcelas; a reserva já está feita."
-            : initialAllocations && initialAllocations.length > 1
-              ? ` Mantenha o mesmo rateio em ${initialAllocations.length} rubricas.`
-              : " O rateio será fixado na rubrica do compromisso."}
+            : " A nota pode ser menor que o crédito: o resto continua para as próximas notas."}
+          {!attachPedidoId && initialAllocations && initialAllocations.length > 1
+            ? ` Use só as rubricas do pagamento (${initialAllocations.length}).`
+            : ""}
         </p>
       ) : null}
       {state.error ? (
