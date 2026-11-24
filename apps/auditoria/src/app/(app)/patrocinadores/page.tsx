@@ -7,6 +7,8 @@ import { excludeProjects, hiddenProjectIds } from "@/lib/compliance/over-limit-v
 import { findSponsorConflicts, summarizeSponsors } from "@/lib/sponsors";
 import { loadSponsorSyncStates, needsSponsorRefresh } from "@/lib/salic/sponsors-sync";
 import { SponsorSyncButton } from "@/components/SponsorSyncButton";
+import { ProponentSponsorsView } from "@/components/sponsors/ProponentSponsorsView";
+import { buildProponentAnalysis, conflictKey } from "@/lib/sponsors-by-proponent";
 
 export const dynamic = "force-dynamic";
 /** O botão "Buscar agora" roda aqui (até ~4 min). */
@@ -23,6 +25,8 @@ const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCa
 export default async function PatrocinadoresPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 120) : "";
+  const aba = sp.aba === "proponente" ? "proponente" : "patrocinador";
+  const selectedProponent = typeof sp.proponente === "string" ? sp.proponente : null;
   const { entitlements } = await getWorkspaceContext();
   const hidden = await hiddenProjectIds();
   const projectScope = {
@@ -30,7 +34,7 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
     ...excludeProjects(hidden),
   };
 
-  const [rows, syncStates] = await Promise.all([
+  const [rows, syncStates, scopedProjects] = await Promise.all([
     prisma.projectSponsorship.findMany({
       where: { project: projectScope },
       select: {
@@ -39,11 +43,22 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
         amount: true,
         receivedAt: true,
         project: { select: { id: true, pronac: true, name: true } },
+        projectId: true,
       },
     }),
     loadSponsorSyncStates(entitlements.workspaceId).then((all) => {
       const h = new Set(hidden);
       return all.filter((s) => !h.has(s.id));
+    }),
+    prisma.project.findMany({
+      where: projectScope,
+      select: {
+        id: true,
+        pronac: true,
+        name: true,
+        valorCaptado: true,
+        salicAccount: { select: { id: true, name: true, cgccpf: true } },
+      },
     }),
   ]);
   const pendingCount = syncStates.filter((s) => needsSponsorRefresh(s)).length;
@@ -69,19 +84,32 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
     : [];
   const supplierById = new Map(suppliers.map((s) => [s.id, s]));
   const conflictDocs = new Set<string>();
+  const conflictPairs = new Set<string>();
   for (const pid of projectIds) {
     const projSponsors = rows.filter((r) => r.project.id === pid);
     const projSuppliers = paid
       .filter((p) => p.projectId === pid)
       .map((p) => {
         const s = supplierById.get(p.supplierId);
-        return { cgccpf: s?.cgccpf || "", name: s?.name || "", total: Number(p._sum.amount || 0) };
+        return {
+          cgccpf: s?.cgccpf || "",
+          name: s?.name || "",
+          total: Number(p._sum.amount || 0),
+        };
       });
-    for (const c of findSponsorConflicts(projSponsors, projSuppliers)) conflictDocs.add(c.sponsorCgccpf);
+    for (const c of findSponsorConflicts(projSponsors, projSuppliers)) {
+      conflictDocs.add(c.sponsorCgccpf);
+      conflictPairs.add(conflictKey(pid, c.sponsorCgccpf));
+    }
   }
 
   type Sponsor = ReturnType<typeof summarizeSponsors>[number] & {
-    projects: Array<{ pronac: string; name: string | null; total: number; count: number }>;
+    projects: Array<{
+      pronac: string;
+      name: string | null;
+      total: number;
+      count: number;
+    }>;
     conflict: boolean;
   };
   const byDoc = new Map<string, typeof rows>();
@@ -91,7 +119,12 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
   }
   let sponsors: Sponsor[] = [...byDoc.entries()].map(([doc, list]) => {
     const [sum] = summarizeSponsors(
-      list.map((r) => ({ cgccpf: r.cgccpf, name: r.name, amount: Number(r.amount), receivedAt: r.receivedAt })),
+      list.map((r) => ({
+        cgccpf: r.cgccpf,
+        name: r.name,
+        amount: Number(r.amount),
+        receivedAt: r.receivedAt,
+      })),
     );
     const perProject = new Map<string, { pronac: string; name: string | null; total: number; count: number }>();
     for (const r of list) {
@@ -115,7 +148,38 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
   const grandTotal = sponsors.reduce((n, s) => n + s.total, 0);
   const conflictCount = sponsors.filter((s) => s.conflict).length;
 
-  if (q) {
+  const accountsById = new Map(scopedProjects.map((p) => [p.salicAccount.id, p.salicAccount]));
+  let proponents = buildProponentAnalysis({
+    accounts: [...accountsById.values()],
+    projects: scopedProjects.map((p) => ({
+      id: p.id,
+      pronac: p.pronac,
+      name: p.name,
+      accountId: p.salicAccount.id,
+      valorCaptado: p.valorCaptado != null ? Number(p.valorCaptado) : null,
+    })),
+    rows: rows.map((r) => ({
+      cgccpf: r.cgccpf,
+      name: r.name,
+      amount: Number(r.amount),
+      receivedAt: r.receivedAt,
+      projectId: r.projectId,
+    })),
+    conflicts: conflictPairs,
+  });
+  if (aba === "proponente" && q && !selectedProponent) {
+    const terms = plain(q).split(/\s+/).filter(Boolean);
+    const qDigits = normalizeCgccpf(q);
+    proponents = proponents.filter((p) => {
+      const hay = plain(`${p.name} ${p.sponsors.map((s) => s.name).join(" ")}`);
+      return (
+        (qDigits.length >= 3 && (p.cgccpf.includes(qDigits) || p.sponsors.some((s) => s.cgccpf.includes(qDigits)))) ||
+        terms.every((t) => hay.includes(t))
+      );
+    });
+  }
+
+  if (q && aba === "patrocinador") {
     const terms = plain(q).split(/\s+/).filter(Boolean);
     const qDigits = normalizeCgccpf(q);
     sponsors = sponsors.filter((s) => {
@@ -133,12 +197,20 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
       />
 
       <section className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Patrocinadores" value={String(byDoc.size)} hint={`${projectIds.length} projeto(s) com captação`} />
+        <StatCard
+          label="Patrocinadores"
+          value={String(byDoc.size)}
+          hint={`${projectIds.length} projeto(s) com captação`}
+        />
         <StatCard label="Total aportado" value={formatCurrency(grandTotal)} hint="Soma de todos os aportes" />
         <StatCard
           label="Também receberam"
           value={String(conflictCount)}
-          hint={conflictCount ? "Patrocinaram e receberam pagamento do mesmo projeto" : "Nenhum patrocinador recebeu pagamento"}
+          hint={
+            conflictCount
+              ? "Patrocinaram e receberam pagamento do mesmo projeto"
+              : "Nenhum patrocinador recebeu pagamento"
+          }
         />
       </section>
 
@@ -166,59 +238,73 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
         {pendingCount > 0 ? <SponsorSyncButton pending={pendingCount} /> : null}
       </section>
 
-      <section className="card overflow-hidden">
-        <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
-          <form action="/patrocinadores" className="flex max-w-xl gap-2">
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="Patrocinador, CNPJ, PRONAC ou projeto"
-              className="flex-1"
-              aria-label="Buscar patrocinador"
-            />
-            <button type="submit" className="btn">
-              Buscar
-            </button>
-          </form>
-        </div>
-        {sponsors.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-[var(--gray-500)]">
-            {q ? `Nenhum patrocinador encontrado para “${q}”.` : "Nenhum patrocinador encontrado ainda."}
-          </p>
-        ) : (
-          <ul className="divide-y divide-[var(--border)]">
-            {sponsors.map((s) => (
-              <li key={s.cgccpf || s.name} className="px-5 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-[var(--navy)]">
-                      {s.name}
-                      {s.conflict ? (
-                        <span className="badge badge-warn ml-2 align-middle">Também recebeu pagamento</span>
-                      ) : null}
-                    </p>
-                    <p className="mt-0.5 text-sm text-[var(--gray-500)]">
-                      {formatCgccpf(s.cgccpf)} · {s.count} aporte{s.count === 1 ? "" : "s"} em {s.projects.length}{" "}
-                      PRONAC{s.projects.length === 1 ? "" : "s"}
-                    </p>
+      <nav className="accounts-tabs" aria-label="Visualização dos patrocinadores">
+        <Link href="/patrocinadores" aria-current={aba === "patrocinador" ? "page" : undefined}>
+          Por patrocinador
+        </Link>
+        <Link href="/patrocinadores?aba=proponente" aria-current={aba === "proponente" ? "page" : undefined}>
+          Por proponente ({accountsById.size})
+        </Link>
+      </nav>
+
+      {aba === "proponente" ? (
+        <ProponentSponsorsView proponents={proponents} selectedId={selectedProponent} q={q} />
+      ) : (
+        <section className="card overflow-hidden">
+          <div className="border-b border-[var(--border)] bg-[var(--navy-soft)]/50 px-5 py-4">
+            <form action="/patrocinadores" className="flex max-w-xl gap-2">
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder="Patrocinador, CNPJ, PRONAC ou projeto"
+                className="flex-1"
+                aria-label="Buscar patrocinador"
+              />
+              <button type="submit" className="btn">
+                Buscar
+              </button>
+            </form>
+          </div>
+          {sponsors.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-[var(--gray-500)]">
+              {q ? `Nenhum patrocinador encontrado para “${q}”.` : "Nenhum patrocinador encontrado ainda."}
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--border)]">
+              {sponsors.map((s) => (
+                <li key={s.cgccpf || s.name} className="px-5 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[var(--navy)]">
+                        {s.name}
+                        {s.conflict ? (
+                          <span className="badge badge-warn ml-2 align-middle">Também recebeu pagamento</span>
+                        ) : null}
+                      </p>
+                      <p className="mt-0.5 text-sm text-[var(--gray-500)]">
+                        {formatCgccpf(s.cgccpf)} · {s.count} aporte
+                        {s.count === 1 ? "" : "s"} em {s.projects.length} PRONAC
+                        {s.projects.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <p className="font-semibold text-[var(--navy)]">{formatCurrency(s.total)}</p>
                   </div>
-                  <p className="font-semibold text-[var(--navy)]">{formatCurrency(s.total)}</p>
-                </div>
-                <PronacChips projects={s.projects.slice(0, VISIBLE_PRONACS)} />
-                {s.projects.length > VISIBLE_PRONACS ? (
-                  <details className="group mt-2">
-                    <summary className="cursor-pointer text-sm font-medium text-[var(--navy)] hover:underline">
-                      <span className="group-open:hidden">Ver todos os {s.projects.length} PRONACs</span>
-                      <span className="hidden group-open:inline">Recolher</span>
-                    </summary>
-                    <PronacChips projects={s.projects.slice(VISIBLE_PRONACS)} />
-                  </details>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                  <PronacChips projects={s.projects.slice(0, VISIBLE_PRONACS)} />
+                  {s.projects.length > VISIBLE_PRONACS ? (
+                    <details className="group mt-2">
+                      <summary className="cursor-pointer text-sm font-medium text-[var(--navy)] hover:underline">
+                        <span className="group-open:hidden">Ver todos os {s.projects.length} PRONACs</span>
+                        <span className="hidden group-open:inline">Recolher</span>
+                      </summary>
+                      <PronacChips projects={s.projects.slice(VISIBLE_PRONACS)} />
+                    </details>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -229,7 +315,12 @@ const VISIBLE_PRONACS = 3;
 function PronacChips({
   projects,
 }: {
-  projects: Array<{ pronac: string; name: string | null; total: number; count: number }>;
+  projects: Array<{
+    pronac: string;
+    name: string | null;
+    total: number;
+    count: number;
+  }>;
 }) {
   return (
     <ul className="mt-2 flex flex-wrap gap-2">
