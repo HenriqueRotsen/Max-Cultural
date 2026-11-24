@@ -20,12 +20,15 @@ export function SponsorSyncButton({ pending }: { pending: number }) {
             setMsg(null);
             try {
               const r = await syncPendingSponsorsAction();
+              const falhas = r.failures.length
+                ? ` Sem resposta para: ${r.failures.map((f) => f.pronac).join(", ")}.`
+                : "";
               setMsg(
-                r.apiDown
+                (r.apiDown
                   ? `O SALIC parou de responder. ${r.updated} projeto(s) atualizado(s); o resto fica para a rotina diária.`
                   : r.remaining > 0
                     ? `${r.updated} projeto(s) atualizado(s). Faltam ${r.remaining}: clique de novo para continuar.`
-                    : `${r.updated} projeto(s) atualizado(s).`,
+                    : `${r.updated} projeto(s) atualizado(s).`) + falhas,
               );
             } catch {
               setMsg("Não foi possível buscar agora. Tente de novo em alguns minutos.");

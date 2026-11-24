@@ -110,3 +110,15 @@ describe("quando buscar de novo os patrocinadores", () => {
     ).toBe(true);
   });
 });
+
+describe("falha de um PRONAC não trava a fila", () => {
+  it("4xx é do projeto; 429, 5xx e timeout contam como API fora", async () => {
+    const { isProjectLevelError } = await import("@/lib/salic/sponsors-sync");
+    expect(isProjectLevelError("SALIC API 404 https://x/projetos/123: {}")).toBe(true);
+    expect(isProjectLevelError("SALIC API 400 https://x/projetos/123: {}")).toBe(true);
+    expect(isProjectLevelError("SALIC API 429 https://x/projetos/123: {}")).toBe(false);
+    expect(isProjectLevelError("SALIC API 503 https://x/projetos/123: {}")).toBe(false);
+    expect(isProjectLevelError("Timeout na API SALIC após 20s")).toBe(false);
+    expect(isProjectLevelError("")).toBe(false);
+  });
+});
