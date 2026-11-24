@@ -24,6 +24,7 @@ const auditoriaLinks = [
   { href: "/panorama", label: "Panorama geral", icon: ChartIcon, group: "Analisar" },
   { href: "/fornecedores-pagos", label: "Fornecedores pagos", icon: PackageIcon, group: "Analisar" },
   { href: "/patrocinadores", label: "Patrocinadores", icon: SponsorIcon, group: "Analisar" },
+  { href: "/captado-pago", label: "Captado × pago", icon: ScaleIcon, group: "Analisar" },
   { href: "/observados", label: "Observados", icon: UsersIcon, group: "Cadastros" },
   { href: "/agencias", label: "Agências", icon: PercentIcon, group: "Cadastros" },
   { href: "/contas/mapa", label: "Mapa societário", icon: MapIcon, group: "Cadastros" },
@@ -328,6 +329,15 @@ function SponsorIcon({ active }: { active?: boolean }) {
         strokeLinejoin="round"
       />
       <path d="M12 11v4M10 13h4" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ScaleIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 4v16M7 20h10M5 7h14" stroke={stroke(active)} strokeWidth="1.7" strokeLinecap="round" />
+      <path d="m5 7-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6Z" stroke={stroke(active, true)} strokeWidth="1.7" strokeLinejoin="round" />
     </svg>
   );
 }

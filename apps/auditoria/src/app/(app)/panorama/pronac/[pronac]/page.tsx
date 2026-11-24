@@ -37,6 +37,8 @@ import { mapWindowForProject, periodsInYears } from "@/lib/corporate/at-year";
 import { CorporateMapYearChip } from "@/components/CorporateMapYearChip";
 import { proponentByWatchedId } from "@/lib/corporate/map-owner";
 import { findBondHints } from "@/lib/corporate/bond-hints";
+import { loadReconciliation } from "@/lib/reconciliation-data";
+import { ReconciliationCard } from "@/components/reconciliation/ReconciliationNotes";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +108,10 @@ export default async function PronacDetailPage({
     }),
     listWatchedSuppliers(workspaceId),
   ]);
+  // Captado × pago usa todos os pagamentos do projeto (sem o filtro de datas da tela).
+  const reconciliation = detail.projectId
+    ? (await loadReconciliation({ workspaceId, projectIds: [detail.projectId] }))[0]
+    : undefined;
 
   const baseQuery = new URLSearchParams();
   if (accountId) baseQuery.set("accountId", accountId);
@@ -427,6 +433,8 @@ export default async function PronacDetailPage({
               hint={`${detail.allSuppliers.length} fornecedor${detail.allSuppliers.length === 1 ? "" : "es"}`}
             />
           </section>
+
+          {reconciliation ? <ReconciliationCard r={reconciliation} /> : null}
 
           <VinculoSection
             step={1}
