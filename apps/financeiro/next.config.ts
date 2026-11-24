@@ -61,6 +61,8 @@ const nextConfig: NextConfig = {
           cspExtras: {
             // Tiles Leaflet (OSM.de — gratuito, sem API key).
             imgSrc: ["https://tile.openstreetmap.de"],
+            // Prévia do PDF escolhido antes de enviar (arquivo local do navegador).
+            frameSrc: ["blob:"],
           },
         }),
       },

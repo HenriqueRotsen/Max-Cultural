@@ -7,6 +7,7 @@ import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton"
 import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
+import { TAX_DOC_TYPES, TAX_KIND_LABELS, isTaxKind, type TaxDocType } from "@/lib/planning/tax-docs";
 import { SupportDocsCard } from "@/components/planning/SupportDocsCard";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
@@ -130,7 +131,30 @@ export default async function CompromissoPage({
   const hasPaymentProof = commitment.documents.some(
     (d) => d.kind === "PAYMENT_PROOF",
   );
-  const hasTaxProof = commitment.documents.some((d) => d.kind === "TAX_PROOF");
+  // Impostos lançados: os do atalho (ligados à NF) e os antigos do lançamento.
+  const taxDocRows = await prisma.planningDocument.findMany({
+    where: {
+      workspaceId: entitlements.workspaceId,
+      kind: "TAX_PROOF",
+      OR: [
+        { commitmentId: commitment.id },
+        ...(sourceDocumentId ? [{ sourceDocumentId }] : []),
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, filename: true, extractedJson: true, grossAmount: true, createdAt: true },
+  });
+  const taxDocs = taxDocRows.map((d) => {
+    const ext = (d.extractedJson ?? {}) as { taxKind?: string; taxDocType?: string; amount?: number | null };
+    const kind = ext.taxKind && isTaxKind(ext.taxKind) ? TAX_KIND_LABELS[ext.taxKind] : null;
+    const type =
+      ext.taxDocType && ext.taxDocType in TAX_DOC_TYPES
+        ? TAX_DOC_TYPES[ext.taxDocType as TaxDocType]
+        : "Guia";
+    const amount =
+      ext.taxDocType === "COMPROVANTE" && ext.amount ? ext.amount : d.grossAmount != null ? Number(d.grossAmount) : null;
+    return { id: d.id, title: kind ? `${kind} · ${type}` : `${type} · ${d.filename}`, amount, createdAt: d.createdAt };
+  });
   const nfHasLinkedProof = sourceNf
     ? (await prisma.planningDocument.count({
         where: {
@@ -465,24 +489,32 @@ export default async function CompromissoPage({
               Lançar imposto (guia, nota e comprovante)
             </Link>
           ) : null}
-          {hasTaxProof ? (
-            <p className="text-sm text-emerald-700">Guia(s) anexada(s).</p>
-          ) : sourceNf || commitment.nfPending ? (
-            <ProofUploadForm
-              commitmentId={commitment.id}
-              kind="TAX_PROOF"
-              label="PDF ou imagem da guia/DARF"
-              hint={
-                multiRubric
-                  ? "Também segue o mesmo rateio da NF/RPA."
-                  : commitment.nfPending
-                    ? "Pode anexar antes da NF; será vinculado ao compromisso."
-                    : undefined
-              }
-            />
+          {taxDocs.length > 0 ? (
+            <ul className="divide-y divide-[var(--gray-100)] text-sm">
+              {taxDocs.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-3 py-2">
+                  <span>
+                    <span className="font-medium text-[var(--navy)]">{d.title}</span>
+                    {d.amount != null ? (
+                      <span className="text-[var(--gray-500)]"> · {formatCurrency(d.amount)}</span>
+                    ) : null}
+                    <span className="block text-xs text-[var(--gray-500)]">
+                      Lançado em {formatDate(d.createdAt)}
+                    </span>
+                  </span>
+                  <a
+                    href={`/api/planning/documents/${d.id}`}
+                    target="_blank"
+                    className="shrink-0 text-xs font-semibold text-[var(--navy)] hover:underline"
+                  >
+                    Ver arquivo
+                  </a>
+                </li>
+              ))}
+            </ul>
           ) : (
             <p className="text-sm text-[var(--gray-500)]">
-              Disponível após confirmar a NF/RPA.
+              {sourceNf ? "Nenhum imposto lançado ainda." : "Disponível após confirmar a NF/RPA."}
             </p>
           )}
         </div>

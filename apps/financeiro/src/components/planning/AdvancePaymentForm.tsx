@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { SearchSelect } from "@max/ui";
 import { uploadAdvancePayment } from "@/lib/planning/manual-commitment";
 import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
 import { SUPPORT_LABEL, SUPPORT_TYPES } from "@/lib/planning/support-docs";
@@ -248,14 +249,14 @@ export function AdvancePaymentForm({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="field">
                 <span>Tipo</span>
-                <select name="supportType" defaultValue="">
-                  <option value="">Nenhum</option>
-                  {SUPPORT_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {SUPPORT_LABEL[t]}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  name="supportType"
+                  options={SUPPORT_TYPES.map((t) => ({ value: t, label: SUPPORT_LABEL[t] }))}
+                  emptyOption="Nenhum"
+                  placeholder="Nenhum"
+                  searchPlaceholder="Buscar tipo…"
+                  emptyText="Nenhum tipo encontrado."
+                />
               </label>
               <label className="field">
                 <span>Arquivo</span>

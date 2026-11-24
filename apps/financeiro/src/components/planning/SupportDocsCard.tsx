@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { SearchSelect } from "@max/ui";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
 import { attachSupportDocument, removeSupportDocument } from "@/lib/planning/support-actions";
@@ -106,19 +107,16 @@ export function SupportDocsCard({
           ) : null}
           <label className="field">
             <span>Tipo</span>
-            <select
+            <SearchSelect
               name="supportType"
               required
               value={type}
-              onChange={(e) => setType(e.target.value as SupportType | "")}
-            >
-              <option value="">Escolha…</option>
-              {SUPPORT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {SUPPORT_LABEL[t]}
-                </option>
-              ))}
-            </select>
+              onValueChange={(v) => setType(v as SupportType | "")}
+              options={SUPPORT_TYPES.map((t) => ({ value: t, label: SUPPORT_LABEL[t] }))}
+              placeholder="Escolha…"
+              searchPlaceholder="Buscar tipo…"
+              emptyText="Nenhum tipo encontrado."
+            />
           </label>
           <label className="field">
             <span>Arquivo (PDF ou imagem)</span>
