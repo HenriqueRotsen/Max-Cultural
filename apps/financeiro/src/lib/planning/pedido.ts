@@ -169,6 +169,8 @@ export async function createPedido(
     const bal = balance.lines.get(lineId)!;
     bal.reserved += amount;
     bal.available -= amount;
+    // O teto do projeto vale para o contrato inteiro, não só para cada rubrica.
+    balance.totalReserved += amount;
   }
 
   const isReimbursement = readReimbursementAnswer(formData);
@@ -233,6 +235,7 @@ export async function createPedido(
         const bal = liveBalance.lines.get(lineId)!;
         bal.reserved += amount;
         bal.available -= amount;
+        liveBalance.totalReserved += amount;
       }
 
       const supplier = await tx.catalogSupplier.upsert({

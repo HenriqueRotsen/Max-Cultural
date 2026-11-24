@@ -136,6 +136,7 @@ export function NfReviewForm({
   suggestionReasons,
   attachCommitmentId,
   attachPedidoId,
+  initialHasBond = false,
   attachAmount,
   initialAllocations,
   defaultExpectedPayAt,
@@ -161,6 +162,8 @@ export function NfReviewForm({
   attachCommitmentId?: string | null;
   /** Vincula NF a um Pedido (parcelas já reservadas). */
   attachPedidoId?: string | null;
+  /** Anexar a uma reserva ou pagamento: o vínculo já marcado vem preenchido. */
+  initialHasBond?: boolean;
   attachAmount?: number | null;
   /** Rateio do comprovante de pagamento antecipado. */
   initialAllocations?: Array<{
@@ -677,6 +680,7 @@ export function NfReviewForm({
       <ToggleSwitch
         boxed
         name="hasBond"
+        defaultChecked={initialHasBond}
         label="Vínculo com o proponente"
         description="Este fornecedor tem vínculo com o proponente nesta IN (conta no teto do proponente / Observado)."
       />

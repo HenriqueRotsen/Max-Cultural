@@ -1906,10 +1906,17 @@ export async function uploadPaymentProof(
     siblingAllocs.reduce((s, a) => s + Number(a.amount), 0) ||
     Number(sourceNf.grossAmount ?? commitment.amount);
 
+  // Imposto retido na nota: o fornecedor recebe o líquido (o imposto vai por guia).
+  const retainedOnPayment = siblingAllocs.reduce(
+    (s, a) => s + taxTotalOf(((a as { taxesJson?: unknown }).taxesJson ?? null) as Parameters<typeof taxTotalOf>[0]),
+    0,
+  );
+
   if (kind === "PAYMENT_PROOF") {
     const amountReview = reviewPaymentAmount({
       extractedAmount: proofExtracted.amount,
       expectedAmount: expectedPaymentAmount,
+      retainedTax: retainedOnPayment,
       typedAmount: parseTypedAmount(formData.get("typedAmount")),
       hasFine: formData.get("hasFine") === "on",
       expectedLabel: pedidoNf ? "da parcela" : undefined,
