@@ -80,7 +80,17 @@ export type SponsorSyncResult = {
   /** Ficaram para a próxima (tempo esgotado ou API fora). */
   remaining: number;
   apiDown: boolean;
+  /** PRONACs que falharam nesta rodada e o motivo. */
+  failures: Array<{ pronac: string; error: string }>;
 };
+
+/**
+ * Erro do próprio PRONAC (4xx: a API respondeu, mas não para este projeto).
+ * Não conta como "API fora do ar" — senão um projeto quebrado trava a fila toda.
+ */
+export function isProjectLevelError(message: string): boolean {
+  return /SALIC API 4\d\d\b/.test(message) && !/SALIC API 429\b/.test(message);
+}
 
 /**
  * Busca, na API pública do SALIC, os patrocinadores dos projetos que precisam
@@ -111,20 +121,34 @@ export async function syncPendingSponsors(params: {
   let failStreak = 0;
   let next = 0;
   let apiDown = false;
+  const failures: Array<{ pronac: string; error: string }> = [];
 
   const worker = async () => {
     while (next < queue.length) {
       if (apiDown || Date.now() - started > budgetMs) return;
       const item = queue[next++]!;
+      let reason = "";
       const n = await refreshProjectSponsors({
         projectId: item.id,
         pronac: item.pronac,
-        apiOptions: { timeoutMs: 20_000, maxAttempts: 2 },
-      }).catch(() => null);
+        apiOptions: {
+          timeoutMs: 20_000,
+          maxAttempts: 2,
+          onError: (e) => {
+            reason = e instanceof Error ? e.message : String(e);
+          },
+        },
+      }).catch((e: unknown) => {
+        reason = e instanceof Error ? e.message : String(e);
+        return null;
+      });
       if (n == null) {
         failed++;
-        failStreak++;
-        if (failStreak >= 3) apiDown = true;
+        failures.push({ pronac: item.pronac, error: (reason || "sem resposta").slice(0, 300) });
+        if (!isProjectLevelError(reason)) {
+          failStreak++;
+          if (failStreak >= 3) apiDown = true;
+        }
       } else {
         updated++;
         failStreak = 0;
@@ -139,5 +163,6 @@ export async function syncPendingSponsors(params: {
     failed,
     remaining: queue.length - updated,
     apiDown,
+    failures,
   };
 }

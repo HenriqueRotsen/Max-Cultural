@@ -47,6 +47,7 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
     }),
   ]);
   const pendingCount = syncStates.filter((s) => needsSponsorRefresh(s)).length;
+  const neverPronacs = [...new Set(syncStates.filter((s) => !s.sponsorsSyncedAt).map((s) => s.pronac))].sort();
   const neverCount = syncStates.filter((s) => !s.sponsorsSyncedAt).length;
   const captadoTotal = syncStates.reduce((n, s) => n + (s.valorCaptado ?? 0), 0);
 
@@ -80,7 +81,7 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
   }
 
   type Sponsor = ReturnType<typeof summarizeSponsors>[number] & {
-    projects: Array<{ pronac: string; name: string | null; total: number }>;
+    projects: Array<{ pronac: string; name: string | null; total: number; count: number }>;
     conflict: boolean;
   };
   const byDoc = new Map<string, typeof rows>();
@@ -92,10 +93,16 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
     const [sum] = summarizeSponsors(
       list.map((r) => ({ cgccpf: r.cgccpf, name: r.name, amount: Number(r.amount), receivedAt: r.receivedAt })),
     );
-    const perProject = new Map<string, { pronac: string; name: string | null; total: number }>();
+    const perProject = new Map<string, { pronac: string; name: string | null; total: number; count: number }>();
     for (const r of list) {
-      const cur = perProject.get(r.project.pronac) || { pronac: r.project.pronac, name: r.project.name, total: 0 };
+      const cur = perProject.get(r.project.pronac) || {
+        pronac: r.project.pronac,
+        name: r.project.name,
+        total: 0,
+        count: 0,
+      };
       cur.total += Number(r.amount);
+      cur.count += 1;
       perProject.set(r.project.pronac, cur);
     }
     return {
@@ -152,6 +159,9 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
                   .filter(Boolean)
                   .join(" e ") + "."}
           </p>
+          {neverPronacs.length ? (
+            <p className="mt-0.5 text-xs text-[var(--gray-500)]">Sem busca: PRONAC {neverPronacs.join(", ")}</p>
+          ) : null}
         </div>
         {pendingCount > 0 ? <SponsorSyncButton pending={pendingCount} /> : null}
       </section>
@@ -188,29 +198,53 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
                       ) : null}
                     </p>
                     <p className="mt-0.5 text-sm text-[var(--gray-500)]">
-                      {formatCgccpf(s.cgccpf)} · {s.count} aporte{s.count === 1 ? "" : "s"}
+                      {formatCgccpf(s.cgccpf)} · {s.count} aporte{s.count === 1 ? "" : "s"} em {s.projects.length}{" "}
+                      PRONAC{s.projects.length === 1 ? "" : "s"}
                     </p>
                   </div>
                   <p className="font-semibold text-[var(--navy)]">{formatCurrency(s.total)}</p>
                 </div>
-                <ul className="mt-2 flex flex-wrap gap-2">
-                  {s.projects.map((p) => (
-                    <li key={p.pronac}>
-                      <Link
-                        href={`/panorama/pronac/${p.pronac}?tab=patrocinadores`}
-                        className="badge badge-muted hover:underline"
-                        title={p.name || undefined}
-                      >
-                        PRONAC {p.pronac} · {formatCurrency(p.total)}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <PronacChips projects={s.projects.slice(0, VISIBLE_PRONACS)} />
+                {s.projects.length > VISIBLE_PRONACS ? (
+                  <details className="group mt-2">
+                    <summary className="cursor-pointer text-sm font-medium text-[var(--navy)] hover:underline">
+                      <span className="group-open:hidden">Ver todos os {s.projects.length} PRONACs</span>
+                      <span className="hidden group-open:inline">Recolher</span>
+                    </summary>
+                    <PronacChips projects={s.projects.slice(VISIBLE_PRONACS)} />
+                  </details>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
       </section>
     </div>
+  );
+}
+
+/** PRONACs mostrados antes de "Ver todos". */
+const VISIBLE_PRONACS = 3;
+
+function PronacChips({
+  projects,
+}: {
+  projects: Array<{ pronac: string; name: string | null; total: number; count: number }>;
+}) {
+  return (
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {projects.map((p) => (
+        <li key={p.pronac}>
+          <Link
+            href={`/panorama/pronac/${p.pronac}?tab=patrocinadores`}
+            className="badge badge-muted hover:underline"
+            title={p.name || undefined}
+          >
+            PRONAC {p.pronac} · {formatCurrency(p.total)}
+            {p.count > 1 ? ` · ${p.count} aportes` : ""}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

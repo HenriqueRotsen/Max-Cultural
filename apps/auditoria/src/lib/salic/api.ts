@@ -262,7 +262,7 @@ export type SalicCaptacao = {
  */
 export async function listCaptacoesByPronac(
   pronac: string,
-  options?: { timeoutMs?: number; maxAttempts?: number },
+  options?: { timeoutMs?: number; maxAttempts?: number; onError?: (error: unknown) => void },
 ): Promise<SalicCaptacao[] | null> {
   try {
     const detail = await salicFetch<{ _embedded?: { captacoes?: SalicCaptacao[] } }>(
@@ -272,7 +272,8 @@ export async function listCaptacoesByPronac(
       options,
     );
     return detail._embedded?.captacoes ?? [];
-  } catch {
+  } catch (error) {
+    options?.onError?.(error);
     return null;
   }
 }

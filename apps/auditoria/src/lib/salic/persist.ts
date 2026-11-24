@@ -76,7 +76,7 @@ export function salicDayAtNoon(value?: string | null): Date | null {
 export async function refreshProjectSponsors(params: {
   projectId: string;
   pronac: string;
-  apiOptions?: { timeoutMs?: number; maxAttempts?: number };
+  apiOptions?: { timeoutMs?: number; maxAttempts?: number; onError?: (error: unknown) => void };
 }): Promise<number | null> {
   const { listCaptacoesByPronac } = await import("@/lib/salic/api");
   const captacoes = await listCaptacoesByPronac(params.pronac, params.apiOptions);
