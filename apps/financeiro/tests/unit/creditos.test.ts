@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { suggestTaxByRubric, taxGuideTotal, validateTaxGuideItems } from "@/lib/planning/tax-docs";
 import {
   creditRemaining,
   fiscalRemaining,
@@ -81,5 +82,41 @@ describe("imposto de um pagamento", () => {
     const { retainedTaxes } = await import("@/lib/planning/tax-docs");
     expect(retainedTaxes({ iss: 50, inss: 0, irrf: 15.3, pis: null }).map((t) => t.label)).toEqual(["ISS", "IRRF"]);
     expect(retainedTaxes(null)).toEqual([]);
+  });
+});
+
+describe("guia de imposto por rubrica", () => {
+  const rubrics = [
+    { allocationId: "a", label: "Hospedagem", amount: 1000 },
+    { allocationId: "b", label: "Alimentação", amount: 500 },
+  ];
+
+  it("sugere o imposto na proporção das rubricas, fechando os centavos", () => {
+    expect(suggestTaxByRubric(rubrics, 75)).toEqual({ a: 50, b: 25 });
+    const odd = suggestTaxByRubric(rubrics, 10);
+    expect(odd.a! + odd.b!).toBeCloseTo(10, 2);
+    expect(suggestTaxByRubric(rubrics, 0)).toEqual({});
+  });
+
+  it("confere os pagamentos da guia", () => {
+    expect(validateTaxGuideItems([])).toMatch(/ao menos um pagamento/);
+    expect(
+      validateTaxGuideItems([
+        { nfId: "n1", rubricas: [{ allocationId: "a", amount: 10 }] },
+        { nfId: "n1", rubricas: [{ allocationId: "b", amount: 5 }] },
+      ]),
+    ).toMatch(/duas vezes/);
+    expect(validateTaxGuideItems([{ nfId: "n1", rubricas: [{ allocationId: "a", amount: 0 }] }])).toMatch(
+      /ao menos uma rubrica/,
+    );
+    expect(validateTaxGuideItems([{ nfId: "n1", rubricas: [{ allocationId: "a", amount: -1 }] }])).toMatch(
+      /inválido/,
+    );
+    const ok = [
+      { nfId: "n1", rubricas: [{ allocationId: "a", amount: 50 }, { allocationId: "b", amount: 25 }] },
+      { nfId: "n2", rubricas: [{ allocationId: "c", amount: 30 }] },
+    ];
+    expect(validateTaxGuideItems(ok)).toBeNull();
+    expect(taxGuideTotal(ok)).toBe(105);
   });
 });

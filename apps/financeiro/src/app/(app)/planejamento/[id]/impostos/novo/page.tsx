@@ -45,6 +45,10 @@ export default async function NovoImpostoPage({
         select: { engagement: { select: { service: { select: { supplier: { select: { name: true } } } } } } },
       },
       derivedProofs: { where: { kind: "TAX_PROOF" }, select: { extractedJson: true } },
+      allocations: {
+        orderBy: { amount: "desc" },
+        select: { id: true, amount: true, budgetLine: { select: { itemName: true, stageName: true } } },
+      },
     },
   });
 
@@ -57,12 +61,18 @@ export default async function NovoImpostoPage({
         .map((p) => (p.extractedJson as { taxKind?: TaxKind } | null)?.taxKind)
         .filter((k): k is TaxKind => Boolean(k));
       const supplier = d.commitment?.engagement.service.supplier.name ?? "Fornecedor";
-      const taxText = taxes.length ? ` · ${taxes.map((t) => `${t.label} ${formatCurrency(t.amount)}`).join(", ")}` : "";
+      const taxText = taxes.length ? taxes.map((t) => `${t.label} ${formatCurrency(t.amount)}`).join(", ") : "sem imposto retido";
       return {
         nfId: d.id,
-        label: `${supplier} · ${d.kind}${number ? ` ${number}` : ""} · ${formatCurrency(Number(d.grossAmount ?? 0))}${taxText}`,
+        label: `${supplier} · ${d.kind}${number ? ` ${number}` : ""} · ${formatCurrency(Number(d.grossAmount ?? 0))}`,
+        hint: taxText,
         taxes,
         done,
+        rubrics: d.allocations.map((a) => ({
+          allocationId: a.id,
+          label: a.budgetLine.stageName ? `${a.budgetLine.itemName} (${a.budgetLine.stageName})` : a.budgetLine.itemName,
+          amount: Number(a.amount),
+        })),
       };
     })
     // Primeiro as notas com imposto retido ainda sem documentos.
@@ -83,7 +93,7 @@ export default async function NovoImpostoPage({
           </>
         }
         title="Imposto"
-        description="Escolha o pagamento e o imposto retido nele, e anexe a guia, a nota fiscal do imposto e o comprovante de pagamento do imposto."
+        description="Uma guia e um comprovante podem pagar o imposto de vários pagamentos. Escolha os pagamentos e diga quanto do imposto vai para cada rubrica."
       />
       <section className="card p-5">
         <TaxDocumentsForm planningProjectId={project.id} payments={payments} initialNfId={nf} />

@@ -142,18 +142,48 @@ export default async function CompromissoPage({
       ],
     },
     orderBy: { createdAt: "asc" },
-    select: { id: true, filename: true, extractedJson: true, grossAmount: true, createdAt: true },
+    select: {
+      id: true,
+      filename: true,
+      extractedJson: true,
+      grossAmount: true,
+      createdAt: true,
+      allocations: { where: { commitmentId: commitment.id }, select: { amount: true } },
+    },
   });
   const taxDocs = taxDocRows.map((d) => {
-    const ext = (d.extractedJson ?? {}) as { taxKind?: string; taxDocType?: string; amount?: number | null };
+    const ext = (d.extractedJson ?? {}) as {
+      taxKind?: string;
+      taxDocType?: string;
+      amount?: number | null;
+      guidePayments?: number;
+      guideTotal?: number;
+      taxGroupId?: string;
+    };
     const kind = ext.taxKind && isTaxKind(ext.taxKind) ? TAX_KIND_LABELS[ext.taxKind] : null;
     const type =
       ext.taxDocType && ext.taxDocType in TAX_DOC_TYPES
         ? TAX_DOC_TYPES[ext.taxDocType as TaxDocType]
         : "Guia";
+    // Valor desta rubrica (a guia pode dividir o imposto entre rubricas e pagamentos).
     const amount =
-      ext.taxDocType === "COMPROVANTE" && ext.amount ? ext.amount : d.grossAmount != null ? Number(d.grossAmount) : null;
-    return { id: d.id, title: kind ? `${kind} · ${type}` : `${type} · ${d.filename}`, amount, createdAt: d.createdAt };
+      ext.taxGroupId && d.allocations.length > 0
+        ? d.allocations.reduce((s, a) => s + Number(a.amount), 0)
+        : d.grossAmount != null
+          ? Number(d.grossAmount)
+          : null;
+    const shared =
+      ext.guidePayments && ext.guidePayments > 1 && ext.taxDocType !== "NF_IMPOSTO"
+        ? `Guia de ${ext.guidePayments} pagamentos${ext.guideTotal ? `, total ${formatCurrency(ext.guideTotal)}` : ""}`
+        : null;
+    return {
+      id: d.id,
+      title: kind ? `${kind} · ${type}` : `${type} · ${d.filename}`,
+      amount,
+      perRubric: Boolean(ext.taxGroupId),
+      shared,
+      createdAt: d.createdAt,
+    };
   });
   const nfHasLinkedProof = sourceNf
     ? (await prisma.planningDocument.count({
@@ -496,8 +526,9 @@ export default async function CompromissoPage({
                   <span>
                     <span className="font-medium text-[var(--navy)]">{d.title}</span>
                     {d.amount != null ? (
-                      <span className="text-[var(--gray-500)]"> · {formatCurrency(d.amount)}</span>
+                      <span className="text-[var(--gray-500)]"> · {formatCurrency(d.amount)}{d.perRubric ? " nesta rubrica" : ""}</span>
                     ) : null}
+                    {d.shared ? <span className="block text-xs text-[var(--gray-500)]">{d.shared}</span> : null}
                     <span className="block text-xs text-[var(--gray-500)]">
                       Lançado em {formatDate(d.createdAt)}
                     </span>
