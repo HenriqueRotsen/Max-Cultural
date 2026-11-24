@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { SearchSelect } from "@max/ui";
 import { MoneyInput } from "@/components/MoneyInput";
+import { formatCgccpfInput } from "@/lib/format";
 import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
 import { uploadTaxDocuments } from "@/lib/planning/tax-actions";
 import type { ActionState } from "@/lib/planning/action-state";
@@ -17,6 +18,8 @@ import {
 } from "@/lib/planning/tax-docs";
 
 const initial: ActionState = {};
+/** Impostos federais: a guia (DARF) vai para a Receita Federal. */
+const FEDERAL = new Set(["inss", "irrf", "pis", "cofins", "csll"]);
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export type TaxPaymentOption = {
@@ -91,6 +94,7 @@ export function TaxDocumentsForm({
     initialPayment ? [{ nfId: initialPayment.nfId, amounts: suggested(initialPayment, taxKind) }] : [],
   );
   const [files, setFiles] = useState<Record<string, Picked | null>>({});
+  const [payeeCnpj, setPayeeCnpj] = useState("");
   function pick(field: string, file: File | null) {
     setFiles((prev) => {
       if (prev[field]) URL.revokeObjectURL(prev[field]!.url);
@@ -104,6 +108,7 @@ export function TaxDocumentsForm({
     if (state.ok) {
       setFiles({});
       setItems([]);
+      setPayeeCnpj("");
     }
   }
 
@@ -172,6 +177,34 @@ export function TaxDocumentsForm({
           </div>
         ))}
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="field">
+          <span>Número da guia (opcional)</span>
+          <input name="guideNumber" placeholder="Ex.: 2026001234" />
+        </label>
+        <label className="field">
+          <span>CNPJ de quem recebe o imposto</span>
+          <input
+            name="payeeCnpj"
+            value={payeeCnpj}
+            onChange={(e) => setPayeeCnpj(formatCgccpfInput(e.target.value))}
+            placeholder={FEDERAL.has(taxKind) ? "Receita Federal, se vazio" : "CNPJ da prefeitura"}
+          />
+        </label>
+        <label className="field">
+          <span>Nome de quem recebe</span>
+          <input
+            name="payeeName"
+            placeholder={FEDERAL.has(taxKind) ? "Receita Federal do Brasil" : "Ex.: Prefeitura de Fortaleza"}
+          />
+        </label>
+      </div>
+      <p className="-mt-3 text-xs text-[var(--gray-500)]">
+        No SALIC a guia é um lançamento próprio, com quem recebe o imposto como fornecedor. Se o CNPJ
+        ficar vazio, o sistema usa o que aparece na guia
+        {FEDERAL.has(taxKind) ? " (ou a Receita Federal)" : ""}.
+      </p>
 
       <section className="space-y-3">
         <div>

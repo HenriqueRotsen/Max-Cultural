@@ -514,7 +514,8 @@ export async function attachNfToPedido(params: {
     existing: pedido.commitments,
     hasBond,
     isReimbursement,
-    amount: grossAmount,
+    // Limites contam o líquido: o imposto retido vai por guia.
+    amount: grossAmount - taxTotalOf(taxesFromForm),
     cnpj,
     supplierName,
   });
@@ -696,6 +697,10 @@ export async function attachNfToPedido(params: {
     // Unique constraint if duplicate lines mishandled
     throw err;
   }
+
+  // Parcela já paga e enviada ao SALIC sem a NF: o PDF muda, fica para atualizar.
+  const { markGroupForRepublish } = await import("@/lib/planning/support-attach");
+  await markGroupForRepublish(pedido.commitments.map((c) => c.id));
 
   revalidatePedido(pedido.planningProjectId, pedido.id);
   redirect(`/planejamento/${pedido.planningProjectId}/pedidos/${pedido.id}`);

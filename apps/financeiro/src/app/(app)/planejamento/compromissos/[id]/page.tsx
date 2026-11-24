@@ -9,13 +9,15 @@ import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
 import { TAX_DOC_TYPES, TAX_KIND_LABELS, isTaxKind, type TaxDocType } from "@/lib/planning/tax-docs";
 import { SupportDocsCard } from "@/components/planning/SupportDocsCard";
+import { SalicUpdateCard } from "@/components/planning/SalicUpdateCard";
+import { pendingSalicPackagesForCommitment } from "@/lib/planning/federal/salic-publish";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { resolveFiscalNumberFromExtracted } from "@/lib/nf/fiscal-number";
-import { canDeleteNf, canDeletePaidPayment } from "@/lib/planning/acl";
+import { canDeleteNf, canDeletePaidPayment, canPublishToSalic } from "@/lib/planning/acl";
 import { DeletePaidPaymentButton } from "@/components/planning/DeletePaidPaymentButton";
 import {
   commitmentStatusLabel,
@@ -148,10 +150,15 @@ export default async function CompromissoPage({
       extractedJson: true,
       grossAmount: true,
       createdAt: true,
+      commitmentId: true,
+      salicComprovanteId: true,
       allocations: { where: { commitmentId: commitment.id }, select: { amount: true } },
     },
   });
-  const taxDocs = taxDocRows.map((d) => {
+  const taxDocs = taxDocRows
+    // Guia dividida por rubrica: aqui só a parte desta rubrica.
+    .filter((d) => !(d.extractedJson as { taxSlot?: string } | null)?.taxSlot || d.commitmentId === commitment.id)
+    .map((d) => {
     const ext = (d.extractedJson ?? {}) as {
       taxKind?: string;
       taxDocType?: string;
@@ -181,6 +188,12 @@ export default async function CompromissoPage({
       title: kind ? `${kind} · ${type}` : `${type} · ${d.filename}`,
       amount,
       perRubric: Boolean(ext.taxGroupId),
+      salic:
+        ext.taxDocType === "COMPROVANTE" && (d.extractedJson as { taxSlot?: string } | null)?.taxSlot
+          ? d.salicComprovanteId
+            ? "No SALIC"
+            : "Falta enviar ao SALIC"
+          : null,
       shared,
       createdAt: d.createdAt,
     };
@@ -232,6 +245,13 @@ export default async function CompromissoPage({
   });
 
   const canCancelReservation = await canDeleteNf();
+  // SALIC: o que mudou depois do envio e as guias ainda não lançadas.
+  const salicUpdates = isFederalPlanning(commitment.planningProject.jurisdiction)
+    ? (await pendingSalicPackagesForCommitment(commitment.planningProject.id, commitment.id)).filter(
+        (p) => p.action === "REPUBLISH_MERGED" || p.isTax,
+      )
+    : [];
+  const canPublishSalic = salicUpdates.length > 0 ? await canPublishToSalic() : false;
   const allowDeletePaid =
     commitment.status === "PAID" &&
     !commitment.planningProject.closedAt &&
@@ -529,6 +549,13 @@ export default async function CompromissoPage({
                       <span className="text-[var(--gray-500)]"> · {formatCurrency(d.amount)}{d.perRubric ? " nesta rubrica" : ""}</span>
                     ) : null}
                     {d.shared ? <span className="block text-xs text-[var(--gray-500)]">{d.shared}</span> : null}
+                    {d.salic ? (
+                      <span
+                        className={`block text-xs ${d.salic === "No SALIC" ? "text-emerald-700" : "text-amber-800"}`}
+                      >
+                        {d.salic}
+                      </span>
+                    ) : null}
                     <span className="block text-xs text-[var(--gray-500)]">
                       Lançado em {formatDate(d.createdAt)}
                     </span>
@@ -551,6 +578,14 @@ export default async function CompromissoPage({
         </div>
       </div>
 
+      {salicUpdates.length > 0 ? (
+        <SalicUpdateCard
+          planningProjectId={commitment.planningProject.id}
+          commitmentId={commitment.id}
+          items={salicUpdates.map((p) => p.label)}
+          canPublish={canPublishSalic}
+        />
+      ) : null}
       {docErro ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           O pagamento foi registrado, mas o documento de apoio não entrou: {docErro} Anexe de novo

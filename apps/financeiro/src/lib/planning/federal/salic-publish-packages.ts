@@ -18,6 +18,9 @@ export type SalicPublishDoc = {
   supportType?: string | null;
   /** Comprovante: lançamentos do rateio. */
   allocations?: Array<{ commitmentId: string }>;
+  /** Guia de imposto: taxDocType, taxSlot, taxKind, amount… */
+  extractedJson?: unknown;
+  grossAmount?: unknown;
 };
 
 export type SalicPublishPackageAction =
@@ -38,7 +41,72 @@ export type SalicPublishPackage = {
   label: string;
   /** Documentos de apoio do pagamento (contrato, apólice, boleto…), na ordem do PDF. */
   supportIds: string[];
+  /** Guia de imposto (lançamento próprio no SALIC): guia + nota do imposto + comprovante. */
+  isTax?: boolean;
 };
+
+type TaxSlotJson = { taxDocType?: string; taxSlot?: string; taxKind?: string };
+
+function taxJson(d: SalicPublishDoc): TaxSlotJson {
+  return (d.extractedJson ?? {}) as TaxSlotJson;
+}
+
+const TAX_LABEL: Record<string, string> = {
+  iss: "ISS",
+  inss: "INSS",
+  irrf: "IRRF",
+  pis: "PIS",
+  cofins: "COFINS",
+  csll: "CSLL",
+  other: "Imposto",
+};
+
+/**
+ * Guias de imposto: cada parte (pagamento × rubrica) é um lançamento próprio
+ * no SALIC, ancorado no comprovante do imposto, com a guia na frente e a nota
+ * do imposto (se houver) no meio.
+ */
+function buildTaxPackages(docs: SalicPublishDoc[]): SalicPublishPackage[] {
+  const out: SalicPublishPackage[] = [];
+  const slotDocs = docs.filter(
+    (d) => d.kind === "TAX_PROOF" && d.status === "IMPORTED" && taxJson(d).taxSlot,
+  );
+  for (const proof of slotDocs) {
+    const t = taxJson(proof);
+    if (t.taxDocType !== "COMPROVANTE") continue;
+    const same = slotDocs.filter((d) => taxJson(d).taxSlot === t.taxSlot);
+    const guia = same.find((d) => taxJson(d).taxDocType === "GUIA") ?? null;
+    const taxNf = same.filter((d) => taxJson(d).taxDocType === "NF_IMPOSTO");
+    const label = `Guia ${TAX_LABEL[t.taxKind ?? ""] ?? "de imposto"} + comprovante (${proof.filename})`;
+    if (proof.salicComprovanteId) {
+      if (!proof.salicRepublishPending) continue;
+      out.push({
+        proofId: proof.id,
+        proofFilename: proof.filename,
+        fiscalId: guia?.id ?? null,
+        fiscalFilename: guia?.filename ?? null,
+        action: "REPUBLISH_MERGED",
+        replaceSalicId: proof.salicComprovanteId,
+        supportIds: taxNf.map((d) => d.id),
+        label: `Republicar ${label}`,
+        isTax: true,
+      });
+      continue;
+    }
+    out.push({
+      proofId: proof.id,
+      proofFilename: proof.filename,
+      fiscalId: guia?.id ?? null,
+      fiscalFilename: guia?.filename ?? null,
+      action: "UPLOAD_MERGED",
+      replaceSalicId: null,
+      supportIds: taxNf.map((d) => d.id),
+      label,
+      isTax: true,
+    });
+  }
+  return out;
+}
 
 function isFiscal(kind: string) {
   return kind === "NF" || kind === "RPA";
@@ -156,7 +224,7 @@ export function buildSalicPublishPackages(docs: SalicPublishDoc[]): SalicPublish
     }
   }
 
-  return packages;
+  return [...packages, ...buildTaxPackages(docs)];
 }
 
 export function salicPublishPackageCount(docs: SalicPublishDoc[]): number {
@@ -178,4 +246,6 @@ export const SALIC_DOC_SELECT = {
   commitmentId: true,
   supportType: true,
   allocations: { select: { commitmentId: true } },
+  extractedJson: true,
+  grossAmount: true,
 } as const;

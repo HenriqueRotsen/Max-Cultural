@@ -53,7 +53,8 @@ export async function attachNfToCreditPartially(params: {
     })),
     hasBond: params.hasBond,
     isReimbursement: params.isReimbursement,
-    amount: params.grossAmount,
+    // Limites contam o líquido: o imposto retido vai por guia.
+    amount: params.grossAmount - taxTotalOf(params.taxesFromForm),
     cnpj: params.cnpj,
     supplierName: params.supplierName,
   });

@@ -13,6 +13,9 @@ import { hashDocumentContent } from "@/lib/nf/document-hash";
 import { extractProofFromBuffer } from "@/lib/nf/extract";
 import { checkProjectCodeInDocument } from "@/lib/nf/document-cross-check";
 import type { ActionState } from "@/lib/planning/action-state";
+import { cnpjsInText } from "@/lib/planning/support-docs";
+import { markGroupForRepublish } from "@/lib/planning/support-attach";
+import { normalizeCgccpf } from "@/lib/format";
 import {
   TAX_DOC_TYPES,
   TAX_KIND_LABELS,
@@ -26,6 +29,10 @@ import {
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const cents = (v: number) => Math.round(v * 100) / 100;
+
+/** Impostos federais: a guia (DARF) vai para a Receita Federal. */
+const FEDERAL_TAXES = new Set(["inss", "irrf", "pis", "cofins", "csll"]);
+const RECEITA_FEDERAL = { cnpj: "00394460005887", name: "Receita Federal do Brasil" };
 
 function parseItems(raw: string): TaxGuideItem[] | null {
   try {
@@ -59,6 +66,9 @@ export async function uploadTaxDocuments(
   const { entitlements } = await getWorkspaceContext();
   const taxKind = String(formData.get("taxKind") || "");
   if (!isTaxKind(taxKind)) return { error: "Escolha qual imposto." };
+  const guideNumber = String(formData.get("guideNumber") || "").trim() || null;
+  let payeeCnpj = normalizeCgccpf(String(formData.get("payeeCnpj") || ""));
+  let payeeName = String(formData.get("payeeName") || "").trim();
   const items = parseItems(String(formData.get("items") || "[]"));
   if (!items) return { error: "Não deu para ler os pagamentos da guia. Recarregue a página." };
   for (const it of items) it.rubricas = it.rubricas.filter((r) => r.amount !== 0);
@@ -122,6 +132,28 @@ export async function uploadTaxDocuments(
     filename: proofFile.name,
     mimeType: proofFile.type || "application/octet-stream",
   });
+  // Quem recebe o imposto (fornecedor do lançamento da guia no SALIC): o que a
+  // pessoa informou; senão, o CNPJ que aparece na guia; nos federais, a Receita.
+  if (!payeeCnpj) {
+    const known = new Set(
+      nfs.map((n) => normalizeCgccpf(n.commitment?.engagement.service.supplier.cnpj ?? "")).filter(Boolean),
+    );
+    const guiaRead = await extractProofFromBuffer({
+      buffer: guiaBuffer,
+      filename: guiaFile.name,
+      mimeType: guiaFile.type || "application/octet-stream",
+    });
+    payeeCnpj = cnpjsInText(guiaRead.rawText || "").find((c) => !known.has(c)) ?? "";
+  }
+  if (!payeeCnpj && FEDERAL_TAXES.has(taxKind)) {
+    payeeCnpj = RECEITA_FEDERAL.cnpj;
+    payeeName ||= RECEITA_FEDERAL.name;
+  }
+  if (payeeCnpj.length !== 14 && payeeCnpj.length !== 11) {
+    return { error: "Informe o CNPJ de quem recebe o imposto (a prefeitura, no ISS)." };
+  }
+  if (!payeeName) payeeName = payeeCnpj === RECEITA_FEDERAL.cnpj ? RECEITA_FEDERAL.name : "Órgão arrecadador";
+
   const projectCheck = checkProjectCodeInDocument({
     text: proofRead.rawText,
     expectedCode: project.externalCode,
@@ -187,49 +219,55 @@ export async function uploadTaxDocuments(
   await prisma.$transaction(async (tx) => {
     for (const it of items) {
       const nf = nfById.get(it.nfId)!;
-      const amount = cents(it.rubricas.reduce((s, r) => s + r.amount, 0));
-      const allocs = it.rubricas
-        .filter((r) => r.amount > 0)
-        .map((r) => ({ r, a: nf.allocations.find((x) => x.id === r.allocationId)! }));
-      for (const { a } of allocs) commitmentIds.add(a.commitmentId);
-      const files = [guia, proof, ...(perNf.has(it.nfId) ? [perNf.get(it.nfId)!] : [])];
-      for (const s of files) {
-        const doc = await tx.planningDocument.create({
-          data: {
-            kind: "TAX_PROOF",
-            status: "IMPORTED",
-            filename: s.filename,
-            mimeType: s.mimeType,
-            storagePath: s.storagePath,
-            byteSize: s.byteSize,
-            originalByteSize: s.originalByteSize,
-            contentHash: s.contentHash,
-            extractedJson: {
-              taxDocType: s.type,
-              taxKind,
-              taxGroupId,
-              guideTotal: total,
-              guidePayments: items.length,
-              amount,
-              ...(s.type === "COMPROVANTE"
-                ? { proofAmount: proofRead.amount ?? null, paymentDate: proofRead.paymentDate ?? null }
-                : {}),
+      const paymentTax = cents(it.rubricas.reduce((s, r) => s + r.amount, 0));
+      // Cada rubrica é um lançamento próprio no SALIC: guia, nota do imposto
+      // (se houver) e comprovante, no valor do imposto daquela rubrica.
+      for (const r of it.rubricas.filter((x) => x.amount > 0)) {
+        const a = nf.allocations.find((x) => x.id === r.allocationId)!;
+        commitmentIds.add(a.commitmentId);
+        const taxSlot = randomUUID();
+        const files = [guia, proof, ...(perNf.has(it.nfId) ? [perNf.get(it.nfId)!] : [])];
+        for (const s of files) {
+          const doc = await tx.planningDocument.create({
+            data: {
+              kind: "TAX_PROOF",
+              status: "IMPORTED",
+              filename: s.filename,
+              mimeType: s.mimeType,
+              storagePath: s.storagePath,
+              byteSize: s.byteSize,
+              originalByteSize: s.originalByteSize,
+              contentHash: s.contentHash,
+              extractedJson: {
+                taxDocType: s.type,
+                taxKind,
+                taxGroupId,
+                taxSlot,
+                guideTotal: total,
+                guidePayments: items.length,
+                paymentTax,
+                amount: r.amount,
+                payeeCnpj,
+                payeeName,
+                guideNumber,
+                paymentDate: proofRead.paymentDate ?? null,
+                paymentDocumentNumber: proofRead.paymentDocumentNumber ?? null,
+                ...(s.type === "COMPROVANTE" ? { proofAmount: proofRead.amount ?? null } : {}),
+              },
+              grossAmount: r.amount,
+              workspaceId: entitlements.workspaceId,
+              planningProjectId,
+              engagementId: nf.engagementId,
+              commitmentId: a.commitmentId,
+              sourceDocumentId: nf.id,
             },
-            grossAmount: amount,
-            workspaceId: entitlements.workspaceId,
-            planningProjectId,
-            engagementId: nf.engagementId,
-            commitmentId: allocs[0]!.a.commitmentId,
-            sourceDocumentId: nf.id,
-          },
-        });
-        for (const { r, a } of allocs) {
+          });
           await tx.documentRubricAllocation.create({
             data: {
               documentId: doc.id,
               budgetLineId: a.budgetLineId,
               commitmentId: a.commitmentId,
-              sharePct: Math.round((r.amount / amount) * 100 * 10000) / 10000,
+              sharePct: 100,
               amount: r.amount,
               taxesJson: { [taxKind]: r.amount },
             },
@@ -245,6 +283,8 @@ export async function uploadTaxDocuments(
       },
     });
   });
+  // A NF passa a ir ao SALIC pelo líquido: se já estava lá, fica para atualizar.
+  const republish = await markGroupForRepublish([...commitmentIds]);
 
   await logPlanningAction({
     actorUserId: session.id,
@@ -262,15 +302,21 @@ export async function uploadTaxDocuments(
         taxNf: perNf.has(it.nfId),
       })),
       proofAmount: proofRead.amount ?? null,
+      payeeCnpj,
+      republish,
       pronacOverride: pronacGate.overrideReason,
     },
   });
   revalidatePlanning(planningProjectId);
   for (const id of commitmentIds) revalidatePath(`/planejamento/compromissos/${id}`);
   const base = `${label} de ${brl(total)} lançado em ${items.length} ${items.length === 1 ? "pagamento" : "pagamentos"} (${TAX_DOC_TYPES.GUIA.toLowerCase()} e comprovante${perNf.size ? `, ${perNf.size} nota(s) do imposto` : ""}).`;
+  const salicNote =
+    republish > 0
+      ? " Os pagamentos que já estavam no SALIC ficaram para atualizar (a NF passa a ir pelo líquido)."
+      : "";
   return {
     ok: true,
     id: [...commitmentIds][0],
-    message: warnings.length ? `${base} Atenção: ${warnings.join(" ")}` : base,
+    message: warnings.length ? `${base}${salicNote} Atenção: ${warnings.join(" ")}` : `${base}${salicNote}`,
   };
 }
