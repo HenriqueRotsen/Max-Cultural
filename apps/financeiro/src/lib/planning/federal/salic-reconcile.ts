@@ -32,7 +32,8 @@ export async function reconcilePlanningSalicFromExternalIds(
   const docs = await prisma.planningDocument.findMany({
     where: {
       planningProjectId,
-      kind: "PAYMENT_PROOF",
+      // Guias de imposto também são lançamentos no SALIC.
+      kind: { in: ["PAYMENT_PROOF", "TAX_PROOF"] },
       status: "IMPORTED",
       salicComprovanteId: { not: null },
     },
@@ -303,7 +304,8 @@ export async function reconcilePlanningSalicPublishState(
   const docs = await prisma.planningDocument.findMany({
     where: {
       planningProjectId,
-      kind: "PAYMENT_PROOF",
+      // Guias de imposto também são lançamentos no SALIC.
+      kind: { in: ["PAYMENT_PROOF", "TAX_PROOF"] },
       status: "IMPORTED",
       salicComprovanteId: { not: null },
     },

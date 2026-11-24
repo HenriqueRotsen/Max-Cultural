@@ -100,6 +100,11 @@ export async function linkSalicPaymentsToProofs(planningProjectId: string): Prom
       },
     },
   });
+  // Guias de imposto enviadas pelo sistema (lançamentos próprios no SALIC).
+  const taxSent = await prisma.planningDocument.findMany({
+    where: { planningProjectId, kind: "TAX_PROOF", status: "IMPORTED", salicComprovanteId: { not: null } },
+    select: { id: true, salicComprovanteId: true },
+  });
   const alreadyLinked = new Set(
     (
       await prisma.salicPaymentRecord.findMany({
@@ -111,7 +116,13 @@ export async function linkSalicPaymentsToProofs(planningProjectId: string): Prom
 
   let linked = 0;
   for (const record of records) {
-    // 1) Já enviado pelo sistema.
+    // 1) Já enviado pelo sistema (comprovante ou guia de imposto).
+    const tax = taxSent.find((t) => t.salicComprovanteId === record.externalId);
+    if (tax) {
+      await prisma.salicPaymentRecord.update({ where: { id: record.id }, data: { linkedProofId: tax.id } });
+      linked += 1;
+      continue;
+    }
     let proof = proofs.find((p) => p.salicComprovanteId === record.externalId);
     // 2) Lançado no sistema e nunca ligado: mesmo fornecedor, rubrica e valor.
     if (!proof) {

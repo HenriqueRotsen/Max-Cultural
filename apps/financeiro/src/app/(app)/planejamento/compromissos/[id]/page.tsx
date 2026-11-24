@@ -7,14 +7,17 @@ import { EngagementDocsButton } from "@/components/catalog/EngagementDocsButton"
 import { resolveEngagementDocuments } from "@/lib/catalog/engagement-docs";
 import { EditFiscalNumberForm } from "@/components/planning/EditFiscalNumberForm";
 import { ProofUploadForm } from "@/components/planning/ProofUploadForm";
+import { TAX_DOC_TYPES, TAX_KIND_LABELS, isTaxKind, type TaxDocType } from "@/lib/planning/tax-docs";
 import { SupportDocsCard } from "@/components/planning/SupportDocsCard";
+import { SalicUpdateCard } from "@/components/planning/SalicUpdateCard";
+import { pendingSalicPackagesForCommitment } from "@/lib/planning/federal/salic-publish";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import { SupplierEvaluationForm } from "@/components/planning/SupplierEvaluationForm";
 import { getWorkspaceContext } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { resolveFiscalNumberFromExtracted } from "@/lib/nf/fiscal-number";
-import { canDeleteNf, canDeletePaidPayment } from "@/lib/planning/acl";
+import { canDeleteNf, canDeletePaidPayment, canPublishToSalic } from "@/lib/planning/acl";
 import { DeletePaidPaymentButton } from "@/components/planning/DeletePaidPaymentButton";
 import {
   commitmentStatusLabel,
@@ -130,7 +133,71 @@ export default async function CompromissoPage({
   const hasPaymentProof = commitment.documents.some(
     (d) => d.kind === "PAYMENT_PROOF",
   );
-  const hasTaxProof = commitment.documents.some((d) => d.kind === "TAX_PROOF");
+  // Impostos lançados: os do atalho (ligados à NF) e os antigos do lançamento.
+  const taxDocRows = await prisma.planningDocument.findMany({
+    where: {
+      workspaceId: entitlements.workspaceId,
+      kind: "TAX_PROOF",
+      OR: [
+        { commitmentId: commitment.id },
+        ...(sourceDocumentId ? [{ sourceDocumentId }] : []),
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      filename: true,
+      extractedJson: true,
+      grossAmount: true,
+      createdAt: true,
+      commitmentId: true,
+      salicComprovanteId: true,
+      allocations: { where: { commitmentId: commitment.id }, select: { amount: true } },
+    },
+  });
+  const taxDocs = taxDocRows
+    // Guia dividida por rubrica: aqui só a parte desta rubrica.
+    .filter((d) => !(d.extractedJson as { taxSlot?: string } | null)?.taxSlot || d.commitmentId === commitment.id)
+    .map((d) => {
+    const ext = (d.extractedJson ?? {}) as {
+      taxKind?: string;
+      taxDocType?: string;
+      amount?: number | null;
+      guidePayments?: number;
+      guideTotal?: number;
+      taxGroupId?: string;
+    };
+    const kind = ext.taxKind && isTaxKind(ext.taxKind) ? TAX_KIND_LABELS[ext.taxKind] : null;
+    const type =
+      ext.taxDocType && ext.taxDocType in TAX_DOC_TYPES
+        ? TAX_DOC_TYPES[ext.taxDocType as TaxDocType]
+        : "Guia";
+    // Valor desta rubrica (a guia pode dividir o imposto entre rubricas e pagamentos).
+    const amount =
+      ext.taxGroupId && d.allocations.length > 0
+        ? d.allocations.reduce((s, a) => s + Number(a.amount), 0)
+        : d.grossAmount != null
+          ? Number(d.grossAmount)
+          : null;
+    const shared =
+      ext.guidePayments && ext.guidePayments > 1 && ext.taxDocType !== "NF_IMPOSTO"
+        ? `Guia de ${ext.guidePayments} pagamentos${ext.guideTotal ? `, total ${formatCurrency(ext.guideTotal)}` : ""}`
+        : null;
+    return {
+      id: d.id,
+      title: kind ? `${kind} · ${type}` : `${type} · ${d.filename}`,
+      amount,
+      perRubric: Boolean(ext.taxGroupId),
+      salic:
+        ext.taxDocType === "COMPROVANTE" && (d.extractedJson as { taxSlot?: string } | null)?.taxSlot
+          ? d.salicComprovanteId
+            ? "No SALIC"
+            : "Falta enviar ao SALIC"
+          : null,
+      shared,
+      createdAt: d.createdAt,
+    };
+  });
   const nfHasLinkedProof = sourceNf
     ? (await prisma.planningDocument.count({
         where: {
@@ -178,6 +245,13 @@ export default async function CompromissoPage({
   });
 
   const canCancelReservation = await canDeleteNf();
+  // SALIC: o que mudou depois do envio e as guias ainda não lançadas.
+  const salicUpdates = isFederalPlanning(commitment.planningProject.jurisdiction)
+    ? (await pendingSalicPackagesForCommitment(commitment.planningProject.id, commitment.id)).filter(
+        (p) => p.action === "REPUBLISH_MERGED" || p.isTax,
+      )
+    : [];
+  const canPublishSalic = salicUpdates.length > 0 ? await canPublishToSalic() : false;
   const allowDeletePaid =
     commitment.status === "PAID" &&
     !commitment.planningProject.closedAt &&
@@ -457,29 +531,61 @@ export default async function CompromissoPage({
           <h2 className="font-semibold text-[var(--navy)]">
             Comprovante de impostos (guias)
           </h2>
-          {hasTaxProof ? (
-            <p className="text-sm text-emerald-700">Guia(s) anexada(s).</p>
-          ) : sourceNf || commitment.nfPending ? (
-            <ProofUploadForm
-              commitmentId={commitment.id}
-              kind="TAX_PROOF"
-              label="PDF ou imagem da guia/DARF"
-              hint={
-                multiRubric
-                  ? "Também segue o mesmo rateio da NF/RPA."
-                  : commitment.nfPending
-                    ? "Pode anexar antes da NF; será vinculado ao compromisso."
-                    : undefined
-              }
-            />
+          {sourceNf && !commitment.planningProject.closedAt ? (
+            <Link
+              href={`/planejamento/${commitment.planningProject.id}/impostos/novo?nf=${sourceNf.id}`}
+              className="btn btn-ghost w-full justify-center"
+            >
+              Lançar imposto (guia, nota e comprovante)
+            </Link>
+          ) : null}
+          {taxDocs.length > 0 ? (
+            <ul className="divide-y divide-[var(--gray-100)] text-sm">
+              {taxDocs.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-3 py-2">
+                  <span>
+                    <span className="font-medium text-[var(--navy)]">{d.title}</span>
+                    {d.amount != null ? (
+                      <span className="text-[var(--gray-500)]"> · {formatCurrency(d.amount)}{d.perRubric ? " nesta rubrica" : ""}</span>
+                    ) : null}
+                    {d.shared ? <span className="block text-xs text-[var(--gray-500)]">{d.shared}</span> : null}
+                    {d.salic ? (
+                      <span
+                        className={`block text-xs ${d.salic === "No SALIC" ? "text-emerald-700" : "text-amber-800"}`}
+                      >
+                        {d.salic}
+                      </span>
+                    ) : null}
+                    <span className="block text-xs text-[var(--gray-500)]">
+                      Lançado em {formatDate(d.createdAt)}
+                    </span>
+                  </span>
+                  <a
+                    href={`/api/planning/documents/${d.id}`}
+                    target="_blank"
+                    className="shrink-0 text-xs font-semibold text-[var(--navy)] hover:underline"
+                  >
+                    Ver arquivo
+                  </a>
+                </li>
+              ))}
+            </ul>
           ) : (
             <p className="text-sm text-[var(--gray-500)]">
-              Disponível após confirmar a NF/RPA.
+              {sourceNf ? "Nenhum imposto lançado ainda." : "Disponível após confirmar a NF/RPA."}
             </p>
           )}
         </div>
       </div>
 
+      {salicUpdates.length > 0 ? (
+        <SalicUpdateCard
+          planningProjectId={commitment.planningProject.id}
+          commitmentId={commitment.id}
+          items={salicUpdates.map((p) => p.label)}
+          canPublish={canPublishSalic}
+        />
+      ) : null}
       {docErro ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           O pagamento foi registrado, mas o documento de apoio não entrou: {docErro} Anexe de novo

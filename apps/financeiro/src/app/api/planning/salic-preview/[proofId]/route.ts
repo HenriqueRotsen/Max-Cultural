@@ -19,7 +19,8 @@ export async function GET(
       where: {
         id: proofId,
         workspaceId: entitlements.workspaceId,
-        kind: "PAYMENT_PROOF",
+        // Comprovante de pagamento ou de guia de imposto (lançamento próprio).
+        kind: { in: ["PAYMENT_PROOF", "TAX_PROOF"] },
         status: "IMPORTED",
         planningProjectId: { not: null },
       },

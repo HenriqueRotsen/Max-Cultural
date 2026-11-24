@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
 import { canPublishToSalic, canReadequacao } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
+import { revalidatePath } from "next/cache";
 import { isFederalPlanning } from "@/lib/planning/lifecycle";
 import {
   fetchReadequadaLinesFromSalic,
@@ -23,9 +24,11 @@ import {
   buildSalicPublishPackages,
   executeSalicPublishPackage,
   loadSalicPublishDocs,
+  pendingSalicPackagesForCommitment,
   publishSalicPackages,
 } from "@/lib/planning/federal/salic-publish";
 import { assessSalicPublishReadiness } from "@/lib/planning/federal/salic-readiness";
+import { SALIC_DOC_SELECT } from "@/lib/planning/federal/salic-publish-packages";
 import {
   budgetLineIdentityKey,
   expireOpenReadequacaoDrafts,
@@ -288,18 +291,8 @@ export async function startSalicPublishUpload(
       documents: {
         where: { status: "IMPORTED" },
         orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          kind: true,
-          status: true,
-          filename: true,
-          mimeType: true,
-          storagePath: true,
-          sourceDocumentId: true,
-          salicComprovanteId: true,
-          salicPublishMode: true,
-          salicRepublishPending: true,
-        },
+        // Mesmos campos da fila: sem eles, os outros documentos ficavam fora do PDF.
+        select: SALIC_DOC_SELECT,
       },
     },
   });
@@ -537,6 +530,57 @@ export async function publishCommitmentToSalic(
     message: result.errors.length
       ? `Enviado com avisos: ${result.errors.join(" · ")}`
       : "Comprovante enviado ao SALIC.",
+  };
+}
+
+/**
+ * "Atualizar no SALIC" do pagamento: apaga no SALIC o que mudou e lança de novo
+ * com os documentos atuais, e lança as guias de imposto ainda não enviadas.
+ */
+export async function updateCommitmentInSalic(
+  planningProjectId: string,
+  commitmentId: string,
+): Promise<ActionState> {
+  const session = await requireUser();
+  if (!(await canPublishToSalic())) {
+    return { error: "Sem permissão para enviar ao SALIC." };
+  }
+  const { entitlements } = await getWorkspaceContext();
+  const project = await prisma.planningProject.findFirst({
+    where: { id: planningProjectId, workspaceId: entitlements.workspaceId },
+    select: { id: true, externalCode: true, jurisdiction: true },
+  });
+  if (!project) return { error: "Projeto não encontrado." };
+  if (!isFederalPlanning(project.jurisdiction)) return federalSalicOnlyError();
+  const owns = await prisma.rubricCommitment.count({
+    where: { id: commitmentId, planningProjectId, workspaceId: entitlements.workspaceId },
+  });
+  if (!owns) return { error: "Pagamento não encontrado." };
+
+  const packages = await pendingSalicPackagesForCommitment(project.id, commitmentId);
+  if (packages.length === 0) return { ok: true, message: "Nada a atualizar: o SALIC já está em dia." };
+  const result = await publishSalicPackages({
+    planningProjectId: project.id,
+    externalCode: project.externalCode,
+    proofIds: packages.map((p) => p.proofId),
+  });
+  await logPlanningAction({
+    actorUserId: session.id,
+    action: "planning.salic_updated",
+    entityType: "RubricCommitment",
+    entityId: commitmentId,
+    meta: { planningProjectId, packages: packages.map((p) => p.label), published: result.published, errors: result.errors },
+  });
+  revalidatePlanning(project.id);
+  revalidatePath(`/planejamento/compromissos/${commitmentId}`);
+  if (result.published === 0) {
+    return { error: result.errors[0] || "Não foi possível atualizar no SALIC." };
+  }
+  return {
+    ok: true,
+    message: result.errors.length
+      ? `${result.published} atualizado(s); falhas: ${result.errors.join(" · ")}`
+      : `SALIC atualizado (${result.published} ${result.published === 1 ? "lançamento" : "lançamentos"}).`,
   };
 }
 

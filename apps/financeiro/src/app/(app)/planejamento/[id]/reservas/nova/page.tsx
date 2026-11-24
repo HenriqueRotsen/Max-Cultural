@@ -43,10 +43,19 @@ const TYPES: ReservationType[] = [
   {
     key: "COMPROVANTE",
     title: "Comprovante (já pago, sem NF)",
-    when: "O pagamento já foi feito e a nota ainda não chegou.",
+    when: "O pagamento já foi feito e a nota, ou as notas, ainda não chegaram.",
     needs: "Comprovante do pagamento, valor, fornecedor e rubrica.",
-    after: () => "Entra como pago, com NF pendente. Depois: NF/RPA (ou fatura, recibo ou apólice).",
+    after: () =>
+      "Vira um crédito. Cada nota que chegar usa uma parte (Anexar NF/RPA); o resto fica em Créditos.",
     href: (id) => `/planejamento/${id}/pagamento-antecipado`,
+  },
+  {
+    key: "IMPOSTO",
+    title: "Imposto",
+    when: "Pagou o imposto retido de um pagamento (ISS, INSS, IRRF…).",
+    needs: "Guia, nota fiscal do imposto e comprovante do pagamento do imposto.",
+    after: () => "Não reserva valor: os documentos ficam no pagamento escolhido.",
+    href: (id) => `/planejamento/${id}/impostos/novo`,
   },
   {
     key: "BOLETO",

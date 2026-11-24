@@ -234,7 +234,7 @@ export default async function RevisarNfPage({
             { status: "RESERVED", pedidoId: null, allocations: { none: {} } },
           ],
         },
-        select: { id: true, amount: true, budgetLineId: true },
+        select: { id: true, amount: true, budgetLineId: true, hasBond: true },
       })
     : null;
 
@@ -249,7 +249,7 @@ export default async function RevisarNfPage({
         include: {
           commitments: {
             where: { status: "RESERVED" },
-            select: { budgetLineId: true, amount: true },
+            select: { budgetLineId: true, amount: true, hasBond: true },
             orderBy: { installmentNumber: "asc" },
           },
         },
@@ -394,6 +394,9 @@ export default async function RevisarNfPage({
         suggestionReasons={suggestion?.reasons || []}
         attachCommitmentId={attachCommitment?.id ?? null}
         attachPedidoId={attachPedido?.id ?? null}
+        initialHasBond={
+          attachCommitment?.hasBond ?? attachPedido?.commitments.some((c) => c.hasBond) ?? false
+        }
         attachAmount={attachTotalAmount}
         initialAllocations={
           attachProofAllocations ?? attachPedidoAllocations

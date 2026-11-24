@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { normalizeCgccpf } from "@/lib/format";
 import { checkProjectCaps, projectCapsOf } from "@/lib/planning/project-caps";
 import { agencyFactor, loadAgencyMap } from "@/lib/catalog/supplier-agency";
+import { taxTotalOf } from "@/lib/nf/extract";
 
 /**
  * Trava dos limites do projeto (fornecedor e vínculo com o proponente) para um
@@ -51,17 +52,24 @@ export async function checkProjectCapsForPayment(params: {
     },
     select: {
       price: true,
-      commitment: { select: { hasBond: true, isReimbursement: true } },
+      commitment: { select: { id: true, hasBond: true, isReimbursement: true } },
       service: { select: { supplier: { select: { cnpj: true } } } },
     },
   });
+
+  // Imposto retido na NF não entra nos limites: vai para a prefeitura ou a
+  // Receita por guia. Conta só o líquido de cada lançamento.
+  const retained = await retainedTaxByCommitment(
+    engagements.map((e) => e.commitment?.id).filter((x): x is string => Boolean(x)),
+  );
 
   const isProponent = Boolean(accountDoc) && supplierDoc === accountDoc;
   let supplierTotalBefore = 0;
   let bondGroupTotalBefore = 0;
   for (const e of engagements) {
     const doc = normalizeCgccpf(e.service.supplier.cnpj);
-    const counted = Number(e.price) * agencyFactor(agencies, doc);
+    const net = Math.max(0, Number(e.price) - (e.commitment ? (retained.get(e.commitment.id) ?? 0) : 0));
+    const counted = net * agencyFactor(agencies, doc);
     if (doc === supplierDoc) supplierTotalBefore += counted;
     // Reembolso não entra na soma do vínculo (mesma regra da Auditoria).
     if (e.commitment?.isReimbursement) continue;
@@ -89,6 +97,24 @@ export async function checkProjectCapsForPayment(params: {
     supplierName: params.supplierName,
     isReimbursement: params.isReimbursement,
   });
+}
+
+/** Imposto retido nas NF/RPA de cada lançamento (rateio da nota). */
+async function retainedTaxByCommitment(commitmentIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (commitmentIds.length === 0) return out;
+  const rows = await prisma.documentRubricAllocation.findMany({
+    where: {
+      commitmentId: { in: commitmentIds },
+      document: { kind: { in: ["NF", "RPA"] }, status: "IMPORTED" },
+    },
+    select: { commitmentId: true, taxesJson: true },
+  });
+  for (const r of rows) {
+    const t = taxTotalOf((r.taxesJson ?? null) as Parameters<typeof taxTotalOf>[0]);
+    if (t > 0) out.set(r.commitmentId, (out.get(r.commitmentId) ?? 0) + t);
+  }
+  return out;
 }
 
 /**

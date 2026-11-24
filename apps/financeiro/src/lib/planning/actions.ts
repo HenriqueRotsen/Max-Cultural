@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getWorkspaceContext, requireUser } from "@/lib/auth/session";
-import { formatCgccpf, normalizeCgccpf, parseBrMoney } from "@/lib/format";
+import { formatCgccpf, formatCurrency, normalizeCgccpf, parseBrMoney } from "@/lib/format";
 import { canDeleteNf, canEditRubricas, canExceedRubric, canReadequacao } from "@/lib/planning/acl";
 import { logPlanningAction } from "@/lib/activity-audit";
 import { enforcePronacMatch, pronacMismatchOf } from "@/lib/planning/pronac-override";
@@ -42,11 +42,7 @@ import {
   persistPlanningUpload,
 } from "@/lib/nf/persist-upload";
 import { findOrCreateCatalogServiceForRubric } from "@/lib/catalog/service-from-rubric";
-import {
-  buildSalicPublishPackages,
-  executeSalicPublishPackage,
-  markSalicRepublishAfterNfAttach,
-} from "@/lib/planning/federal/salic-publish";
+import { markSalicRepublishAfterNfAttach } from "@/lib/planning/federal/salic-publish";
 import {
   extractPaymentDetails,
   mergePaymentDetails,
@@ -550,13 +546,27 @@ export async function updateImportedFiscalNumber(
     },
   });
 
+  // O número vai no lançamento do SALIC: se o pagamento já estava lá, atualizar.
+  const { markGroupForRepublish, paymentGroupIds } = await import("@/lib/planning/support-attach");
+  const nfCommitments = await prisma.documentRubricAllocation.findMany({
+    where: { documentId: doc.id },
+    select: { commitmentId: true },
+  });
+  const groupIds = new Set<string>(doc.commitmentId ? [doc.commitmentId] : []);
+  for (const c of nfCommitments) for (const id of await paymentGroupIds(c.commitmentId)) groupIds.add(id);
+  const republish = groupIds.size ? await markGroupForRepublish([...groupIds]) : 0;
+
   if (doc.planningProjectId) {
     revalidatePlanning(doc.planningProjectId);
     revalidatePath(`/planejamento/${doc.planningProjectId}/reservas`);
   }
   revalidatePath("/planejamento");
+  for (const id of groupIds) revalidatePath(`/planejamento/compromissos/${id}`);
 
-  return { ok: true, message: "Número atualizado." };
+  return {
+    ok: true,
+    message: republish > 0 ? "Número atualizado. O pagamento já estava no SALIC: use Atualizar no SALIC." : "Número atualizado.",
+  };
 }
 
 async function attachNfToPendingCommitment(params: {
@@ -689,6 +699,46 @@ async function attachNfToPendingCommitment(params: {
     (a) => a.commitment.nfPending && a.commitment.status === "PAID",
   );
 
+  // Pagamento sem nota = crédito: a nota pode usar só parte dele. O que sobra
+  // continua no pagamento para as próximas notas.
+  if (proof && proofSlices.length > 0) {
+    const creditLeft =
+      Math.round(proofSlices.reduce((s, a) => s + Number(a.amount), 0) * 100) / 100;
+    if (grossAmount > creditLeft + 0.02) {
+      return {
+        error: `A nota (${formatCurrency(grossAmount)}) é maior que o crédito que sobra deste pagamento (${formatCurrency(creditLeft)}).`,
+      };
+    }
+    if (grossAmount < creditLeft - 0.02) {
+      const { attachNfToCreditPartially } = await import("@/lib/planning/credit-attach");
+      const partial = await attachNfToCreditPartially({
+        userId: session.id,
+        workspaceId: entitlements.workspaceId,
+        planningProjectId: commitment.planningProjectId,
+        documentId,
+        docExtractedJson: doc.extractedJson,
+        proofId: proof.id,
+        slices: proofSlices.map((a) => ({
+          allocationId: a.id,
+          budgetLineId: a.budgetLineId,
+          commitmentId: a.commitmentId,
+          amount: Number(a.amount),
+        })),
+        formAllocations,
+        hasBond,
+        isReimbursement,
+        supplierName,
+        cnpj,
+        grossAmount,
+        taxesFromForm,
+        fiscalNumber,
+      });
+      if (partial.error) return { error: partial.error };
+      revalidatePlanning(commitment.planningProjectId);
+      redirect(`/planejamento/compromissos/${partial.useCommitmentId}`);
+    }
+  }
+
   type AttachSlice = {
     budgetLineId: string;
     sharePct: number;
@@ -790,7 +840,8 @@ async function attachNfToPendingCommitment(params: {
     existing: siblings,
     hasBond,
     isReimbursement,
-    amount: grossAmount,
+    // Limites contam o líquido: o imposto retido vai por guia.
+    amount: grossAmount - taxTotal,
     cnpj,
     supplierName,
   });
@@ -890,49 +941,9 @@ async function attachNfToPendingCommitment(params: {
     throw err;
   }
 
-  if (proof) {
-    const needsRepublish = await markSalicRepublishAfterNfAttach(proof.id);
-    if (needsRepublish && commitment.planningProjectId) {
-      const project = await prisma.planningProject.findUnique({
-        where: { id: commitment.planningProjectId },
-        select: { externalCode: true, jurisdiction: true },
-      });
-      if (project && isFederalPlanning(project.jurisdiction)) {
-        const refreshed = await prisma.planningDocument.findMany({
-          where: {
-            planningProjectId: commitment.planningProjectId,
-            status: "IMPORTED",
-          },
-          select: {
-            id: true,
-            kind: true,
-            status: true,
-            filename: true,
-            mimeType: true,
-            storagePath: true,
-            sourceDocumentId: true,
-            salicComprovanteId: true,
-            salicPublishMode: true,
-            salicRepublishPending: true,
-          },
-        });
-        const pkg = buildSalicPublishPackages(refreshed).find(
-          (p) => p.proofId === proof.id && p.action === "REPUBLISH_MERGED",
-        );
-        if (pkg) {
-          try {
-            await executeSalicPublishPackage({
-              planningProjectId: commitment.planningProjectId,
-              externalCode: project.externalCode,
-              pkg,
-            });
-          } catch {
-            // Mantém salicRepublishPending para retry manual via painel SALIC.
-          }
-        }
-      }
-    }
-  }
+  // Já estava no SALIC (só comprovante ou com outros documentos): o PDF muda
+  // com a NF. Fica marcado e o pagamento mostra "Atualizar no SALIC".
+  if (proof) await markSalicRepublishAfterNfAttach(proof.id);
 
   revalidatePlanning(commitment.planningProjectId!);
   redirect(`/planejamento/compromissos/${commitment.id}`);
@@ -1221,7 +1232,8 @@ export async function confirmNfReservation(
     project,
     projectTotal:
       valorCaptado > 0 ? valorCaptado : Number(project.sheet.totalApproved),
-    amount: grossAmount,
+    // Limites contam o líquido: o imposto retido vai por guia.
+    amount: grossAmount - taxTotalOf(taxesFromForm),
     cnpj,
     supplierName,
     hasBond,
@@ -1894,10 +1906,17 @@ export async function uploadPaymentProof(
     siblingAllocs.reduce((s, a) => s + Number(a.amount), 0) ||
     Number(sourceNf.grossAmount ?? commitment.amount);
 
+  // Imposto retido na nota: o fornecedor recebe o líquido (o imposto vai por guia).
+  const retainedOnPayment = siblingAllocs.reduce(
+    (s, a) => s + taxTotalOf(((a as { taxesJson?: unknown }).taxesJson ?? null) as Parameters<typeof taxTotalOf>[0]),
+    0,
+  );
+
   if (kind === "PAYMENT_PROOF") {
     const amountReview = reviewPaymentAmount({
       extractedAmount: proofExtracted.amount,
       expectedAmount: expectedPaymentAmount,
+      retainedTax: retainedOnPayment,
       typedAmount: parseTypedAmount(formData.get("typedAmount")),
       hasFine: formData.get("hasFine") === "on",
       expectedLabel: pedidoNf ? "da parcela" : undefined,
