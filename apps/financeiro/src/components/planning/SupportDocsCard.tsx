@@ -1,11 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { SearchSelect } from "@max/ui";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { PronacOverrideField } from "@/components/planning/PronacOverrideField";
 import { attachSupportDocument, removeSupportDocument } from "@/lib/planning/support-actions";
-import { NF_SUBSTITUTES, SUPPORT_LABEL, SUPPORT_TYPES, type SupportType } from "@/lib/planning/support-docs";
+import { SUPPORT_LABEL, type SupportType } from "@/lib/planning/support-docs";
 import type { ActionState } from "@/lib/planning/action-state";
 
 type SupportDoc = { id: string; supportType: string | null; filename: string; note: string | null };
@@ -13,8 +12,8 @@ type SupportDoc = { id: string; supportType: string | null; filename: string; no
 const initial: ActionState = {};
 
 /**
- * Outros documentos do lançamento: boleto, fatura, recibo, contrato, apólice
- * ou orçamento. Podem chegar em etapas (ex.: boleto e comprovante antes, a
+ * Outros documentos do lançamento: qualquer arquivo do pagamento (notas que
+ * compõem o valor, boleto, contrato…), sem escolher tipo; um ou vários. Podem chegar em etapas (ex.: boleto e comprovante antes, a
  * apólice depois); todos entram no PDF enviado ao SALIC.
  */
 export function SupportDocsCard({
@@ -37,10 +36,8 @@ export function SupportDocsCard({
     attachSupportDocument.bind(null, commitmentId),
     initial,
   );
-  const [type, setType] = useState<SupportType | "">("");
   const [removing, startRemove] = useTransition();
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
-  const canReplaceNf = type !== "" && (NF_SUBSTITUTES as readonly string[]).includes(type);
 
   useEffect(() => {
     if (state.ok) router.refresh();
@@ -51,7 +48,8 @@ export function SupportDocsCard({
       <div>
         <h2 className="font-semibold text-[var(--navy)]">Outros documentos</h2>
         <p className="text-xs text-[var(--gray-500)]">
-          Boleto, fatura, recibo, contrato, apólice ou orçamento. Podem chegar em etapas
+          Qualquer documento do pagamento: notas que compõem o valor, boleto, fatura, recibo,
+          contrato, apólice, orçamento… Um ou vários de uma vez, e podem chegar em etapas
           {salic ? "; todos entram no PDF enviado ao SALIC." : "."}
         </p>
       </div>
@@ -61,10 +59,16 @@ export function SupportDocsCard({
           {docs.map((d) => (
             <li key={d.id} className="flex flex-wrap items-start justify-between gap-2 py-2">
               <div className="min-w-0">
-                <p className="font-medium text-[var(--navy)]">
-                  {SUPPORT_LABEL[d.supportType as SupportType] ?? "Documento"}
-                </p>
-                <p className="truncate text-xs text-[var(--gray-500)]">{d.filename}</p>
+                <a
+                  href={`/api/planning/documents/${d.id}`}
+                  target="_blank"
+                  className="block truncate font-medium text-[var(--navy)] hover:underline"
+                >
+                  {d.filename}
+                </a>
+                {SUPPORT_LABEL[d.supportType as SupportType] ? (
+                  <p className="text-xs text-[var(--gray-500)]">{SUPPORT_LABEL[d.supportType as SupportType]}</p>
+                ) : null}
                 {d.note ? <p className="text-xs text-amber-800">{d.note}</p> : null}
               </div>
               {canRemove && !locked ? (
@@ -106,39 +110,18 @@ export function SupportDocsCard({
             </p>
           ) : null}
           <label className="field">
-            <span>Tipo</span>
-            <SearchSelect
-              name="supportType"
-              required
-              value={type}
-              onValueChange={(v) => setType(v as SupportType | "")}
-              options={SUPPORT_TYPES.map((t) => ({ value: t, label: SUPPORT_LABEL[t] }))}
-              placeholder="Escolha…"
-              searchPlaceholder="Buscar tipo…"
-              emptyText="Nenhum tipo encontrado."
-            />
+            <span>Arquivos (PDF ou imagem, um ou vários)</span>
+            <input name="supportFile" type="file" accept=".pdf,image/*" multiple required />
           </label>
-          <label className="field">
-            <span>Arquivo (PDF ou imagem)</span>
-            <input name="supportFile" type="file" accept=".pdf,image/*" required />
-          </label>
-          {canReplaceNf ? (
-            <label key={type} className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="replacesNf"
-                defaultChecked={type !== "CONTRATO"}
-                className="mt-0.5"
-              />
-              <span>
-                Faz o papel da NF/RPA
-                <span className="block text-xs text-[var(--gray-500)]">
-                  Marque se não vai chegar nota fiscal (ex.: seguro com apólice). Deixe desmarcado se a
-                  NF ainda vem.
-                </span>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="replacesNf" className="mt-0.5" />
+            <span>
+              Faz o papel da NF/RPA
+              <span className="block text-xs text-[var(--gray-500)]">
+                Marque só se não vai chegar nota fiscal (ex.: seguro com apólice, recibo, fatura).
               </span>
-            </label>
-          ) : null}
+            </span>
+          </label>
           <button type="submit" className="btn btn-ghost" disabled={pending}>
             {pending ? "Anexando…" : "Anexar documento"}
           </button>

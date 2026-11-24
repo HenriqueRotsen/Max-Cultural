@@ -14,7 +14,8 @@ import {
 import type { ActionState } from "@/lib/planning/action-state";
 
 /**
- * Anexa um documento de apoio ao lançamento (ver attachSupportDocumentCore).
+ * Anexa um ou vários documentos ao lançamento (ver attachSupportDocumentCore).
+ * Para no primeiro que der erro e diz quais já entraram.
  */
 export async function attachSupportDocument(
   commitmentId: string,
@@ -23,12 +24,24 @@ export async function attachSupportDocument(
 ): Promise<ActionState> {
   const session = await requireUser();
   const { entitlements } = await getWorkspaceContext();
-  return attachSupportDocumentCore({
-    userId: session.id,
-    workspaceId: entitlements.workspaceId,
-    commitmentId,
-    formData,
-  });
+  const files = formData.getAll("supportFile").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) return { error: "Selecione o arquivo." };
+  const messages: string[] = [];
+  for (const file of files) {
+    const r = await attachSupportDocumentCore({
+      userId: session.id,
+      workspaceId: entitlements.workspaceId,
+      commitmentId,
+      formData,
+      file,
+    });
+    if (r.error) {
+      const done = messages.length ? ` Já entraram: ${messages.length} de ${files.length}.` : "";
+      return { ...r, error: `${file.name}: ${r.error}${done}` };
+    }
+    if (r.message) messages.push(r.message);
+  }
+  return { ok: true, message: messages.join(" ") };
 }
 
 /** Tira um documento de apoio do lançamento (mesma permissão de excluir NF/RPA). */

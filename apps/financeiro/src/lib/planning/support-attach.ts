@@ -23,6 +23,7 @@ import {
   readBoletoLine,
   replacesNf,
   supportNumberFromText,
+  type SupportType,
 } from "@/lib/planning/support-docs";
 import type { ActionState } from "@/lib/planning/action-state";
 
@@ -71,13 +72,18 @@ export async function attachSupportDocumentCore(params: {
   workspaceId: string;
   commitmentId: string;
   formData: FormData;
+  /** Arquivo a anexar (senão, o campo "supportFile" do formulário). */
+  file?: File;
 }): Promise<ActionState> {
   const { commitmentId, formData } = params;
   const session = { id: params.userId };
   const entitlements = { workspaceId: params.workspaceId };
-  const type = String(formData.get("supportType") || "");
-  if (!isSupportType(type)) return { error: "Escolha o tipo do documento." };
-  const file = formData.get("supportFile");
+  // Tipo é opcional: sem tipo, é só "Outros documentos" (o boleto se reconhece
+  // sozinho pela linha digitável).
+  const rawType = String(formData.get("supportType") || "");
+  if (rawType && !isSupportType(rawType)) return { error: "Tipo de documento inválido." };
+  let type: SupportType | null = isSupportType(rawType) ? rawType : null;
+  const file = params.file ?? formData.get("supportFile");
   if (!(file instanceof File) || file.size === 0) return { error: "Selecione o arquivo." };
 
   const commitment = await prisma.rubricCommitment.findFirst({
@@ -96,7 +102,8 @@ export async function attachSupportDocumentCore(params: {
 
   const extracted = await extractProofFromBuffer({ buffer, filename: file.name, mimeType });
   const text = extracted.rawText || "";
-  const boleto = type === "BOLETO" ? readBoletoLine(text) : null;
+  const boleto = type === "BOLETO" || type === null ? readBoletoLine(text) : null;
+  if (boleto && type === null) type = "BOLETO";
   // Mesmo boleto (mesma linha digitável) não entra em dois lançamentos.
   if (boleto?.line) {
     const repeated = await prisma.planningDocument.findFirst({
@@ -125,7 +132,7 @@ export async function attachSupportDocumentCore(params: {
   if (!pronacGate.ok) return { error: pronacGate.error, pronacOverride: pronacGate.pronacOverride };
 
   // Fatura, recibo, apólice ou contrato podem fazer o papel da NF/RPA.
-  const substitutesNf = replacesNf(type) && formData.get("replacesNf") === "on";
+  const substitutesNf = (type === null || replacesNf(type)) && formData.get("replacesNf") === "on";
   const warnings: string[] = [];
   const supplierDoc = normalizeCgccpf(supplier.cnpj);
   const cnpjs = cnpjsInText(text);
@@ -178,7 +185,7 @@ export async function attachSupportDocumentCore(params: {
       contentHash: stored.contentHash,
       grossAmount: amount,
       extractedJson: {
-        documentNumber: supportNumberFromText(type, text),
+        documentNumber: type ? supportNumberFromText(type, text) : null,
         boletoDueDate: boleto?.dueDate ?? null,
         boletoLine: boleto?.line ?? null,
         cnpjs,
@@ -229,7 +236,7 @@ export async function attachSupportDocumentCore(params: {
   });
   revalidatePlanning(commitment.planningProjectId);
   revalidatePath(`/planejamento/compromissos/${commitment.id}`);
-  const parts = [`${SUPPORT_LABEL[type]} anexado.${dueMsg}${nfMsg}`];
+  const parts = [`${type ? SUPPORT_LABEL[type] : "Documento"} anexado (${file.name}).${dueMsg}${nfMsg}`];
   if (republish > 0) parts.push("O pagamento já estava no SALIC: reenvie em Reservas para o PDF incluir este documento.");
   if (warnings.length) parts.push(`Atenção: ${warnings.join(" ")}`);
   return { ok: true, message: parts.join(" ") };
