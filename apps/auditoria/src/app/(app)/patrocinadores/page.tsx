@@ -9,6 +9,8 @@ import { loadSponsorSyncStates, needsSponsorRefresh } from "@/lib/salic/sponsors
 import { SponsorSyncButton } from "@/components/SponsorSyncButton";
 import { ProponentSponsorsView } from "@/components/sponsors/ProponentSponsorsView";
 import { buildProponentAnalysis, conflictKey } from "@/lib/sponsors-by-proponent";
+import { SponsorGroupView } from "@/components/sponsors/SponsorGroupView";
+import { buildSponsorGroup, sponsorOptions, type GroupSponsorshipRow } from "@/lib/sponsor-group";
 
 export const dynamic = "force-dynamic";
 /** O botão "Buscar agora" roda aqui (até ~4 min). */
@@ -25,7 +27,11 @@ const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCa
 export default async function PatrocinadoresPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 120) : "";
-  const aba = sp.aba === "proponente" ? "proponente" : "patrocinador";
+  const aba = sp.aba === "proponente" ? "proponente" : sp.aba === "grupo" ? "grupo" : "patrocinador";
+  const groupKeys = (Array.isArray(sp.s) ? sp.s : typeof sp.s === "string" ? [sp.s] : [])
+    .map((k) => k.trim().slice(0, 200))
+    .filter(Boolean)
+    .slice(0, 200);
   const selectedProponent = typeof sp.proponente === "string" ? sp.proponente : null;
   const { entitlements } = await getWorkspaceContext();
   const hidden = await hiddenProjectIds();
@@ -149,6 +155,25 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
   const conflictCount = sponsors.filter((s) => s.conflict).length;
 
   const accountsById = new Map(scopedProjects.map((p) => [p.salicAccount.id, p.salicAccount]));
+  const accountByProject = new Map(scopedProjects.map((p) => [p.id, p.salicAccount]));
+  const groupRows: GroupSponsorshipRow[] =
+    aba === "grupo"
+      ? rows.map((r) => ({
+          cgccpf: r.cgccpf,
+          name: r.name,
+          amount: Number(r.amount),
+          receivedAt: r.receivedAt,
+          projectId: r.projectId,
+          pronac: r.project.pronac,
+          projectName: r.project.name,
+          accountId: accountByProject.get(r.projectId)?.id ?? "",
+          accountName: accountByProject.get(r.projectId)?.name ?? "",
+        }))
+      : [];
+  const group =
+    aba === "grupo" && groupKeys.length
+      ? buildSponsorGroup({ rows: groupRows, keys: groupKeys, conflicts: conflictPairs })
+      : null;
   let proponents = buildProponentAnalysis({
     accounts: [...accountsById.values()],
     projects: scopedProjects.map((p) => ({
@@ -245,9 +270,14 @@ export default async function PatrocinadoresPage({ searchParams }: { searchParam
         <Link href="/patrocinadores?aba=proponente" aria-current={aba === "proponente" ? "page" : undefined}>
           Por proponente ({accountsById.size})
         </Link>
+        <Link href="/patrocinadores?aba=grupo" aria-current={aba === "grupo" ? "page" : undefined}>
+          Grupo empresarial
+        </Link>
       </nav>
 
-      {aba === "proponente" ? (
+      {aba === "grupo" ? (
+        <SponsorGroupView options={sponsorOptions(groupRows)} selected={groupKeys} group={group} />
+      ) : aba === "proponente" ? (
         <ProponentSponsorsView proponents={proponents} selectedId={selectedProponent} q={q} />
       ) : (
         <section className="card overflow-hidden">
